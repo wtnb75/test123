@@ -7,7 +7,6 @@ import type { Position, Stage } from '../core/types';
 const CELL_SIZE = 30;
 const BOARD_ORIGIN_X = 20;
 const BOARD_ORIGIN_Y = 80;
-const EDGE_MARKER_OFFSET = 12;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
@@ -130,8 +129,8 @@ export class Game extends Scene
             }
         }
 
-        this.drawEdgeMarker(this.stageData.start, 'START', '#7bed9f');
-        this.drawEdgeMarker(this.stageData.goal, 'GOAL', '#ffa502');
+        this.drawEdgeMarker(this.stageData.start, 0x7bed9f);
+        this.drawEdgeMarker(this.stageData.goal, 0xffa502);
         this.drawMarker(this.stageData.player, '@', '#ffffff', -9, -8, 12);
 
         const boardWidth = this.stageData.width * CELL_SIZE + BOARD_ORIGIN_X * 2;
@@ -158,42 +157,34 @@ export class Game extends Scene
         this.boardLayer?.add(text);
     }
 
-    private drawEdgeMarker (pos: Position, label: string, color: string): void
+    private drawEdgeMarker (pos: Position, color: number): void
     {
-        const cellCenterX = BOARD_ORIGIN_X + pos.x * CELL_SIZE + CELL_SIZE / 2;
-        const cellCenterY = BOARD_ORIGIN_Y + pos.y * CELL_SIZE + CELL_SIZE / 2;
-        let text: string;
-        let px = cellCenterX;
-        let py = cellCenterY;
-        let originX = 0.5;
-        let originY = 0.5;
+        let px = BOARD_ORIGIN_X + pos.x * CELL_SIZE;
+        let py = BOARD_ORIGIN_Y + pos.y * CELL_SIZE;
+        let markerWidth: number;
+        let markerHeight: number;
 
         if (pos.y === 0) {
-            text = `${label} v`;
-            py = BOARD_ORIGIN_Y - EDGE_MARKER_OFFSET;
-            originY = 1;
+            markerWidth = CELL_SIZE - 2;
+            markerHeight = Math.max(8, Math.floor(CELL_SIZE * 0.35));
+            py = BOARD_ORIGIN_Y - markerHeight;
         } else if (pos.y === this.stageData.height - 1) {
-            text = `^ ${label}`;
-            py = BOARD_ORIGIN_Y + this.stageData.height * CELL_SIZE + EDGE_MARKER_OFFSET;
-            originY = 0;
+            markerWidth = CELL_SIZE - 2;
+            markerHeight = Math.max(8, Math.floor(CELL_SIZE * 0.35));
+            py = BOARD_ORIGIN_Y + this.stageData.height * CELL_SIZE;
         } else if (pos.x === 0) {
-            text = `${label} >`;
-            px = BOARD_ORIGIN_X - EDGE_MARKER_OFFSET;
-            originX = 1;
+            markerWidth = Math.max(8, Math.floor(CELL_SIZE * 0.35));
+            markerHeight = CELL_SIZE - 2;
+            px = BOARD_ORIGIN_X - markerWidth;
         } else {
-            text = `< ${label}`;
-            px = BOARD_ORIGIN_X + this.stageData.width * CELL_SIZE + EDGE_MARKER_OFFSET;
-            originX = 0;
+            markerWidth = Math.max(8, Math.floor(CELL_SIZE * 0.35));
+            markerHeight = CELL_SIZE - 2;
+            px = BOARD_ORIGIN_X + this.stageData.width * CELL_SIZE;
         }
 
-        const marker = this.add.text(px, py, text, {
-            fontFamily: 'monospace',
-            fontSize: 14,
-            fontStyle: 'bold',
-            color,
-            backgroundColor: '#0b1220',
-            padding: { left: 4, right: 4, top: 2, bottom: 2 }
-        }).setOrigin(originX, originY);
+        const marker = this.add.rectangle(px, py, markerWidth, markerHeight, color)
+            .setOrigin(0)
+            .setStrokeStyle(2, 0xf1f2f6);
 
         this.boardLayer?.add(marker);
     }

@@ -164,4 +164,21 @@ describe('rules', () => {
     expect(out.stage.cells[indexOf(out.stage, { x: 1, y: 2 })].revealed).toBe(true);
     expect(out.stage.cells[indexOf(out.stage, { x: 2, y: 2 })].revealed).toBe(true);
   });
+
+  it('does not clear stage when goal is revealed by chord without movement', () => {
+    const stage = createStage();
+    stage.cells[indexOf(stage, { x: 1, y: 1 })].hasBomb = true;
+    computeHints(stage);
+
+    let cur = toggleFlag(stage, { x: 1, y: 1 });
+    cur.player = { x: 1, y: 1 };
+    cur.goal = { x: 2, y: 2 };
+    cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;
+
+    const out = chordAtPlayer(cur);
+
+    expect(out.stage.cells[indexOf(out.stage, { x: 2, y: 2 })].revealed).toBe(true);
+    expect(out.result.status).toBe('alive');
+    expect(out.stage.player).toEqual(cur.player);
+  });
 });

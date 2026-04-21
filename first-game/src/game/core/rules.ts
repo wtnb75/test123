@@ -19,10 +19,6 @@ const revealCellWithoutMoving = (stage: Stage, pos: Position): MoveResult | null
     revealZeros(stage, pos);
   }
 
-  if (eqPos(pos, stage.goal)) {
-    return { status: 'goal' };
-  }
-
   return null;
 };
 
