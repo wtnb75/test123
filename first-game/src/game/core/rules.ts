@@ -65,6 +65,38 @@ const collectGuaranteedSafeNeighbors = (stage: Stage, center: Position): Positio
   return [...safe.values()];
 };
 
+const revealGuaranteedSafeAroundFlag = (stage: Stage, center: Position): MoveResult | null => {
+  let openedAny = false;
+
+  while (true) {
+    const guaranteedSafe = collectGuaranteedSafeNeighbors(stage, center);
+    let openedThisPass = false;
+
+    for (const pos of guaranteedSafe) {
+      const revealResult = revealCellWithoutMoving(stage, pos);
+      if (revealResult) {
+        return revealResult;
+      }
+
+      const cell = stage.cells[indexOf(stage, pos)];
+      if (cell.revealed) {
+        openedThisPass = true;
+        openedAny = true;
+      }
+    }
+
+    if (!openedThisPass) {
+      break;
+    }
+  }
+
+  if (!openedAny) {
+    return { status: 'alive', message: 'not-enough-info' };
+  }
+
+  return { status: 'alive', message: 'auto-opened' };
+};
+
 export const toggleFlag = (stage: Stage, pos: Position): Stage => {
   if (!inBounds(stage, pos)) {
     return stage;
@@ -126,20 +158,9 @@ export const chordAtPlayer = (stage: Stage): { stage: Stage; result: MoveResult 
 
   if (centerCell.flagged) {
     const next = cloneStage(stage);
-    const guaranteedSafe = collectGuaranteedSafeNeighbors(next, center);
+    const revealResult = revealGuaranteedSafeAroundFlag(next, center);
 
-    if (guaranteedSafe.length === 0) {
-      return { stage, result: { status: 'alive', message: 'not-enough-info' } };
-    }
-
-    for (const pos of guaranteedSafe) {
-      const revealResult = revealCellWithoutMoving(next, pos);
-      if (revealResult) {
-        return { stage: next, result: revealResult };
-      }
-    }
-
-    return { stage: next, result: { status: 'alive', message: 'auto-opened' } };
+    return { stage: next, result: revealResult ?? { status: 'alive', message: 'not-enough-info' } };
   }
 
   if (!centerCell.revealed || centerCell.hint <= 0) {

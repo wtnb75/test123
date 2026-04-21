@@ -133,6 +133,7 @@ describe('rules', () => {
 
     let cur = toggleFlag(stage, { x: 1, y: 1 });
     cur.player = { x: 1, y: 1 };
+    cur.goal = { x: 0, y: 0 };
     cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;
 
     const out = chordAtPlayer(cur);
@@ -142,5 +143,25 @@ describe('rules', () => {
     expect(out.stage.player).toEqual(cur.player);
     expect(out.stage.cells[indexOf(out.stage, { x: 1, y: 0 })].revealed).toBe(true);
     expect(out.stage.cells[indexOf(out.stage, { x: 0, y: 1 })].revealed).toBe(true);
+  });
+
+  it('iteratively opens newly guaranteed safe neighbors around a flagged tile', () => {
+    const stage = createStage();
+    stage.cells[indexOf(stage, { x: 1, y: 1 })].hasBomb = true;
+    computeHints(stage);
+
+    let cur = toggleFlag(stage, { x: 1, y: 1 });
+    cur.player = { x: 1, y: 1 };
+    cur.goal = { x: 0, y: 0 };
+    cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;
+
+    const out = chordAtPlayer(cur);
+
+    expect(out.result.message).toBe('auto-opened');
+    expect(out.stage.cells[indexOf(out.stage, { x: 2, y: 0 })].revealed).toBe(true);
+    expect(out.stage.cells[indexOf(out.stage, { x: 0, y: 2 })].revealed).toBe(true);
+    expect(out.stage.cells[indexOf(out.stage, { x: 2, y: 1 })].revealed).toBe(true);
+    expect(out.stage.cells[indexOf(out.stage, { x: 1, y: 2 })].revealed).toBe(true);
+    expect(out.stage.cells[indexOf(out.stage, { x: 2, y: 2 })].revealed).toBe(true);
   });
 });

@@ -7,9 +7,21 @@ import type { Position, Stage } from '../core/types';
 const CELL_SIZE = 30;
 const BOARD_ORIGIN_X = 20;
 const BOARD_ORIGIN_Y = 80;
+const EDGE_MARKER_OFFSET = 12;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
+
+const HINT_COLORS: Record<number, string> = {
+    1: '#4da3ff',
+    2: '#7bed9f',
+    3: '#ff6b81',
+    4: '#70a1ff',
+    5: '#ff9f43',
+    6: '#34e7e4',
+    7: '#f1f2f6',
+    8: '#ced6e0'
+};
 
 type DragState = {
     active: boolean;
@@ -97,8 +109,11 @@ export class Game extends Scene
                         cell.hint === 0 ? '' : String(cell.hint),
                         {
                             fontFamily: 'monospace',
-                            fontSize: 14,
-                            color: '#ffffff'
+                            fontSize: 16,
+                            fontStyle: 'bold',
+                            color: this.hintColor(cell.hint),
+                            stroke: '#0b1220',
+                            strokeThickness: 3
                         }
                     ).setOrigin(0.5);
                     this.boardLayer.add(text);
@@ -115,8 +130,8 @@ export class Game extends Scene
             }
         }
 
-        this.drawMarker(this.stageData.start, 'S', '#7bed9f');
-        this.drawMarker(this.stageData.goal, 'G', '#ffa502');
+        this.drawEdgeMarker(this.stageData.start, 'START', '#7bed9f');
+        this.drawEdgeMarker(this.stageData.goal, 'GOAL', '#ffa502');
         this.drawMarker(this.stageData.player, '@', '#ffffff', -9, -8, 12);
 
         const boardWidth = this.stageData.width * CELL_SIZE + BOARD_ORIGIN_X * 2;
@@ -143,6 +158,46 @@ export class Game extends Scene
         this.boardLayer?.add(text);
     }
 
+    private drawEdgeMarker (pos: Position, label: string, color: string): void
+    {
+        const cellCenterX = BOARD_ORIGIN_X + pos.x * CELL_SIZE + CELL_SIZE / 2;
+        const cellCenterY = BOARD_ORIGIN_Y + pos.y * CELL_SIZE + CELL_SIZE / 2;
+        let text: string;
+        let px = cellCenterX;
+        let py = cellCenterY;
+        let originX = 0.5;
+        let originY = 0.5;
+
+        if (pos.y === 0) {
+            text = `${label} v`;
+            py = BOARD_ORIGIN_Y - EDGE_MARKER_OFFSET;
+            originY = 1;
+        } else if (pos.y === this.stageData.height - 1) {
+            text = `^ ${label}`;
+            py = BOARD_ORIGIN_Y + this.stageData.height * CELL_SIZE + EDGE_MARKER_OFFSET;
+            originY = 0;
+        } else if (pos.x === 0) {
+            text = `${label} >`;
+            px = BOARD_ORIGIN_X - EDGE_MARKER_OFFSET;
+            originX = 1;
+        } else {
+            text = `< ${label}`;
+            px = BOARD_ORIGIN_X + this.stageData.width * CELL_SIZE + EDGE_MARKER_OFFSET;
+            originX = 0;
+        }
+
+        const marker = this.add.text(px, py, text, {
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontStyle: 'bold',
+            color,
+            backgroundColor: '#0b1220',
+            padding: { left: 4, right: 4, top: 2, bottom: 2 }
+        }).setOrigin(originX, originY);
+
+        this.boardLayer?.add(marker);
+    }
+
     private cellFillColor (x: number, y: number, cell: Stage['cells'][number]): number
     {
         const isPlayer = this.stageData.player.x === x && this.stageData.player.y === y;
@@ -153,6 +208,11 @@ export class Game extends Scene
             return 0x2f3542;
         }
         return 0x1e272e;
+    }
+
+    private hintColor (hint: number): string
+    {
+        return HINT_COLORS[hint] ?? '#ffffff';
     }
 
     private refreshHud (message: string): void
