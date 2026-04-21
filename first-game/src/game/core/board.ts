@@ -100,12 +100,10 @@ export const computeHints = (stage: Stage): void => {
 export const revealZeros = (stage: Stage, origin: Position): void => {
   const queue: Position[] = [origin];
   const seen = new Set<number>();
+  let head = 0;
 
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) {
-      break;
-    }
+  while (head < queue.length) {
+    const current = queue[head++];
     const currentIdx = indexOf(stage, current);
     if (seen.has(currentIdx)) {
       continue;

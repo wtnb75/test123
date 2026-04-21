@@ -1,11 +1,9 @@
 import { indexOf, neighbors8 } from './board';
 import type { SolvabilityResult, Stage } from './types';
 
-const keyOf = (idx: number): string => `${idx}`;
-
 export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
-  const knownBomb = new Set<string>();
-  const knownSafe = new Set<string>();
+  const knownBomb = new Set<number>();
+  const knownSafe = new Set<number>();
 
   let changed = true;
   let depth = 0;
@@ -28,9 +26,9 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
 
         for (const n of neighbors) {
           const idx = indexOf(stage, n);
-          if (knownBomb.has(keyOf(idx))) {
+          if (knownBomb.has(idx)) {
             bombKnown += 1;
-          } else if (!knownSafe.has(keyOf(idx))) {
+          } else if (!knownSafe.has(idx)) {
             undecided.push(idx);
           }
         }
@@ -42,9 +40,8 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
 
         if (bombsNeeded === 0) {
           for (const idx of undecided) {
-            const key = keyOf(idx);
-            if (!knownSafe.has(key)) {
-              knownSafe.add(key);
+            if (!knownSafe.has(idx)) {
+              knownSafe.add(idx);
               changed = true;
             }
           }
@@ -52,9 +49,8 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
 
         if (bombsNeeded === undecided.length) {
           for (const idx of undecided) {
-            const key = keyOf(idx);
-            if (!knownBomb.has(key)) {
-              knownBomb.add(key);
+            if (!knownBomb.has(idx)) {
+              knownBomb.add(idx);
               changed = true;
             }
           }
