@@ -38,6 +38,7 @@ export class Game extends Scene
     hintText!: Phaser.GameObjects.Text;
     stageData!: Stage;
     inputLockUntil = 0;
+    isEnding = false;
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
 
     constructor ()
@@ -100,6 +101,23 @@ export class Game extends Scene
                 const fill = this.cellFillColor(x, y, cell);
                 const rect = this.add.rectangle(px, py, CELL_SIZE - 2, CELL_SIZE - 2, fill).setOrigin(0);
                 this.boardLayer.add(rect);
+
+                if (cell.hasBomb && cell.revealed) {
+                    const bomb = this.add.text(
+                        px + CELL_SIZE / 2,
+                        py + CELL_SIZE / 2,
+                        '*',
+                        {
+                            fontFamily: 'monospace',
+                            fontSize: 20,
+                            fontStyle: 'bold',
+                            color: '#ff3b30',
+                            stroke: '#0b1220',
+                            strokeThickness: 3
+                        }
+                    ).setOrigin(0.5);
+                    this.boardLayer.add(bomb);
+                }
 
                 if (!cell.hasBomb && cell.revealed) {
                     const text = this.add.text(
@@ -216,6 +234,15 @@ export class Game extends Scene
         );
     }
 
+    private revealAllBombs (): void
+    {
+        for (const cell of this.stageData.cells) {
+            if (cell.hasBomb) {
+                cell.revealed = true;
+            }
+        }
+    }
+
     private centerCameraOnPlayer (): void
     {
         const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2;
@@ -225,6 +252,10 @@ export class Game extends Scene
 
     private onKeyDown (event: KeyboardEvent): void
     {
+        if (this.isEnding) {
+            return;
+        }
+
         if (event.repeat || this.time.now < this.inputLockUntil) {
             return;
         }
@@ -288,13 +319,20 @@ export class Game extends Scene
         this.centerCameraOnPlayer();
 
         if (status === 'dead') {
+            this.isEnding = true;
             const score = this.stageData.stageNo - 1;
             const currentHigh = Number(localStorage.getItem(HIGHSCORE_KEY) ?? '0');
             if (score > currentHigh) {
                 localStorage.setItem(HIGHSCORE_KEY, String(score));
             }
-            this.refreshHud('You died');
-            this.time.delayedCall(250, () => this.scene.start('GameOver'));
+            this.revealAllBombs();
+            this.renderBoard();
+            this.centerCameraOnPlayer();
+            this.refreshHud('You died | Bomb positions revealed');
+            this.time.delayedCall(1200, () => {
+                this.isEnding = false;
+                this.scene.start('MainMenu');
+            });
             return;
         }
 
@@ -309,6 +347,10 @@ export class Game extends Scene
 
     private onPointerDown (pointer: Phaser.Input.Pointer): void
     {
+        if (this.isEnding) {
+            return;
+        }
+
         this.dragState = {
             active: false,
             startX: pointer.x,
@@ -320,6 +362,10 @@ export class Game extends Scene
 
     private onPointerMove (pointer: Phaser.Input.Pointer): void
     {
+        if (this.isEnding) {
+            return;
+        }
+
         if (!pointer.isDown) {
             return;
         }
@@ -345,6 +391,10 @@ export class Game extends Scene
 
     private onPointerUp (pointer: Phaser.Input.Pointer): void
     {
+        if (this.isEnding) {
+            return;
+        }
+
         if (this.dragState.active) {
             this.inputLockUntil = this.time.now + INPUT_LOCK_MS;
             return;

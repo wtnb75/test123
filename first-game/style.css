@@ -1,0 +1,16 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    overflow: auto;
+    background: #0a1f2f;
+}
+
+#app,
+#game-container {
+    width: 1024px;
+    height: 768px;
+}
