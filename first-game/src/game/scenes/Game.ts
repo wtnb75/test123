@@ -36,7 +36,10 @@ export class Game extends Scene
     boardLayer?: Phaser.GameObjects.Container;
     hudText!: Phaser.GameObjects.Text;
     hintText!: Phaser.GameObjects.Text;
+    goalArrow!: Phaser.GameObjects.Text;
     stageData!: Stage;
+    cameraBoundsWidth = 0;
+    cameraBoundsHeight = 0;
     inputLockUntil = 0;
     isEnding = false;
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
@@ -63,18 +66,29 @@ export class Game extends Scene
             color: '#c6deff'
         }).setScrollFactor(0);
 
+        this.goalArrow = this.add.text(0, 0, '', {
+            fontFamily: 'monospace',
+            fontSize: 20,
+            fontStyle: 'bold',
+            color: '#ffa502',
+            stroke: '#0b1220',
+            strokeThickness: 3
+        }).setScrollFactor(0).setDepth(10);
+
         this.startStage(1);
 
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
         this.input.on('pointerdown', this.onPointerDown, this);
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
+        this.scale.on('resize', this.onResize, this);
 
         this.events.on('shutdown', () => {
             this.input.keyboard?.off('keydown', this.onKeyDown, this);
             this.input.off('pointerdown', this.onPointerDown, this);
             this.input.off('pointermove', this.onPointerMove, this);
             this.input.off('pointerup', this.onPointerUp, this);
+            this.scale.off('resize', this.onResize, this);
         });
     }
 
@@ -151,9 +165,24 @@ export class Game extends Scene
         this.drawEdgeMarker(this.stageData.goal, 0xffa502);
         this.drawMarker(this.stageData.player, '@', '#ffffff', -9, -8, 12);
 
+        this.updateCameraBounds();
+    }
+
+    private updateCameraBounds (): void
+    {
         const boardWidth = this.stageData.width * CELL_SIZE + BOARD_ORIGIN_X * 2;
         const boardHeight = this.stageData.height * CELL_SIZE + BOARD_ORIGIN_Y + 40;
-        this.camera.setBounds(0, 0, boardWidth, boardHeight);
+        this.cameraBoundsWidth = Math.max(boardWidth, this.camera.width);
+        this.cameraBoundsHeight = Math.max(boardHeight, this.camera.height);
+        this.camera.setBounds(0, 0, this.cameraBoundsWidth, this.cameraBoundsHeight);
+    }
+
+    private onResize (gameSize: Phaser.Structs.Size): void
+    {
+        this.camera.setSize(gameSize.width, gameSize.height);
+        this.updateCameraBounds();
+        this.centerCameraOnPlayer();
+        this.updateGoalArrow();
     }
 
     private drawMarker (
@@ -247,7 +276,70 @@ export class Game extends Scene
     {
         const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2;
         const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE + CELL_SIZE / 2;
-        this.camera.centerOn(px, py);
+        const halfW = this.camera.width / 2;
+        const halfH = this.camera.height / 2;
+        const minX = halfW;
+        const minY = halfH;
+        const maxX = Math.max(halfW, this.cameraBoundsWidth - halfW);
+        const maxY = Math.max(halfH, this.cameraBoundsHeight - halfH);
+        const clampedX = Math.min(maxX, Math.max(minX, px));
+        const clampedY = Math.min(maxY, Math.max(minY, py));
+
+        this.camera.centerOn(clampedX, clampedY);
+        this.updateGoalArrow();
+    }
+
+    private updateGoalArrow (): void
+    {
+        if (!this.stageData) {
+            return;
+        }
+
+        const goal = this.stageData.goal;
+        const gx = BOARD_ORIGIN_X + goal.x * CELL_SIZE + CELL_SIZE / 2;
+        const gy = BOARD_ORIGIN_Y + goal.y * CELL_SIZE + CELL_SIZE / 2;
+
+        const camLeft = this.camera.scrollX;
+        const camTop = this.camera.scrollY;
+        const camRight = camLeft + this.camera.width;
+        const camBottom = camTop + this.camera.height;
+
+        const visible = gx >= camLeft && gx <= camRight && gy >= camTop && gy <= camBottom;
+        if (visible) {
+            this.goalArrow.setText('');
+            return;
+        }
+
+        const PAD = 30;
+        const screenW = this.camera.width;
+        const screenH = this.camera.height;
+
+        // Direction from screen center to goal in screen-space
+        const goalScreenX = gx - camLeft;
+        const goalScreenY = gy - camTop;
+        const dx = goalScreenX - screenW / 2;
+        const dy = goalScreenY - screenH / 2;
+
+        // Arrow character: atan2(dy, dx), 0° = right
+        const angle = Math.atan2(dy, dx);
+        const deg = ((angle * 180 / Math.PI) + 360) % 360;
+        const ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
+        const arrow = ARROWS[Math.round(deg / 45) % 8];
+
+        // Intersect ray from screen center toward goal with screen border
+        const tx = dx !== 0
+            ? (dx > 0 ? (screenW - PAD - screenW / 2) / dx : (PAD - screenW / 2) / dx)
+            : Infinity;
+        const ty = dy !== 0
+            ? (dy > 0 ? (screenH - PAD - screenH / 2) / dy : (PAD - screenH / 2) / dy)
+            : Infinity;
+        const t = Math.min(tx, ty);
+
+        const edgeX = Math.min(screenW - PAD, Math.max(PAD, screenW / 2 + dx * t));
+        const edgeY = Math.min(screenH - PAD, Math.max(PAD, screenH / 2 + dy * t));
+
+        this.goalArrow.setText(`GOAL ${arrow}`);
+        this.goalArrow.setPosition(edgeX, edgeY).setOrigin(0.5);
     }
 
     private onKeyDown (event: KeyboardEvent): void

@@ -13,20 +13,33 @@ export class MainMenu extends Scene
 
     create ()
     {
-        this.background = this.add.image(512, 384, 'background');
+        const { width, height } = this.scale;
 
-        this.logo = this.add.image(512, 300, 'logo');
+        this.background = this.add.image(width / 2, height / 2, 'background');
+        this.logo = this.add.image(width / 2, height * 0.4, 'logo');
 
-        this.title = this.add.text(512, 460, 'Main Menu', {
+        this.title = this.add.text(width / 2, height * 0.6, 'Main Menu', {
             fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5);
 
-        this.input.once('pointerdown', () => {
+        this.scale.on('resize', this.onResize, this);
 
-            this.scene.start('Game');
-
+        this.events.once('shutdown', () => {
+            this.scale.off('resize', this.onResize, this);
         });
+
+        this.input.once('pointerdown', () => {
+            this.scene.start('Game');
+        });
+    }
+
+    private onResize (gameSize: Phaser.Structs.Size): void
+    {
+        const { width, height } = gameSize;
+        this.background.setPosition(width / 2, height / 2);
+        this.logo.setPosition(width / 2, height * 0.4);
+        this.title.setPosition(width / 2, height * 0.6);
     }
 }
