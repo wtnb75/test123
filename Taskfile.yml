@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+vars:
+  GAMES:
+  - first-game
+
+tasks:
+  default:
+    desc: task list
+    cmds:
+      - task -l --sort alphanumeric
+    silent: true
+
+  build:
+    desc: build games
+    cmds:
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && npm run build
+
+  audit:
+    desc: audit fix
+    cmds:
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && npm audit fix
