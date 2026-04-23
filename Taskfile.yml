@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 
-version: '3'
+version: "3"
 
 vars:
   GAMES:
-  - first-game
+    - first-game
 
 tasks:
   default:
@@ -13,12 +13,32 @@ tasks:
       - task -l --sort alphanumeric
     silent: true
 
-  build:
+  build:games:
     desc: build games
     cmds:
       - for:
           var: GAMES
         cmd: cd {{ .ITEM }} && npm run build
+
+  build:output:
+    desc: build output
+    cmds:
+      - rm -rf output
+      - for:
+          var: GAMES
+        cmd: rsync -av {{ .ITEM }}/dist/ output/{{ .ITEM }}/
+      - |
+        cat <<EOF > output/index.html
+        <html><head><title>test 123</title></head>
+        <body>
+        <ul>
+        {{ range .GAMES }}
+        <li><a href="{{ . }}/">{{ . }}</a></li>
+        {{ end}}
+        </ul>
+        </body>
+        </html>
+        EOF
 
   audit:
     desc: audit fix
@@ -26,3 +46,18 @@ tasks:
       - for:
           var: GAMES
         cmd: cd {{ .ITEM }} && npm audit fix
+
+  deploy:
+    desc: deploy to gh pages
+    cmds:
+      - task: build:games
+      - task: build:output
+      - |
+        cd output
+        touch .nojekyll
+        git init
+        git checkout -b gh-pages
+        git add -A .
+        git commit -m 'pages'
+        git remote add origin https://github.com/wtnb75/test123.git
+        git push -f origin gh-pages

@@ -20,3 +20,5 @@
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+/output/
