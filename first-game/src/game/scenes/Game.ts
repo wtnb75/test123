@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateStage } from '../core/generator';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
@@ -10,6 +11,8 @@ const BOARD_ORIGIN_Y = 80;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
+const CONTROL_BUTTON_SIZE = 46;
+const CONTROL_GAP = 8;
 
 const HINT_COLORS: Record<number, string> = {
     1: '#4da3ff',
@@ -43,6 +46,10 @@ export class Game extends Scene
     inputLockUntil = 0;
     isEnding = false;
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
+    virtualControlLayer?: Phaser.GameObjects.Container;
+    virtualControlHitAreas: Phaser.Geom.Circle[] = [];
+    virtualControlPointerIds = new Set<number>();
+    flagMode = false;
 
     constructor ()
     {
@@ -76,6 +83,7 @@ export class Game extends Scene
         }).setScrollFactor(0).setDepth(10);
 
         this.startStage(1);
+        this.createVirtualControls();
 
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
         this.input.on('pointerdown', this.onPointerDown, this);
@@ -89,6 +97,10 @@ export class Game extends Scene
             this.input.off('pointermove', this.onPointerMove, this);
             this.input.off('pointerup', this.onPointerUp, this);
             this.scale.off('resize', this.onResize, this);
+            this.virtualControlLayer?.destroy(true);
+            this.virtualControlLayer = undefined;
+            this.virtualControlHitAreas = [];
+            this.virtualControlPointerIds.clear();
         });
     }
 
@@ -183,6 +195,171 @@ export class Game extends Scene
         this.updateCameraBounds();
         this.centerCameraOnPlayer();
         this.updateGoalArrow();
+        this.layoutVirtualControls();
+    }
+
+    private createVirtualControls (): void
+    {
+        this.virtualControlLayer?.destroy(true);
+        this.virtualControlLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(30);
+        this.virtualControlHitAreas = [];
+
+        const dpadCenterX = 90;
+        const dpadCenterY = this.camera.height - 108;
+        const rightCenterX = this.camera.width - 90;
+        const rightCenterY = this.camera.height - 108;
+
+        const dpadButtons: Array<{ label: string; dx: number; dy: number; ox: number; oy: number }> = [
+            { label: '↖', dx: -1, dy: -1, ox: -1, oy: -1 },
+            { label: '↑', dx: 0, dy: -1, ox: 0, oy: -1 },
+            { label: '↗', dx: 1, dy: -1, ox: 1, oy: -1 },
+            { label: '←', dx: -1, dy: 0, ox: -1, oy: 0 },
+            { label: '→', dx: 1, dy: 0, ox: 1, oy: 0 },
+            { label: '↙', dx: -1, dy: 1, ox: -1, oy: 1 },
+            { label: '↓', dx: 0, dy: 1, ox: 0, oy: 1 },
+            { label: '↘', dx: 1, dy: 1, ox: 1, oy: 1 }
+        ];
+
+        for (const btn of dpadButtons) {
+            const x = dpadCenterX + btn.ox * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
+            const y = dpadCenterY + btn.oy * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
+            this.addControlButton(x, y, CONTROL_BUTTON_SIZE, btn.label, (pointer) => {
+                this.virtualControlPointerIds.add(pointer.id);
+                this.applyDirectionInput({ x: btn.dx, y: btn.dy }, this.flagMode, 'virtual-control');
+            });
+        }
+
+        const flagButton = this.addControlButton(rightCenterX, rightCenterY - 34, 58, '', () => {
+            this.flagMode = !this.flagMode;
+            this.updateFlagButtonText(flagButton.label);
+            this.refreshHud(this.flagMode ? 'Flag mode ON' : 'Flag mode OFF');
+        });
+
+        this.updateFlagButtonText(flagButton.label);
+
+        this.addControlButton(rightCenterX, rightCenterY + 40, 62, 'CHORD', (pointer) => {
+            this.virtualControlPointerIds.add(pointer.id);
+            const out = chordAtPlayer(this.stageData);
+            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord');
+        });
+
+        this.layoutVirtualControls();
+    }
+
+    private updateFlagButtonText (label: Phaser.GameObjects.Text): void
+    {
+        label.setText(this.flagMode ? 'FLAG ON' : 'FLAG OFF');
+        label.setColor(this.flagMode ? '#7bed9f' : '#f1f2f6');
+    }
+
+    private layoutVirtualControls (): void
+    {
+        if (!this.virtualControlLayer) {
+            return;
+        }
+
+        this.virtualControlHitAreas = [];
+
+        const children = this.virtualControlLayer.list;
+        for (let idx = 0; idx < children.length; idx += 2) {
+            const bg = children[idx];
+            if (!(bg instanceof Phaser.GameObjects.Ellipse)) {
+                continue;
+            }
+            this.virtualControlHitAreas.push(new Phaser.Geom.Circle(bg.x, bg.y, bg.width / 2 + 6));
+        }
+
+        const margin = 24;
+        const leftBaseX = 90;
+        const rightBaseX = this.camera.width - 90;
+        const baseY = this.camera.height - 108;
+
+        let dpadIdx = 0;
+        let actionIdx = 0;
+
+        for (let i = 0; i < children.length; i += 2) {
+            const bg = children[i];
+            const label = children[i + 1];
+            if (!(bg instanceof Phaser.GameObjects.Ellipse) || !(label instanceof Phaser.GameObjects.Text)) {
+                continue;
+            }
+
+            if (label.text === 'CHORD' || label.text.startsWith('FLAG')) {
+                const y = actionIdx === 0 ? baseY - 34 : baseY + 40;
+                bg.setPosition(Math.max(margin + bg.width / 2, rightBaseX), y);
+                label.setPosition(bg.x, bg.y);
+                actionIdx += 1;
+                continue;
+            }
+
+            const offsets = [
+                { ox: -1, oy: -1 },
+                { ox: 0, oy: -1 },
+                { ox: 1, oy: -1 },
+                { ox: -1, oy: 0 },
+                { ox: 1, oy: 0 },
+                { ox: -1, oy: 1 },
+                { ox: 0, oy: 1 },
+                { ox: 1, oy: 1 }
+            ];
+            const offset = offsets[dpadIdx];
+            const x = Math.max(margin + bg.width / 2, leftBaseX + offset.ox * (CONTROL_BUTTON_SIZE + CONTROL_GAP));
+            const y = baseY + offset.oy * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
+            bg.setPosition(x, y);
+            label.setPosition(x, y);
+            dpadIdx += 1;
+        }
+
+        this.virtualControlHitAreas = [];
+        for (let idx = 0; idx < children.length; idx += 2) {
+            const bg = children[idx];
+            if (!(bg instanceof Phaser.GameObjects.Ellipse)) {
+                continue;
+            }
+            this.virtualControlHitAreas.push(new Phaser.Geom.Circle(bg.x, bg.y, bg.width / 2 + 6));
+        }
+    }
+
+    private addControlButton (
+        x: number,
+        y: number,
+        size: number,
+        labelText: string,
+        onPress: (pointer: Phaser.Input.Pointer) => void
+    ): { bg: Phaser.GameObjects.Ellipse; label: Phaser.GameObjects.Text }
+    {
+        const bg = this.add.ellipse(x, y, size, size, 0x111827, 0.72)
+            .setStrokeStyle(2, 0x60a5fa, 0.9)
+            .setScrollFactor(0)
+            .setDepth(31)
+            .setInteractive({ useHandCursor: false });
+
+        const label = this.add.text(x, y, labelText, {
+            fontFamily: 'monospace',
+            fontSize: size >= 60 ? 12 : 22,
+            fontStyle: 'bold',
+            color: '#f1f2f6'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+
+        bg.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            if (this.isEnding || this.time.now < this.inputLockUntil) {
+                return;
+            }
+            onPress(pointer);
+            bg.setFillStyle(0x1f2937, 0.95);
+        });
+
+        const release = (pointer: Phaser.Input.Pointer) => {
+            this.virtualControlPointerIds.delete(pointer.id);
+            bg.setFillStyle(0x111827, 0.72);
+        };
+        bg.on('pointerup', release);
+        bg.on('pointerout', release);
+
+        this.virtualControlLayer?.add(bg);
+        this.virtualControlLayer?.add(label);
+
+        return { bg, label };
     }
 
     private drawMarker (
@@ -259,7 +436,7 @@ export class Game extends Scene
         const highscore = Number(localStorage.getItem(HIGHSCORE_KEY) ?? '0');
         this.hudText.setText(`Stage ${this.stageData.stageNo}  Score ${score}  High ${highscore}`);
         this.hintText.setText(
-            `${message} | Move: arrows/QWEA-XZDC/numpad  Flag: Shift+dir  Chord: S/Num5`
+            `${message} | Move: arrows/QWEA-XZDC/numpad  Flag: Shift+dir  Chord: S/Num5  Mobile: virtual pad`
         );
     }
 
@@ -361,19 +538,25 @@ export class Game extends Scene
             return;
         }
 
-        if (event.shiftKey) {
+        this.applyDirectionInput(direction, event.shiftKey, 'keyboard');
+    }
+
+    private applyDirectionInput (direction: Position, asFlag: boolean, moveSource: string): void
+    {
+        if (asFlag) {
             const target = {
                 x: this.stageData.player.x + direction.x,
                 y: this.stageData.player.y + direction.y
             };
             this.stageData = toggleFlag(this.stageData, target);
             this.renderBoard();
+            this.centerCameraOnPlayer();
             this.refreshHud('Flag toggled');
             return;
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
-        this.applyResult(out.stage, out.result.status, out.result.message ?? 'moved');
+        this.applyResult(out.stage, out.result.status, out.result.message ?? moveSource);
     }
 
     private mapDirection (code: string): Position | null
@@ -443,6 +626,11 @@ export class Game extends Scene
             return;
         }
 
+        if (this.isVirtualControlPointer(pointer)) {
+            this.virtualControlPointerIds.add(pointer.id);
+            return;
+        }
+
         this.dragState = {
             active: false,
             startX: pointer.x,
@@ -455,6 +643,10 @@ export class Game extends Scene
     private onPointerMove (pointer: Phaser.Input.Pointer): void
     {
         if (this.isEnding) {
+            return;
+        }
+
+        if (this.virtualControlPointerIds.has(pointer.id)) {
             return;
         }
 
@@ -487,6 +679,10 @@ export class Game extends Scene
             return;
         }
 
+        if (this.virtualControlPointerIds.delete(pointer.id)) {
+            return;
+        }
+
         if (this.dragState.active) {
             this.inputLockUntil = this.time.now + INPUT_LOCK_MS;
             return;
@@ -513,5 +709,15 @@ export class Game extends Scene
 
         const out = movePlayer(this.stageData, target);
         this.applyResult(out.stage, out.result.status, out.result.message ?? 'tap-move');
+    }
+
+    private isVirtualControlPointer (pointer: Phaser.Input.Pointer): boolean
+    {
+        for (const area of this.virtualControlHitAreas) {
+            if (Phaser.Geom.Circle.Contains(area, pointer.x, pointer.y)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
