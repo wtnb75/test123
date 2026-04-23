@@ -18,6 +18,7 @@ type UiRefs = {
     heightInput: HTMLInputElement;
     applySizeBtn: HTMLButtonElement;
     startBtn: HTMLButtonElement;
+    copyBtn: HTMLButtonElement;
     status: HTMLDivElement;
     rank: HTMLDivElement;
     evidence: HTMLDivElement;
@@ -53,6 +54,7 @@ export class Game extends Scene {
             heightInput: root.querySelector('[data-role="height"]') as HTMLInputElement,
             applySizeBtn: root.querySelector('[data-role="apply-size"]') as HTMLButtonElement,
             startBtn: root.querySelector('[data-role="start-mode"]') as HTMLButtonElement,
+            copyBtn: root.querySelector('[data-role="copy-board"]') as HTMLButtonElement,
             status: root.querySelector('[data-role="status"]') as HTMLDivElement,
             rank: root.querySelector('[data-role="rank"]') as HTMLDivElement,
             evidence: root.querySelector('[data-role="evidence"]') as HTMLDivElement,
@@ -83,6 +85,7 @@ export class Game extends Scene {
             </div>
             <div class="editmin-row">
               <button data-role="start-mode">開始マスを指定</button>
+                            <button data-role="copy-board">盤面テキストをコピー</button>
             </div>
             <div class="editmin-status" data-role="status"></div>
             <hr />
@@ -118,6 +121,66 @@ export class Game extends Scene {
             this.ui!.startBtn.classList.toggle('active', this.startMode);
             this.setStatus(this.startMode ? '開始マスをクリックしてください。' : '開始マス指定モードを終了しました。');
         });
+
+        this.ui.copyBtn.addEventListener('click', async () => {
+            const text = this.toBoardText();
+            const copied = await this.copyTextToClipboard(text);
+            this.setStatus(copied ? '盤面テキストをクリップボードにコピーしました。' : 'コピーに失敗しました。');
+        });
+    }
+
+    private toBoardText(): string {
+        const lines: string[] = [];
+        for (let y = 0; y < this.heightCells; y += 1) {
+            const row: string[] = [];
+            for (let x = 0; x < this.widthCells; x += 1) {
+                const index = y * this.widthCells + x;
+                if (this.startIndex === index) {
+                    row.push('X');
+                    continue;
+                }
+                if (this.cells[index].hasMine) {
+                    row.push('B');
+                    continue;
+                }
+                row.push(String(this.computeAdjacentMineCount(index)));
+            }
+            lines.push(row.join(' '));
+        }
+        return lines.join('\n');
+    }
+
+    private async copyTextToClipboard(text: string): Promise<boolean> {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                // Fallback below for environments where clipboard API is blocked.
+            }
+        }
+
+        if (typeof document === 'undefined') {
+            return false;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } catch {
+            copied = false;
+        }
+
+        document.body.removeChild(textarea);
+        return copied;
     }
 
     private onResize(): void {
