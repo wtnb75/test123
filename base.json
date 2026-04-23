@@ -1,0 +1,19 @@
+{
+  "name": "__NAME__",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "bugs": {
+    "url": "https://github.com/wtnb75/test123/issues"
+  },
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "build": "vite build --config vite/config.prod.mjs",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "homepage": "https://github.com/wtnb75/test123/blob/main/__NAME__/README.md"
+}

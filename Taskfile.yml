@@ -183,3 +183,12 @@ tasks:
         git commit -m 'pages'
         git remote add origin https://github.com/wtnb75/test123.git
         git push -f origin gh-pages
+
+  pkgmod:
+    desc: modify package of PACKAGE=
+    preconditions:
+      - "test -f {{ .PACKAGE }}/package.json"
+    cmds:
+      - jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json | sed -e
+        's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
+      - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json

@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/wtnb75/test123/issues"
   },
-  "homepage": "https://github.com/wtnb75/test123",
+  "homepage": "https://github.com/wtnb75/test123/blob/main/first-game/README.md",
   "scripts": {
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
