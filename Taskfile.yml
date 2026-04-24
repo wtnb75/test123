@@ -192,3 +192,10 @@ tasks:
       - jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json | sed -e
         's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
       - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
+
+  newgame:
+    desc: create new project template PACKAGE=
+    cmds:
+      - npm create @phaserjs/game@latest {{ .PACKAGE }}
+      - "rm {{ .PACKAGE }}/log.js"
+      - task: pkgmod
