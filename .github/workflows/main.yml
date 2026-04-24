@@ -27,8 +27,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
     steps:
     - name: pages
       id: deployment
       uses: actions/deploy-pages@v4
-      if: github.ref_name == github.event.repository.default_branch
