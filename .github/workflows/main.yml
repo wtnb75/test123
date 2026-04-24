@@ -6,16 +6,19 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
     - uses: actions/setup-node@v6
     - uses: arduino/setup-task@v2
+    - run: task ci
     - run: task lint
     - run: task test
     - run: task build
     - name: create artifact
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v5
       with:
         path: ./output
   deploy:
@@ -31,4 +34,4 @@ jobs:
     steps:
     - name: pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5

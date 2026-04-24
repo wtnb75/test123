@@ -517,6 +517,9 @@ export class Game extends Scene {
         const centerX = this.layout?.boardCenterX ?? width / 2;
 
         this.createText(centerX, 52, statusMessage, 22, '#f8fafc', 0.5, this.endUiObjects);
+        if (this.phase === 'lost' && this.round) {
+            this.createText(centerX, 82, this.formatAnswerReveal(this.round.answer), 18, '#fca5a5', 0.5, this.endUiObjects);
+        }
 
         this.endClickOverlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.001)
             .setOrigin(0, 0)
@@ -539,6 +542,13 @@ export class Game extends Scene {
             () => this.showSelectScreen(),
             this.endUiObjects
         );
+    }
+
+    private formatAnswerReveal(answer: string): string {
+        if (this.locale === 'ja') {
+            return `正解: ${answer}`;
+        }
+        return `Answer: ${answer}`;
     }
 
     private detectLocale(): Locale {
