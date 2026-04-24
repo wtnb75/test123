@@ -49,6 +49,7 @@ tasks:
     desc: build output
     cmds:
       - rm -rf output
+      - mkdir output
       - for:
           var: GAMES
         cmd: rsync -av {{ .ITEM }}/dist/ output/{{ .ITEM }}/
