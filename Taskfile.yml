@@ -45,6 +45,13 @@ tasks:
         vars:
           CMD: run test
 
+  test:coverage:
+    desc: test games
+    cmds:
+      - task: npmall
+        vars:
+          CMD: run test:coverage
+
   build:games:
     desc: build games
     cmds:

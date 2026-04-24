@@ -1,8 +1,5 @@
-import { Boot } from './scenes/Boot';
 import { Game as MainGame } from './scenes/Game';
-import { MainMenu } from './scenes/MainMenu';
 import { AUTO, Game, Scale } from 'phaser';
-import { Preloader } from './scenes/Preloader';
 
 const GAME_WIDTH = 1024;
 const GAME_HEIGHT = 768;
@@ -20,9 +17,6 @@ const config: Phaser.Types.Core.GameConfig = {
         autoCenter: Scale.CENTER_BOTH
     },
     scene: [
-        Boot,
-        Preloader,
-        MainMenu,
         MainGame
     ]
 };
