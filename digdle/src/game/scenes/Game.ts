@@ -676,9 +676,9 @@ export class Game extends Scene {
 
         const useBottomKeyboard = height > width;
 
-        let keyboardDock: 'right' | 'bottom' = useBottomKeyboard ? 'bottom' : 'right';
-        let keyboardCols = keyboardDock === 'right' ? 2 : 4;
-        let keyboardRows = keyboardDock === 'right' ? 6 : 3;
+        const keyboardDock: 'right' | 'bottom' = useBottomKeyboard ? 'bottom' : 'right';
+        const keyboardCols = keyboardDock === 'right' ? 2 : 4;
+        const keyboardRows = keyboardDock === 'right' ? 6 : 3;
         const keyboardGap = 8;
 
         const rightPanelWidth = keyboardDock === 'right'

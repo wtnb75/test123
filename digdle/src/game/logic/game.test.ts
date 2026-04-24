@@ -40,9 +40,36 @@ describe('createGame', () => {
 
         expect(second.answer).not.toBe(first.answer);
     });
+
+    it('未対応桁数で createRound は例外を投げる', () => {
+        const game = createGame({ primeMap: PRIME_MAP });
+        expect(() => game.createRound(9)).toThrow('unsupported digits: 9');
+    });
+
+    it('候補不足の桁数で createRound は例外を投げる', () => {
+        const game = createGame({ primeMap: { ...PRIME_MAP, 4: [] } });
+        expect(() => game.createRound(4)).toThrow('missing prime candidates for digits: 4');
+    });
 });
 
 describe('applyGuess', () => {
+    it('playing 以外の状態は入力を受け付けない', () => {
+        const round = {
+            n: 4,
+            attemptLimit: 7,
+            answer: '1013',
+            attemptsUsed: 1,
+            status: 'won' as const,
+            history: []
+        };
+
+        const result = applyGuess(round, '1013');
+
+        expect(result.accepted).toBe(false);
+        expect(result.consumedAttempt).toBe(false);
+        expect(result.round).toEqual(round);
+    });
+
     it('不正入力は試行回数を消費しない', () => {
         const game = createGame({ seed: 1, primeMap: PRIME_MAP });
         const round = game.createRound(3);
@@ -70,5 +97,33 @@ describe('applyGuess', () => {
         expect(result.consumedAttempt).toBe(true);
         expect(result.round.attemptsUsed).toBe(1);
         expect(result.round.history).toHaveLength(1);
+    });
+
+    it('正解入力で won になる', () => {
+        const round = {
+            n: 4,
+            attemptLimit: 7,
+            answer: '1013',
+            attemptsUsed: 0,
+            status: 'playing' as const,
+            history: []
+        };
+
+        const result = applyGuess(round, '1013');
+        expect(result.round.status).toBe('won');
+    });
+
+    it('最終試行で不正解なら lost になる', () => {
+        const round = {
+            n: 4,
+            attemptLimit: 2,
+            answer: '1013',
+            attemptsUsed: 1,
+            status: 'playing' as const,
+            history: []
+        };
+
+        const result = applyGuess(round, '1019');
+        expect(result.round.status).toBe('lost');
     });
 });

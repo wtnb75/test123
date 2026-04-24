@@ -20,6 +20,18 @@ describe('validateGuess', () => {
         expect(result.message).toContain('15 = 3 x 5');
     });
 
+    it('非数字はヒントなしで拒否される', () => {
+        const result = validateGuess('1a', 2);
+        expect(result.ok).toBe(false);
+        expect(result.message).toBe(INVALID_PRIME_MESSAGE);
+    });
+
+    it('1 以下相当の値はヒントなしで拒否される', () => {
+        const result = validateGuess('01', 2);
+        expect(result.ok).toBe(false);
+        expect(result.message).toBe(INVALID_PRIME_MESSAGE);
+    });
+
     it('有効な素数入力を受理', () => {
         const result = validateGuess('1013', 4);
         expect(result).toEqual({ ok: true });

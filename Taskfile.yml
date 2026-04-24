@@ -6,6 +6,7 @@ vars:
   GAMES:
     - first-game
     - editmin
+    - digdle
 
 tasks:
   default:
