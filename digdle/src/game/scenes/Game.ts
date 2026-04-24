@@ -1,8 +1,9 @@
-import { Scene, type GameObjects } from 'phaser';
+import { Scene, type GameObjects, type Time } from 'phaser';
 import { applyGuess, createGame } from '../logic/game';
 import type { DigitStatus, RoundState } from '../types';
 
 type UiPhase = 'select' | 'playing' | 'won' | 'lost';
+type Locale = 'ja' | 'en';
 
 interface BoardCell {
     box: GameObjects.Rectangle;
@@ -51,12 +52,15 @@ export class Game extends Scene {
     private uiObjects: GameObjects.GameObject[] = [];
     private endUiObjects: GameObjects.GameObject[] = [];
     private boardCells: BoardCell[][] = [];
-    private messageText: GameObjects.Text | null = null;
+    private toastText: GameObjects.Text | null = null;
+    private toastBg: GameObjects.Rectangle | null = null;
+    private toastTimer: Time.TimerEvent | null = null;
     private keyBoxes = new Map<string, GameObjects.Rectangle>();
     private keyStatus = new Map<string, DigitStatus>();
     private keyboardObjects: GameObjects.GameObject[] = [];
     private layout: LayoutMetrics | null = null;
     private endClickOverlay: GameObjects.Rectangle | null = null;
+    private locale: Locale = 'ja';
 
     constructor() {
         super('Game');
@@ -64,6 +68,7 @@ export class Game extends Scene {
 
     create(): void {
         this.cameras.main.setBackgroundColor(0x111827);
+        this.locale = this.detectLocale();
 
         this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
             this.onPhysicalKey(event.key);
@@ -134,8 +139,8 @@ export class Game extends Scene {
         const hintY = subtitleY + 42;
 
         this.createText(width / 2, titleY, 'digdle', 54, '#f9fafb', 0.5, this.uiObjects);
-        this.createText(width / 2, subtitleY, 'N桁の素数を当てよう', 26, '#cbd5e1', 0.5, this.uiObjects);
-        this.createText(width / 2, hintY, '2 / 3 / 4 / 5 を選択', 22, '#94a3b8', 0.5, this.uiObjects);
+        this.createText(width / 2, subtitleY, this.t('subtitle'), 26, '#cbd5e1', 0.5, this.uiObjects);
+        this.createText(width / 2, hintY, this.t('selectHint'), 22, '#94a3b8', 0.5, this.uiObjects);
 
         const options = [2, 3, 4, 5];
         const narrow = width < 560;
@@ -202,9 +207,9 @@ export class Game extends Scene {
         this.refreshUi();
 
         if (this.phase === 'won') {
-            this.showEndUi('勝利！ 任意のキーまたはボタンで次ゲームへ');
+            this.showEndUi(this.t('clear'));
         } else if (this.phase === 'lost') {
-            this.showEndUi(`敗北… 正解は ${this.round.answer}`);
+            this.showEndUi(this.t('gameOver'));
         }
     }
 
@@ -238,10 +243,74 @@ export class Game extends Scene {
         this.layout = this.computeLayout(this.round.attemptLimit, this.round.n);
         this.buildVerticalTitle();
         this.buildTopIcons(true);
-        this.messageText = this.createText(this.layout.boardCenterX, 28, '', 20, '#fca5a5', 0.5, this.uiObjects);
+        this.createToastUi();
 
         this.buildBoard(this.round.attemptLimit, this.round.n);
         this.buildVirtualKeyboard();
+    }
+
+    private createToastUi(): void {
+        if (!this.layout) {
+            return;
+        }
+
+        const toastY = this.layout.keyboardDock === 'bottom'
+            ? this.layout.keyboardStartY - 12
+            : this.layout.height - 24;
+
+        this.toastBg = this.add.rectangle(this.layout.boardCenterX, toastY, 10, 10, 0x0b1220, 0.92)
+            .setOrigin(0.5, 1)
+            .setVisible(false)
+            .setDepth(1200);
+        this.toastText = this.add.text(this.layout.boardCenterX, toastY - 8, '', {
+            fontFamily: 'sans-serif',
+            fontSize: 16,
+            color: '#fca5a5',
+            align: 'center',
+            wordWrap: {
+                width: this.layout.keyboardDock === 'right'
+                    ? Math.max(180, this.layout.boardWidth - 20)
+                    : Math.max(180, this.layout.width - 28)
+            }
+        }).setOrigin(0.5, 1)
+            .setVisible(false)
+            .setDepth(1201);
+
+        this.uiObjects.push(this.toastBg, this.toastText);
+    }
+
+    private showToast(message: string, duration = 2200): void {
+        if (!this.toastText || !this.toastBg) {
+            return;
+        }
+
+        this.toastText.setText(message);
+        this.toastText.setColor('#fca5a5');
+        this.toastText.setVisible(true);
+
+        const bounds = this.toastText.getBounds();
+        const paddingX = 14;
+        const paddingY = 10;
+        this.toastBg.setSize(bounds.width + paddingX * 2, bounds.height + paddingY * 2);
+        this.toastBg.setVisible(true);
+
+        if (this.toastTimer) {
+            this.toastTimer.destroy();
+            this.toastTimer = null;
+        }
+
+        this.toastTimer = this.time.delayedCall(duration, () => {
+            this.hideToast();
+        });
+    }
+
+    private hideToast(): void {
+        this.toastText?.setVisible(false);
+        this.toastBg?.setVisible(false);
+        if (this.toastTimer) {
+            this.toastTimer.destroy();
+            this.toastTimer = null;
+        }
     }
 
     private buildTopIcons(showReselect: boolean): void {
@@ -352,7 +421,7 @@ export class Game extends Scene {
         for (let row = 0; row < this.layout.keyboardRows; row += 1) {
             for (let col = 0; col < this.layout.keyboardCols; col += 1) {
                 const token = grid[row][col];
-                const label = token === 'backspace' ? '削除' : (token === 'enter' ? '確定' : token);
+                const label = token === 'backspace' ? '⌫' : (token === 'enter' ? '⏎' : token);
                 const x = this.layout.keyboardStartX + col * (this.layout.keyboardButtonWidth + this.layout.keyboardGap);
                 const y = this.layout.keyboardStartY + row * (this.layout.keyboardButtonHeight + this.layout.keyboardGap);
 
@@ -414,11 +483,11 @@ export class Game extends Scene {
 
         const result = applyGuess(this.round, this.currentGuess);
         if (!result.accepted) {
-            if (this.messageText) {
-                this.messageText.setText(result.message ?? '入力を確認してください');
-            }
+            this.showToast(this.localizeValidationMessage(result.message ?? this.t('checkInput')));
             return;
         }
+
+        this.hideToast();
 
         this.round = result.round;
         this.currentGuess = '';
@@ -428,10 +497,10 @@ export class Game extends Scene {
 
         if (this.round.status === 'won') {
             this.phase = 'won';
-            this.showEndUi('勝利！ 任意のキーまたはボタンで次ゲームへ');
+            this.showEndUi(this.t('clear'));
         } else if (this.round.status === 'lost') {
             this.phase = 'lost';
-            this.showEndUi(`敗北… 正解は ${this.round.answer}`);
+            this.showEndUi(this.t('gameOver'));
         }
 
         this.refreshUi();
@@ -441,14 +510,13 @@ export class Game extends Scene {
         this.clearEndUi();
         this.clearKeyboardUi();
         this.keyBoxes.clear();
-
-        if (this.messageText) {
-            this.messageText.setText(statusMessage);
-            this.messageText.setColor('#f8fafc');
-        }
+        this.hideToast();
 
         const width = this.layout?.width ?? this.scale.gameSize.width;
         const height = this.layout?.height ?? this.scale.gameSize.height;
+        const centerX = this.layout?.boardCenterX ?? width / 2;
+
+        this.createText(centerX, 52, statusMessage, 22, '#f8fafc', 0.5, this.endUiObjects);
 
         this.endClickOverlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.001)
             .setOrigin(0, 0)
@@ -467,10 +535,57 @@ export class Game extends Scene {
             buttonY,
             buttonWidth,
             buttonHeight,
-            '桁数を選び直す',
+            this.t('reselectDigits'),
             () => this.showSelectScreen(),
             this.endUiObjects
         );
+    }
+
+    private detectLocale(): Locale {
+        const lang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'ja';
+        return lang.startsWith('ja') ? 'ja' : 'en';
+    }
+
+    private t(key: 'subtitle' | 'selectHint' | 'clear' | 'gameOver' | 'reselectDigits' | 'checkInput'): string {
+        const ja: Record<typeof key, string> = {
+            subtitle: 'N桁の素数を当てよう',
+            selectHint: '2 / 3 / 4 / 5 を選択',
+            clear: 'Clear',
+            gameOver: 'GameOver',
+            reselectDigits: '桁数を選び直す',
+            checkInput: '入力を確認してください'
+        };
+        const en: Record<typeof key, string> = {
+            subtitle: 'Guess the N-digit prime',
+            selectHint: 'Choose 2 / 3 / 4 / 5',
+            clear: 'Clear',
+            gameOver: 'GameOver',
+            reselectDigits: 'Choose digits again',
+            checkInput: 'Please check your input'
+        };
+
+        return this.locale === 'ja' ? ja[key] : en[key];
+    }
+
+    private localizeValidationMessage(message: string): string {
+        if (this.locale === 'ja') {
+            return message;
+        }
+
+        const lengthPrefix = 'N桁の数字を入力してください';
+        const primePrefix = '素数を入力してください';
+
+        if (message.startsWith(lengthPrefix)) {
+            const digits = this.round?.n;
+            return digits ? `Enter a ${digits}-digit number` : 'Enter the required number of digits';
+        }
+
+        if (message.startsWith(primePrefix)) {
+            const suffix = message.slice(primePrefix.length).trim();
+            return suffix ? `Enter a prime number ${suffix}` : 'Enter a prime number';
+        }
+
+        return message;
     }
 
     private updateKeyStatus(guess: string, colors: DigitStatus[]): void {
@@ -494,11 +609,6 @@ export class Game extends Scene {
     private refreshUi(): void {
         if (!this.round) {
             return;
-        }
-
-        if (this.phase === 'playing') {
-            this.messageText?.setText('');
-            this.messageText?.setColor('#fca5a5');
         }
 
         this.refreshBoardOnly();
@@ -543,7 +653,9 @@ export class Game extends Scene {
         this.clearKeyboardUi();
         this.boardCells = [];
         this.keyBoxes.clear();
-        this.messageText = null;
+        this.toastText = null;
+        this.toastBg = null;
+        this.hideToast();
         this.layout = null;
     }
 
@@ -562,7 +674,7 @@ export class Game extends Scene {
         const leftTitleWidth = Math.max(36, Math.min(62, Math.floor(width * 0.07)));
         const panelGap = Math.max(6, Math.min(12, Math.floor(width * 0.02)));
 
-        const useBottomKeyboard = width < 760 || height > width;
+        const useBottomKeyboard = height > width;
 
         let keyboardDock: 'right' | 'bottom' = useBottomKeyboard ? 'bottom' : 'right';
         let keyboardCols = keyboardDock === 'right' ? 2 : 4;
