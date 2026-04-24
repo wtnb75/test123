@@ -17,8 +17,9 @@ tasks:
 
   npmall:
     internal: true
-    var:
-      - CMD
+    requires:
+      vars:
+        - CMD
     cmds:
       - for:
           var: GAMES
@@ -44,6 +45,13 @@ tasks:
       - task: npmall
         vars:
           CMD: run test
+
+  test:coverage:
+    desc: test games
+    cmds:
+      - task: npmall
+        vars:
+          CMD: run test:coverage
 
   build:games:
     desc: build games

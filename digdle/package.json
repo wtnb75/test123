@@ -1,7 +1,7 @@
 {
   "name": "digdle",
-  "description": "A Phaser 3 TypeScript template using Vite.",
-  "version": "1.4.0",
+  "description": "world with prime number",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

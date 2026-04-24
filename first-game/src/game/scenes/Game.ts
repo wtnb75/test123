@@ -606,7 +606,7 @@ export class Game extends Scene
             this.refreshHud('You died | Bomb positions revealed');
             this.time.delayedCall(1200, () => {
                 this.isEnding = false;
-                this.scene.start('MainMenu');
+                this.scene.start('Game');
             });
             return;
         }

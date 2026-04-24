@@ -316,7 +316,7 @@ export class Game extends Scene {
     private buildTopIcons(showReselect: boolean): void {
         const width = this.scale.gameSize.width;
         const iconSize = 28;
-        const margin = 12;
+        const margin = 20;
 
         const home = this.add.text(margin, margin, '🏠', {
             fontFamily: 'sans-serif',
@@ -332,7 +332,7 @@ export class Game extends Scene {
             return;
         }
 
-        const reselect = this.add.text(width - margin, margin, '🍥', {
+        const reselect = this.add.text(width - margin, margin, '◀️', {
             fontFamily: 'sans-serif',
             fontSize: iconSize,
             color: '#f8fafc'
@@ -348,13 +348,13 @@ export class Game extends Scene {
             return;
         }
 
-        const title = this.add.text(this.layout.leftTitleX, this.layout.leftTitleY, 'd\ni\ng\nd\nl\ne', {
-            fontFamily: 'sans-serif',
+        const title = this.add.text(this.layout.leftTitleX, this.layout.leftTitleY, 'digdle', {
+            fontFamily: 'serif',
             fontSize: 34,
             color: '#f9fafb',
             align: 'center',
             lineSpacing: 2
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setAngle(90);
 
         this.uiObjects.push(title);
     }
