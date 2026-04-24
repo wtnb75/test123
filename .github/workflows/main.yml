@@ -13,6 +13,7 @@ jobs:
     - uses: actions/checkout@master
     - uses: actions/setup-node@v6
     - uses: arduino/setup-task@v2
+    - run: task ci
     - run: task lint
     - run: task test
     - run: task build
