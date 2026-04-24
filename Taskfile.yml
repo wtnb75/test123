@@ -15,19 +15,35 @@ tasks:
       - task -l --sort alphanumeric
     silent: true
 
-  lint:
-    desc: build games
+  npmall:
+    internal: true
+    var:
+      - CMD
     cmds:
       - for:
           var: GAMES
-        cmd: cd {{ .ITEM }} && npm ci && npm run lint
+        cmd: cd {{ .ITEM }} && npm ci && npm run {{ .CMD }}
+
+  lint:
+    desc: lint games
+    cmds:
+      - task: npmall
+        vars:
+          CMD: lint
+
+  test:
+    desc: test games
+    cmds:
+      - task: npmall
+        vars:
+          CMD: test
 
   build:games:
     desc: build games
     cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && npm ci && npm run build
+      - task: npmall
+        vars:
+          CMD: build
 
   build:output:
     desc: build output
