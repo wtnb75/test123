@@ -1,5 +1,6 @@
 {
   "name": "__NAME__",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

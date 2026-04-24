@@ -17,8 +17,9 @@ tasks:
 
   npmall:
     internal: true
-    var:
-      - CMD
+    requires:
+      vars:
+        - CMD
     cmds:
       - for:
           var: GAMES

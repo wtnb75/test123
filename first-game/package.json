@@ -1,7 +1,7 @@
 {
   "name": "first-game",
   "description": "my first, second, third, ... game",
-  "version": "1.4.0",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"
