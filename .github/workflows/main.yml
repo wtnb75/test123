@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-node@v6
+    - uses: arduino/setup-task@v2
+    - run: task lint
+    - run: task test
+    - run: task build
+    - name: create artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./output
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      if: github.ref_name == github.event.repository.default_branch

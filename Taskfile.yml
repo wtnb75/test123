@@ -20,7 +20,7 @@ tasks:
     cmds:
       - for:
           var: GAMES
-        cmd: cd {{ .ITEM }} && npm run build
+        cmd: cd {{ .ITEM }} && npm ci && npm run build
 
   build:output:
     desc: build output
@@ -162,6 +162,12 @@ tasks:
         </body>
         </html>
         EOF
+
+  build:
+    desc: build game + output
+    cmds:
+      - task: build:games
+      - task: build:output
 
   audit:
     desc: audit fix
