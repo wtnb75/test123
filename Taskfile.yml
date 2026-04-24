@@ -15,6 +15,13 @@ tasks:
       - task -l --sort alphanumeric
     silent: true
 
+  lint:
+    desc: build games
+    cmds:
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && npm ci && npm run lint
+
   build:games:
     desc: build games
     cmds:
@@ -175,6 +182,14 @@ tasks:
       - for:
           var: GAMES
         cmd: cd {{ .ITEM }} && npm audit fix
+
+  update:
+    desc: update packages
+    cmds:
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && npx -p npm-check-updates -c "ncu -u" && npm i
+
 
   deploy:
     desc: deploy to gh pages
