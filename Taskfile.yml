@@ -25,6 +25,16 @@ tasks:
           var: GAMES
         cmd: cd {{ .ITEM }} && npm {{ .CMD }}
 
+  npxall:
+    internal: true
+    requires:
+      vars:
+        - CMD
+    cmds:
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && npx {{ .CMD }}
+
   ci:
     desc: lint games
     cmds:
@@ -243,6 +253,13 @@ tasks:
         git commit -m 'pages'
         git remote add origin https://github.com/wtnb75/test123.git
         git push -f origin gh-pages
+
+  depcheck:
+    desc: depcheck
+    cmds:
+      - task: npxall
+        vars:
+          CMD: depcheck
 
   pkgmod:
     desc: modify package of PACKAGE=
