@@ -1,6 +1,6 @@
 export type PrimeMap = Record<number, string[]>;
 
-export const SUPPORTED_DIGITS = [2, 3, 4, 5] as const;
+export const SUPPORTED_DIGITS = [2, 3, 4, 5, 6] as const;
 
 export const isPrimeNumber = (value: number): boolean => {
     if (!Number.isInteger(value) || value < 2) {

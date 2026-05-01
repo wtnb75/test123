@@ -1,13 +1,14 @@
 import { judgeGuess } from './judge';
 import { buildPrimeMap, choosePrime, createRng, type PrimeMap } from './primes';
-import { validateGuess } from './validate';
-import type { DigitStatus, RoundState } from '../types';
+import { validateGuess, validateHardMode } from './validate';
+import type { DigitStatus, GameMode, RoundState } from '../types';
 
 export const ATTEMPT_LIMITS: Record<number, number> = {
-    2: 5,
-    3: 6,
-    4: 7,
-    5: 8
+    2: 3,
+    3: 4,
+    4: 5,
+    5: 6,
+    6: 7
 };
 
 export interface CreateGameOptions {
@@ -25,7 +26,7 @@ export interface GuessResult {
 
 export interface GameApi {
     primeMap: PrimeMap;
-    createRound: (digits: number, previousAnswer?: string) => RoundState;
+    createRound: (digits: number, mode?: GameMode, previousAnswer?: string) => RoundState;
 }
 
 export const createGame = (options: CreateGameOptions = {}): GameApi => {
@@ -34,7 +35,7 @@ export const createGame = (options: CreateGameOptions = {}): GameApi => {
 
     return {
         primeMap,
-        createRound: (digits: number, previousAnswer?: string): RoundState => {
+        createRound: (digits: number, mode: GameMode = 'normal', previousAnswer?: string): RoundState => {
             const attemptLimit = ATTEMPT_LIMITS[digits];
             const candidates = primeMap[digits];
 
@@ -47,6 +48,7 @@ export const createGame = (options: CreateGameOptions = {}): GameApi => {
 
             return {
                 n: digits,
+                mode,
                 attemptLimit,
                 answer: choosePrime(candidates, rng, previousAnswer),
                 attemptsUsed: 0,
@@ -74,6 +76,18 @@ export const applyGuess = (round: RoundState, guess: string): GuessResult => {
             consumedAttempt: false,
             message: validation.message
         };
+    }
+
+    if (round.mode === 'hard' && round.history.length > 0) {
+        const hardCheck = validateHardMode(guess, round.history);
+        if (!hardCheck.ok) {
+            return {
+                round,
+                accepted: false,
+                consumedAttempt: false,
+                message: hardCheck.message
+            };
+        }
     }
 
     const colors = judgeGuess(round.answer, guess);

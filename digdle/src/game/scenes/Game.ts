@@ -1,6 +1,6 @@
 import { Scene, type GameObjects, type Time } from 'phaser';
 import { applyGuess, createGame } from '../logic/game';
-import type { DigitStatus, RoundState } from '../types';
+import type { DigitStatus, GameMode, RoundState } from '../types';
 
 type UiPhase = 'select' | 'playing' | 'won' | 'lost';
 type Locale = 'ja' | 'en';
@@ -48,6 +48,7 @@ export class Game extends Scene {
     private phase: UiPhase = 'select';
     private gameApi = createGame();
     private round: RoundState | null = null;
+    private selectedMode: GameMode = 'normal';
     private currentGuess = '';
     private uiObjects: GameObjects.GameObject[] = [];
     private endUiObjects: GameObjects.GameObject[] = [];
@@ -92,7 +93,7 @@ export class Game extends Scene {
         }
 
         if (this.phase === 'select') {
-            if (key === '2' || key === '3' || key === '4' || key === '5') {
+            if (key === '2' || key === '3' || key === '4' || key === '5' || key === '6') {
                 this.startRound(Number(key));
             }
             return;
@@ -142,12 +143,54 @@ export class Game extends Scene {
         this.createText(width / 2, subtitleY, this.t('subtitle'), 26, '#cbd5e1', 0.5, this.uiObjects);
         this.createText(width / 2, hintY, this.t('selectHint'), 22, '#94a3b8', 0.5, this.uiObjects);
 
-        const options = [2, 3, 4, 5];
+        // Mode toggle buttons
+        const modeY = hintY + 52;
+        const modeButtonWidth = 130;
+        const modeButtonHeight = 44;
+        const modeGap = 16;
+        const modeTotalWidth = modeButtonWidth * 2 + modeGap;
+        const modeStartX = (width - modeTotalWidth) / 2;
+
+        const normalBox = this.createButton(
+            modeStartX,
+            modeY,
+            modeButtonWidth,
+            modeButtonHeight,
+            this.t('normalMode'),
+            () => {
+                this.selectedMode = 'normal';
+                normalBox.box.setStrokeStyle(3, 0x38bdf8);
+                hardBox.box.setStrokeStyle(2, 0x94a3b8);
+            },
+            this.uiObjects
+        );
+        const hardBox = this.createButton(
+            modeStartX + modeButtonWidth + modeGap,
+            modeY,
+            modeButtonWidth,
+            modeButtonHeight,
+            this.t('hardMode'),
+            () => {
+                this.selectedMode = 'hard';
+                hardBox.box.setStrokeStyle(3, 0xf59e0b);
+                normalBox.box.setStrokeStyle(2, 0x94a3b8);
+            },
+            this.uiObjects
+        );
+
+        // Highlight current mode
+        if (this.selectedMode === 'normal') {
+            normalBox.box.setStrokeStyle(3, 0x38bdf8);
+        } else {
+            hardBox.box.setStrokeStyle(3, 0xf59e0b);
+        }
+
+        const options = [2, 3, 4, 5, 6];
         const narrow = width < 560;
-        const buttonWidth = narrow ? 110 : 120;
+        const buttonWidth = narrow ? 90 : 100;
         const buttonHeight = 64;
-        const buttonGap = 20;
-        const rowTop = hintY + 52;
+        const buttonGap = narrow ? 12 : 16;
+        const rowTop = modeY + modeButtonHeight + 28;
 
         if (!narrow) {
             const rowWidth = options.length * buttonWidth + (options.length - 1) * buttonGap;
@@ -169,7 +212,8 @@ export class Game extends Scene {
             return;
         }
 
-        const cols = 2;
+        // narrow layout: 3 + 2 rows
+        const cols = 3;
         const gridWidth = cols * buttonWidth + (cols - 1) * buttonGap;
         const startX = (width - gridWidth) / 2;
         for (let i = 0; i < options.length; i += 1) {
@@ -214,7 +258,7 @@ export class Game extends Scene {
     }
 
     private startRound(digits: number, previousAnswer?: string): void {
-        this.round = this.gameApi.createRound(digits, previousAnswer);
+        this.round = this.gameApi.createRound(digits, this.selectedMode, previousAnswer);
         this.phase = 'playing';
         this.currentGuess = '';
         this.keyStatus.clear();
@@ -556,22 +600,26 @@ export class Game extends Scene {
         return lang.startsWith('ja') ? 'ja' : 'en';
     }
 
-    private t(key: 'subtitle' | 'selectHint' | 'clear' | 'gameOver' | 'reselectDigits' | 'checkInput'): string {
+    private t(key: 'subtitle' | 'selectHint' | 'clear' | 'gameOver' | 'reselectDigits' | 'checkInput' | 'normalMode' | 'hardMode'): string {
         const ja: Record<typeof key, string> = {
             subtitle: 'N桁の素数を当てよう',
-            selectHint: '2 / 3 / 4 / 5 を選択',
+            selectHint: '2 / 3 / 4 / 5 / 6 を選択',
             clear: 'Clear',
             gameOver: 'GameOver',
             reselectDigits: '桁数を選び直す',
-            checkInput: '入力を確認してください'
+            checkInput: '入力を確認してください',
+            normalMode: 'ノーマル',
+            hardMode: 'ハード'
         };
         const en: Record<typeof key, string> = {
             subtitle: 'Guess the N-digit prime',
-            selectHint: 'Choose 2 / 3 / 4 / 5',
+            selectHint: 'Choose 2 / 3 / 4 / 5 / 6',
             clear: 'Clear',
             gameOver: 'GameOver',
             reselectDigits: 'Choose digits again',
-            checkInput: 'Please check your input'
+            checkInput: 'Please check your input',
+            normalMode: 'Normal',
+            hardMode: 'Hard'
         };
 
         return this.locale === 'ja' ? ja[key] : en[key];
@@ -584,6 +632,8 @@ export class Game extends Scene {
 
         const lengthPrefix = 'N桁の数字を入力してください';
         const primePrefix = '素数を入力してください';
+        const hardGreen = 'ハードモード: 確定した位置の数字を変えられません';
+        const hardYellow = 'ハードモード: 判明した数字を必ず含めてください';
 
         if (message.startsWith(lengthPrefix)) {
             const digits = this.round?.n;
@@ -593,6 +643,14 @@ export class Game extends Scene {
         if (message.startsWith(primePrefix)) {
             const suffix = message.slice(primePrefix.length).trim();
             return suffix ? `Enter a prime number ${suffix}` : 'Enter a prime number';
+        }
+
+        if (message === hardGreen) {
+            return 'Hard mode: confirmed digits must stay in place';
+        }
+
+        if (message === hardYellow) {
+            return 'Hard mode: must include all revealed digits';
         }
 
         return message;
