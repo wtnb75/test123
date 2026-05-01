@@ -3,6 +3,8 @@ import { Scene } from 'phaser';
 import { generateStage } from '../core/generator';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { inBounds } from '../core/board';
+import { analyzeCurrentState } from '../core/solver';
+import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
 
 const CELL_SIZE = 30;
@@ -50,6 +52,8 @@ export class Game extends Scene
     virtualControlHitAreas: Phaser.Geom.Circle[] = [];
     virtualControlPointerIds = new Set<number>();
     flagMode = false;
+    gameOverLogical?: LogicalAnalysis;
+    awaitingRestart = false;
 
     constructor ()
     {
@@ -106,6 +110,7 @@ export class Game extends Scene
 
     private startStage (stageNo: number): void
     {
+        this.gameOverLogical = undefined;
         this.stageData = generateStage(stageNo);
         this.renderBoard();
         this.refreshHud('Stage start');
@@ -129,6 +134,7 @@ export class Game extends Scene
                 this.boardLayer.add(rect);
 
                 if (cell.hasBomb && cell.revealed) {
+                    const isDeducible = this.gameOverLogical?.knownBombs.has(idx) ?? false;
                     const bomb = this.add.text(
                         px + CELL_SIZE / 2,
                         py + CELL_SIZE / 2,
@@ -137,7 +143,7 @@ export class Game extends Scene
                             fontFamily: 'monospace',
                             fontSize: 20,
                             fontStyle: 'bold',
-                            color: '#ff3b30',
+                            color: isDeducible ? '#ffb347' : '#ff3b30',
                             stroke: '#0b1220',
                             strokeThickness: 3
                         }
@@ -163,12 +169,44 @@ export class Game extends Scene
                 }
 
                 if (cell.flagged) {
+                    const isWrongFlag = this.gameOverLogical != null && !cell.hasBomb;
                     const flag = this.add.text(px + 5, py + 3, 'F', {
                         fontFamily: 'monospace',
                         fontSize: 16,
-                        color: '#ff4757'
+                        fontStyle: isWrongFlag ? 'bold' : 'normal',
+                        color: isWrongFlag ? '#a29bfe' : '#ff4757'
                     });
                     this.boardLayer.add(flag);
+                    if (isWrongFlag) {
+                        const cross = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '×', {
+                            fontFamily: 'monospace',
+                            fontSize: 18,
+                            fontStyle: 'bold',
+                            color: '#a29bfe',
+                            stroke: '#0b1220',
+                            strokeThickness: 2
+                        }).setOrigin(0.5);
+                        this.boardLayer.add(cross);
+                    }
+                }
+
+                if (this.gameOverLogical && !cell.revealed && !cell.flagged) {
+                    if (this.gameOverLogical.knownBombs.has(idx)) {
+                        const hint = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '!', {
+                            fontFamily: 'monospace',
+                            fontSize: 16,
+                            fontStyle: 'bold',
+                            color: '#ffb347'
+                        }).setOrigin(0.5);
+                        this.boardLayer.add(hint);
+                    } else if (this.gameOverLogical.knownSafe.has(idx)) {
+                        const hint = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '○', {
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            color: '#7bed9f'
+                        }).setOrigin(0.5);
+                        this.boardLayer.add(hint);
+                    }
                 }
             }
         }
@@ -419,6 +457,24 @@ export class Game extends Scene
         if (isPlayer) {
             return 0x57606f;
         }
+        if (this.gameOverLogical) {
+            const idx = y * this.stageData.width + x;
+            if (cell.hasBomb && cell.revealed) {
+                // 爆弾マス：論理的に確定できたものはアンバー、そうでないものは通常の赤系
+                return this.gameOverLogical.knownBombs.has(idx) ? 0x7d3800 : 0x2f3542;
+            }
+            if (!cell.revealed) {
+                if (cell.flagged && !cell.hasBomb) {
+                    return 0x3d1f6e; // 誤フラグ（紫系）
+                }
+                if (this.gameOverLogical.knownBombs.has(idx)) {
+                    return 0x7d3800; // 論理的に爆弾確定（未開示のまま）
+                }
+                if (this.gameOverLogical.knownSafe.has(idx)) {
+                    return 0x0d2b1a; // 論理的に安全確定
+                }
+            }
+        }
         if (cell.revealed) {
             return 0x2f3542;
         }
@@ -521,6 +577,13 @@ export class Game extends Scene
 
     private onKeyDown (event: KeyboardEvent): void
     {
+        if (this.awaitingRestart) {
+            this.awaitingRestart = false;
+            this.isEnding = false;
+            this.scene.start('Game');
+            return;
+        }
+
         if (this.isEnding) {
             return;
         }
@@ -600,13 +663,13 @@ export class Game extends Scene
             if (score > currentHigh) {
                 localStorage.setItem(HIGHSCORE_KEY, String(score));
             }
+            this.gameOverLogical = analyzeCurrentState(this.stageData);
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer();
-            this.refreshHud('You died | Bomb positions revealed');
-            this.time.delayedCall(1200, () => {
-                this.isEnding = false;
-                this.scene.start('Game');
+            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | 何かキーを押すかタップして再スタート');
+            this.time.delayedCall(600, () => {
+                this.awaitingRestart = true;
             });
             return;
         }
@@ -675,6 +738,13 @@ export class Game extends Scene
 
     private onPointerUp (pointer: Phaser.Input.Pointer): void
     {
+        if (this.awaitingRestart) {
+            this.awaitingRestart = false;
+            this.isEnding = false;
+            this.scene.start('Game');
+            return;
+        }
+
         if (this.isEnding) {
             return;
         }
