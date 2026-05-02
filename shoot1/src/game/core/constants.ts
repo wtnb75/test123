@@ -17,4 +17,3 @@ export const SCORE_MULTIPLIER = 10;
 
 export const FORMATION_INTERVAL_SEC = 6;
 export const ENEMY_SPEED = 80;
-export const ENEMY_FIRE_INTERVAL_SEC = 1.5;
