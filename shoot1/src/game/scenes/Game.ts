@@ -480,6 +480,6 @@ export class Game extends Scene {
         // --- HUD 更新 ---
         const score = calcScore(this.time.now - this.startTime, SCORE_MULTIPLIER);
         this.hudText.setText(`SCORE: ${score}`);
-        this.mineText.setText(`MINE: ${'●'.repeat(this.mineState.count)}${'○'.repeat(MINE_INITIAL_COUNT - this.mineState.count)}`);
+        this.mineText.setText(`MINE: ${'●'.repeat(this.mineState.count)}${'○'.repeat(this.mineState.maxCount - this.mineState.count)}`);
     }
 }
