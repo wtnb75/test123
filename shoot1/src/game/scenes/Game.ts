@@ -174,12 +174,14 @@ export class Game extends Scene {
         const dx = pointer.x - bx;
         const dy = pointer.y - by;
         if (dx * dx + dy * dy < BOMB_BTN_RADIUS * BOMB_BTN_RADIUS) {
+            // ボムボタン: このポインタを記録して地雷設置（ジョイスティックとは独立して処理）
             this.bombBtnPointerId = pointer.id;
             this.tryPlaceMine();
             return;
         }
 
-        if (!this.joystickState.active) {
+        // ジョイスティック: ボムボタン以外の指であれば起動（すでに別の指で動いていても新規タッチで上書きしない）
+        if (!this.joystickState.active && pointer.id !== this.bombBtnPointerId) {
             this.joystickState = {
                 active: true,
                 pointerId: pointer.id,

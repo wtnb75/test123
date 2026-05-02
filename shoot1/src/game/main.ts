@@ -14,6 +14,9 @@ const config: Types.Core.GameConfig = {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH
     },
+    input: {
+        activePointers: 3  // マルチタッチ対応（ジョイスティック + ボタン同時押し）
+    },
     scene: [Boot, GameScene, GameOver]
 };
 
