@@ -21,16 +21,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.59.0",
-    "@typescript-eslint/parser": "^8.59.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
     "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.10",
     "vitest": "^4.1.5"
   },
   "dependencies": {
-    "phaser": "4.0.0",
+    "phaser": "4.1.0",
     "terser": "^5.46.2"
   }
 }
