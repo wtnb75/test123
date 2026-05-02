@@ -7,6 +7,7 @@ vars:
     - first-game
     - editmin
     - digdle
+    - shoot1
 
 tasks:
   default:
@@ -36,7 +37,7 @@ tasks:
         cmd: cd {{ .ITEM }} && npx {{ .CMD }}
 
   ci:
-    desc: lint games
+    desc: npm ci
     cmds:
       - task: npmall
         vars:
