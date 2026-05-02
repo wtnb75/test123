@@ -7,6 +7,7 @@ vars:
     - first-game
     - editmin
     - digdle
+    - shoot1
 
 tasks:
   default:
@@ -36,7 +37,7 @@ tasks:
         cmd: cd {{ .ITEM }} && npx {{ .CMD }}
 
   ci:
-    desc: lint games
+    desc: npm ci
     cmds:
       - task: npmall
         vars:
@@ -276,3 +277,10 @@ tasks:
       - npm create @phaserjs/game@latest {{ .PACKAGE }}
       - "rm {{ .PACKAGE }}/log.js"
       - task: pkgmod
+
+  all:
+    desc: lint + test:coverage + build
+    cmds:
+      - task: lint
+      - task: test:coverage
+      - task: build

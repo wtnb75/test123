@@ -1,6 +1,6 @@
 {
-  "name": "digdle",
-  "description": "wordle with prime number",
+  "name": "shoot1",
+  "description": "mine shooter",
   "version": "0.1.0",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/wtnb75/test123/issues"
   },
-  "homepage": "https://github.com/wtnb75/test123/blob/main/digdle/README.md",
+  "homepage": "https://github.com/wtnb75/test123/blob/main/shoot1/README.md",
   "scripts": {
     "dev": "vite --config vite/config.dev.mjs",
     "build": "vite build --config vite/config.prod.mjs",
@@ -21,6 +21,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
     "@vitest/coverage-v8": "^4.1.5",
