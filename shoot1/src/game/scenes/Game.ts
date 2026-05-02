@@ -144,6 +144,9 @@ export class Game extends Scene {
         this.input.on('pointerdown', this.onPointerDown, this);
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
+        this.input.on('pointercancel', this.onPointerUp, this);
+        this.input.on('gameout', this.onInputLost, this);
+        this.input.on('gameblur', this.onInputLost, this);
     }
 
     private setupVirtualController() {
@@ -180,8 +183,8 @@ export class Game extends Scene {
             return;
         }
 
-        // ジョイスティック: ボムボタン以外の指であれば起動（すでに別の指で動いていても新規タッチで上書きしない）
-        if (!this.joystickState.active && pointer.id !== this.bombBtnPointerId) {
+        // ジョイスティック: すでに別の指で動いている場合は新規タッチで上書きしない
+        if (!this.joystickState.active) {
             this.joystickState = {
                 active: true,
                 pointerId: pointer.id,
@@ -215,6 +218,7 @@ export class Game extends Scene {
         if (!this.isTouchDevice) return;
         if (pointer.id === this.joystickState.pointerId) {
             this.joystickState.active = false;
+            this.joystickState.pointerId = -1;
             const jx = 80;
             const jy = GAME_HEIGHT - 90;
             this.joystickBase.setPosition(jx, jy);
@@ -223,6 +227,20 @@ export class Game extends Scene {
         if (pointer.id === this.bombBtnPointerId) {
             this.bombBtnPointerId = -1;
         }
+    }
+
+    private onInputLost() {
+        if (!this.isTouchDevice) return;
+
+        // フォーカス喪失時にポインタIDが残ると、再利用されたIDで入力不能になることがある
+        this.bombBtnPointerId = -1;
+        this.joystickState.active = false;
+        this.joystickState.pointerId = -1;
+
+        const jx = 80;
+        const jy = GAME_HEIGHT - 90;
+        this.joystickBase.setPosition(jx, jy);
+        this.joystickThumb.setPosition(jx, jy);
     }
 
     private tryPlaceMine() {
