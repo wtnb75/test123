@@ -277,3 +277,10 @@ tasks:
       - npm create @phaserjs/game@latest {{ .PACKAGE }}
       - "rm {{ .PACKAGE }}/log.js"
       - task: pkgmod
+
+  all:
+    desc: lint + test:coverage + build
+    cmds:
+      - task: lint
+      - task: test:coverage
+      - task: build
