@@ -226,7 +226,7 @@ export class Game extends Scene {
     private tryPlaceMine() {
         if (!canPlaceMine(this.mineState)) return;
 
-        // 同じ座標に地雷がすでにある場合は禁止
+        // 既存の地雷と重なる位置には設置しない
         for (const m of this.mines) {
             if (circlesOverlap(this.px, this.py, MINE_RADIUS, m.x, m.y, MINE_RADIUS)) return;
         }
