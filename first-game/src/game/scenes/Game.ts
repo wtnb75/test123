@@ -13,8 +13,30 @@ const BOARD_ORIGIN_Y = 80;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
-const CONTROL_BUTTON_SIZE = 46;
-const CONTROL_GAP = 8;
+
+type JoystickState = {
+    active: boolean;
+    pointerId: number;
+    startX: number;
+    startY: number;
+};
+
+const JOYSTICK_BASE_RADIUS = 52;
+const JOYSTICK_THUMB_RADIUS = 20;
+const JOYSTICK_TAP_THRESHOLD = 14;
+const JOYSTICK_REPEAT_DELAY = 380;  // ms until first repeat
+const JOYSTICK_REPEAT_INTERVAL = 180; // ms between subsequent repeats
+
+const JOYSTICK_DIRS: Position[] = [
+    { x: 1,  y: 0  }, // 0 E
+    { x: 1,  y: 1  }, // 1 SE
+    { x: 0,  y: 1  }, // 2 S
+    { x: -1, y: 1  }, // 3 SW
+    { x: -1, y: 0  }, // 4 W
+    { x: -1, y: -1 }, // 5 NW
+    { x: 0,  y: -1 }, // 6 N
+    { x: 1,  y: -1 }  // 7 NE
+];
 
 const HINT_COLORS: Record<number, string> = {
     1: '#4da3ff',
@@ -49,11 +71,24 @@ export class Game extends Scene
     isEnding = false;
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
     virtualControlLayer?: Phaser.GameObjects.Container;
-    virtualControlHitAreas: Phaser.Geom.Circle[] = [];
-    virtualControlPointerIds = new Set<number>();
+    joystickBase?: Phaser.GameObjects.Ellipse;
+    joystickThumb?: Phaser.GameObjects.Ellipse;
+    joystickHitArea?: Phaser.Geom.Circle;
+    joystickState: JoystickState = { active: false, pointerId: -1, startX: 0, startY: 0 };
+    joystickCurrentDir?: Position;
+    joystickRepeatEvent?: Phaser.Time.TimerEvent;
+    joystickHasFired = false;
+    flagBg?: Phaser.GameObjects.Ellipse;
+    flagLabel?: Phaser.GameObjects.Text;
+    flagHitArea?: Phaser.Geom.Circle;
     flagMode = false;
     gameOverLogical?: LogicalAnalysis;
+    gameOverStageNo = 0;
     awaitingRestart = false;
+    retryBg?: Phaser.GameObjects.Rectangle;
+    retryLabel?: Phaser.GameObjects.Text;
+    newGameBg?: Phaser.GameObjects.Rectangle;
+    newGameLabel?: Phaser.GameObjects.Text;
 
     constructor ()
     {
@@ -103,8 +138,16 @@ export class Game extends Scene
             this.scale.off('resize', this.onResize, this);
             this.virtualControlLayer?.destroy(true);
             this.virtualControlLayer = undefined;
-            this.virtualControlHitAreas = [];
-            this.virtualControlPointerIds.clear();
+            this.joystickBase = undefined;
+            this.joystickThumb = undefined;
+            this.joystickHitArea = undefined;
+            this.flagBg = undefined;
+            this.flagLabel = undefined;
+            this.flagHitArea = undefined;
+            this.joystickState = { active: false, pointerId: -1, startX: 0, startY: 0 };
+            this.cancelJoystickRepeat();
+            this.joystickCurrentDir = undefined;
+            this.joystickHasFired = false;
         });
     }
 
@@ -240,164 +283,193 @@ export class Game extends Scene
     {
         this.virtualControlLayer?.destroy(true);
         this.virtualControlLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(30);
-        this.virtualControlHitAreas = [];
 
-        const dpadCenterX = 90;
-        const dpadCenterY = this.camera.height - 108;
-        const rightCenterX = this.camera.width - 90;
-        const rightCenterY = this.camera.height - 108;
+        // --- Joystick base (outer ring) ---
+        this.joystickBase = this.add.ellipse(0, 0, JOYSTICK_BASE_RADIUS * 2, JOYSTICK_BASE_RADIUS * 2, 0x071a33, 0.55)
+            .setStrokeStyle(2, 0x3b82f6, 0.65)
+            .setScrollFactor(0)
+            .setDepth(31);
 
-        const dpadButtons: Array<{ label: string; dx: number; dy: number; ox: number; oy: number }> = [
-            { label: '↖', dx: -1, dy: -1, ox: -1, oy: -1 },
-            { label: '↑', dx: 0, dy: -1, ox: 0, oy: -1 },
-            { label: '↗', dx: 1, dy: -1, ox: 1, oy: -1 },
-            { label: '←', dx: -1, dy: 0, ox: -1, oy: 0 },
-            { label: '→', dx: 1, dy: 0, ox: 1, oy: 0 },
-            { label: '↙', dx: -1, dy: 1, ox: -1, oy: 1 },
-            { label: '↓', dx: 0, dy: 1, ox: 0, oy: 1 },
-            { label: '↘', dx: 1, dy: 1, ox: 1, oy: 1 }
-        ];
+        // --- Joystick thumb ---
+        this.joystickThumb = this.add.ellipse(0, 0, JOYSTICK_THUMB_RADIUS * 2, JOYSTICK_THUMB_RADIUS * 2, 0x2563eb, 0.92)
+            .setStrokeStyle(2, 0x93c5fd, 0.95)
+            .setScrollFactor(0)
+            .setDepth(33);
 
-        for (const btn of dpadButtons) {
-            const x = dpadCenterX + btn.ox * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
-            const y = dpadCenterY + btn.oy * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
-            this.addControlButton(x, y, CONTROL_BUTTON_SIZE, btn.label, (pointer) => {
-                this.virtualControlPointerIds.add(pointer.id);
-                this.applyDirectionInput({ x: btn.dx, y: btn.dy }, this.flagMode, 'virtual-control');
-            });
-        }
+        // --- FLAG button ---
+        this.flagBg = this.add.ellipse(0, 0, 52, 52, 0x071a33, 0.82)
+            .setStrokeStyle(2, 0x22c55e, 0.9)
+            .setScrollFactor(0)
+            .setDepth(31);
 
-        const flagButton = this.addControlButton(rightCenterX, rightCenterY - 34, 58, '', () => {
-            this.flagMode = !this.flagMode;
-            this.updateFlagButtonText(flagButton.label);
-            this.refreshHud(this.flagMode ? 'Flag mode ON' : 'Flag mode OFF');
-        });
+        this.flagLabel = this.add.text(0, 0, 'FLAG', {
+            fontFamily: 'monospace',
+            fontSize: 11,
+            fontStyle: 'bold',
+            color: '#86efac',
+            stroke: '#0b1220',
+            strokeThickness: 3,
+            align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
 
-        this.updateFlagButtonText(flagButton.label);
+        this.virtualControlLayer.add(this.joystickBase);
+        this.virtualControlLayer.add(this.joystickThumb);
+        this.virtualControlLayer.add(this.flagBg);
+        this.virtualControlLayer.add(this.flagLabel);
 
-        this.addControlButton(rightCenterX, rightCenterY + 40, 62, 'CHORD', (pointer) => {
-            this.virtualControlPointerIds.add(pointer.id);
-            const out = chordAtPlayer(this.stageData);
-            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord');
-        });
-
+        this.updateFlagButtonVisual();
         this.layoutVirtualControls();
     }
 
-    private updateFlagButtonText (label: Phaser.GameObjects.Text): void
+    private updateFlagButtonVisual (): void
     {
-        label.setText(this.flagMode ? 'FLAG ON' : 'FLAG OFF');
-        label.setColor(this.flagMode ? '#7bed9f' : '#f1f2f6');
+        if (!this.flagBg || !this.flagLabel) {
+            return;
+        }
+        if (this.flagMode) {
+            this.flagBg.setFillStyle(0x14532d, 0.92);
+            this.flagBg.setStrokeStyle(3, 0x4ade80, 1.0);
+            this.flagLabel.setText('FLAG\nON').setColor('#4ade80');
+        } else {
+            this.flagBg.setFillStyle(0x071a33, 0.82);
+            this.flagBg.setStrokeStyle(2, 0x22c55e, 0.9);
+            this.flagLabel.setText('FLAG').setColor('#86efac');
+        }
     }
 
     private layoutVirtualControls (): void
     {
-        if (!this.virtualControlLayer) {
+        if (!this.joystickBase || !this.joystickThumb || !this.flagBg || !this.flagLabel) {
             return;
         }
 
-        this.virtualControlHitAreas = [];
+        const W = this.camera.width;
+        const H = this.camera.height;
+        const compact = H <= 520 || W <= 400;
+        const margin = 20;
 
-        const children = this.virtualControlLayer.list;
-        for (let idx = 0; idx < children.length; idx += 2) {
-            const bg = children[idx];
-            if (!(bg instanceof Phaser.GameObjects.Ellipse)) {
-                continue;
-            }
-            this.virtualControlHitAreas.push(new Phaser.Geom.Circle(bg.x, bg.y, bg.width / 2 + 6));
+        const baseR = compact ? Math.round(JOYSTICK_BASE_RADIUS * 0.78) : JOYSTICK_BASE_RADIUS;
+        const thumbR = compact ? Math.round(JOYSTICK_THUMB_RADIUS * 0.78) : JOYSTICK_THUMB_RADIUS;
+        const flagSize = compact ? 44 : 52;
+        const flagFontSize = compact ? 10 : 11;
+
+        // Joystick: bottom-left
+        const jsX = margin + baseR;
+        const jsY = H - margin - baseR;
+        this.joystickBase.setPosition(jsX, jsY).setSize(baseR * 2, baseR * 2);
+        if (!this.joystickState.active) {
+            this.joystickThumb.setPosition(jsX, jsY);
         }
+        this.joystickThumb.setSize(thumbR * 2, thumbR * 2);
+        this.joystickHitArea = new Phaser.Geom.Circle(jsX, jsY, baseR + 14);
 
-        const margin = 24;
-        const leftBaseX = 90;
-        const rightBaseX = this.camera.width - 90;
-        const baseY = this.camera.height - 108;
+        // FLAG button: bottom-right
+        const flagX = W - margin - flagSize / 2;
+        const flagY = H - margin - flagSize / 2;
+        this.flagBg.setPosition(flagX, flagY).setSize(flagSize, flagSize);
+        this.flagLabel.setPosition(flagX, flagY).setFontSize(flagFontSize);
+        this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, flagSize / 2 + 10);
+    }
 
-        let dpadIdx = 0;
-        let actionIdx = 0;
-
-        for (let i = 0; i < children.length; i += 2) {
-            const bg = children[i];
-            const label = children[i + 1];
-            if (!(bg instanceof Phaser.GameObjects.Ellipse) || !(label instanceof Phaser.GameObjects.Text)) {
-                continue;
-            }
-
-            if (label.text === 'CHORD' || label.text.startsWith('FLAG')) {
-                const y = actionIdx === 0 ? baseY - 34 : baseY + 40;
-                bg.setPosition(Math.max(margin + bg.width / 2, rightBaseX), y);
-                label.setPosition(bg.x, bg.y);
-                actionIdx += 1;
-                continue;
-            }
-
-            const offsets = [
-                { ox: -1, oy: -1 },
-                { ox: 0, oy: -1 },
-                { ox: 1, oy: -1 },
-                { ox: -1, oy: 0 },
-                { ox: 1, oy: 0 },
-                { ox: -1, oy: 1 },
-                { ox: 0, oy: 1 },
-                { ox: 1, oy: 1 }
-            ];
-            const offset = offsets[dpadIdx];
-            const x = Math.max(margin + bg.width / 2, leftBaseX + offset.ox * (CONTROL_BUTTON_SIZE + CONTROL_GAP));
-            const y = baseY + offset.oy * (CONTROL_BUTTON_SIZE + CONTROL_GAP);
-            bg.setPosition(x, y);
-            label.setPosition(x, y);
-            dpadIdx += 1;
+    private updateJoystickThumb (px: number, py: number): void
+    {
+        if (!this.joystickBase || !this.joystickThumb) {
+            return;
         }
+        const baseR = this.joystickBase.width / 2;
+        const maxR = baseR - this.joystickThumb.width / 2 - 2;
+        const dx = px - this.joystickBase.x;
+        const dy = py - this.joystickBase.y;
+        const dist = Math.hypot(dx, dy);
+        const ratio = dist > 0 ? Math.min(1, maxR / dist) : 0;
+        this.joystickThumb.setPosition(
+            this.joystickBase.x + dx * ratio,
+            this.joystickBase.y + dy * ratio
+        );
 
-        this.virtualControlHitAreas = [];
-        for (let idx = 0; idx < children.length; idx += 2) {
-            const bg = children[idx];
-            if (!(bg instanceof Phaser.GameObjects.Ellipse)) {
-                continue;
+        // Repeat input when stick is held in a direction
+        if (dist >= JOYSTICK_TAP_THRESHOLD) {
+            const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+            const sector = Math.round(deg / 45) % 8;
+            const dir = JOYSTICK_DIRS[sector];
+            const dirChanged = !this.joystickCurrentDir ||
+                this.joystickCurrentDir.x !== dir.x ||
+                this.joystickCurrentDir.y !== dir.y;
+            if (dirChanged) {
+                this.joystickCurrentDir = dir;
+                this.cancelJoystickRepeat();
+                this.joystickRepeatEvent = this.time.addEvent({
+                    delay: JOYSTICK_REPEAT_DELAY,
+                    callback: () => {
+                        this.fireJoystickDirection();
+                        this.joystickRepeatEvent = this.time.addEvent({
+                            delay: JOYSTICK_REPEAT_INTERVAL,
+                            callback: this.fireJoystickDirection,
+                            callbackScope: this,
+                            loop: true
+                        });
+                    },
+                    callbackScope: this
+                });
             }
-            this.virtualControlHitAreas.push(new Phaser.Geom.Circle(bg.x, bg.y, bg.width / 2 + 6));
+        } else {
+            this.cancelJoystickRepeat();
+            this.joystickCurrentDir = undefined;
         }
     }
 
-    private addControlButton (
-        x: number,
-        y: number,
-        size: number,
-        labelText: string,
-        onPress: (pointer: Phaser.Input.Pointer) => void
-    ): { bg: Phaser.GameObjects.Ellipse; label: Phaser.GameObjects.Text }
+    private fireJoystickDirection (): void
     {
-        const bg = this.add.ellipse(x, y, size, size, 0x111827, 0.72)
-            .setStrokeStyle(2, 0x60a5fa, 0.9)
-            .setScrollFactor(0)
-            .setDepth(31)
-            .setInteractive({ useHandCursor: false });
+        if (!this.joystickCurrentDir || this.isEnding) {
+            return;
+        }
+        this.joystickHasFired = true;
+        this.applyDirectionInput(this.joystickCurrentDir, this.flagMode, 'virtual-joystick');
+    }
 
-        const label = this.add.text(x, y, labelText, {
-            fontFamily: 'monospace',
-            fontSize: size >= 60 ? 12 : 22,
-            fontStyle: 'bold',
-            color: '#f1f2f6'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+    private cancelJoystickRepeat (): void
+    {
+        this.joystickRepeatEvent?.remove(false);
+        this.joystickRepeatEvent = undefined;
+    }
 
-        bg.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-            if (this.isEnding || this.time.now < this.inputLockUntil) {
-                return;
-            }
-            onPress(pointer);
-            bg.setFillStyle(0x1f2937, 0.95);
-        });
+    private resetJoystickThumb (): void
+    {
+        this.cancelJoystickRepeat();
+        this.joystickCurrentDir = undefined;
+        this.joystickHasFired = false;
+        this.joystickState = { active: false, pointerId: -1, startX: 0, startY: 0 };
+        if (this.joystickBase && this.joystickThumb) {
+            this.joystickThumb.setPosition(this.joystickBase.x, this.joystickBase.y);
+        }
+    }
 
-        const release = (pointer: Phaser.Input.Pointer) => {
-            this.virtualControlPointerIds.delete(pointer.id);
-            bg.setFillStyle(0x111827, 0.72);
-        };
-        bg.on('pointerup', release);
-        bg.on('pointerout', release);
+    private resolveJoystick (upX: number, upY: number): void
+    {
+        if (this.isEnding || this.time.now < this.inputLockUntil) {
+            return;
+        }
 
-        this.virtualControlLayer?.add(bg);
-        this.virtualControlLayer?.add(label);
+        // Already moved via repeat: don't fire again on release
+        if (this.joystickHasFired) {
+            return;
+        }
 
-        return { bg, label };
+        const dx = upX - this.joystickState.startX;
+        const dy = upY - this.joystickState.startY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < JOYSTICK_TAP_THRESHOLD) {
+            // Tap → Chord
+            const out = chordAtPlayer(this.stageData);
+            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord');
+            return;
+        }
+
+        // Short drag released before first repeat: fire once
+        const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+        const sector = Math.round(deg / 45) % 8;
+        this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode, 'virtual-joystick');
     }
 
     private drawMarker (
@@ -578,9 +650,8 @@ export class Game extends Scene
     private onKeyDown (event: KeyboardEvent): void
     {
         if (this.awaitingRestart) {
-            this.awaitingRestart = false;
-            this.isEnding = false;
-            this.scene.start('Game');
+            const retry = event.code === 'KeyR';
+            this.doRestart(retry);
             return;
         }
 
@@ -658,6 +729,7 @@ export class Game extends Scene
 
         if (status === 'dead') {
             this.isEnding = true;
+            this.gameOverStageNo = this.stageData.stageNo;
             const score = this.stageData.stageNo - 1;
             const currentHigh = Number(localStorage.getItem(HIGHSCORE_KEY) ?? '0');
             if (score > currentHigh) {
@@ -667,9 +739,10 @@ export class Game extends Scene
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer();
-            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | 何かキーを押すかタップして再スタート');
+            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / 他のキーかボタンで新ゲーム');
             this.time.delayedCall(600, () => {
                 this.awaitingRestart = true;
+                this.showRestartButtons();
             });
             return;
         }
@@ -683,14 +756,81 @@ export class Game extends Scene
         this.refreshHud(message);
     }
 
+    private showRestartButtons (): void
+    {
+        const W = this.camera.width;
+        const H = this.camera.height;
+        const btnW = 140;
+        const btnH = 44;
+        const gap = 16;
+        const centerY = H * 0.72;
+
+        // RETRY button (left of center)
+        const retryX = W / 2 - btnW / 2 - gap / 2;
+        this.retryBg = this.add.rectangle(retryX, centerY, btnW, btnH, 0x1e3a5f, 0.95)
+            .setStrokeStyle(2, 0x60a5fa)
+            .setScrollFactor(0).setDepth(50).setOrigin(0.5, 0.5);
+        this.retryLabel = this.add.text(retryX, centerY, 'RETRY [R]', {
+            fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color: '#93c5fd'
+        }).setScrollFactor(0).setDepth(51).setOrigin(0.5, 0.5);
+
+        // NEW GAME button (right of center)
+        const newGameX = W / 2 + btnW / 2 + gap / 2;
+        this.newGameBg = this.add.rectangle(newGameX, centerY, btnW, btnH, 0x1a1a2e, 0.95)
+            .setStrokeStyle(2, 0x6b7280)
+            .setScrollFactor(0).setDepth(50).setOrigin(0.5, 0.5);
+        this.newGameLabel = this.add.text(newGameX, centerY, 'NEW GAME', {
+            fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color: '#9ca3af'
+        }).setScrollFactor(0).setDepth(51).setOrigin(0.5, 0.5);
+    }
+
+    private hideRestartButtons (): void
+    {
+        this.retryBg?.destroy();
+        this.retryLabel?.destroy();
+        this.newGameBg?.destroy();
+        this.newGameLabel?.destroy();
+        this.retryBg = undefined;
+        this.retryLabel = undefined;
+        this.newGameBg = undefined;
+        this.newGameLabel = undefined;
+    }
+
+    private doRestart (retryStage: boolean): void
+    {
+        this.hideRestartButtons();
+        this.awaitingRestart = false;
+        this.isEnding = false;
+        if (retryStage) {
+            this.startStage(this.gameOverStageNo);
+        } else {
+            this.scene.start('Game');
+        }
+    }
+
     private onPointerDown (pointer: Phaser.Input.Pointer): void
     {
         if (this.isEnding) {
             return;
         }
 
-        if (this.isVirtualControlPointer(pointer)) {
-            this.virtualControlPointerIds.add(pointer.id);
+        // FLAG button
+        if (this.flagHitArea && Phaser.Geom.Circle.Contains(this.flagHitArea, pointer.x, pointer.y)) {
+            this.flagMode = !this.flagMode;
+            this.updateFlagButtonVisual();
+            this.refreshHud(this.flagMode ? 'Flag mode ON' : 'Flag mode OFF');
+            return;
+        }
+
+        // Joystick area
+        if (this.joystickHitArea && Phaser.Geom.Circle.Contains(this.joystickHitArea, pointer.x, pointer.y)) {
+            this.joystickState = {
+                active: true,
+                pointerId: pointer.id,
+                startX: pointer.x,
+                startY: pointer.y
+            };
+            this.updateJoystickThumb(pointer.x, pointer.y);
             return;
         }
 
@@ -709,7 +849,11 @@ export class Game extends Scene
             return;
         }
 
-        if (this.virtualControlPointerIds.has(pointer.id)) {
+        // Update joystick thumb
+        if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
+            if (pointer.isDown) {
+                this.updateJoystickThumb(pointer.x, pointer.y);
+            }
             return;
         }
 
@@ -739,9 +883,14 @@ export class Game extends Scene
     private onPointerUp (pointer: Phaser.Input.Pointer): void
     {
         if (this.awaitingRestart) {
-            this.awaitingRestart = false;
-            this.isEnding = false;
-            this.scene.start('Game');
+            // Check if tap is on RETRY or NEW GAME button (both use origin 0.5,0.5)
+            const retryHit = this.retryBg &&
+                Math.abs(pointer.x - this.retryBg.x) <= this.retryBg.width / 2 &&
+                Math.abs(pointer.y - this.retryBg.y) <= this.retryBg.height / 2;
+            const newGameHit = this.newGameBg &&
+                Math.abs(pointer.x - this.newGameBg.x) <= this.newGameBg.width / 2 &&
+                Math.abs(pointer.y - this.newGameBg.y) <= this.newGameBg.height / 2;
+            this.doRestart(retryHit === true && newGameHit !== true);
             return;
         }
 
@@ -749,7 +898,10 @@ export class Game extends Scene
             return;
         }
 
-        if (this.virtualControlPointerIds.delete(pointer.id)) {
+        // Resolve joystick
+        if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
+            this.resolveJoystick(pointer.x, pointer.y);
+            this.resetJoystickThumb();
             return;
         }
 
@@ -779,15 +931,5 @@ export class Game extends Scene
 
         const out = movePlayer(this.stageData, target);
         this.applyResult(out.stage, out.result.status, out.result.message ?? 'tap-move');
-    }
-
-    private isVirtualControlPointer (pointer: Phaser.Input.Pointer): boolean
-    {
-        for (const area of this.virtualControlHitAreas) {
-            if (Phaser.Geom.Circle.Contains(area, pointer.x, pointer.y)) {
-                return true;
-            }
-        }
-        return false;
     }
 }

@@ -1,5 +1,5 @@
 import { indexOf, neighbors8 } from './board';
-import type { SolvabilityResult, Stage } from './types';
+import type { Position, SolvabilityResult, Stage } from './types';
 
 export type LogicalAnalysis = {
   knownBombs: Set<number>;
@@ -7,8 +7,30 @@ export type LogicalAnalysis = {
 };
 
 export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
+  const revealedSet = new Set<number>();
   const knownBomb = new Set<number>();
-  const knownSafe = new Set<number>();
+
+  // BFS zero-cascade reveal from a given position (simulates actual gameplay)
+  const revealPos = (startPos: Position): void => {
+    const queue: Position[] = [startPos];
+    while (queue.length > 0) {
+      const pos = queue.shift()!;
+      const idx = indexOf(stage, pos);
+      const cell = stage.cells[idx];
+      if (cell.hasBomb || revealedSet.has(idx)) {
+        continue;
+      }
+      revealedSet.add(idx);
+      if (cell.hint === 0) {
+        for (const n of neighbors8(stage, pos)) {
+          queue.push(n);
+        }
+      }
+    }
+  };
+
+  // Simulate: start from the start position only
+  revealPos(stage.start);
 
   let changed = true;
   let depth = 0;
@@ -17,10 +39,16 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
     changed = false;
     depth += 1;
 
+    const newlySafe: number[] = [];
+
     for (let y = 0; y < stage.height; y += 1) {
       for (let x = 0; x < stage.width; x += 1) {
         const pos = { x, y };
-        const cell = stage.cells[indexOf(stage, pos)];
+        const idx = indexOf(stage, pos);
+        if (!revealedSet.has(idx)) {
+          continue;
+        }
+        const cell = stage.cells[idx];
         if (cell.hasBomb) {
           continue;
         }
@@ -30,11 +58,11 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
         const undecided: number[] = [];
 
         for (const n of neighbors) {
-          const idx = indexOf(stage, n);
-          if (knownBomb.has(idx)) {
+          const nIdx = indexOf(stage, n);
+          if (knownBomb.has(nIdx)) {
             bombKnown += 1;
-          } else if (!knownSafe.has(idx)) {
-            undecided.push(idx);
+          } else if (!revealedSet.has(nIdx)) {
+            undecided.push(nIdx);
           }
         }
 
@@ -44,22 +72,29 @@ export const analyzeSolvability = (stage: Stage): SolvabilityResult => {
         }
 
         if (bombsNeeded === 0) {
-          for (const idx of undecided) {
-            if (!knownSafe.has(idx)) {
-              knownSafe.add(idx);
-              changed = true;
-            }
+          for (const nIdx of undecided) {
+            newlySafe.push(nIdx);
           }
         }
 
-        if (bombsNeeded === undecided.length) {
-          for (const idx of undecided) {
-            if (!knownBomb.has(idx)) {
-              knownBomb.add(idx);
+        if (bombsNeeded === undecided.length && bombsNeeded > 0) {
+          for (const nIdx of undecided) {
+            if (!knownBomb.has(nIdx)) {
+              knownBomb.add(nIdx);
               changed = true;
             }
           }
         }
+      }
+    }
+
+    // Reveal all logically safe cells and cascade zeros
+    for (const nIdx of newlySafe) {
+      if (!revealedSet.has(nIdx) && !knownBomb.has(nIdx)) {
+        const x = nIdx % stage.width;
+        const y = Math.floor(nIdx / stage.width);
+        revealPos({ x, y });
+        changed = true;
       }
     }
 
