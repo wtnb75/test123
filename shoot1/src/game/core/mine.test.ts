@@ -49,7 +49,7 @@ describe('mine state', () => {
 
     it('replenishMine は maxCount を超えない', () => {
         const s = createMineState(3);
-        const s2 = replenishMine(s); // すでに満遡
+        const s2 = replenishMine(s); // すでに満タン
         expect(s2.count).toBe(3);
     });
 
