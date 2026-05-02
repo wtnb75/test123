@@ -36,10 +36,6 @@ Once the server is running you can edit any of the files in the `src` folder. Vi
 
 ## Template Project Structure
 
-We have provided a default project structure to get you started. This is as follows:
-
-## Template Project Structure
-
 We have provided a default project structure to get you started:
 
 | Path                         | Description                                                |
