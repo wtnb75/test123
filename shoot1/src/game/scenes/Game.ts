@@ -320,7 +320,7 @@ export class Game extends Scene {
         }
     }
 
-    private triggerExplosion(mine: Mine, removeMineFromList = true) {
+    private triggerExplosion(mine: Mine, removeMineFromList = true): boolean {
         // 爆発ビジュアル
         const circle = this.add.circle(mine.x, mine.y, MINE_EXPLODE_RADIUS, 0xff8800, 0.5).setDepth(6);
         this.tweens.add({
@@ -349,6 +349,15 @@ export class Game extends Scene {
             this.bullets.splice(idx, 1);
         }
 
+        const playerHitByBlast = circlesOverlap(
+            mine.x,
+            mine.y,
+            MINE_EXPLODE_RADIUS,
+            this.px,
+            this.py,
+            PLAYER_RADIUS
+        );
+
         mine.gfx.destroy();
         if (removeMineFromList) {
             const idx = this.mines.indexOf(mine);
@@ -356,6 +365,8 @@ export class Game extends Scene {
         }
         // 爆発後に残弾数を1つ復活
         this.mineState = replenishMine(this.mineState);
+
+        return playerHitByBlast;
     }
 
     private triggerGameOver() {
@@ -484,10 +495,17 @@ export class Game extends Scene {
             }
         }
         // まとめて爆発
+        let playerHitByBlast = false;
         for (const mine of minesToExplode) {
-            this.triggerExplosion(mine, false);
+            if (this.triggerExplosion(mine, false)) {
+                playerHitByBlast = true;
+            }
         }
         this.mines = this.mines.filter(m => !minesToExplode.includes(m));
+        if (playerHitByBlast) {
+            this.triggerGameOver();
+            return;
+        }
 
         // --- 弾と自機の当たり判定 ---
         for (const b of this.bullets) {
