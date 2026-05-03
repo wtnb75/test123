@@ -136,7 +136,6 @@ export class Game extends Scene
     private currentBtns: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text }[] = [];
     private skipBtn?: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text };
     private nextTexts: Phaser.GameObjects.Text[] = [];
-    private confirmBtn?: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text };
     private restartBtn?: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text };
 
     constructor () { super('Game'); }
@@ -566,21 +565,7 @@ export class Game extends Scene
         }
     }
 
-    private showConfirmButton (): void
-    {
-        this.confirmBtn?.bg.destroy();
-        this.confirmBtn?.txt.destroy();
-        this.confirmBtn = makeButton(this, 512, 600, 240, 60, '確認',
-            C.BTN_ACTIVE, () => {
-                this.isAwaitingConfirm = true;
-                this.updateStatusText();
-                this.showRestartButton();
-                this.confirmBtn?.bg.destroy();
-                this.confirmBtn?.txt.destroy();
-            });
-    }
-
-    private showRestartButton (): void
+    private showRestartButton(): void
     {
         this.restartBtn?.bg.destroy();
         this.restartBtn?.txt.destroy();
@@ -598,8 +583,6 @@ export class Game extends Scene
                 this.isAwaitingConfirm = true;
                 this.updateStatusText();
                 this.showRestartButton();
-                this.confirmBtn?.bg.destroy();
-                this.confirmBtn?.txt.destroy();
             } else {
                 this.startGame();
             }
