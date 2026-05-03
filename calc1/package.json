@@ -1,6 +1,6 @@
 {
   "name": "calc1",
-  "description": "A Phaser 3 TypeScript template using Vite.",
+  "description": "Calc Rush, a Phaser 4 TypeScript game using Vite.",
   "version": "0.1.0",
   "repository": {
     "type": "git",
