@@ -577,8 +577,11 @@ export class Game extends Scene
 
     private setupClickHandler (): void
     {
-        this.input.on('pointerdown', () => {
+        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
             if (!this.isGameOver) return;
+            // Ignore clicks on interactive UI elements (e.g. restart button) to
+            // prevent the global handler from also firing and double-advancing state.
+            if (pointer.currentlyOver.length > 0) return;
             if (!this.isAwaitingConfirm) {
                 this.isAwaitingConfirm = true;
                 this.updateStatusText();
