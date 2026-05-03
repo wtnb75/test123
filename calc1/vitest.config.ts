@@ -7,7 +7,14 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             include: ['src/**/*.ts'],
-            exclude: ['src/main.ts', 'src/game/main.ts', 'src/game/scenes/Game.ts'],
+            exclude: [
+                'src/**/*.test.ts',
+                'src/**/*.d.ts',
+                'src/vite-env.d.ts',
+                'src/main.ts',
+                'src/game/main.ts',
+                'src/game/scenes/Game.ts',
+            ],
             thresholds: {
                 statements: 90,
                 branches: 90,
