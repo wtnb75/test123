@@ -69,7 +69,7 @@ function makeText(
     return scene.add.text(x, y, text, {
         fontFamily: FONT,
         fontSize: size,
-        fill: color,
+        color: color,
     }).setOrigin(origin);
 }
 
@@ -93,7 +93,7 @@ function makeButton(
     const txt = scene.add.text(x, y, label, {
         fontFamily: FONT,
         fontSize: 32,
-        fill: '#e2e8f0',
+        color: '#e2e8f0',
     }).setOrigin(0.5).setDepth(1001);
     return { bg, txt };
 }
@@ -127,7 +127,6 @@ export class Game extends Scene
     private turnsText!: Phaser.GameObjects.Text;
     private timerText!: Phaser.GameObjects.Text;
     private statusText!: Phaser.GameObjects.Text;
-    private nextLabel!: Phaser.GameObjects.Text;
     private historyTitleText!: Phaser.GameObjects.Text;
     private historyPanelBg!: Phaser.GameObjects.Rectangle;
     private historyRowObjects: Phaser.GameObjects.GameObject[] = [];
@@ -172,7 +171,7 @@ export class Game extends Scene
         makeText(this, 236, 286, '── 今の候補 (選択) ──', 22, C.SUBTEXT);
 
         // Middle label
-        this.nextLabel = makeText(this, 526, 286, '── 次の候補 ──', 20, C.SUBTEXT);
+        makeText(this, 526, 286, '── 次の候補 ──', 20, C.SUBTEXT);
 
         // Status message (bottom-center)
         this.statusText = makeText(this, 512, 700, '', 24, C.TEXT);
@@ -360,7 +359,7 @@ export class Game extends Scene
             const y = 360 + i * 88;
             const bg = this.add.rectangle(OX, y, BW, BH, hexToInt(C.BTN_NEXT_BG));
             const txt = this.add.text(OX, y, op.label, {
-                fontFamily: FONT, fontSize: 22, fill: '#cbd5e1',
+                fontFamily: FONT, fontSize: 22, color: '#cbd5e1',
             }).setOrigin(0.5);
             this.nextTexts.push(bg as unknown as Phaser.GameObjects.Text, txt);
         });
@@ -386,11 +385,6 @@ export class Game extends Scene
         this.nextTexts = [];
 
         // Cleanup end-game buttons
-        if (this.confirmBtn) {
-            this.confirmBtn.bg.destroy();
-            this.confirmBtn.txt.destroy();
-            this.confirmBtn = undefined;
-        }
         if (this.restartBtn) {
             this.restartBtn.bg.destroy();
             this.restartBtn.txt.destroy();
@@ -477,17 +471,17 @@ export class Game extends Scene
                 const opText = this.add.text(panelLeft + 14, y, row.operationLabel, {
                     fontFamily: FONT,
                     fontSize: 16,
-                    fill: '#cbd5e1',
+                    color: '#cbd5e1',
                 }).setOrigin(0, 0.5);
                 const arrow = this.add.text(panelX, y, '→', {
                     fontFamily: FONT,
                     fontSize: 16,
-                    fill: '#60a5fa',
+                    color: '#60a5fa',
                 }).setOrigin(0.5);
                 const resultText = this.add.text(panelRight - 14, y, String(row.resultValue), {
                     fontFamily: FONT,
                     fontSize: 17,
-                    fill: '#e2e8f0',
+                    color: '#e2e8f0',
                     fontStyle: 'bold',
                 }).setOrigin(1, 0.5);
                 this.historyRowObjects.push(opText, arrow, resultText);
@@ -510,7 +504,7 @@ export class Game extends Scene
                 const chipText = this.add.text(chipX, y, label, {
                     fontFamily: FONT,
                     fontSize: 12,
-                    fill: fgColor,
+                    color: fgColor,
                 }).setOrigin(0.5);
                 this.historyRowObjects.push(chip, chipText);
             });
@@ -518,7 +512,7 @@ export class Game extends Scene
             const resultText = this.add.text(panelRight - 14, y, String(row.resultValue), {
                 fontFamily: FONT,
                 fontSize: 17,
-                fill: '#e2e8f0',
+                color: '#e2e8f0',
                 fontStyle: 'bold',
             }).setOrigin(1, 0.5);
             this.historyRowObjects.push(resultText);
@@ -581,7 +575,7 @@ export class Game extends Scene
             if (!this.isGameOver) return;
             // Ignore clicks on interactive UI elements (e.g. restart button) to
             // prevent the global handler from also firing and double-advancing state.
-            if (pointer.currentlyOver.length > 0) return;
+            if (this.input.hitTestPointer(pointer).length > 0) return;
             if (!this.isAwaitingConfirm) {
                 this.isAwaitingConfirm = true;
                 this.updateStatusText();
