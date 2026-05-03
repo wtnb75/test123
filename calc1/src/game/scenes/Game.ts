@@ -565,7 +565,7 @@ export class Game extends Scene
         }
     }
 
-    private showRestartButton(): void
+    private showRestartButton (): void
     {
         this.restartBtn?.bg.destroy();
         this.restartBtn?.txt.destroy();
