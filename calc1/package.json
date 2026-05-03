@@ -1,0 +1,36 @@
+{
+  "name": "calc1",
+  "description": "Calc Rush, a Phaser 4 TypeScript game using Vite.",
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "license": "MIT",
+  "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+  "bugs": {
+    "url": "https://github.com/wtnb75/test123/issues"
+  },
+  "homepage": "https://github.com/wtnb75/test123/blob/main/calc1/README.md",
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "build": "vite build --config vite/config.prod.mjs",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.3.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "phaser": "4.1.0",
+    "terser": "^5.46.2"
+  }
+}

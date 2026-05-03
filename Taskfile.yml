@@ -8,6 +8,7 @@ vars:
     - editmin
     - digdle
     - shoot1
+    - calc1
 
 tasks:
   default:
