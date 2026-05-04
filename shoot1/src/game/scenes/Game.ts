@@ -4,7 +4,7 @@ import {
     GAME_WIDTH, GAME_HEIGHT,
     PLAYER_RADIUS, PLAYER_SPEED,
     BULLET_RADIUS, ENEMY_RADIUS,
-    MINE_RADIUS, MINE_EXPLODE_RADIUS,
+    MINE_RADIUS, MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER,
     MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
     FORMATION_INTERVAL_SEC, ENEMY_SPEED
@@ -12,7 +12,7 @@ import {
 import {
     circlesOverlap, getTargetsInExplosion,
     clampPosition, inputToVelocity, joystickToVelocity,
-    angleToVec, angleTo, calcNWayAngles, calcScore
+    angleToVec, angleTo, calcNWayAngles, calcScore, calcChainExplosionRadius
 } from '../core/physics';
 import { getDifficultyParams, type BulletType } from '../core/difficulty';
 import { calcRowFormation, calcVFormation } from '../core/formation';
@@ -320,22 +320,33 @@ export class Game extends Scene {
         }
     }
 
-    private triggerExplosion(mine: Mine, removeMineFromList = true): boolean {
-        // 爆発ビジュアル
-        const circle = this.add.circle(mine.x, mine.y, MINE_EXPLODE_RADIUS, 0xff8800, 0.5).setDepth(6);
-        this.tweens.add({
-            targets: circle,
-            alpha: 0,
-            scaleX: 1.3,
-            scaleY: 1.3,
-            duration: 400,
-            onComplete: () => circle.destroy()
-        });
-        this.cameras.main.shake(250, 0.008);
+    private triggerExplosion(mine: Mine, visited: Set<Mine>, chainCount = 0): boolean {
+        if (visited.has(mine)) return false;
+        visited.add(mine);
+
+        const radius = calcChainExplosionRadius(MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER, chainCount);
+
+        // 地雷を即座にリストから除去
+        mine.gfx.destroy();
+        const mineIdx = this.mines.indexOf(mine);
+        if (mineIdx !== -1) this.mines.splice(mineIdx, 1);
+        this.mineState = replenishMine(this.mineState);
+
+        // 連鎖対象の地雷を先に収集（リスト変更前）
+        const chainMines: Mine[] = [];
+        for (const other of this.mines) {
+            if (!visited.has(other)) {
+                const dx = mine.x - other.x;
+                const dy = mine.y - other.y;
+                if (dx * dx + dy * dy <= radius * radius) {
+                    chainMines.push(other);
+                }
+            }
+        }
 
         // 巻き込み: 敵機
         const enemyPositions = this.enemies.map(e => ({ x: e.x, y: e.y }));
-        const hitEnemies = getTargetsInExplosion(mine.x, mine.y, MINE_EXPLODE_RADIUS, enemyPositions);
+        const hitEnemies = getTargetsInExplosion(mine.x, mine.y, radius, enemyPositions);
         for (const idx of hitEnemies.slice().reverse()) {
             this.enemies[idx].gfx.destroy();
             this.enemies.splice(idx, 1);
@@ -343,37 +354,99 @@ export class Game extends Scene {
 
         // 巻き込み: 弾
         const bulletPositions = this.bullets.map(b => ({ x: b.x, y: b.y }));
-        const hitBullets = getTargetsInExplosion(mine.x, mine.y, MINE_EXPLODE_RADIUS, bulletPositions);
+        const hitBullets = getTargetsInExplosion(mine.x, mine.y, radius, bulletPositions);
         for (const idx of hitBullets.slice().reverse()) {
             this.bullets[idx].gfx.destroy();
             this.bullets.splice(idx, 1);
         }
 
-        const playerHitByBlast = circlesOverlap(
-            mine.x,
-            mine.y,
-            MINE_EXPLODE_RADIUS,
-            this.px,
-            this.py,
-            PLAYER_RADIUS
-        );
+        // 自機への爆風判定
+        const playerHitByBlast = circlesOverlap(mine.x, mine.y, radius, this.px, this.py, PLAYER_RADIUS);
 
-        mine.gfx.destroy();
-        if (removeMineFromList) {
-            const idx = this.mines.indexOf(mine);
-            if (idx !== -1) this.mines.splice(idx, 1);
+        // 爆発ビジュアル（連鎖回数で色・シェイク強度を変化）
+        const EXPLOSION_COLORS = [0xff8800, 0xff4400, 0xff0000, 0x9900ff];
+        const color = EXPLOSION_COLORS[Math.min(chainCount, EXPLOSION_COLORS.length - 1)];
+        const delayMs = chainCount * 100;
+        const shakeIntensity = 0.008 + chainCount * 0.004;
+        const shakeDuration = 250 + chainCount * 100;
+        this.time.delayedCall(delayMs, () => {
+            const circle = this.add.circle(mine.x, mine.y, radius, color, 0.5).setDepth(6);
+            this.tweens.add({
+                targets: circle,
+                alpha: 0,
+                scaleX: 1.3,
+                scaleY: 1.3,
+                duration: 400,
+                onComplete: () => circle.destroy()
+            });
+            this.cameras.main.shake(shakeDuration, shakeIntensity);
+        });
+
+        // 連鎖爆発（再帰）
+        let chainPlayerHit = false;
+        for (const cm of chainMines) {
+            if (this.triggerExplosion(cm, visited, chainCount + 1)) {
+                chainPlayerHit = true;
+            }
         }
-        // 爆発後に残弾数を1つ復活
-        this.mineState = replenishMine(this.mineState);
 
-        return playerHitByBlast;
+        return playerHitByBlast || chainPlayerHit;
     }
 
-    private triggerGameOver() {
+    private triggerGameOver(cause = '') {
         this.gameOver = true;
         const elapsedMs = this.time.now - this.startTime;
         const score = calcScore(elapsedMs, SCORE_MULTIPLIER);
-        this.scene.start('GameOver', { score });
+
+        // プレイヤーを非表示
+        this.playerGfx.setVisible(false);
+
+        // 白フラッシュ（中心から拡散）
+        const burst = this.add.circle(this.px, this.py, PLAYER_RADIUS, 0xffffff, 1).setDepth(15);
+        this.tweens.add({
+            targets: burst,
+            scaleX: 6,
+            scaleY: 6,
+            alpha: 0,
+            duration: 600,
+            ease: 'Power2',
+            onComplete: () => burst.destroy()
+        });
+
+        // シアンリング
+        const ring = this.add.circle(this.px, this.py, PLAYER_RADIUS * 2, 0x00e5ff, 0.7).setDepth(14);
+        this.tweens.add({
+            targets: ring,
+            scaleX: 5,
+            scaleY: 5,
+            alpha: 0,
+            duration: 500,
+            ease: 'Power1',
+            onComplete: () => ring.destroy()
+        });
+
+        this.cameras.main.shake(300, 0.015);
+
+        // 死因テキスト
+        if (cause) {
+            const causeText = this.add.text(this.px, this.py - 30, cause, {
+                fontFamily: 'monospace', fontSize: 24, color: '#ff4444',
+                stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5).setDepth(16);
+            this.tweens.add({
+                targets: causeText,
+                y: this.py - 90,
+                alpha: 0,
+                duration: 700,
+                ease: 'Power1',
+                onComplete: () => causeText.destroy()
+            });
+        }
+
+        // 800ms 後にゲームオーバー画面へ
+        this.time.delayedCall(800, () => {
+            this.scene.start('GameOver', { score });
+        });
     }
 
     update(_time: number, delta: number) {
@@ -488,29 +561,31 @@ export class Game extends Scene {
             // 自機との判定（設置直後は無効）
             if (mine.age > MINE_PLACE_GRACE_SEC) {
                 if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
-                    this.triggerExplosion(mine, false);
-                    this.triggerGameOver();
+                    this.triggerExplosion(mine, new Set(), 0);
+                    this.triggerGameOver('地雷 !');
                     return;
                 }
             }
         }
-        // まとめて爆発
+        // まとめて爆発（triggerExplosion が内部でリストから除去するため filter 不要）
+        const visited = new Set<Mine>();
         let playerHitByBlast = false;
         for (const mine of minesToExplode) {
-            if (this.triggerExplosion(mine, false)) {
-                playerHitByBlast = true;
+            if (!visited.has(mine)) {
+                if (this.triggerExplosion(mine, visited, 0)) {
+                    playerHitByBlast = true;
+                }
             }
         }
-        this.mines = this.mines.filter(m => !minesToExplode.includes(m));
         if (playerHitByBlast) {
-            this.triggerGameOver();
+            this.triggerGameOver('爆風 !');
             return;
         }
 
         // --- 弾と自機の当たり判定 ---
         for (const b of this.bullets) {
             if (circlesOverlap(b.x, b.y, BULLET_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
-                this.triggerGameOver();
+                this.triggerGameOver('被弾 !');
                 return;
             }
         }

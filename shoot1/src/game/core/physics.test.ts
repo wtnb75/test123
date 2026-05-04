@@ -7,7 +7,8 @@ import {
     joystickToVelocity,
     calcNWayAngles,
     calcScore,
-    angleTo
+    angleTo,
+    calcChainExplosionRadius
 } from '../core/physics';
 
 describe('circlesOverlap', () => {
@@ -158,5 +159,23 @@ describe('angleTo', () => {
     });
     it('左方向は ±π ラジアン', () => {
         expect(Math.abs(angleTo(0, 0, -1, 0))).toBeCloseTo(Math.PI);
+    });
+});
+
+describe('calcChainExplosionRadius', () => {
+    it('chainCount=0 のとき baseRadius をそのまま返す', () => {
+        expect(calcChainExplosionRadius(120, 1.5, 0)).toBeCloseTo(120);
+    });
+    it('chainCount=1 のとき baseRadius * multiplier を返す', () => {
+        expect(calcChainExplosionRadius(120, 1.5, 1)).toBeCloseTo(180);
+    });
+    it('chainCount=2 のとき baseRadius * multiplier^2 を返す', () => {
+        expect(calcChainExplosionRadius(120, 1.5, 2)).toBeCloseTo(270);
+    });
+    it('chainCount=3 のとき baseRadius * multiplier^3 を返す', () => {
+        expect(calcChainExplosionRadius(120, 1.5, 3)).toBeCloseTo(405);
+    });
+    it('multiplier=1 のとき chainCount によらず baseRadius を返す', () => {
+        expect(calcChainExplosionRadius(100, 1, 5)).toBeCloseTo(100);
     });
 });

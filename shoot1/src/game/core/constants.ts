@@ -13,6 +13,7 @@ export const MINE_TIMEOUT_SEC = 10;
 export const MINE_BLINK_SEC = 3;
 export const MINE_PLACE_GRACE_SEC = 0.5;
 export const MINE_INITIAL_COUNT = 3;
+export const MINE_CHAIN_RADIUS_MULTIPLIER = 1.5;
 export const SCORE_MULTIPLIER = 10;
 
 export const FORMATION_INTERVAL_SEC = 6;

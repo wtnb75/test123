@@ -109,3 +109,8 @@ export function calcNWayAngles(
 export function calcScore(elapsedMs: number, multiplier: number): number {
     return Math.floor((elapsedMs / 1000) * multiplier);
 }
+
+/** 連鎖爆発の爆発半径を計算する（連鎖回数に応じて 1.5 倍ずつ拡大） */
+export function calcChainExplosionRadius(baseRadius: number, multiplier: number, chainCount: number): number {
+    return baseRadius * Math.pow(multiplier, chainCount);
+}
