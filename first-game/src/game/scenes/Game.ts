@@ -555,6 +555,8 @@ export class Game extends Scene
         this.hideRestartButtons();
         this.awaitingRestart = false;
         this.isEnding = false;
+        this.cancelJoystickRepeat();
+        this.time.removeAllEvents();
         this.startStage(selected);
         this.refreshHud(`Jumped to stage ${selected}`);
     }
