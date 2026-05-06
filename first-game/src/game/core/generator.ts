@@ -3,10 +3,18 @@ import { createRng } from './random';
 import { analyzeSolvability } from './solver';
 import type { Stage, StageParams } from './types';
 
-const stageParams = (stageNo: number, depthTarget: number): StageParams => {
+const BASE_BOMB_DENSITY = 0.14;
+const DENSITY_INCREASE_PER_STAGE = 0.001;
+const MAX_BOMB_DENSITY = 0.18;
+
+export const stageParams = (stageNo: number, depthTarget: number): StageParams => {
   const width = 7 + stageNo;
   const height = 7 + stageNo;
-  const bombCount = Math.max(6, 4 + stageNo * 4);
+  const area = width * height;
+  const density = Math.min(MAX_BOMB_DENSITY, BASE_BOMB_DENSITY + stageNo * DENSITY_INCREASE_PER_STAGE);
+  const linearBombs = 4 + stageNo * 4;
+  const densityBombs = Math.round(area * density);
+  const bombCount = Math.max(6, Math.max(linearBombs, densityBombs));
 
   return {
     width,
