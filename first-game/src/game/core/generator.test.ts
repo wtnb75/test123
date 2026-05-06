@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateStage } from './generator';
+import { generateStage, stageParams } from './generator';
 import { indexOf, neighbors8 } from './board';
 
 describe('generator', () => {
@@ -24,5 +24,27 @@ describe('generator', () => {
 
     expect(stage.stageNo).toBe(5);
     expect(stage.generation.depthTarget).toBe(1);
+  });
+
+  it('does not reduce mine density as stage number increases', () => {
+    const stages = [1, 10, 20, 30];
+    const densities = stages.map((stageNo) => {
+      const params = stageParams(stageNo, 1);
+      return params.bombCount / (params.width * params.height);
+    });
+
+    for (let i = 1; i < densities.length; i += 1) {
+      expect(densities[i]).toBeGreaterThanOrEqual(densities[i - 1]);
+    }
+  });
+
+  it('keeps bomb count at or above linear baseline', () => {
+    const stages = [1, 5, 10, 20, 30];
+
+    for (const stageNo of stages) {
+      const params = stageParams(stageNo, 1);
+      const linearBaseline = Math.max(6, 4 + stageNo * 4);
+      expect(params.bombCount).toBeGreaterThanOrEqual(linearBaseline);
+    }
   });
 });

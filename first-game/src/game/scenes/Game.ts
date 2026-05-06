@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateStage } from '../core/generator';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
-import { inBounds } from '../core/board';
+import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
@@ -10,9 +10,11 @@ import type { Position, Stage } from '../core/types';
 const CELL_SIZE = 30;
 const BOARD_ORIGIN_X = 20;
 const BOARD_ORIGIN_Y = 80;
+const CAMERA_FOLLOW_MARGIN_CELLS = 4;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
+const START_STAGE_KEY = 'minefield-rogue-start-stage';
 
 type JoystickState = {
     active: boolean;
@@ -64,6 +66,9 @@ export class Game extends Scene
     hudText!: Phaser.GameObjects.Text;
     hintText!: Phaser.GameObjects.Text;
     goalArrow!: Phaser.GameObjects.Text;
+    playerHighlight?: Phaser.GameObjects.Rectangle;
+    playerMarker?: Phaser.GameObjects.Text;
+    cellLayers: Array<Phaser.GameObjects.Container | undefined> = [];
     stageData!: Stage;
     cameraBoundsWidth = 0;
     cameraBoundsHeight = 0;
@@ -81,6 +86,9 @@ export class Game extends Scene
     flagBg?: Phaser.GameObjects.Ellipse;
     flagLabel?: Phaser.GameObjects.Text;
     flagHitArea?: Phaser.Geom.Circle;
+    stageSelectBg?: Phaser.GameObjects.Rectangle;
+    stageSelectLabel?: Phaser.GameObjects.Text;
+    stageSelectHitArea?: Phaser.Geom.Rectangle;
     flagMode = false;
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
@@ -121,7 +129,7 @@ export class Game extends Scene
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
 
-        this.startStage(1);
+        this.startStage(this.resolveInitialStageNo());
         this.createVirtualControls();
 
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
@@ -144,10 +152,18 @@ export class Game extends Scene
             this.flagBg = undefined;
             this.flagLabel = undefined;
             this.flagHitArea = undefined;
+            this.stageSelectBg = undefined;
+            this.stageSelectLabel = undefined;
+            this.stageSelectHitArea = undefined;
             this.joystickState = { active: false, pointerId: -1, startX: 0, startY: 0 };
             this.cancelJoystickRepeat();
             this.joystickCurrentDir = undefined;
             this.joystickHasFired = false;
+            this.playerHighlight?.destroy();
+            this.playerHighlight = undefined;
+            this.playerMarker?.destroy();
+            this.playerMarker = undefined;
+            this.cellLayers = [];
         });
     }
 
@@ -157,108 +173,233 @@ export class Game extends Scene
         this.stageData = generateStage(stageNo);
         this.renderBoard();
         this.refreshHud('Stage start');
-        this.centerCameraOnPlayer();
+        this.centerCameraOnPlayer(true);
+    }
+
+    private resolveInitialStageNo (): number
+    {
+        const fromQuery = Number.parseInt(new URLSearchParams(window.location.search).get('stage') ?? '', 10);
+        if (Number.isFinite(fromQuery) && fromQuery >= 1) {
+            localStorage.setItem(START_STAGE_KEY, String(fromQuery));
+            return fromQuery;
+        }
+
+        const fromStorage = Number.parseInt(localStorage.getItem(START_STAGE_KEY) ?? '', 10);
+        if (Number.isFinite(fromStorage) && fromStorage >= 1) {
+            return fromStorage;
+        }
+
+        return 1;
     }
 
     private renderBoard (): void
     {
         this.boardLayer?.destroy(true);
         this.boardLayer = this.add.container(0, 0);
+        this.cellLayers = new Array(this.stageData.cells.length);
 
         for (let y = 0; y < this.stageData.height; y += 1) {
             for (let x = 0; x < this.stageData.width; x += 1) {
                 const idx = y * this.stageData.width + x;
-                const cell = this.stageData.cells[idx];
-                const px = BOARD_ORIGIN_X + x * CELL_SIZE;
-                const py = BOARD_ORIGIN_Y + y * CELL_SIZE;
-
-                const fill = this.cellFillColor(x, y, cell);
-                const rect = this.add.rectangle(px, py, CELL_SIZE - 2, CELL_SIZE - 2, fill).setOrigin(0);
-                this.boardLayer.add(rect);
-
-                if (cell.hasBomb && cell.revealed) {
-                    const isDeducible = this.gameOverLogical?.knownBombs.has(idx) ?? false;
-                    const bomb = this.add.text(
-                        px + CELL_SIZE / 2,
-                        py + CELL_SIZE / 2,
-                        '*',
-                        {
-                            fontFamily: 'monospace',
-                            fontSize: 20,
-                            fontStyle: 'bold',
-                            color: isDeducible ? '#ffb347' : '#ff3b30',
-                            stroke: '#0b1220',
-                            strokeThickness: 3
-                        }
-                    ).setOrigin(0.5);
-                    this.boardLayer.add(bomb);
-                }
-
-                if (!cell.hasBomb && cell.revealed) {
-                    const text = this.add.text(
-                        px + CELL_SIZE / 2,
-                        py + CELL_SIZE / 2,
-                        cell.hint === 0 ? '' : String(cell.hint),
-                        {
-                            fontFamily: 'monospace',
-                            fontSize: 16,
-                            fontStyle: 'bold',
-                            color: this.hintColor(cell.hint),
-                            stroke: '#0b1220',
-                            strokeThickness: 3
-                        }
-                    ).setOrigin(0.5);
-                    this.boardLayer.add(text);
-                }
-
-                if (cell.flagged) {
-                    const isWrongFlag = this.gameOverLogical != null && !cell.hasBomb;
-                    const flag = this.add.text(px + 5, py + 3, 'F', {
-                        fontFamily: 'monospace',
-                        fontSize: 16,
-                        fontStyle: isWrongFlag ? 'bold' : 'normal',
-                        color: isWrongFlag ? '#a29bfe' : '#ff4757'
-                    });
-                    this.boardLayer.add(flag);
-                    if (isWrongFlag) {
-                        const cross = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '×', {
-                            fontFamily: 'monospace',
-                            fontSize: 18,
-                            fontStyle: 'bold',
-                            color: '#a29bfe',
-                            stroke: '#0b1220',
-                            strokeThickness: 2
-                        }).setOrigin(0.5);
-                        this.boardLayer.add(cross);
-                    }
-                }
-
-                if (this.gameOverLogical && !cell.revealed && !cell.flagged) {
-                    if (this.gameOverLogical.knownBombs.has(idx)) {
-                        const hint = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '!', {
-                            fontFamily: 'monospace',
-                            fontSize: 16,
-                            fontStyle: 'bold',
-                            color: '#ffb347'
-                        }).setOrigin(0.5);
-                        this.boardLayer.add(hint);
-                    } else if (this.gameOverLogical.knownSafe.has(idx)) {
-                        const hint = this.add.text(px + CELL_SIZE / 2, py + CELL_SIZE / 2, '○', {
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            color: '#7bed9f'
-                        }).setOrigin(0.5);
-                        this.boardLayer.add(hint);
-                    }
-                }
+                const layer = this.createCellLayer(x, y, idx);
+                this.cellLayers[idx] = layer;
+                this.boardLayer.add(layer);
             }
         }
 
         this.drawEdgeMarker(this.stageData.start, 0x7bed9f);
         this.drawEdgeMarker(this.stageData.goal, 0xffa502);
-        this.drawMarker(this.stageData.player, '@', '#ffffff', -9, -8, 12);
+        this.ensurePlayerHighlight();
+        this.updatePlayerHighlightPosition();
+        this.ensurePlayerMarker();
+        this.updatePlayerMarkerPosition();
 
         this.updateCameraBounds();
+    }
+
+    private ensurePlayerHighlight (): void
+    {
+        if (this.playerHighlight) {
+            return;
+        }
+
+        this.playerHighlight = this.add.rectangle(0, 0, CELL_SIZE - 2, CELL_SIZE - 2, 0x57606f, 0.32)
+            .setOrigin(0)
+            .setStrokeStyle(2, 0xdfe4ea, 0.75)
+            .setDepth(5);
+    }
+
+    private updatePlayerHighlightPosition (): void
+    {
+        this.ensurePlayerHighlight();
+        const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE;
+        const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE;
+        this.playerHighlight?.setPosition(px, py);
+    }
+
+    private createCellLayer (x: number, y: number, idx: number): Phaser.GameObjects.Container
+    {
+        const cell = this.stageData.cells[idx];
+        const px = BOARD_ORIGIN_X + x * CELL_SIZE;
+        const py = BOARD_ORIGIN_Y + y * CELL_SIZE;
+        const layer = this.add.container(px, py);
+
+        const fill = this.cellFillColor(x, y, cell);
+        const rect = this.add.rectangle(0, 0, CELL_SIZE - 2, CELL_SIZE - 2, fill).setOrigin(0);
+        layer.add(rect);
+
+        if (cell.hasBomb && cell.revealed) {
+            const isDeducible = this.gameOverLogical?.knownBombs.has(idx) ?? false;
+            const bomb = this.add.text(
+                CELL_SIZE / 2,
+                CELL_SIZE / 2,
+                '*',
+                {
+                    fontFamily: 'monospace',
+                    fontSize: 20,
+                    fontStyle: 'bold',
+                    color: isDeducible ? '#ffb347' : '#ff3b30',
+                    stroke: '#0b1220',
+                    strokeThickness: 3
+                }
+            ).setOrigin(0.5);
+            layer.add(bomb);
+        }
+
+        if (!cell.hasBomb && cell.revealed) {
+            const text = this.add.text(
+                CELL_SIZE / 2,
+                CELL_SIZE / 2,
+                cell.hint === 0 ? '' : String(cell.hint),
+                {
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    fontStyle: 'bold',
+                    color: this.hintColor(cell.hint),
+                    stroke: '#0b1220',
+                    strokeThickness: 3
+                }
+            ).setOrigin(0.5);
+            layer.add(text);
+        }
+
+        if (cell.flagged) {
+            const isWrongFlag = this.gameOverLogical != null && !cell.hasBomb;
+            const flag = this.add.text(5, 3, 'F', {
+                fontFamily: 'monospace',
+                fontSize: 16,
+                fontStyle: isWrongFlag ? 'bold' : 'normal',
+                color: isWrongFlag ? '#a29bfe' : '#ff4757'
+            });
+            layer.add(flag);
+            if (isWrongFlag) {
+                const cross = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '×', {
+                    fontFamily: 'monospace',
+                    fontSize: 18,
+                    fontStyle: 'bold',
+                    color: '#a29bfe',
+                    stroke: '#0b1220',
+                    strokeThickness: 2
+                }).setOrigin(0.5);
+                layer.add(cross);
+            }
+        }
+
+        if (this.gameOverLogical && !cell.revealed && !cell.flagged) {
+            if (this.gameOverLogical.knownBombs.has(idx)) {
+                const hint = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '!', {
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    fontStyle: 'bold',
+                    color: '#ffb347'
+                }).setOrigin(0.5);
+                layer.add(hint);
+            } else if (this.gameOverLogical.knownSafe.has(idx)) {
+                const hint = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '○', {
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: '#7bed9f'
+                }).setOrigin(0.5);
+                layer.add(hint);
+            }
+        }
+
+        return layer;
+    }
+
+    private canDiffRender (prevStage: Stage, nextStage: Stage): boolean
+    {
+        return this.boardLayer != null &&
+            this.cellLayers.length === nextStage.cells.length &&
+            prevStage.stageNo === nextStage.stageNo &&
+            prevStage.width === nextStage.width &&
+            prevStage.height === nextStage.height &&
+            prevStage.start.x === nextStage.start.x &&
+            prevStage.start.y === nextStage.start.y &&
+            prevStage.goal.x === nextStage.goal.x &&
+            prevStage.goal.y === nextStage.goal.y &&
+            this.gameOverLogical == null;
+    }
+
+    private collectChangedCellIndices (prevStage: Stage, nextStage: Stage): number[]
+    {
+        if (prevStage.cells === nextStage.cells) {
+            return [];
+        }
+
+        const changed: number[] = [];
+        const len = Math.min(prevStage.cells.length, nextStage.cells.length);
+        for (let i = 0; i < len; i += 1) {
+            const prev = prevStage.cells[i];
+            const next = nextStage.cells[i];
+            if (
+                prev.revealed !== next.revealed ||
+                prev.flagged !== next.flagged ||
+                prev.hasBomb !== next.hasBomb ||
+                prev.hint !== next.hint
+            ) {
+                changed.push(i);
+            }
+        }
+        return changed;
+    }
+
+    private renderChangedCells (changedIndices: number[]): void
+    {
+        if (!this.boardLayer || changedIndices.length === 0) {
+            return;
+        }
+
+        for (const idx of changedIndices) {
+            this.cellLayers[idx]?.destroy();
+
+            const x = idx % this.stageData.width;
+            const y = Math.floor(idx / this.stageData.width);
+            const layer = this.createCellLayer(x, y, idx);
+            this.cellLayers[idx] = layer;
+            this.boardLayer.add(layer);
+        }
+    }
+
+    private ensurePlayerMarker (): void
+    {
+        if (this.playerMarker) {
+            return;
+        }
+
+        this.playerMarker = this.add.text(0, 0, '@', {
+            fontFamily: 'monospace',
+            fontSize: 12,
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(12);
+    }
+
+    private updatePlayerMarkerPosition (): void
+    {
+        this.ensurePlayerMarker();
+        const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2 - 9;
+        const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE + CELL_SIZE / 2 - 8;
+        this.playerMarker?.setPosition(px, py);
     }
 
     private updateCameraBounds (): void
@@ -274,7 +415,7 @@ export class Game extends Scene
     {
         this.camera.setSize(gameSize.width, gameSize.height);
         this.updateCameraBounds();
-        this.centerCameraOnPlayer();
+        this.centerCameraOnPlayer(true);
         this.updateGoalArrow();
         this.layoutVirtualControls();
     }
@@ -312,10 +453,27 @@ export class Game extends Scene
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
 
+        this.stageSelectBg = this.add.rectangle(0, 0, 90, 34, 0x071a33, 0.88)
+            .setStrokeStyle(2, 0xf59e0b, 0.95)
+            .setScrollFactor(0)
+            .setDepth(31);
+
+        this.stageSelectLabel = this.add.text(0, 0, 'STAGE', {
+            fontFamily: 'monospace',
+            fontSize: 12,
+            fontStyle: 'bold',
+            color: '#fbbf24',
+            stroke: '#0b1220',
+            strokeThickness: 3,
+            align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+
         this.virtualControlLayer.add(this.joystickBase);
         this.virtualControlLayer.add(this.joystickThumb);
         this.virtualControlLayer.add(this.flagBg);
         this.virtualControlLayer.add(this.flagLabel);
+        this.virtualControlLayer.add(this.stageSelectBg);
+        this.virtualControlLayer.add(this.stageSelectLabel);
 
         this.updateFlagButtonVisual();
         this.layoutVirtualControls();
@@ -339,7 +497,7 @@ export class Game extends Scene
 
     private layoutVirtualControls (): void
     {
-        if (!this.joystickBase || !this.joystickThumb || !this.flagBg || !this.flagLabel) {
+        if (!this.joystickBase || !this.joystickThumb || !this.flagBg || !this.flagLabel || !this.stageSelectBg || !this.stageSelectLabel) {
             return;
         }
 
@@ -369,6 +527,36 @@ export class Game extends Scene
         this.flagBg.setPosition(flagX, flagY).setSize(flagSize, flagSize);
         this.flagLabel.setPosition(flagX, flagY).setFontSize(flagFontSize);
         this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, flagSize / 2 + 10);
+
+        const stageW = compact ? 82 : 90;
+        const stageH = compact ? 30 : 34;
+        const stageX = W - margin - stageW / 2;
+        const stageY = margin + stageH / 2;
+        this.stageSelectBg.setPosition(stageX, stageY).setSize(stageW, stageH);
+        this.stageSelectLabel.setPosition(stageX, stageY).setFontSize(compact ? 11 : 12);
+        this.stageSelectHitArea = new Phaser.Geom.Rectangle(stageX - stageW / 2, stageY - stageH / 2, stageW, stageH);
+    }
+
+    private promptAndStartStage (): void
+    {
+        const current = this.stageData?.stageNo ?? 1;
+        const text = window.prompt('Start stage number (1-999)', String(current));
+        if (text == null) {
+            return;
+        }
+
+        const selected = Number.parseInt(text.trim(), 10);
+        if (!Number.isFinite(selected) || selected < 1 || selected > 999) {
+            this.refreshHud('Invalid stage (1-999)');
+            return;
+        }
+
+        localStorage.setItem(START_STAGE_KEY, String(selected));
+        this.hideRestartButtons();
+        this.awaitingRestart = false;
+        this.isEnding = false;
+        this.startStage(selected);
+        this.refreshHud(`Jumped to stage ${selected}`);
     }
 
     private updateJoystickThumb (px: number, py: number): void
@@ -462,7 +650,11 @@ export class Game extends Scene
         if (dist < JOYSTICK_TAP_THRESHOLD) {
             // Tap → Chord
             const out = chordAtPlayer(this.stageData);
-            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord');
+            if (out.result.status === 'alive' && out.stage === this.stageData) {
+                this.refreshHud(out.result.message ?? 'chord');
+                return;
+            }
+            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord', out.changedCellIndices);
             return;
         }
 
@@ -470,25 +662,6 @@ export class Game extends Scene
         const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
         const sector = Math.round(deg / 45) % 8;
         this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode, 'virtual-joystick');
-    }
-
-    private drawMarker (
-        pos: Position,
-        label: string,
-        color: string,
-        offsetX = 0,
-        offsetY = 0,
-        fontSize = 16
-    ): void
-    {
-        const px = BOARD_ORIGIN_X + pos.x * CELL_SIZE + CELL_SIZE / 2 + offsetX;
-        const py = BOARD_ORIGIN_Y + pos.y * CELL_SIZE + CELL_SIZE / 2 + offsetY;
-        const text = this.add.text(px, py, label, {
-            fontFamily: 'monospace',
-            fontSize,
-            color
-        }).setOrigin(0.5);
-        this.boardLayer?.add(text);
     }
 
     private drawEdgeMarker (pos: Position, color: number): void
@@ -525,10 +698,6 @@ export class Game extends Scene
 
     private cellFillColor (x: number, y: number, cell: Stage['cells'][number]): number
     {
-        const isPlayer = this.stageData.player.x === x && this.stageData.player.y === y;
-        if (isPlayer) {
-            return 0x57606f;
-        }
         if (this.gameOverLogical) {
             const idx = y * this.stageData.width + x;
             if (cell.hasBomb && cell.revealed) {
@@ -577,10 +746,23 @@ export class Game extends Scene
         }
     }
 
-    private centerCameraOnPlayer (): void
+    private centerCameraOnPlayer (force = false): void
     {
         const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2;
         const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE + CELL_SIZE / 2;
+
+        if (!force) {
+            const margin = CAMERA_FOLLOW_MARGIN_CELLS * CELL_SIZE;
+            const left = this.camera.scrollX + margin;
+            const top = this.camera.scrollY + margin;
+            const right = this.camera.scrollX + this.camera.width - margin;
+            const bottom = this.camera.scrollY + this.camera.height - margin;
+            if (px >= left && px <= right && py >= top && py <= bottom) {
+                this.updateGoalArrow();
+                return;
+            }
+        }
+
         const halfW = this.camera.width / 2;
         const halfH = this.camera.height / 2;
         const minX = halfW;
@@ -667,7 +849,11 @@ export class Game extends Scene
         if (!direction) {
             if (event.code === 'KeyS' || event.code === 'Numpad5') {
                 const out = chordAtPlayer(this.stageData);
-                this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord');
+                if (out.result.status === 'alive' && out.stage === this.stageData) {
+                    this.refreshHud(out.result.message ?? 'chord');
+                    return;
+                }
+                this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord', out.changedCellIndices);
             }
             return;
         }
@@ -682,15 +868,14 @@ export class Game extends Scene
                 x: this.stageData.player.x + direction.x,
                 y: this.stageData.player.y + direction.y
             };
-            this.stageData = toggleFlag(this.stageData, target);
-            this.renderBoard();
-            this.centerCameraOnPlayer();
-            this.refreshHud('Flag toggled');
+            const nextStage = toggleFlag(this.stageData, target);
+            const changedCellIndices = nextStage === this.stageData ? [] : [indexOf(this.stageData, target)];
+            this.applyResult(nextStage, 'alive', 'Flag toggled', changedCellIndices);
             return;
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
-        this.applyResult(out.stage, out.result.status, out.result.message ?? moveSource);
+        this.applyResult(out.stage, out.result.status, out.result.message ?? moveSource, out.changedCellIndices);
     }
 
     private mapDirection (code: string): Position | null
@@ -721,10 +906,73 @@ export class Game extends Scene
         return mapping[code] ?? null;
     }
 
-    private applyResult (nextStage: Stage, status: 'alive' | 'dead' | 'goal', message: string): void
+    private hasVisibleStageChange (prevStage: Stage, nextStage: Stage, changedCellIndices?: number[]): boolean
     {
+        if (prevStage === nextStage) {
+            return false;
+        }
+
+        if (
+            prevStage.stageNo !== nextStage.stageNo ||
+            prevStage.width !== nextStage.width ||
+            prevStage.height !== nextStage.height ||
+            prevStage.start.x !== nextStage.start.x ||
+            prevStage.start.y !== nextStage.start.y ||
+            prevStage.goal.x !== nextStage.goal.x ||
+            prevStage.goal.y !== nextStage.goal.y
+        ) {
+            return true;
+        }
+
+        if (changedCellIndices != null) {
+            return changedCellIndices.length > 0;
+        }
+
+        if (prevStage.cells === nextStage.cells) {
+            return false;
+        }
+
+        const len = prevStage.cells.length;
+        if (len !== nextStage.cells.length) {
+            return true;
+        }
+
+        for (let i = 0; i < len; i += 1) {
+            const prev = prevStage.cells[i];
+            const next = nextStage.cells[i];
+            if (prev.revealed !== next.revealed || prev.flagged !== next.flagged) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private applyResult (
+        nextStage: Stage,
+        status: 'alive' | 'dead' | 'goal',
+        message: string,
+        changedCellIndices?: number[]
+    ): void
+    {
+        const prevStage = this.stageData;
+        const hasVisibleChange = this.hasVisibleStageChange(prevStage, nextStage, changedCellIndices);
+        const useDiffRender = status === 'alive' && hasVisibleChange && this.canDiffRender(prevStage, nextStage);
         this.stageData = nextStage;
-        this.renderBoard();
+
+        if (status !== 'alive') {
+            this.renderBoard();
+        } else if (useDiffRender) {
+            const changedIndices = changedCellIndices ?? this.collectChangedCellIndices(prevStage, nextStage);
+            this.renderChangedCells(changedIndices);
+        } else if (hasVisibleChange) {
+            this.renderBoard();
+        } else {
+            this.updatePlayerMarkerPosition();
+        }
+
+        this.updatePlayerHighlightPosition();
+        this.updatePlayerMarkerPosition();
         this.centerCameraOnPlayer();
 
         if (status === 'dead') {
@@ -738,7 +986,7 @@ export class Game extends Scene
             this.gameOverLogical = analyzeCurrentState(this.stageData);
             this.revealAllBombs();
             this.renderBoard();
-            this.centerCameraOnPlayer();
+            this.centerCameraOnPlayer(true);
             this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / 他のキーかボタンで新ゲーム');
             this.time.delayedCall(600, () => {
                 this.awaitingRestart = true;
@@ -810,6 +1058,11 @@ export class Game extends Scene
 
     private onPointerDown (pointer: Phaser.Input.Pointer): void
     {
+        if (this.stageSelectHitArea && Phaser.Geom.Rectangle.Contains(this.stageSelectHitArea, pointer.x, pointer.y)) {
+            this.promptAndStartStage();
+            return;
+        }
+
         if (this.isEnding) {
             return;
         }
@@ -914,7 +1167,7 @@ export class Game extends Scene
             return;
         }
 
-        const world = pointer.positionToCamera(this.camera);
+        const world = pointer.positionToCamera(this.camera) as Phaser.Math.Vector2;
         const gx = Math.floor((world.x - BOARD_ORIGIN_X) / CELL_SIZE);
         const gy = Math.floor((world.y - BOARD_ORIGIN_Y) / CELL_SIZE);
         const target = { x: gx, y: gy };
@@ -930,6 +1183,6 @@ export class Game extends Scene
         }
 
         const out = movePlayer(this.stageData, target);
-        this.applyResult(out.stage, out.result.status, out.result.message ?? 'tap-move');
+        this.applyResult(out.stage, out.result.status, out.result.message ?? 'tap-move', out.changedCellIndices);
     }
 }

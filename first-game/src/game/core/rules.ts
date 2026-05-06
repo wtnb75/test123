@@ -1,10 +1,67 @@
 import { cloneStage, inBounds, indexOf, neighbors8, revealZeros } from './board';
 import type { MoveResult, Position, Stage } from './types';
 
+export type RuleOutput = {
+  stage: Stage;
+  result: MoveResult;
+  changedCellIndices?: number[];
+};
+
 const eqPos = (a: Position, b: Position): boolean => a.x === b.x && a.y === b.y;
 
-const revealCellWithoutMoving = (stage: Stage, pos: Position): MoveResult | null => {
-  const cell = stage.cells[indexOf(stage, pos)];
+const ensureWritableCell = (stage: Stage, originalCells: Stage['cells'], idx: number) => {
+  if (stage.cells[idx] === originalCells[idx]) {
+    stage.cells[idx] = { ...stage.cells[idx] };
+  }
+
+  return stage.cells[idx];
+};
+
+const revealZerosCopyOnWrite = (
+  stage: Stage,
+  origin: Position,
+  originalCells: Stage['cells'],
+  changed: Set<number>
+): void => {
+  const queue: Position[] = [origin];
+  const seen = new Set<number>();
+  let head = 0;
+
+  while (head < queue.length) {
+    const current = queue[head++];
+    const currentIdx = indexOf(stage, current);
+    if (seen.has(currentIdx)) {
+      continue;
+    }
+    seen.add(currentIdx);
+
+    const currentCell = stage.cells[currentIdx];
+    if (currentCell.hasBomb || currentCell.flagged) {
+      continue;
+    }
+
+    const writable = ensureWritableCell(stage, originalCells, currentIdx);
+    if (!writable.revealed) {
+      writable.revealed = true;
+      changed.add(currentIdx);
+    }
+
+    if (stage.cells[currentIdx].hint !== 0) {
+      continue;
+    }
+
+    for (const n of neighbors8(stage, current)) {
+      const nCell = stage.cells[indexOf(stage, n)];
+      if (!nCell.hasBomb && !nCell.flagged) {
+        queue.push(n);
+      }
+    }
+  }
+};
+
+const revealCellWithoutMoving = (stage: Stage, pos: Position, changed: Set<number>): MoveResult | null => {
+  const idx = indexOf(stage, pos);
+  const cell = stage.cells[idx];
 
   if (cell.flagged || cell.revealed) {
     return null;
@@ -15,8 +72,14 @@ const revealCellWithoutMoving = (stage: Stage, pos: Position): MoveResult | null
   }
 
   cell.revealed = true;
+  changed.add(idx);
   if (cell.hint === 0) {
     revealZeros(stage, pos);
+    for (let i = 0; i < stage.cells.length; i += 1) {
+      if (stage.cells[i].revealed) {
+        changed.add(i);
+      }
+    }
   }
 
   return null;
@@ -61,7 +124,7 @@ const collectGuaranteedSafeNeighbors = (stage: Stage, center: Position): Positio
   return [...safe.values()];
 };
 
-const revealGuaranteedSafeAroundFlag = (stage: Stage, center: Position): MoveResult | null => {
+const revealGuaranteedSafeAroundFlag = (stage: Stage, center: Position, changed: Set<number>): MoveResult | null => {
   let openedAny = false;
 
   while (true) {
@@ -69,7 +132,7 @@ const revealGuaranteedSafeAroundFlag = (stage: Stage, center: Position): MoveRes
     let openedThisPass = false;
 
     for (const pos of guaranteedSafe) {
-      const revealResult = revealCellWithoutMoving(stage, pos);
+      const revealResult = revealCellWithoutMoving(stage, pos, changed);
       if (revealResult) {
         return revealResult;
       }
@@ -98,39 +161,62 @@ export const toggleFlag = (stage: Stage, pos: Position): Stage => {
     return stage;
   }
 
-  const next = cloneStage(stage);
-  const cell = next.cells[indexOf(next, pos)];
-  if (cell.revealed) {
-    return next;
+  const idx = indexOf(stage, pos);
+  if (stage.cells[idx].revealed) {
+    return stage;
   }
+
+  const next: Stage = {
+    ...stage,
+    cells: [...stage.cells]
+  };
+
+  const cell = { ...next.cells[idx] };
+  next.cells[idx] = cell;
   cell.flagged = !cell.flagged;
 
   return next;
 };
 
-export const movePlayer = (stage: Stage, pos: Position): { stage: Stage; result: MoveResult } => {
+export const movePlayer = (stage: Stage, pos: Position): RuleOutput => {
   if (!inBounds(stage, pos)) {
     return { stage, result: { status: 'alive', message: 'out-of-bounds' } };
   }
 
-  const next = cloneStage(stage);
-  const cell = next.cells[indexOf(next, pos)];
+  const targetIdx = indexOf(stage, pos);
+  const targetCell = stage.cells[targetIdx];
+  const next: Stage = {
+    ...stage,
+    player: { ...pos },
+    cells: stage.cells
+  };
 
-  next.player = { ...pos };
-
-  if (cell.hasBomb && !cell.flagged) {
+  if (targetCell.hasBomb && !targetCell.flagged) {
     return { stage: next, result: { status: 'dead', message: 'bomb-without-flag' } };
   }
 
-  if (!cell.hasBomb && cell.flagged) {
+  if (!targetCell.hasBomb && targetCell.flagged) {
     return { stage: next, result: { status: 'dead', message: 'false-flag' } };
   }
 
-  if (!cell.hasBomb) {
-    cell.revealed = true;
-    if (cell.hint === 0) {
-      revealZeros(next, pos);
+  if (!targetCell.hasBomb && !targetCell.revealed) {
+    const originalCells = stage.cells;
+    const changed = new Set<number>();
+    next.cells = [...stage.cells];
+    const writableTarget = ensureWritableCell(next, originalCells, targetIdx);
+    if (!writableTarget.revealed) {
+      writableTarget.revealed = true;
+      changed.add(targetIdx);
     }
+    if (targetCell.hint === 0) {
+      revealZerosCopyOnWrite(next, pos, originalCells, changed);
+    }
+
+    if (eqPos(pos, next.goal)) {
+      return { stage: next, result: { status: 'goal' }, changedCellIndices: [...changed] };
+    }
+
+    return { stage: next, result: { status: 'alive' }, changedCellIndices: [...changed] };
   }
 
   if (eqPos(pos, next.goal)) {
@@ -144,19 +230,24 @@ export const moveByDelta = (
   stage: Stage,
   dx: number,
   dy: number
-): { stage: Stage; result: MoveResult } => {
+): RuleOutput => {
   return movePlayer(stage, { x: stage.player.x + dx, y: stage.player.y + dy });
 };
 
-export const chordAtPlayer = (stage: Stage): { stage: Stage; result: MoveResult } => {
+export const chordAtPlayer = (stage: Stage): RuleOutput => {
   const center = stage.player;
   const centerCell = stage.cells[indexOf(stage, center)];
 
   if (centerCell.flagged) {
     const next = cloneStage(stage);
-    const revealResult = revealGuaranteedSafeAroundFlag(next, center);
+    const changed = new Set<number>();
+    const revealResult = revealGuaranteedSafeAroundFlag(next, center, changed);
+    const result = revealResult ?? { status: 'alive', message: 'not-enough-info' };
+    if (result.status === 'alive' && result.message === 'not-enough-info') {
+      return { stage, result };
+    }
 
-    return { stage: next, result: revealResult ?? { status: 'alive', message: 'not-enough-info' } };
+    return { stage: next, result, changedCellIndices: [...changed] };
   }
 
   if (!centerCell.revealed || centerCell.hint <= 0) {
@@ -177,6 +268,7 @@ export const chordAtPlayer = (stage: Stage): { stage: Stage; result: MoveResult 
   }
 
   const next = cloneStage(stage);
+  const changed = new Set<number>();
 
   if (flaggedCount < centerCell.hint) {
     const unresolved = neighbors.filter((n) => {
@@ -186,19 +278,21 @@ export const chordAtPlayer = (stage: Stage): { stage: Stage; result: MoveResult 
     const bombsNeeded = centerCell.hint - flaggedCount;
     if (unresolved.length === bombsNeeded) {
       for (const n of unresolved) {
-        next.cells[indexOf(next, n)].flagged = true;
+        const idx = indexOf(next, n);
+        next.cells[idx].flagged = true;
+        changed.add(idx);
       }
-      return { stage: next, result: { status: 'alive', message: 'auto-flagged' } };
+      return { stage: next, result: { status: 'alive', message: 'auto-flagged' }, changedCellIndices: [...changed] };
     }
-    return { stage: next, result: { status: 'alive', message: 'not-enough-info' } };
+    return { stage, result: { status: 'alive', message: 'not-enough-info' } };
   }
 
   for (const n of neighbors) {
-    const revealResult = revealCellWithoutMoving(next, n);
+    const revealResult = revealCellWithoutMoving(next, n, changed);
     if (revealResult) {
-      return { stage: next, result: revealResult };
+      return { stage: next, result: revealResult, changedCellIndices: [...changed] };
     }
   }
 
-  return { stage: next, result: { status: 'alive', message: 'auto-opened' } };
+  return { stage: next, result: { status: 'alive', message: 'auto-opened' }, changedCellIndices: [...changed] };
 };
