@@ -92,9 +92,10 @@ const revealCellWithoutMoving = (stage: Stage, pos: Position, changed: Set<numbe
   cell.revealed = true;
   changed.add(idx);
   if (cell.hint === 0) {
+    const wasRevealed = stage.cells.map((currentCell) => currentCell.revealed);
     revealZeros(stage, pos);
     for (let i = 0; i < stage.cells.length; i += 1) {
-      if (stage.cells[i].revealed) {
+      if (stage.cells[i].revealed && !wasRevealed[i]) {
         changed.add(i);
       }
     }
