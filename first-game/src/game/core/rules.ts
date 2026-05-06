@@ -4,7 +4,25 @@ import type { MoveResult, Position, Stage } from './types';
 export type RuleOutput = {
   stage: Stage;
   result: MoveResult;
-  changedCellIndices?: number[];
+  changedCellIndices: number[];
+};
+
+export const changedCellIndicesFrom = (changed: ReadonlySet<number>): number[] =>
+  [...changed].sort((a, b) => a - b);
+
+export const finalizeRuleOutput = (
+  originalStage: Stage,
+  nextStage: Stage,
+  result: MoveResult,
+  changed: ReadonlySet<number>
+): RuleOutput => {
+  const changedCellIndices = changedCellIndicesFrom(changed);
+
+  return {
+    stage: changedCellIndices.length === 0 ? originalStage : nextStage,
+    result,
+    changedCellIndices,
+  };
 };
 
 const eqPos = (a: Position, b: Position): boolean => a.x === b.x && a.y === b.y;
