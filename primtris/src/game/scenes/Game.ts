@@ -131,7 +131,9 @@ export class Game extends Scene
             }
         }
 
-        this.currentValueText.setPosition(this.currentX, this.currentY);
+        if (!this.isResolving) {
+            this.currentValueText.setPosition(this.currentX, this.currentY);
+        }
 
         this.updateHighlightedBox();
     }
