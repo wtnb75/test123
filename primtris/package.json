@@ -1,6 +1,6 @@
 {
   "name": "primtris",
-  "description": "A Phaser 3 TypeScript template using Vite.",
+  "description": "drop number into your box",
   "version": "0.1.0",
   "repository": {
     "type": "git",

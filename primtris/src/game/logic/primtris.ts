@@ -152,7 +152,16 @@ const generateForTargetBox = (digitCount: number, target: BoxKey, rng: () => num
                 value += 2;
             }
         }
-        return 11;
+        // Deterministic fallback: scan from lowerBound for the first prime in range
+        let primeFallback = lowerBound % 2 === 0 ? lowerBound + 1 : lowerBound;
+        while (primeFallback <= upperBound) {
+            if (isPrime(primeFallback)) {
+                return primeFallback;
+            }
+            primeFallback += 2;
+        }
+
+        return lowerBound;
     }
 
     if (target === 'xN') {
@@ -165,7 +174,14 @@ const generateForTargetBox = (digitCount: number, target: BoxKey, rng: () => num
                 return value;
             }
         }
-        return 121;
+        // Deterministic fallback: scan from lowerBound for the first xN-routed value in range
+        for (let xnFallback = lowerBound; xnFallback <= upperBound; xnFallback += 1) {
+            if (getValidBoxes(xnFallback)[0] === 'xN') {
+                return xnFallback;
+            }
+        }
+
+        return lowerBound;
     }
 
     const divisor = Number(target.slice(1));

@@ -241,12 +241,20 @@ export class Game extends Scene
         });
 
         this.input.keyboard?.on('keydown-LEFT', () => {
+            if (this.isGameOver || this.isEntering || this.isResolving) {
+                return;
+            }
+
             const currentIndex = this.getNearestColumnIndex(this.currentX);
             const nextIndex = Math.max(0, currentIndex - 1);
             this.currentX = this.getColumnCenter(nextIndex);
         });
 
         this.input.keyboard?.on('keydown-RIGHT', () => {
+            if (this.isGameOver || this.isEntering || this.isResolving) {
+                return;
+            }
+
             const currentIndex = this.getNearestColumnIndex(this.currentX);
             const nextIndex = Math.min(this.activeBoxes.length - 1, currentIndex + 1);
             this.currentX = this.getColumnCenter(nextIndex);
