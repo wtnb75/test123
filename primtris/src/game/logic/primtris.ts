@@ -2,6 +2,14 @@ export const BOX_ORDER = ['x2', 'x3', 'x5', 'x7', 'xN', 'P'] as const;
 
 export type BoxKey = (typeof BOX_ORDER)[number];
 
+export const getBoxOrder = (digitCount: number): BoxKey[] => {
+    if (digitCount <= 2) {
+        return ['x2', 'x3', 'x5', 'x7', 'P'];
+    }
+
+    return [...BOX_ORDER];
+};
+
 export interface Difficulty {
     digitCount: number;
     boxCapacity: number;
@@ -118,10 +126,11 @@ const updateDistributionState = (state: DistributionState, value: number): void 
     state.generated += 1;
 };
 
-const selectTargetBox = (state: DistributionState, rng: () => number): BoxKey => {
-    const counts = BOX_ORDER.map((box) => state.counts[box]);
+const selectTargetBox = (digitCount: number, state: DistributionState, rng: () => number): BoxKey => {
+    const activeBoxes = getBoxOrder(digitCount);
+    const counts = activeBoxes.map((box) => state.counts[box]);
     const minimum = Math.min(...counts);
-    const deficitBoxes = BOX_ORDER.filter((box) => state.counts[box] === minimum);
+    const deficitBoxes = activeBoxes.filter((box) => state.counts[box] === minimum);
 
     return deficitBoxes[Math.floor(rng() * deficitBoxes.length)];
 };
@@ -179,7 +188,7 @@ const generateBalancedNumber = (
     distributionState: DistributionState,
     rng: () => number
 ): number => {
-    const targetBox = selectTargetBox(distributionState, rng);
+    const targetBox = selectTargetBox(digitCount, distributionState, rng);
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
         const value = generateNumber(digitCount, rng);

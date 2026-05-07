@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
     advanceQueue,
+    createDistributionState,
     createEmptyBoxes,
     createQueue,
     generateNumber,
+    getBoxOrder,
     getValidBoxes,
+    isPrime,
     isCorrectPlacement,
     resolvePlacement,
     splitDigits,
@@ -37,6 +40,13 @@ describe('getValidBoxes', () => {
     it('treats one digit factors as P if they were manually checked', () => {
         expect(isCorrectPlacement(7, 'P')).toBe(true);
         expect(isCorrectPlacement(7, 'x7')).toBe(false);
+    });
+});
+
+describe('isPrime', () => {
+    it('handles low-value edge cases', () => {
+        expect(isPrime(1)).toBe(false);
+        expect(isPrime(2)).toBe(true);
     });
 });
 
@@ -78,6 +88,78 @@ describe('queue helpers', () => {
             current: 19,
             next: [28, 37]
         });
+    });
+
+    it('excludes xN from target selection in 2-digit balanced generation', () => {
+        const distribution = createDistributionState();
+        let queue = createQueue(difficulty, Math.random, distribution);
+
+        const samples = [queue.current, ...queue.next];
+
+        for (let count = 0; count < 300; count += 1) {
+            queue = advanceQueue(queue, difficulty, Math.random, distribution);
+            samples.push(queue.next[1]);
+        }
+
+        for (const value of samples) {
+            expect(value).toBeGreaterThanOrEqual(10);
+            expect(value).toBeLessThanOrEqual(99);
+            expect(getValidBoxes(value)).not.toEqual(['xN']);
+        }
+    });
+
+    it('uses P fallback generation when balanced attempts cannot hit P', () => {
+        const distribution = createDistributionState();
+        distribution.counts.x2 = 10;
+        distribution.counts.x3 = 10;
+        distribution.counts.x5 = 10;
+        distribution.counts.x7 = 10;
+        distribution.counts.P = 0;
+
+        const queue = createQueue(difficulty, () => 0, distribution);
+
+        expect(queue.current).toBe(11);
+        expect(getValidBoxes(queue.current)).toEqual(['P']);
+    });
+
+    it('uses xN fallback generation in 3-digit mode when balanced attempts cannot hit xN', () => {
+        const hardDifficulty: Difficulty = { digitCount: 3, boxCapacity: 9 };
+        const distribution = createDistributionState();
+        distribution.counts.x2 = 10;
+        distribution.counts.x3 = 10;
+        distribution.counts.x5 = 10;
+        distribution.counts.x7 = 10;
+        distribution.counts.P = 10;
+        distribution.counts.xN = 0;
+
+        const queue = createQueue(hardDifficulty, () => 0, distribution);
+
+        expect(getValidBoxes(queue.current)).toEqual(['xN']);
+    });
+
+    it('covers divisor-target generation path for factor boxes', () => {
+        const distribution = createDistributionState();
+        distribution.counts.x2 = 0;
+        distribution.counts.x3 = 10;
+        distribution.counts.x5 = 10;
+        distribution.counts.x7 = 10;
+        distribution.counts.P = 10;
+
+        const queue = createQueue(difficulty, () => 0.02, distribution);
+
+        expect(getValidBoxes(queue.current)).toContain('x2');
+        expect(queue.current).toBeGreaterThanOrEqual(10);
+        expect(queue.current).toBeLessThanOrEqual(99);
+    });
+});
+
+describe('getBoxOrder', () => {
+    it('removes xN in 2-digit mode', () => {
+        expect(getBoxOrder(2)).toEqual(['x2', 'x3', 'x5', 'x7', 'P']);
+    });
+
+    it('keeps xN for 3-digit and above', () => {
+        expect(getBoxOrder(3)).toEqual(['x2', 'x3', 'x5', 'x7', 'xN', 'P']);
     });
 });
 

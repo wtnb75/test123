@@ -6,6 +6,7 @@ import {
     createDistributionState,
     createEmptyBoxes,
     createQueue,
+    getBoxOrder,
     resolvePlacement,
     type BoxKey,
     type DistributionState,
@@ -66,6 +67,7 @@ export class Game extends Scene
     private queue!: QueueState;
     private score = 0;
     private scoreText!: GameObjects.Text;
+    private activeBoxes: BoxKey[] = [...BOX_ORDER];
 
     constructor ()
     {
@@ -79,6 +81,7 @@ export class Game extends Scene
             ...DEFAULT_DIFFICULTY,
             digitCount: nextDigitCount
         };
+        this.activeBoxes = getBoxOrder(nextDigitCount);
     }
 
     create ()
@@ -99,7 +102,7 @@ export class Game extends Scene
     {
         this.boxes = createEmptyBoxes();
         this.collateralClears = 0;
-        this.keyboardStep = width / BOX_ORDER.length;
+        this.keyboardStep = width / this.activeBoxes.length;
         this.dropZoneTop = height - BOX_REGION_HEIGHT - 72;
         this.currentX = this.getColumnCenter(this.getDefaultColumnIndex());
         this.currentY = ENTRY_START_Y;
@@ -172,19 +175,22 @@ export class Game extends Scene
             wordWrap: { width: width - 48 }
         });
 
-        const boxWidth = width / BOX_ORDER.length;
+        const boxWidth = width / this.activeBoxes.length;
         const boxTop = height - BOX_REGION_HEIGHT;
 
-        this.boxViews = Object.fromEntries(BOX_ORDER.map((boxKey, index) => {
-            const x = index * boxWidth;
-            const fillColor = index % 2 === 0 ? 0x415a77 : 0x33415c;
-            const background = this.add.rectangle(x, boxTop, boxWidth, BOX_REGION_HEIGHT, fillColor).setOrigin(0);
+        this.boxViews = Object.fromEntries(BOX_ORDER.map((boxKey) => {
+            const hidden = !this.activeBoxes.includes(boxKey);
+            const index = this.activeBoxes.indexOf(boxKey);
+            const x = hidden ? 0 : index * boxWidth;
+            const fillColor = hidden ? 0x000000 : (index % 2 === 0 ? 0x415a77 : 0x33415c);
+            const alpha = hidden ? 0 : 1;
+            const background = this.add.rectangle(x, boxTop, boxWidth, BOX_REGION_HEIGHT, fillColor).setOrigin(0).setAlpha(alpha);
             const labelText = this.add.text(x + boxWidth / 2, boxTop + 18, boxKey.toUpperCase(), {
                 color: '#f8f4e3',
                 fontFamily: 'sans-serif',
                 fontSize: '22px',
                 fontStyle: 'bold'
-            }).setOrigin(0.5, 0);
+            }).setOrigin(0.5, 0).setAlpha(alpha);
             const digitsText = this.add.text(x + boxWidth / 2, boxTop + 62, '--', {
                 align: 'center',
                 color: '#f8f4e3',
@@ -192,12 +198,12 @@ export class Game extends Scene
                 fontSize: '20px',
                 fontStyle: 'bold',
                 lineSpacing: 2
-            }).setOrigin(0.5, 0);
+            }).setOrigin(0.5, 0).setAlpha(alpha);
             const capacityText = this.add.text(x + boxWidth / 2, boxTop + BOX_REGION_HEIGHT - 34, `0/${this.difficulty.boxCapacity}`, {
                 color: '#ffd166',
                 fontFamily: 'sans-serif',
                 fontSize: '18px'
-            }).setOrigin(0.5, 0);
+            }).setOrigin(0.5, 0).setAlpha(alpha);
 
             return [boxKey, { background, labelText, digitsText, capacityText }];
         })) as Record<BoxKey, BoxView>;
@@ -240,7 +246,7 @@ export class Game extends Scene
 
         this.input.keyboard?.on('keydown-RIGHT', () => {
             const currentIndex = this.getNearestColumnIndex(this.currentX);
-            const nextIndex = Math.min(BOX_ORDER.length - 1, currentIndex + 1);
+            const nextIndex = Math.min(this.activeBoxes.length - 1, currentIndex + 1);
             this.currentX = this.getColumnCenter(nextIndex);
         });
 
@@ -352,7 +358,7 @@ export class Game extends Scene
 
     private playFactorizationEffect (value: number, box: BoxKey, isCorrect: boolean)
     {
-        const centerX = this.getColumnCenter(BOX_ORDER.indexOf(box));
+        const centerX = this.getColumnCenter(this.activeBoxes.indexOf(box));
         const startY = this.dropZoneTop - 36;
         const expression = this.createFactorExpression(value);
         const color = isCorrect ? '#80ed99' : '#ffadad';
@@ -415,22 +421,22 @@ export class Game extends Scene
 
     private getDefaultColumnIndex (): number
     {
-        return Math.floor((BOX_ORDER.length - 1) / 2);
+        return Math.floor((this.activeBoxes.length - 1) / 2);
     }
 
     private getNearestColumnIndex (x: number): number
     {
         const rawIndex = Math.round((x - (this.keyboardStep / 2)) / this.keyboardStep);
 
-        return Math.min(BOX_ORDER.length - 1, Math.max(0, rawIndex));
+        return Math.min(this.activeBoxes.length - 1, Math.max(0, rawIndex));
     }
 
     private getBoxForX (x: number): BoxKey
     {
-        const boxWidth = this.cameras.main.width / BOX_ORDER.length;
-        const index = Math.min(BOX_ORDER.length - 1, Math.max(0, Math.floor(x / boxWidth)));
+        const boxWidth = this.cameras.main.width / this.activeBoxes.length;
+        const index = Math.min(this.activeBoxes.length - 1, Math.max(0, Math.floor(x / boxWidth)));
 
-        return BOX_ORDER[index];
+        return this.activeBoxes[index];
     }
 
     private pushLog (line: string)
@@ -447,7 +453,7 @@ export class Game extends Scene
         this.nextText.setText(`NEXT: [ ${this.queue.next[0]} ] [ ${this.queue.next[1]} ]`);
         this.syncCurrentValueDisplay();
 
-        for (const boxKey of BOX_ORDER) {
+        for (const boxKey of this.activeBoxes) {
             const digits = this.boxes[boxKey];
             const view = this.boxViews[boxKey];
 
@@ -494,9 +500,9 @@ export class Game extends Scene
 
         this.highlightedBox = activeBox;
 
-        for (const boxKey of BOX_ORDER) {
+        for (const boxKey of this.activeBoxes) {
             const view = this.boxViews[boxKey];
-            view.background.setFillStyle(boxKey === activeBox ? 0x778da9 : (BOX_ORDER.indexOf(boxKey) % 2 === 0 ? 0x415a77 : 0x33415c));
+            view.background.setFillStyle(boxKey === activeBox ? 0x778da9 : (this.activeBoxes.indexOf(boxKey) % 2 === 0 ? 0x415a77 : 0x33415c));
         }
     }
 }
