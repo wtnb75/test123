@@ -26,11 +26,11 @@ const BOX_REGION_HEIGHT = 180;
 const LOG_LIMIT = 4;
 const BOX_DIGITS_PER_LINE = 5;
 const BOX_MAX_LINES = 3;
-const FACTOR_POPUP_DURATION_MS = 1400;
+const FACTOR_POPUP_DURATION_MS = 2000;
 const NORMAL_DROP_COMMIT_MS = 140;
 const GAME_OVER_DROP_COMMIT_MS = 520;
 const GAME_OVER_SLOW_MOTION_SCALE = 0.35;
-const GAME_OVER_SLOW_MOTION_DELAY_MS = 360;
+const GAME_OVER_SLOW_MOTION_DELAY_MS = 560;
 
 interface BoxView {
     background: GameObjects.Rectangle;
@@ -305,8 +305,9 @@ export class Game extends Scene
     {
         const value = this.queue.current;
         const result = preparedResult ?? resolvePlacement(value, box, this.boxes, this.difficulty.boxCapacity);
+        const factorExpression = this.createFactorExpression(value);
 
-        this.playFactorizationEffect(value, box, result.isCorrect);
+        this.playFactorizationEffect(value, box, result.isCorrect, factorExpression);
 
         this.boxes = result.boxes;
         this.score += result.scoreDelta;
@@ -314,12 +315,12 @@ export class Game extends Scene
 
         const eventLabel = result.isCorrect ? 'HIT' : 'MISS';
         const collateral = result.clearedDigits.length > 0 ? ` collateral: [${result.clearedDigits.join(',')}]` : '';
-        this.pushLog(`${value} -> ${box} ${eventLabel}${collateral}`);
+        this.pushLog(`${value} -> ${box} ${eventLabel} (${factorExpression})${collateral}`);
 
         if (result.gameOver) {
             this.isGameOver = true;
             this.refreshUi();
-            const finalExpression = this.createFactorExpression(value);
+            const finalExpression = factorExpression;
 
             this.playGameOverSlowMotion(() => {
                 this.scene.start('Result', {
@@ -349,13 +350,13 @@ export class Game extends Scene
         this.tweens.timeScale = GAME_OVER_SLOW_MOTION_SCALE;
         this.time.timeScale = GAME_OVER_SLOW_MOTION_SCALE;
 
-        this.cameras.main.flash(220, 255, 110, 110, false);
+        this.cameras.main.flash(320, 255, 110, 110, false);
 
         this.tweens.add({
             targets: this.currentValueText,
             scale: 1.15,
             yoyo: true,
-            duration: 260,
+            duration: 420,
             ease: 'Sine.easeInOut'
         });
 
@@ -366,11 +367,10 @@ export class Game extends Scene
         });
     }
 
-    private playFactorizationEffect (value: number, box: BoxKey, isCorrect: boolean)
+    private playFactorizationEffect (value: number, box: BoxKey, isCorrect: boolean, expression: string)
     {
         const centerX = this.getColumnCenter(this.activeBoxes.indexOf(box));
         const startY = this.dropZoneTop - 36;
-        const expression = this.createFactorExpression(value);
         const color = isCorrect ? '#80ed99' : '#ffadad';
 
         const popup = this.add.text(centerX, startY, expression, {
