@@ -159,7 +159,7 @@ export class Game extends Scene {
         this.refreshHeader();
 
         if (this.time.now > this.roundDeadline) {
-            this.finalizeRound(false);
+            this.finalizeRound(false, false);
         }
     }
 
@@ -173,14 +173,14 @@ export class Game extends Scene {
         this.renderTable();
 
         if (this.progress.won) {
-            this.finalizeRound(true);
+            this.finalizeRound(true, true);
         }
     }
 
-    private finalizeRound(wonByImmediateMatch: boolean): void {
+    private finalizeRound(wonByImmediateMatch: boolean, triggeredByPointer: boolean): void {
         if (this.mode !== 'playing') return;
         this.stopTimer();
-        this.swallowNextResultClick = true;
+        this.swallowNextResultClick = triggeredByPointer;
 
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
         this.roundWon = wonByImmediateMatch && this.progress.won;
