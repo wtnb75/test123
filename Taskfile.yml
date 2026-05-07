@@ -9,6 +9,7 @@ vars:
     - digdle
     - shoot1
     - calc1
+    - primtris
 
 tasks:
   default:
