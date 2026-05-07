@@ -307,7 +307,7 @@ export class Game extends Scene
         const result = preparedResult ?? resolvePlacement(value, box, this.boxes, this.difficulty.boxCapacity);
         const factorExpression = this.createFactorExpression(value);
 
-        this.playFactorizationEffect(value, box, result.isCorrect, factorExpression);
+        this.playFactorizationEffect(box, result.isCorrect, factorExpression);
 
         this.boxes = result.boxes;
         this.score += result.scoreDelta;
@@ -367,7 +367,7 @@ export class Game extends Scene
         });
     }
 
-    private playFactorizationEffect (value: number, box: BoxKey, isCorrect: boolean, expression: string)
+    private playFactorizationEffect (box: BoxKey, isCorrect: boolean, expression: string)
     {
         const centerX = this.getColumnCenter(this.activeBoxes.indexOf(box));
         const startY = this.dropZoneTop - 36;
