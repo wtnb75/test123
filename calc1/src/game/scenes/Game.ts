@@ -53,7 +53,6 @@ export class Game extends Scene {
     private targetValue = 0;
     private slots: TurnSlot[] = [];
     private progress: ProgressState = { currentValue: 0, won: false, wonAtTurn: null, rows: [] };
-    private solutionLabels: string[] = [];
     private shortestPath: HistoryEntry[] = [];
 
     private mode: SceneMode = 'playing';
@@ -100,11 +99,11 @@ export class Game extends Scene {
         this.mode = 'playing';
         this.roundWon = false;
         this.swallowNextResultClick = false;
-        this.solutionLabels = [];
         this.shortestPath = [];
         this.roundLevel = this.level;
 
         const diff = getDifficulty(this.level);
+        let foundPath = false;
         for (let attempt = 0; attempt < 200; attempt += 1) {
             this.initialValue = randomBetween(diff.initialValueMin, diff.initialValueMax);
             this.targetValue = randomBetween(diff.targetMin, diff.targetMax);
@@ -117,11 +116,18 @@ export class Game extends Scene {
             );
             if (path !== null) {
                 this.shortestPath = path;
-                this.solutionLabels = path
-                    .map((entry) => entry.operation?.label ?? 'スキップ')
-                    .slice(0, diff.maxTurns);
+                foundPath = true;
                 break;
             }
+        }
+
+        // Safety fallback: always start with a solvable board.
+        if (!foundPath) {
+            this.initialValue = randomBetween(diff.initialValueMin, diff.initialValueMax);
+            this.slots = createTurnSlots(diff.maxTurns);
+            const guaranteedOp = this.slots[0].options[0];
+            this.targetValue = guaranteedOp.apply(this.initialValue);
+            this.shortestPath = [{ operation: guaranteedOp, resultValue: this.targetValue, options: this.slots[0].options }];
         }
 
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
