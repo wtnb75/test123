@@ -8,14 +8,14 @@ export const OPERATION_POOL: Operation[] = [
     { label: '+2',  apply: (v) => v + 2  },
     { label: '+5',  apply: (v) => v + 5  },
     { label: '+10', apply: (v) => v + 10 },
-    { label: '−1',  apply: (v) => v - 1  },
-    { label: '−2',  apply: (v) => v - 2  },
-    { label: '−5',  apply: (v) => v - 5  },
+    { label: '-1',  apply: (v) => v - 1  },
+    { label: '-2',  apply: (v) => v - 2  },
+    { label: '-5',  apply: (v) => v - 5  },
     { label: '×2',  apply: (v) => v * 2  },
     { label: '×3',  apply: (v) => v * 3  },
     { label: '×5',  apply: (v) => v * 5  },
-    { label: '÷2',  apply: (v) => Math.floor(v / 2) },
-    { label: '÷3',  apply: (v) => Math.floor(v / 3) },
+    { label: '/2',  apply: (v) => Math.floor(v / 2) },
+    { label: '/3',  apply: (v) => Math.floor(v / 3) },
 ];
 
 export type DifficultyLevel = {
@@ -34,7 +34,7 @@ export const DIFFICULTY_TABLE: DifficultyLevel[] = [
     { initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 8  },
 ];
 
-export const TURN_TIME_MS = 7000;
+export const ROUND_TIME_MS = 60000;
 export const OPTION_COUNT = 4;
 export const LEVEL_STORAGE_KEY = 'calcRushLevel';
 
@@ -44,8 +44,12 @@ export function getDifficulty(level: number): DifficultyLevel {
 }
 
 export function pickOperations(pool: Operation[], count: number, rng: () => number = Math.random): Operation[] {
-    const shuffled = [...pool].sort(() => rng() - 0.5);
-    return shuffled.slice(0, count);
+    const source = [...pool];
+    for (let i = source.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(rng() * (i + 1));
+        [source[i], source[j]] = [source[j], source[i]];
+    }
+    return source.slice(0, count);
 }
 
 export function applyOperation(value: number, op: Operation): number {
@@ -57,14 +61,98 @@ export function checkWin(current: number, target: number): boolean {
 }
 
 export function loadLevel(_storage: Pick<Storage, 'getItem'>): number {
-    // Always start at level 1 on page reload.
-    // Level is only persisted on the localStorage during current session after clearing levels.
-    // On reload, start fresh from level 1.
+    // The spec requires startup from Lv.1 always.
     return 1;
 }
 
 export function saveLevel(level: number, storage: Pick<Storage, 'setItem'>): void {
     storage.setItem(LEVEL_STORAGE_KEY, String(level));
+}
+
+export type TurnSlot = {
+    options: Operation[];
+    selected: Operation | null;
+};
+
+export type ProgressRow = {
+    turn: number;
+    selected: Operation | null;
+    value: number;
+    isAutoSkip: boolean;
+};
+
+export type ProgressState = {
+    currentValue: number;
+    won: boolean;
+    wonAtTurn: number | null;
+    rows: ProgressRow[];
+};
+
+export function createTurnSlots(
+    turnCount: number,
+    pool: Operation[] = OPERATION_POOL,
+    rng: () => number = Math.random,
+): TurnSlot[] {
+    return Array.from({ length: turnCount }, () => ({
+        options: pickOperations(pool, OPTION_COUNT, rng),
+        selected: null,
+    }));
+}
+
+export function evaluateProgress(
+    initialValue: number,
+    targetValue: number,
+    slots: TurnSlot[],
+): ProgressState {
+    let value = initialValue;
+    let won = false;
+    let wonAtTurn: number | null = null;
+
+    const rows = slots.map((slot, index) => {
+        if (won) {
+            return {
+                turn: index + 1,
+                selected: null,
+                value,
+                isAutoSkip: true,
+            };
+        }
+
+        if (slot.selected !== null) {
+            value = applyOperation(value, slot.selected);
+        }
+
+        if (checkWin(value, targetValue)) {
+            won = true;
+            wonAtTurn = index + 1;
+        }
+
+        return {
+            turn: index + 1,
+            selected: slot.selected,
+            value,
+            isAutoSkip: false,
+        };
+    });
+
+    return {
+        currentValue: value,
+        won,
+        wonAtTurn,
+        rows,
+    };
+}
+
+export function handleLossLevelChoice(
+    currentLevel: number,
+    choice: 'restart' | 'continue',
+    storage: Pick<Storage, 'setItem'>,
+): number {
+    if (choice === 'restart') {
+        saveLevel(1, storage);
+        return 1;
+    }
+    return currentLevel;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -76,11 +164,6 @@ export type HistoryEntry = {
     resultValue: number;
     options?: Operation[];
 };
-
-function buildTurnOptions(pool: Operation[], selected: Operation): Operation[] {
-    const others = pool.filter((op) => op.label !== selected.label).slice(0, OPTION_COUNT - 1);
-    return [selected, ...others];
-}
 
 /**
  * Find a solution path from initial to target using BFS.
@@ -119,7 +202,7 @@ export function findSolutionPath(
                 return [...path, {
                     operation: op,
                     resultValue: next,
-                    options: buildTurnOptions(pool, op),
+                    options: [op],
                 }];
             }
 
@@ -130,7 +213,7 @@ export function findSolutionPath(
                     path: [...path, {
                         operation: op,
                         resultValue: next,
-                        options: buildTurnOptions(pool, op),
+                        options: [op],
                     }],
                 });
             }
@@ -158,7 +241,13 @@ export function findSolutionFromOptions(
         if (turnIdx >= turnOptions.length) return null;
 
         const opts = turnOptions[turnIdx];
-        for (const op of opts) {
+        for (const op of [...opts, null]) {
+            if (op === null) {
+                const entry: HistoryEntry = { operation: null, resultValue: current, options: opts };
+                const result = dfs(current, turnIdx + 1, [...path, entry]);
+                if (result !== null) return result;
+                continue;
+            }
             const next = applyOperation(current, op);
             const entry: HistoryEntry = { operation: op, resultValue: next, options: opts };
             const result = dfs(next, turnIdx + 1, [...path, entry]);
@@ -168,6 +257,61 @@ export function findSolutionFromOptions(
     }
 
     return dfs(initial, 0, []);
+}
+
+/**
+ * Find the shortest solution path constrained to the actual options presented each turn.
+ * "Shortest" means the earliest turn index that can reach the target.
+ */
+export function findShortestSolutionFromOptions(
+    initial: number,
+    target: number,
+    turnOptions: Operation[][],
+): HistoryEntry[] | null {
+    if (initial === target) return [];
+
+    type State = {
+        turnIdx: number;
+        current: number;
+        path: HistoryEntry[];
+    };
+
+    let frontier: State[] = [{ turnIdx: 0, current: initial, path: [] }];
+    const visited = new Set<string>(['0:' + initial]);
+
+    while (frontier.length > 0) {
+        const nextFrontier: State[] = [];
+
+        for (const state of frontier) {
+            if (state.turnIdx >= turnOptions.length) continue;
+
+            const opts = turnOptions[state.turnIdx];
+            for (const op of [...opts, null]) {
+                const nextValue = op === null ? state.current : applyOperation(state.current, op);
+                const entry: HistoryEntry = {
+                    operation: op,
+                    resultValue: nextValue,
+                    options: opts,
+                };
+                const nextPath = [...state.path, entry];
+
+                if (nextValue === target) {
+                    return nextPath;
+                }
+
+                const nextTurn = state.turnIdx + 1;
+                const key = `${nextTurn}:${nextValue}`;
+                if (!visited.has(key)) {
+                    visited.add(key);
+                    nextFrontier.push({ turnIdx: nextTurn, current: nextValue, path: nextPath });
+                }
+            }
+        }
+
+        frontier = nextFrontier;
+    }
+
+    return null;
 }
 
 /**
