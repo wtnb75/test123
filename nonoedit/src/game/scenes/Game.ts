@@ -1,30 +1,633 @@
 import { Scene } from 'phaser';
+import { analyzePuzzle } from '../core/solver';
+import { createBinaryBoard, createPlayerBoard, cyclePlayerCell, filledMatch, resizeBinaryBoard } from '../core/board';
+import { exportPBM, importPBM } from '../core/pbm';
+import { generateColHints, generateRowHints } from '../core/hints';
+import type { AnalysisResult, BinaryCell, PlayerCell } from '../core/types';
 
-export class Game extends Scene
-{
-    constructor ()
-    {
+type Mode = 'edit' | 'play';
+
+type Button = {
+    x: number;
+    y: number;
+    label: string;
+    width?: number;
+    height?: number;
+    onClick: () => void;
+    active?: boolean;
+};
+
+type MobileTab = 'edit' | 'analysis' | 'data';
+
+type DragState = {
+    active: boolean;
+    startX: number;
+    startY: number;
+    axis: 'horizontal' | 'vertical' | null;
+    value: BinaryCell;
+    lastX: number;
+    lastY: number;
+    moved: boolean;
+};
+
+const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    color: '#f4f4f4',
+    fontFamily: 'monospace',
+    fontSize: '20px',
+};
+
+const UI_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+    color: '#d8d8d8',
+    fontFamily: 'monospace',
+    fontSize: '14px',
+};
+
+export class Game extends Scene {
+    private solution: BinaryCell[][] = createBinaryBoard(10, 10, 0);
+    private player: PlayerCell[][] = createPlayerBoard(10, 10, 'unknown');
+    private mode: Mode = 'edit';
+    private analysis: AnalysisResult = analyzePuzzle(this.solution, generateRowHints(this.solution), generateColHints(this.solution));
+    private message = 'Ready';
+    private moveCount = 0;
+    private startedAt = Date.now();
+    private drag: DragState = {
+        active: false,
+        startX: 0,
+        startY: 0,
+        axis: null,
+        value: 1,
+        lastX: -1,
+        lastY: -1,
+        moved: false,
+    };
+    private importDialog: HTMLDivElement | null = null;
+    private isMobileLayout = false;
+    private mobileTab: MobileTab = 'edit';
+
+    constructor() {
         super('Game');
     }
 
-    preload ()
-    {
-        this.load.setPath('assets');
-        
-        this.load.image('background', 'bg.png');
-        this.load.image('logo', 'logo.png');
+    create(): void {
+        this.cameras.main.setBackgroundColor('#141414');
+        this.input.addPointer(1);
+        this.input.on('pointerup', () => {
+            this.finishDrag();
+        });
+        this.scale.on('resize', () => {
+            this.render();
+        });
+        this.bindKeyboard();
+        this.runAnalysis();
+        this.render();
     }
 
-    create ()
-    {
-        
-        this.add.image(512, 384, 'background');
-        this.add.image(512, 350, 'logo').setDepth(100);
-        this.add.text(512, 490, 'Make something fun!\nand share it with us:\nsupport@phaser.io', {
-            fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5).setDepth(100);
-        
+    shutdown(): void {
+        this.scale.off('resize');
+        this.closeImportDialog();
+    }
+
+    private bindKeyboard(): void {
+        this.input.keyboard?.on('keydown-C', () => {
+            this.copyPBM();
+        });
+        this.input.keyboard?.on('keydown-D', () => {
+            this.runAnalysis();
+            this.render();
+        });
+        this.input.keyboard?.on('keydown-E', () => {
+            this.mode = 'edit';
+            this.message = 'Switched to edit mode';
+            this.render();
+        });
+        this.input.keyboard?.on('keydown-R', () => {
+            this.solution = createBinaryBoard(this.solution[0].length, this.solution.length, 0);
+            this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+            this.runAnalysis();
+            this.message = 'Board cleared';
+            this.render();
+        });
+        this.input.keyboard?.on('keydown-T', () => {
+            this.startPlayMode();
+        });
+
+        for (let i = 1; i <= 9; i += 1) {
+            this.input.keyboard?.on(`keydown-${i}`, () => {
+                const mapping = [5, 7, 10, 12, 15, 18, 20, 22, 25][i - 1];
+                this.applySize(mapping, mapping);
+            });
+        }
+    }
+
+    private applySize(width: number, height: number): void {
+        this.solution = resizeBinaryBoard(this.solution, width, height);
+        this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+        this.mode = 'edit';
+        this.runAnalysis();
+        this.message = `Resized to ${this.solution[0].length} x ${this.solution.length}`;
+        this.render();
+    }
+
+    private startPlayMode(): void {
+        this.mode = 'play';
+        this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+        this.moveCount = 0;
+        this.startedAt = Date.now();
+        if (!this.analysis.unique || !this.analysis.solvable) {
+            this.message = 'Warning: puzzle is not unique/solvable but play is allowed';
+        } else {
+            this.message = 'Play mode started';
+        }
+        this.render();
+    }
+
+    private runAnalysis(): void {
+        const rows = generateRowHints(this.solution);
+        const cols = generateColHints(this.solution);
+        this.analysis = analyzePuzzle(this.solution, rows, cols, 3000);
+    }
+
+    private copyPBM(): void {
+        const data = exportPBM(this.solution, this.analysis);
+        navigator.clipboard.writeText(data)
+            .then(() => {
+                this.message = 'PBM copied to clipboard';
+                this.render();
+            })
+            .catch((err: unknown) => {
+                this.message = `Clipboard copy failed: ${String(err)}`;
+                this.render();
+            });
+    }
+
+    private loadPBMText(text: string): void {
+        try {
+            const loaded = importPBM(text);
+            this.solution = loaded.puzzle.solution;
+            this.player = createPlayerBoard(loaded.puzzle.width, loaded.puzzle.height, 'unknown');
+            this.mode = 'edit';
+            this.runAnalysis();
+            this.message = `PBM loaded (${loaded.puzzle.width} x ${loaded.puzzle.height})`;
+            this.render();
+        } catch (err) {
+            this.message = `PBM load failed: ${String(err)}`;
+            this.render();
+        }
+    }
+
+    private closeImportDialog(): void {
+        if (this.importDialog) {
+            this.importDialog.remove();
+            this.importDialog = null;
+        }
+    }
+
+    private openImportDialog(): void {
+        this.closeImportDialog();
+        const mobile = this.getScreenWidth() <= 768;
+
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(0, 0, 0, 0.55)';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.zIndex = '1000';
+
+        const panel = document.createElement('div');
+        panel.style.width = mobile ? '100vw' : 'min(760px, 92vw)';
+        panel.style.height = mobile ? '100vh' : 'auto';
+        panel.style.background = '#1e1e1e';
+        panel.style.border = '1px solid #444';
+        panel.style.borderRadius = mobile ? '0' : '8px';
+        panel.style.padding = mobile ? '14px' : '12px';
+        panel.style.display = 'flex';
+        panel.style.flexDirection = 'column';
+        panel.style.gap = '10px';
+
+        const title = document.createElement('div');
+        title.textContent = 'Paste P1 PBM text';
+        title.style.fontFamily = 'monospace';
+        title.style.fontSize = '14px';
+        title.style.color = '#f4f4f4';
+
+        const textarea = document.createElement('textarea');
+        textarea.rows = mobile ? 20 : 16;
+        textarea.style.width = '100%';
+        textarea.style.resize = 'vertical';
+        textarea.style.background = '#111';
+        textarea.style.color = '#f0f0f0';
+        textarea.style.border = '1px solid #555';
+        textarea.style.padding = '8px';
+        textarea.style.fontFamily = 'monospace';
+        textarea.style.fontSize = mobile ? '14px' : '13px';
+        if (mobile) {
+            textarea.style.flex = '1';
+            textarea.style.minHeight = '300px';
+        }
+        textarea.placeholder = 'P1\n# comments\n5 5\n0 1 0 1 0 ...';
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.justifyContent = 'flex-end';
+        actions.style.gap = '8px';
+
+        const cancel = document.createElement('button');
+        cancel.textContent = 'Cancel';
+        cancel.style.minHeight = '44px';
+        cancel.onclick = () => this.closeImportDialog();
+
+        const load = document.createElement('button');
+        load.textContent = 'Load PBM';
+        load.style.minHeight = '44px';
+        load.onclick = () => {
+            const text = textarea.value.trim();
+            if (!text) {
+                this.message = 'PBM input is empty';
+                this.render();
+                return;
+            }
+            this.closeImportDialog();
+            this.loadPBMText(text);
+        };
+
+        actions.append(cancel, load);
+        panel.append(title, textarea, actions);
+        overlay.append(panel);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                this.closeImportDialog();
+            }
+        });
+
+        document.body.append(overlay);
+        this.importDialog = overlay;
+        textarea.focus();
+    }
+
+    private startDrag(x: number, y: number): void {
+        this.drag.active = true;
+        this.drag.startX = x;
+        this.drag.startY = y;
+        this.drag.axis = null;
+        this.drag.lastX = x;
+        this.drag.lastY = y;
+        this.drag.moved = false;
+        this.drag.value = this.solution[y][x] === 1 ? 0 : 1;
+    }
+
+    private applyDragTo(x: number, y: number): void {
+        if (!this.drag.active) {
+            return;
+        }
+        if (x === this.drag.lastX && y === this.drag.lastY) {
+            return;
+        }
+        this.drag.lastX = x;
+        this.drag.lastY = y;
+        this.drag.moved = true;
+
+        const dx = x - this.drag.startX;
+        const dy = y - this.drag.startY;
+        if (this.drag.axis === null && (dx !== 0 || dy !== 0)) {
+            this.drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
+        }
+
+        const targetX = this.drag.axis === 'vertical' ? this.drag.startX : x;
+        const targetY = this.drag.axis === 'horizontal' ? this.drag.startY : y;
+
+        const minX = Math.min(this.drag.startX, targetX);
+        const maxX = Math.max(this.drag.startX, targetX);
+        const minY = Math.min(this.drag.startY, targetY);
+        const maxY = Math.max(this.drag.startY, targetY);
+
+        for (let yy = minY; yy <= maxY; yy += 1) {
+            for (let xx = minX; xx <= maxX; xx += 1) {
+                this.solution[yy][xx] = this.drag.value;
+            }
+        }
+
+        this.message = `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`;
+        this.render();
+    }
+
+    private finishDrag(): void {
+        if (!this.drag.active) {
+            return;
+        }
+
+        // Tap/click without movement toggles just one cell.
+        if (!this.drag.moved) {
+            this.solution[this.drag.startY][this.drag.startX] = this.drag.value;
+            this.message = `Edited cell (${this.drag.startX}, ${this.drag.startY})`;
+        }
+
+        this.drag.active = false;
+        this.runAnalysis();
+        this.render();
+    }
+
+    private getScreenWidth(): number {
+        if (typeof window !== 'undefined') {
+            return Math.floor(window.visualViewport?.width ?? window.innerWidth);
+        }
+        return this.scale.width;
+    }
+
+    private getScreenHeight(): number {
+        if (typeof window !== 'undefined') {
+            return Math.floor(window.visualViewport?.height ?? window.innerHeight);
+        }
+        return this.scale.height;
+    }
+
+    private drawButton(button: Button): void {
+        const width = button.width ?? Math.max(44, button.label.length * 9 + 20);
+        const height = button.height ?? 44;
+        const bgColor = button.active ? 0x2f5d3a : 0x2a2a2a;
+        const borderColor = button.active ? 0x87d3a2 : 0x666666;
+
+        const bg = this.add.rectangle(button.x, button.y, width, height, bgColor, 1)
+            .setOrigin(0, 0)
+            .setStrokeStyle(1, borderColor)
+            .setInteractive({ useHandCursor: true });
+        const txt = this.add.text(button.x + width / 2, button.y + height / 2, button.label, {
+            ...UI_STYLE,
+            fontSize: '13px',
+            color: '#f4f4f4',
+        }).setOrigin(0.5, 0.5);
+
+        bg.on('pointerdown', button.onClick);
+        txt.setInteractive({ useHandCursor: true });
+        txt.on('pointerdown', button.onClick);
+    }
+
+    private render(): void {
+        this.children.removeAll();
+
+        const worldWidth = this.scale.width;
+        const worldHeight = this.scale.height;
+        const screenWidth = this.getScreenWidth();
+        this.isMobileLayout = screenWidth <= 768;
+
+        const width = this.solution[0].length;
+        const height = this.solution.length;
+        const rowHints = generateRowHints(this.solution);
+        const colHints = generateColHints(this.solution);
+
+        const headerX = this.isMobileLayout ? 12 : 24;
+        this.add.text(headerX, 16, 'NonoEdit', TITLE_STYLE);
+        this.add.text(headerX, 44, `Mode: ${this.mode}`, UI_STYLE);
+        this.add.text(headerX, 64, `Size: ${width} x ${height}`, UI_STYLE);
+
+        const desktopButtons: Button[] = [
+            {
+                x: 220,
+                y: 20,
+                label: '[Resize]',
+                width: 80,
+                onClick: () => {
+                    const w = window.prompt('width (5-25)', String(width));
+                    const h = window.prompt('height (5-25)', String(height));
+                    if (!w || !h) {
+                        return;
+                    }
+                    this.applySize(Number(w), Number(h));
+                },
+            },
+            { x: 308, y: 20, label: '[Import]', width: 76, onClick: () => this.openImportDialog() },
+            { x: 392, y: 20, label: '[Copy PBM]', width: 104, onClick: () => this.copyPBM() },
+            {
+                x: 500,
+                y: 20,
+                label: '[Analyze]',
+                width: 86,
+                onClick: () => {
+                    this.runAnalysis();
+                    this.message = 'Analysis updated';
+                    this.render();
+                },
+            },
+            {
+                x: 590,
+                y: 20,
+                label: this.mode === 'edit' ? '[Test Play]' : '[Back to Edit]',
+                width: 126,
+                onClick: () => {
+                    if (this.mode === 'edit') {
+                        this.startPlayMode();
+                    } else {
+                        this.mode = 'edit';
+                        this.message = 'Back to edit mode';
+                        this.render();
+                    }
+                },
+            },
+        ];
+
+        if (!this.isMobileLayout) {
+            for (const button of desktopButtons) {
+                this.drawButton(button);
+            }
+        }
+
+        const toolbarHeight = 0;
+        const tabHeight = this.isMobileLayout ? 42 : 0;
+        const panelHeight = this.isMobileLayout ? 102 : 0;
+        const boardTop = this.isMobileLayout ? 92 : 120;
+        const boardBottomPadding = this.isMobileLayout ? toolbarHeight + tabHeight + panelHeight + 12 : 12;
+
+        const gridLeftBase = this.isMobileLayout ? 12 : 220;
+        const gridTopBase = boardTop;
+        const gridMaxWidth = this.isMobileLayout ? worldWidth - 24 : Math.min(580, worldWidth - 300);
+        const gridMaxHeight = Math.max(180, worldHeight - gridTopBase - boardBottomPadding);
+
+        const maxRowHintLen = Math.max(Math.ceil(height / 4) + 1, Math.max(...rowHints.map((h) => h.length)));
+        const maxColHintLen = Math.max(Math.ceil(width / 4) + 1, Math.max(...colHints.map((h) => h.length)));
+        const rowHintStep = this.isMobileLayout ? 14 : 20;
+        const colHintStep = this.isMobileLayout ? 14 : 18;
+        const rowHintSpace = maxRowHintLen * rowHintStep + 8;
+        const colHintSpace = maxColHintLen * colHintStep + 8;
+
+        const cellSizeByWidth = Math.floor((gridMaxWidth - rowHintSpace) / Math.max(1, width));
+        const cellSizeByHeight = Math.floor((gridMaxHeight - colHintSpace) / Math.max(1, height));
+        const minCell = this.isMobileLayout ? 14 : 18;
+        const maxCell = this.isMobileLayout ? 32 : 28;
+        const cellSize = Math.max(minCell, Math.min(maxCell, Math.min(cellSizeByWidth, cellSizeByHeight)));
+
+        const gridLeft = gridLeftBase + rowHintSpace;
+        const gridTop = gridTopBase + colHintSpace;
+
+        for (let y = 0; y < rowHints.length; y += 1) {
+            const hints = rowHints[y];
+            for (let i = 0; i < maxRowHintLen; i += 1) {
+                const hintValue = hints[hints.length - maxRowHintLen + i];
+                const text = hintValue === undefined ? '' : String(hintValue);
+                const hintStyle = this.isMobileLayout ? { ...UI_STYLE, fontSize: '12px' } : UI_STYLE;
+                this.add.text(gridLeft - (maxRowHintLen - i) * rowHintStep, gridTop + y * cellSize + 4, text, hintStyle);
+            }
+        }
+
+        for (let x = 0; x < colHints.length; x += 1) {
+            const hints = colHints[x];
+            for (let i = 0; i < maxColHintLen; i += 1) {
+                const hintValue = hints[hints.length - maxColHintLen + i];
+                const text = hintValue === undefined ? '' : String(hintValue);
+                const hintStyle = this.isMobileLayout ? { ...UI_STYLE, fontSize: '12px' } : UI_STYLE;
+                this.add.text(gridLeft + x * cellSize + 3, gridTop - (maxColHintLen - i) * colHintStep, text, hintStyle);
+            }
+        }
+
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const px = gridLeft + x * cellSize;
+                const py = gridTop + y * cellSize;
+                const rect = this.add.rectangle(px, py, cellSize - 1, cellSize - 1, 0xffffff, 1).setOrigin(0, 0).setStrokeStyle(1, 0x666666);
+                const content = this.mode === 'edit' ? (this.solution[y][x] === 1 ? 'filled' : 'empty') : this.player[y][x];
+
+                if (content === 'filled') {
+                    rect.setFillStyle(0x111111, 1);
+                } else {
+                    rect.setFillStyle(0xf7f7f7, 1);
+                }
+
+                if (this.mode === 'play' && content === 'marked') {
+                    this.add.text(px + cellSize * 0.3, py + cellSize * 0.15, 'x', { ...UI_STYLE, color: '#2f4f4f', fontSize: '18px' });
+                }
+
+                rect.setInteractive({ useHandCursor: true });
+                rect.on('pointerdown', () => {
+                    if (this.mode === 'edit') {
+                        this.startDrag(x, y);
+                    } else {
+                        this.player[y][x] = cyclePlayerCell(this.player[y][x]);
+                        this.moveCount += 1;
+                        if (filledMatch(this.solution, this.player)) {
+                            const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
+                            this.message = `Cleared! moves=${this.moveCount} time=${elapsedSec}s`;
+                        } else {
+                            this.message = `Play move ${this.moveCount}`;
+                        }
+                    }
+                    this.render();
+                });
+
+                rect.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+                    if (this.mode !== 'edit') {
+                        return;
+                    }
+                    if (!this.drag.active || !pointer.isDown) {
+                        return;
+                    }
+                    this.applyDragTo(x, y);
+                });
+            }
+        }
+
+        // 5-cell subdivision overlay
+        const subGraphics = this.add.graphics();
+        const totalGridW = width * cellSize;
+        const totalGridH = height * cellSize;
+
+        // outer border - 1px
+        subGraphics.lineStyle(1, 0x888888, 1);
+        subGraphics.strokeRect(gridLeft - 1, gridTop - 1, totalGridW + 1, totalGridH + 1);
+
+        // 5-cell boundary lines: 3px centered on the gap, overlapping into adjacent cells
+        // 0x5599dd (blue-gray) is visible on both white (empty) and dark (filled) cells
+        subGraphics.lineStyle(3, 0x5599dd, 0.85);
+        for (let gx = 5; gx < width; gx += 5) {
+            const cx = gridLeft + gx * cellSize - 0.5;
+            subGraphics.lineBetween(cx, gridTop, cx, gridTop + totalGridH - 1);
+        }
+        for (let gy = 5; gy < height; gy += 5) {
+            const cy = gridTop + gy * cellSize - 0.5;
+            subGraphics.lineBetween(gridLeft, cy, gridLeft + totalGridW - 1, cy);
+        }
+
+        if (!this.isMobileLayout) {
+            const statusX = Math.max(820, worldWidth - 200);
+            this.add.text(statusX, 120, 'Analysis', TITLE_STYLE);
+            this.add.text(statusX, 150, `solvable: ${this.analysis.solvable}`, UI_STYLE);
+            this.add.text(statusX, 170, `unique: ${this.analysis.unique}`, UI_STYLE);
+            this.add.text(statusX, 190, `logical: ${this.analysis.logical}`, UI_STYLE);
+            this.add.text(statusX, 210, `difficulty: ${this.analysis.difficulty}`, UI_STYLE);
+            this.add.text(statusX, 230, `score: ${this.analysis.score}`, UI_STYLE);
+            this.add.text(statusX, 250, `remaining: ${this.analysis.remainingCells}`, UI_STYLE);
+            if (this.analysis.timedOut) {
+                this.add.text(statusX, 270, 'timeout: 3s', { ...UI_STYLE, color: '#ffcc66' });
+            }
+        }
+
+        if (this.isMobileLayout) {
+            const panelY = worldHeight - (toolbarHeight + tabHeight + panelHeight);
+            const panelX = 12;
+            const panelW = worldWidth - 24;
+            this.add.rectangle(panelX, panelY, panelW, panelHeight, 0x1e1e1e, 1)
+                .setOrigin(0, 0)
+                .setStrokeStyle(1, 0x444444);
+
+            if (this.mobileTab === 'analysis') {
+                this.add.text(panelX + 10, panelY + 8, `solvable: ${this.analysis.solvable}  unique: ${this.analysis.unique}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 28, `logical: ${this.analysis.logical}  difficulty: ${this.analysis.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 48, `score: ${this.analysis.score}  remaining: ${this.analysis.remainingCells}`, { ...UI_STYLE, fontSize: '13px' });
+                if (this.analysis.timedOut) {
+                    this.add.text(panelX + 10, panelY + 68, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
+                }
+            } else if (this.mobileTab === 'data') {
+                this.add.text(panelX + 10, panelY + 10, 'PBM import/export', { ...UI_STYLE, fontSize: '13px' });
+                this.drawButton({ x: panelX + 10, y: panelY + 34, label: 'Import', width: 100, onClick: () => this.openImportDialog() });
+                this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy PBM', width: 110, onClick: () => this.copyPBM() });
+            } else {
+                this.add.text(panelX + 10, panelY + 10, 'Edit tools', { ...UI_STYLE, fontSize: '13px' });
+                this.drawButton({
+                    x: panelX + 10,
+                    y: panelY + 34,
+                    label: 'Resize',
+                    width: 94,
+                    onClick: () => {
+                        const w = window.prompt('width (5-25)', String(width));
+                        const h = window.prompt('height (5-25)', String(height));
+                        if (!w || !h) {
+                            return;
+                        }
+                        this.applySize(Number(w), Number(h));
+                    },
+                });
+                this.drawButton({
+                    x: panelX + 112,
+                    y: panelY + 34,
+                    label: this.mode === 'edit' ? 'Test Play' : 'Back to Edit',
+                    width: 130,
+                    onClick: () => {
+                        if (this.mode === 'edit') {
+                            this.startPlayMode();
+                        } else {
+                            this.mode = 'edit';
+                            this.message = 'Back to edit mode';
+                            this.render();
+                        }
+                    },
+                });
+                this.add.text(panelX + 10, panelY + 76, 'Analysis is updated automatically', { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
+            }
+
+            const tabY = worldHeight - (toolbarHeight + tabHeight);
+            const tabW = Math.floor((worldWidth - 24 - 16) / 3);
+            this.drawButton({ x: 12, y: tabY, label: '編集', width: tabW, height: 38, active: this.mobileTab === 'edit', onClick: () => { this.mobileTab = 'edit'; this.render(); } });
+            this.drawButton({ x: 20 + tabW, y: tabY, label: '情報', width: tabW, height: 38, active: this.mobileTab === 'analysis', onClick: () => { this.mobileTab = 'analysis'; this.render(); } });
+            this.drawButton({ x: 28 + tabW * 2, y: tabY, label: 'Import/Export', width: tabW, height: 38, active: this.mobileTab === 'data', onClick: () => { this.mobileTab = 'data'; this.render(); } });
+        }
+
+        const messageY = this.isMobileLayout ? Math.max(76, gridTop - 18) : worldHeight - 68;
+        if (!this.isMobileLayout) {
+            this.add.text(headerX, messageY, this.message, { ...UI_STYLE, color: '#ffe08a', fontSize: '14px' });
+        } else if (this.mode === 'play' || this.message.startsWith('Cleared')) {
+            this.add.text(headerX, messageY, this.message, { ...UI_STYLE, color: '#ffe08a', fontSize: '13px' });
+        }
+        if (!this.isMobileLayout) {
+            this.add.text(24, worldHeight - 44, 'Shortcuts: 1-9 resize, C copy, D analyze, T play, E edit, R clear', UI_STYLE);
+        }
     }
 }

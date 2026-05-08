@@ -1,6 +1,6 @@
 {
   "name": "nonoedit",
-  "description": "A Phaser 3 TypeScript template using Vite.",
+  "description": "nonogram stage editor",
   "version": "0.1.0",
   "repository": {
     "type": "git",
@@ -21,8 +21,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
     "typescript": "~6.0.3",
-    "vite": "^8.0.11"
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.11",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "phaser": "4.1.0",

@@ -5,13 +5,13 @@ import { AUTO, Game, Scale,Types } from 'phaser';
 // https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
 const config: Types.Core.GameConfig = {
     type: AUTO,
-    width: 1024,
-    height: 768,
+    width: window.innerWidth,
+    height: window.innerHeight,
     parent: 'game-container',
     backgroundColor: '#028af8',
     scale: {
-        mode: Scale.FIT,
-        autoCenter: Scale.CENTER_BOTH
+        mode: Scale.RESIZE,
+        autoCenter: Scale.CENTER_BOTH,
     },
     scene: [
         MainGame
