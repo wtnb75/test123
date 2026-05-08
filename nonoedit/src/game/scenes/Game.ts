@@ -75,6 +75,7 @@ export class Game extends Scene {
     private cellCache: CellRenderCache[][] = [];
     private renderScheduled = false;
     private renderRafId: number | null = null;
+    private cleanupDone = false;
     private readonly onPointerUp = (): void => {
         this.finishDrag();
     };
@@ -103,6 +104,12 @@ export class Game extends Scene {
     private readonly onKeyT = (): void => {
         this.startPlayMode();
     };
+    private readonly onSceneShutdown = (): void => {
+        this.cleanupSceneResources();
+    };
+    private readonly onSceneDestroy = (): void => {
+        this.cleanupSceneResources();
+    };
     private readonly digitHandlers: Array<() => void> = SIZE_SHORTCUTS.map((mapping) => () => {
         this.applySize(mapping, mapping);
     });
@@ -112,19 +119,33 @@ export class Game extends Scene {
     }
 
     create(): void {
+        this.cleanupDone = false;
         this.cameras.main.setBackgroundColor('#141414');
         this.input.addPointer(1);
         this.input.on('pointerup', this.onPointerUp);
         this.scale.on('resize', this.onResize);
+        this.events.once('shutdown', this.onSceneShutdown, this);
+        this.events.once('destroy', this.onSceneDestroy, this);
         this.bindKeyboard();
         this.runAnalysis();
         this.requestRender();
     }
 
     shutdown(): void {
+        this.cleanupSceneResources();
+    }
+
+    private cleanupSceneResources(): void {
+        if (this.cleanupDone) {
+            return;
+        }
+        this.cleanupDone = true;
+
         this.input.off('pointerup', this.onPointerUp);
         this.scale.off('resize', this.onResize);
         this.unbindKeyboard();
+        this.events.off('shutdown', this.onSceneShutdown, this);
+        this.events.off('destroy', this.onSceneDestroy, this);
         if (this.renderRafId !== null && typeof window !== 'undefined') {
             window.cancelAnimationFrame(this.renderRafId);
             this.renderRafId = null;
@@ -447,13 +468,6 @@ export class Game extends Scene {
         return this.scale.width;
     }
 
-    private getScreenHeight(): number {
-        if (typeof window !== 'undefined') {
-            return Math.floor(window.visualViewport?.height ?? window.innerHeight);
-        }
-        return this.scale.height;
-    }
-
     private drawButton(button: Button): void {
         const width = button.width ?? Math.max(44, button.label.length * 9 + 20);
         const height = button.height ?? 44;
@@ -691,7 +705,8 @@ export class Game extends Scene {
         }
 
         if (!this.isMobileLayout) {
-            const statusX = Math.max(820, worldWidth - 200);
+            // Keep analysis panel inside the viewport on narrow non-mobile widths (e.g. 769-819px).
+            const statusX = Math.max(24, Math.min(Math.max(820, worldWidth - 200), worldWidth - 180));
             this.add.text(statusX, 120, 'Analysis', TITLE_STYLE);
             this.add.text(statusX, 150, `solvable: ${this.analysis.solvable}`, UI_STYLE);
             this.add.text(statusX, 170, `unique: ${this.analysis.unique}`, UI_STYLE);
