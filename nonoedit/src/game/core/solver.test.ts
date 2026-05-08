@@ -134,4 +134,33 @@ describe('solver', () => {
         expect(result.solvable).toBe(true);
         expect(result.unique).toBe(true);
     });
+
+    it('returns unsolved when logical deduction stalls but solutions exist', () => {
+        const solution = [
+            [1, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 1],
+        ];
+        const rows = [[1], [1], [1], [1], [1]];
+        const cols = [[1], [1], [1], [1], [1]];
+
+        const result = analyzePuzzle(solution, rows, cols, 3000);
+        expect(result.solvable).toBe(true);
+        expect(result.unique).toBe(false);
+        expect(result.logical).toBe(false);
+        expect(result.difficulty).toBe('unsolved');
+    });
+
+    it('handles impossible hints as unsolvable with no unique solution', () => {
+        const solution = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 0 as const));
+        const rows = [[4, 4], [0], [0], [0], [0]];
+        const cols = [[0], [0], [0], [0], [0]];
+
+        const result = analyzePuzzle(solution, rows, cols, 3000);
+        expect(result.solvable).toBe(false);
+        expect(result.unique).toBe(false);
+        expect(result.difficulty).toBe('unsolved');
+    });
 });

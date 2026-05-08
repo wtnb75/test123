@@ -31,6 +31,11 @@ type DragState = {
     moved: boolean;
 };
 
+type CellRenderCache = {
+    rect: Phaser.GameObjects.Rectangle;
+    mark: Phaser.GameObjects.Text | null;
+};
+
 const TITLE_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
     color: '#f4f4f4',
     fontFamily: 'monospace',
@@ -42,6 +47,8 @@ const UI_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
     fontFamily: 'monospace',
     fontSize: '14px',
 };
+
+const SIZE_SHORTCUTS = [5, 7, 10, 12, 15, 18, 20, 22, 25] as const;
 
 export class Game extends Scene {
     private solution: BinaryCell[][] = createBinaryBoard(10, 10, 0);
@@ -65,6 +72,40 @@ export class Game extends Scene {
     private importDialog: HTMLDivElement | null = null;
     private isMobileLayout = false;
     private mobileTab: MobileTab = 'edit';
+    private cellCache: CellRenderCache[][] = [];
+    private renderScheduled = false;
+    private renderRafId: number | null = null;
+    private readonly onPointerUp = (): void => {
+        this.finishDrag();
+    };
+    private readonly onResize = (): void => {
+        this.requestRender();
+    };
+    private readonly onKeyC = (): void => {
+        this.copyPBM();
+    };
+    private readonly onKeyD = (): void => {
+        this.runAnalysis();
+        this.requestRender();
+    };
+    private readonly onKeyE = (): void => {
+        this.mode = 'edit';
+        this.message = 'Switched to edit mode';
+        this.requestRender();
+    };
+    private readonly onKeyR = (): void => {
+        this.solution = createBinaryBoard(this.solution[0].length, this.solution.length, 0);
+        this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+        this.runAnalysis();
+        this.message = 'Board cleared';
+        this.requestRender();
+    };
+    private readonly onKeyT = (): void => {
+        this.startPlayMode();
+    };
+    private readonly digitHandlers: Array<() => void> = SIZE_SHORTCUTS.map((mapping) => () => {
+        this.applySize(mapping, mapping);
+    });
 
     constructor() {
         super('Game');
@@ -73,51 +114,75 @@ export class Game extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor('#141414');
         this.input.addPointer(1);
-        this.input.on('pointerup', () => {
-            this.finishDrag();
-        });
-        this.scale.on('resize', () => {
-            this.render();
-        });
+        this.input.on('pointerup', this.onPointerUp);
+        this.scale.on('resize', this.onResize);
         this.bindKeyboard();
         this.runAnalysis();
-        this.render();
+        this.requestRender();
     }
 
     shutdown(): void {
-        this.scale.off('resize');
+        this.input.off('pointerup', this.onPointerUp);
+        this.scale.off('resize', this.onResize);
+        this.unbindKeyboard();
+        if (this.renderRafId !== null && typeof window !== 'undefined') {
+            window.cancelAnimationFrame(this.renderRafId);
+            this.renderRafId = null;
+        }
+        this.renderScheduled = false;
         this.closeImportDialog();
     }
 
+    private requestRender(): void {
+        if (this.renderScheduled) {
+            return;
+        }
+        this.renderScheduled = true;
+
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            this.renderRafId = window.requestAnimationFrame(() => {
+                this.renderRafId = null;
+                this.renderScheduled = false;
+                this.render();
+            });
+            return;
+        }
+
+        this.renderScheduled = false;
+        this.render();
+    }
+
     private bindKeyboard(): void {
-        this.input.keyboard?.on('keydown-C', () => {
-            this.copyPBM();
-        });
-        this.input.keyboard?.on('keydown-D', () => {
-            this.runAnalysis();
-            this.render();
-        });
-        this.input.keyboard?.on('keydown-E', () => {
-            this.mode = 'edit';
-            this.message = 'Switched to edit mode';
-            this.render();
-        });
-        this.input.keyboard?.on('keydown-R', () => {
-            this.solution = createBinaryBoard(this.solution[0].length, this.solution.length, 0);
-            this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
-            this.runAnalysis();
-            this.message = 'Board cleared';
-            this.render();
-        });
-        this.input.keyboard?.on('keydown-T', () => {
-            this.startPlayMode();
-        });
+        const keyboard = this.input.keyboard;
+        if (!keyboard) {
+            return;
+        }
+
+        keyboard.on('keydown-C', this.onKeyC);
+        keyboard.on('keydown-D', this.onKeyD);
+        keyboard.on('keydown-E', this.onKeyE);
+        keyboard.on('keydown-R', this.onKeyR);
+        keyboard.on('keydown-T', this.onKeyT);
 
         for (let i = 1; i <= 9; i += 1) {
-            this.input.keyboard?.on(`keydown-${i}`, () => {
-                const mapping = [5, 7, 10, 12, 15, 18, 20, 22, 25][i - 1];
-                this.applySize(mapping, mapping);
-            });
+            keyboard.on(`keydown-${i}`, this.digitHandlers[i - 1]);
+        }
+    }
+
+    private unbindKeyboard(): void {
+        const keyboard = this.input.keyboard;
+        if (!keyboard) {
+            return;
+        }
+
+        keyboard.off('keydown-C', this.onKeyC);
+        keyboard.off('keydown-D', this.onKeyD);
+        keyboard.off('keydown-E', this.onKeyE);
+        keyboard.off('keydown-R', this.onKeyR);
+        keyboard.off('keydown-T', this.onKeyT);
+
+        for (let i = 1; i <= 9; i += 1) {
+            keyboard.off(`keydown-${i}`, this.digitHandlers[i - 1]);
         }
     }
 
@@ -127,7 +192,7 @@ export class Game extends Scene {
         this.mode = 'edit';
         this.runAnalysis();
         this.message = `Resized to ${this.solution[0].length} x ${this.solution.length}`;
-        this.render();
+        this.requestRender();
     }
 
     private startPlayMode(): void {
@@ -140,7 +205,7 @@ export class Game extends Scene {
         } else {
             this.message = 'Play mode started';
         }
-        this.render();
+        this.requestRender();
     }
 
     private runAnalysis(): void {
@@ -154,11 +219,11 @@ export class Game extends Scene {
         navigator.clipboard.writeText(data)
             .then(() => {
                 this.message = 'PBM copied to clipboard';
-                this.render();
+                this.requestRender();
             })
             .catch((err: unknown) => {
                 this.message = `Clipboard copy failed: ${String(err)}`;
-                this.render();
+                this.requestRender();
             });
     }
 
@@ -170,10 +235,10 @@ export class Game extends Scene {
             this.mode = 'edit';
             this.runAnalysis();
             this.message = `PBM loaded (${loaded.puzzle.width} x ${loaded.puzzle.height})`;
-            this.render();
+            this.requestRender();
         } catch (err) {
             this.message = `PBM load failed: ${String(err)}`;
-            this.render();
+            this.requestRender();
         }
     }
 
@@ -247,7 +312,7 @@ export class Game extends Scene {
             const text = textarea.value.trim();
             if (!text) {
                 this.message = 'PBM input is empty';
-                this.render();
+                this.requestRender();
                 return;
             }
             this.closeImportDialog();
@@ -330,10 +395,11 @@ export class Game extends Scene {
             this.applyPlaySegment(minX, maxX, minY, maxY);
         }
 
+        this.updateCellsInRange(minX, maxX, minY, maxY);
+
         this.message = this.mode === 'edit'
             ? `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`
             : `Play line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`;
-        this.render();
     }
 
     private finishDrag(): void {
@@ -371,7 +437,7 @@ export class Game extends Scene {
                 this.message = `Play move ${this.moveCount}`;
             }
         }
-        this.render();
+        this.requestRender();
     }
 
     private getScreenWidth(): number {
@@ -409,8 +475,62 @@ export class Game extends Scene {
         txt.on('pointerdown', button.onClick);
     }
 
+    private updateCellVisual(x: number, y: number): void {
+        const row = this.cellCache[y];
+        const cell = row?.[x];
+        if (!cell) {
+            return;
+        }
+
+        const content = this.mode === 'edit' ? (this.solution[y][x] === 1 ? 'filled' : 'empty') : this.player[y][x];
+        const fillColor = content === 'filled' ? 0x111111 : 0xf7f7f7;
+        cell.rect.setFillStyle(fillColor, 1);
+
+        const shouldShowMark = this.mode === 'play' && content === 'marked';
+        if (shouldShowMark) {
+            if (!cell.mark) {
+                cell.mark = this.add.text(
+                    cell.rect.x + cell.rect.width * 0.3,
+                    cell.rect.y + cell.rect.height * 0.15,
+                    'x',
+                    { ...UI_STYLE, color: '#2f4f4f', fontSize: '18px' },
+                );
+            }
+        } else if (cell.mark) {
+            cell.mark.destroy();
+            cell.mark = null;
+        }
+    }
+
+    private canDiffUpdate(): boolean {
+        const height = this.solution.length;
+        const width = this.solution[0]?.length ?? 0;
+        if (this.cellCache.length !== height) {
+            return false;
+        }
+        for (let y = 0; y < height; y += 1) {
+            if (this.cellCache[y]?.length !== width) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private updateCellsInRange(minX: number, maxX: number, minY: number, maxY: number): void {
+        if (!this.canDiffUpdate()) {
+            this.requestRender();
+            return;
+        }
+        for (let yy = minY; yy <= maxY; yy += 1) {
+            for (let xx = minX; xx <= maxX; xx += 1) {
+                this.updateCellVisual(xx, yy);
+            }
+        }
+    }
+
     private render(): void {
-        this.children.removeAll();
+        this.children.removeAll(true);
+        this.cellCache = [];
 
         const worldWidth = this.scale.width;
         const worldHeight = this.scale.height;
@@ -452,7 +572,7 @@ export class Game extends Scene {
                 onClick: () => {
                     this.runAnalysis();
                     this.message = 'Analysis updated';
-                    this.render();
+                    this.requestRender();
                 },
             },
             {
@@ -466,7 +586,7 @@ export class Game extends Scene {
                     } else {
                         this.mode = 'edit';
                         this.message = 'Back to edit mode';
-                        this.render();
+                        this.requestRender();
                     }
                 },
             },
@@ -526,26 +646,18 @@ export class Game extends Scene {
         }
 
         for (let y = 0; y < height; y += 1) {
+            this.cellCache[y] = [];
             for (let x = 0; x < width; x += 1) {
                 const px = gridLeft + x * cellSize;
                 const py = gridTop + y * cellSize;
                 const rect = this.add.rectangle(px, py, cellSize - 1, cellSize - 1, 0xffffff, 1).setOrigin(0, 0).setStrokeStyle(1, 0x666666);
-                const content = this.mode === 'edit' ? (this.solution[y][x] === 1 ? 'filled' : 'empty') : this.player[y][x];
-
-                if (content === 'filled') {
-                    rect.setFillStyle(0x111111, 1);
-                } else {
-                    rect.setFillStyle(0xf7f7f7, 1);
-                }
-
-                if (this.mode === 'play' && content === 'marked') {
-                    this.add.text(px + cellSize * 0.3, py + cellSize * 0.15, 'x', { ...UI_STYLE, color: '#2f4f4f', fontSize: '18px' });
-                }
+                this.cellCache[y][x] = { rect, mark: null };
+                this.updateCellVisual(x, y);
 
                 rect.setInteractive({ useHandCursor: true });
                 rect.on('pointerdown', () => {
                     this.startDrag(x, y);
-                    this.render();
+                    this.requestRender();
                 });
 
                 rect.on('pointerover', (pointer: Phaser.Input.Pointer) => {
@@ -665,7 +777,7 @@ export class Game extends Scene {
                         } else {
                             this.mode = 'edit';
                             this.message = 'Back to edit mode';
-                            this.render();
+                            this.requestRender();
                         }
                     },
                 });
@@ -674,16 +786,25 @@ export class Game extends Scene {
 
             const tabY = worldHeight - (toolbarHeight + tabHeight);
             const tabW = Math.floor((worldWidth - 24 - 16) / 3);
-            this.drawButton({ x: 12, y: tabY, label: '編集', width: tabW, height: 38, active: this.mobileTab === 'edit', onClick: () => { this.mobileTab = 'edit'; this.render(); } });
-            this.drawButton({ x: 20 + tabW, y: tabY, label: '情報', width: tabW, height: 38, active: this.mobileTab === 'analysis', onClick: () => { this.mobileTab = 'analysis'; this.render(); } });
-            this.drawButton({ x: 28 + tabW * 2, y: tabY, label: 'Import/Export', width: tabW, height: 38, active: this.mobileTab === 'data', onClick: () => { this.mobileTab = 'data'; this.render(); } });
+            this.drawButton({ x: 12, y: tabY, label: '編集', width: tabW, height: 38, active: this.mobileTab === 'edit', onClick: () => { this.mobileTab = 'edit'; this.requestRender(); } });
+            this.drawButton({ x: 20 + tabW, y: tabY, label: '情報', width: tabW, height: 38, active: this.mobileTab === 'analysis', onClick: () => { this.mobileTab = 'analysis'; this.requestRender(); } });
+            this.drawButton({ x: 28 + tabW * 2, y: tabY, label: 'Import/Export', width: tabW, height: 38, active: this.mobileTab === 'data', onClick: () => { this.mobileTab = 'data'; this.requestRender(); } });
         }
 
         const messageY = this.isMobileLayout ? Math.max(76, gridTop - 18) : worldHeight - 68;
         if (!this.isMobileLayout) {
             this.add.text(headerX, messageY, this.message, { ...UI_STYLE, color: '#ffe08a', fontSize: '14px' });
-        } else if (this.mode === 'play' || this.message.startsWith('Cleared')) {
-            this.add.text(headerX, messageY, this.message, { ...UI_STYLE, color: '#ffe08a', fontSize: '13px' });
+        } else {
+            const showMobileMessage =
+                this.mode === 'play'
+                || this.mobileTab === 'data'
+                || this.message.startsWith('Cleared')
+                || this.message.includes('PBM')
+                || this.message.includes('Clipboard')
+                || this.message.includes('failed');
+            if (showMobileMessage) {
+                this.add.text(headerX, messageY, this.message, { ...UI_STYLE, color: '#ffe08a', fontSize: '13px' });
+            }
         }
         if (!this.isMobileLayout) {
             this.add.text(24, worldHeight - 44, 'Shortcuts: 1-9 resize, C copy, D analyze, T play, E edit, R clear', UI_STYLE);

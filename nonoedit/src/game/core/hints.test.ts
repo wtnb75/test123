@@ -24,4 +24,8 @@ describe('hints', () => {
 
         expect(generateRowHints(board.map((r) => [...r]))).toEqual([[0], [1, 1], [0]]);
     });
+
+    it('returns empty column hints for empty board', () => {
+        expect(generateColHints([])).toEqual([]);
+    });
 });

@@ -25,6 +25,13 @@ describe('board', () => {
         expect(next[4][4]).toBe(0);
     });
 
+    it('resizes from empty source board', () => {
+        const next = resizeBinaryBoard([], 5, 6);
+        expect(next.length).toBe(6);
+        expect(next[0].length).toBe(5);
+        expect(next[5][4]).toBe(0);
+    });
+
     it('cycles player cells unknown -> filled -> marked -> unknown', () => {
         expect(cyclePlayerCell('unknown')).toBe('filled');
         expect(cyclePlayerCell('filled')).toBe('marked');

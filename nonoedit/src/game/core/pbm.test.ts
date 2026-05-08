@@ -60,4 +60,20 @@ describe('pbm', () => {
         const badCount = `P1\n5 5\n0 0 1\n`;
         expect(() => importPBM(badCount)).toThrowError(/cell count/);
     });
+
+    it('throws on non-integer size and too-short payload', () => {
+        const nonInteger = `P1\n5.5 5\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n`;
+        expect(() => importPBM(nonInteger)).toThrowError(/invalid PBM size/);
+
+        const tooShort = `P1\n5\n`;
+        expect(() => importPBM(tooShort)).toThrowError(/too short/);
+    });
+
+    it('ignores unknown metadata keys', () => {
+        const pbm = `P1\n# foo: bar\n# difficulty: normal\n# unique: true\n5 5\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n0 0 0 0 0\n`;
+        const loaded = importPBM(pbm);
+        expect(loaded.meta.difficulty).toBe('normal');
+        expect(loaded.meta.unique).toBe('true');
+        expect((loaded.meta as Record<string, string>).foo).toBeUndefined();
+    });
 });
