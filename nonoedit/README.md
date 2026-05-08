@@ -1,68 +1,85 @@
 # NonoEdit
 
-NonoEdit is a monochrome nonogram stage editor built with Phaser and Vite.
-You can create a puzzle, run logical analysis, export/import PBM text, and test play in the same app.
+作る、試す、解けるか測る。ノノグラム職人のための実験場!!
 
-## Purpose
+## どんなツール?
 
-- Build monochrome nonogram stages quickly
-- Check whether a puzzle is logically solvable
-- Estimate difficulty by weighted logical techniques
-- Share puzzle data through PBM text on clipboard
+- モノクロノノグラムをその場で編集
+- 行ヒント・列ヒントを即時更新
+- 論理解可否と難易度をその場で解析
+- PBM (`P1`) で Import/Export
+- 同じ画面でそのまま Test Play
 
-## Rules
+## 特徴
 
-- Puzzle is monochrome only (`1 = filled`, `0 = empty`)
-- Row and column hints are generated from filled runs
-- Test play clear condition: player `filled` cells must exactly match solution `filled` cells
-- `unknown` and `marked` are ignored for clear check
+- 編集モードはクリックと直線ドラッグ対応（水平/垂直）
+- Test Play でも直線ドラッグ対応
+- 5マスごとの境界線表示で位置を見失いにくい
+- モバイルは 1 カラム + 下部タブ (`編集` / `情報` / `Import/Export`)
+- 解析で使用手筋の回数まで表示
 
-## Controls
+## ルール
 
-### Mouse
+- 正解盤面は `filled` / `empty` の 2 状態
+- プレイヤー盤面は `unknown` / `filled` / `marked` の 3 状態
+- クリア判定は `filled` の一致のみ
+- `unknown` と `marked` はクリア条件に含めない
 
-- Click cell in edit mode: toggle `empty` / `filled`
-- Click cell in play mode: cycle `unknown` -> `filled` -> `marked`
-- Toolbar buttons:
-  - `Resize`: change width/height from UI prompt
-  - `Import`: paste PBM text (`P1`)
-  - `Copy PBM`: copy current puzzle with metadata comments
-  - `Analyze`: run logical analysis
-  - `Test Play` / `Back to Edit`: mode switch
+## 操作方法
 
-### Keyboard
+### 編集モード
 
-- `1-9`: size presets (`5,7,10,12,15,18,20,22,25`)
-- `C`: copy PBM
-- `D`: run analysis
-- `T`: start test play
-- `E`: back to edit mode
-- `R`: clear board
+- タップ/クリック: 単セル編集
+- ドラッグ: 直線編集（水平/垂直）
+- `Resize`: 盤面サイズ変更
+- `Import`: PBM テキスト貼り付け読み込み
+- `Copy PBM`: 現在盤面を PBM 形式でコピー
+- `Test Play`: プレイモード開始
 
-## PBM Format
+### テストプレイモード
 
-Export format: Netpbm `P1` text.
+- タップ/クリック: 単セル更新
+- ドラッグ: 直線で同じ状態をまとめて適用
+- クリア時に `moves` と `time` を表示
+- `Back to Edit` で編集に戻る
 
-Metadata comments are always written:
+### キーボード
+
+- `1-9`: サイズプリセット (`5,7,10,12,15,18,20,22,25`)
+- `C`: Copy PBM
+- `D`: 解析再実行
+- `T`: Test Play 開始
+- `E`: Edit に戻る
+- `R`: 盤面クリア
+
+## 解析手筋
+
+- `full-line-fill`
+- `full-line-empty`
+- `edge-overlap`
+- `candidate-common`
+- `cross-constraint`
+- `region-split`
+- `box-reduction`
+- `probe-consistency`
+
+## PBM 仕様
+
+形式は Netpbm `P1`。エクスポート時に以下コメントを付与します。
 
 - `# difficulty: <rank>`
 - `# score: <value>`
 - `# unique: <true|false>`
 
-Import ignores all comment lines.
+インポート時はコメント行を無視します。
 
-## Development
+## 開発メモ
 
-```bash
-npm install
-npm run dev
-```
+- 依存インストール: `npm install`
+- 開発サーバー: `npm run dev`
+- lint: `npm run lint`
+- テスト: `npm run test`
+- カバレッジ: `npm run test:coverage`
+- ビルド: `npm run build`
 
-## Quality Checks
-
-```bash
-npm run lint
-npm run test
-npm run test:coverage
-npm run build
-```
+詳細仕様は `docs/spec.md` を参照してください。
