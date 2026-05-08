@@ -10,6 +10,7 @@ vars:
     - shoot1
     - calc1
     - primtris
+    - nonoedit
 
 tasks:
   default:
