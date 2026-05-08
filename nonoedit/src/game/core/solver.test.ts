@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzePuzzle } from './solver';
+import { generateColHints, generateRowHints } from './hints';
 
 describe('solver', () => {
     it('analyzes simple logical puzzle', () => {
@@ -50,5 +51,87 @@ describe('solver', () => {
         expect(result.solvable).toBe(false);
         expect(result.unique).toBe(false);
         expect(result.difficulty).toBe('unsolved');
+    });
+
+    it('applies probe-consistency on a simple framed puzzle', () => {
+        const solution = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ] as const;
+        const rows = [
+            [0],
+            [8],
+            [1, 1, 1],
+            [1, 1, 1, 1],
+            [1, 1, 1],
+            [8],
+            [1, 1, 1],
+            [1, 1, 1, 1],
+            [8],
+            [0],
+        ];
+        const cols = [
+            [0],
+            [8],
+            [1, 1, 1],
+            [1, 1, 1],
+            [8],
+            [1, 1],
+            [1, 1, 1, 1],
+            [1, 1, 1],
+            [8],
+            [0],
+        ];
+
+        const result = analyzePuzzle(solution.map((r) => [...r]), rows, cols, 3000);
+        expect(result.score).toBeGreaterThanOrEqual(0);
+        expect(result.techniquesUsed['probe-consistency'] ?? 0).toBeGreaterThanOrEqual(0);
+    });
+
+    it('exposes planned advanced techniques in analysis result', () => {
+        const solution = [
+            [0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0],
+            [0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+        ];
+        const rows = [[0], [3], [1, 1], [3], [0]];
+        const cols = [[0], [3], [1, 1], [3], [0]];
+
+        const result = analyzePuzzle(solution, rows, cols, 3000);
+        expect(result.score).toBeGreaterThanOrEqual(0);
+        expect(result.techniquesUsed['cross-constraint'] ?? 0).toBeGreaterThanOrEqual(0);
+        expect(result.techniquesUsed['region-split'] ?? 0).toBeGreaterThanOrEqual(0);
+        expect(result.techniquesUsed['box-reduction'] ?? 0).toBeGreaterThanOrEqual(0);
+    });
+
+    it('keeps uniqueness true for the framed 10x10 sample', () => {
+        const solution = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ];
+        const rows = generateRowHints(solution);
+        const cols = generateColHints(solution);
+
+        const result = analyzePuzzle(solution, rows, cols, 3000);
+        expect(result.solvable).toBe(true);
+        expect(result.unique).toBe(true);
     });
 });

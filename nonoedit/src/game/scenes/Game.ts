@@ -25,6 +25,7 @@ type DragState = {
     startY: number;
     axis: 'horizontal' | 'vertical' | null;
     value: BinaryCell;
+    playValue: PlayerCell;
     lastX: number;
     lastY: number;
     moved: boolean;
@@ -56,6 +57,7 @@ export class Game extends Scene {
         startY: 0,
         axis: null,
         value: 1,
+        playValue: 'filled',
         lastX: -1,
         lastY: -1,
         moved: false,
@@ -275,6 +277,20 @@ export class Game extends Scene {
         this.drag.lastY = y;
         this.drag.moved = false;
         this.drag.value = this.solution[y][x] === 1 ? 0 : 1;
+        this.drag.playValue = cyclePlayerCell(this.player[y][x]);
+    }
+
+    private applyPlaySegment(minX: number, maxX: number, minY: number, maxY: number): void {
+        let changed = 0;
+        for (let yy = minY; yy <= maxY; yy += 1) {
+            for (let xx = minX; xx <= maxX; xx += 1) {
+                if (this.player[yy][xx] !== this.drag.playValue) {
+                    this.player[yy][xx] = this.drag.playValue;
+                    changed += 1;
+                }
+            }
+        }
+        this.moveCount += changed;
     }
 
     private applyDragTo(x: number, y: number): void {
@@ -304,11 +320,19 @@ export class Game extends Scene {
 
         for (let yy = minY; yy <= maxY; yy += 1) {
             for (let xx = minX; xx <= maxX; xx += 1) {
-                this.solution[yy][xx] = this.drag.value;
+                if (this.mode === 'edit') {
+                    this.solution[yy][xx] = this.drag.value;
+                }
             }
         }
 
-        this.message = `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`;
+        if (this.mode === 'play') {
+            this.applyPlaySegment(minX, maxX, minY, maxY);
+        }
+
+        this.message = this.mode === 'edit'
+            ? `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`
+            : `Play line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`;
         this.render();
     }
 
@@ -319,12 +343,34 @@ export class Game extends Scene {
 
         // Tap/click without movement toggles just one cell.
         if (!this.drag.moved) {
-            this.solution[this.drag.startY][this.drag.startX] = this.drag.value;
-            this.message = `Edited cell (${this.drag.startX}, ${this.drag.startY})`;
+            if (this.mode === 'edit') {
+                this.solution[this.drag.startY][this.drag.startX] = this.drag.value;
+                this.message = `Edited cell (${this.drag.startX}, ${this.drag.startY})`;
+            } else {
+                if (this.player[this.drag.startY][this.drag.startX] !== this.drag.playValue) {
+                    this.player[this.drag.startY][this.drag.startX] = this.drag.playValue;
+                    this.moveCount += 1;
+                }
+                if (filledMatch(this.solution, this.player)) {
+                    const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
+                    this.message = `Cleared! moves=${this.moveCount} time=${elapsedSec}s`;
+                } else {
+                    this.message = `Play move ${this.moveCount}`;
+                }
+            }
         }
 
         this.drag.active = false;
-        this.runAnalysis();
+        if (this.mode === 'edit') {
+            this.runAnalysis();
+        } else if (this.drag.moved) {
+            if (filledMatch(this.solution, this.player)) {
+                const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
+                this.message = `Cleared! moves=${this.moveCount} time=${elapsedSec}s`;
+            } else {
+                this.message = `Play move ${this.moveCount}`;
+            }
+        }
         this.render();
     }
 
@@ -498,25 +544,11 @@ export class Game extends Scene {
 
                 rect.setInteractive({ useHandCursor: true });
                 rect.on('pointerdown', () => {
-                    if (this.mode === 'edit') {
-                        this.startDrag(x, y);
-                    } else {
-                        this.player[y][x] = cyclePlayerCell(this.player[y][x]);
-                        this.moveCount += 1;
-                        if (filledMatch(this.solution, this.player)) {
-                            const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
-                            this.message = `Cleared! moves=${this.moveCount} time=${elapsedSec}s`;
-                        } else {
-                            this.message = `Play move ${this.moveCount}`;
-                        }
-                    }
+                    this.startDrag(x, y);
                     this.render();
                 });
 
                 rect.on('pointerover', (pointer: Phaser.Input.Pointer) => {
-                    if (this.mode !== 'edit') {
-                        return;
-                    }
                     if (!this.drag.active || !pointer.isDown) {
                         return;
                     }
@@ -555,8 +587,25 @@ export class Game extends Scene {
             this.add.text(statusX, 210, `difficulty: ${this.analysis.difficulty}`, UI_STYLE);
             this.add.text(statusX, 230, `score: ${this.analysis.score}`, UI_STYLE);
             this.add.text(statusX, 250, `remaining: ${this.analysis.remainingCells}`, UI_STYLE);
+            const techLabels: Array<[string, string]> = [
+                ['full-line-fill', 'fill'],
+                ['full-line-empty', 'empty'],
+                ['edge-overlap', 'overlap'],
+                ['candidate-common', 'common'],
+                ['cross-constraint', 'cross'],
+                ['region-split', 'split'],
+                ['box-reduction', 'box'],
+                ['probe-consistency', 'probe'],
+            ];
+            let techY = 270;
+            for (const [key, label] of techLabels) {
+                const count = this.analysis.techniquesUsed[key as keyof typeof this.analysis.techniquesUsed] ?? 0;
+                const color = count > 0 ? '#d8d8d8' : '#666666';
+                this.add.text(statusX, techY, `${label}: ${count}`, { ...UI_STYLE, color });
+                techY += 18;
+            }
             if (this.analysis.timedOut) {
-                this.add.text(statusX, 270, 'timeout: 3s', { ...UI_STYLE, color: '#ffcc66' });
+                this.add.text(statusX, techY, 'timeout: 3s', { ...UI_STYLE, color: '#ffcc66' });
             }
         }
 
@@ -572,8 +621,18 @@ export class Game extends Scene {
                 this.add.text(panelX + 10, panelY + 8, `solvable: ${this.analysis.solvable}  unique: ${this.analysis.unique}`, { ...UI_STYLE, fontSize: '13px' });
                 this.add.text(panelX + 10, panelY + 28, `logical: ${this.analysis.logical}  difficulty: ${this.analysis.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
                 this.add.text(panelX + 10, panelY + 48, `score: ${this.analysis.score}  remaining: ${this.analysis.remainingCells}`, { ...UI_STYLE, fontSize: '13px' });
+                const fill = this.analysis.techniquesUsed['full-line-fill'] ?? 0;
+                const empty = this.analysis.techniquesUsed['full-line-empty'] ?? 0;
+                const overlap = this.analysis.techniquesUsed['edge-overlap'] ?? 0;
+                const common = this.analysis.techniquesUsed['candidate-common'] ?? 0;
+                const cross = this.analysis.techniquesUsed['cross-constraint'] ?? 0;
+                const split = this.analysis.techniquesUsed['region-split'] ?? 0;
+                const box = this.analysis.techniquesUsed['box-reduction'] ?? 0;
+                const probe = this.analysis.techniquesUsed['probe-consistency'] ?? 0;
+                this.add.text(panelX + 10, panelY + 68, `f:${fill} e:${empty} o:${overlap} c:${common} x:${cross}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
+                this.add.text(panelX + 10, panelY + 82, `s:${split} b:${box} p:${probe}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
                 if (this.analysis.timedOut) {
-                    this.add.text(panelX + 10, panelY + 68, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
+                    this.add.text(panelX + 10, panelY + 96, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
                 }
             } else if (this.mobileTab === 'data') {
                 this.add.text(panelX + 10, panelY + 10, 'PBM import/export', { ...UI_STYLE, fontSize: '13px' });

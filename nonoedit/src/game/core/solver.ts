@@ -14,6 +14,10 @@ const weights: Record<SolveTechnique, number> = {
     'full-line-empty': 1,
     'edge-overlap': 2,
     'candidate-common': 5,
+    'cross-constraint': 4,
+    'region-split': 8,
+    'box-reduction': 12,
+    'probe-consistency': 8,
 };
 
 const orderedTechniques: SolveTechnique[] = [
@@ -21,6 +25,10 @@ const orderedTechniques: SolveTechnique[] = [
     'full-line-empty',
     'edge-overlap',
     'candidate-common',
+    'cross-constraint',
+    'region-split',
+    'box-reduction',
+    'probe-consistency',
 ];
 
 const now = (): number => Date.now();
@@ -205,6 +213,54 @@ const applyCandidateCommon = (ctx: LineContext): { updates: Array<[number, Binar
     return { updates };
 };
 
+const applyRegionSplit = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+    const hints = normalizeHints(ctx.hints);
+    if (hints.length === 0) {
+        return { updates: [] };
+    }
+
+    const minHint = Math.min(...hints);
+    const updates: Array<[number, BinaryCell]> = [];
+    let start = -1;
+
+    const flushSegment = (endExclusive: number): void => {
+        if (start < 0) {
+            return;
+        }
+        const len = endExclusive - start;
+        if (len < minHint) {
+            let hasFilled = false;
+            for (let i = start; i < endExclusive; i += 1) {
+                if (ctx.known[i] === 1) {
+                    hasFilled = true;
+                    break;
+                }
+            }
+            if (!hasFilled) {
+                for (let i = start; i < endExclusive; i += 1) {
+                    if (ctx.known[i] === null) {
+                        updates.push([i, 0]);
+                    }
+                }
+            }
+        }
+        start = -1;
+    };
+
+    for (let i = 0; i < ctx.known.length; i += 1) {
+        if (ctx.known[i] === 0) {
+            flushSegment(i);
+            continue;
+        }
+        if (start < 0) {
+            start = i;
+        }
+    }
+    flushSegment(ctx.known.length);
+
+    return { updates };
+};
+
 const applyTechnique = (tech: SolveTechnique, ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     if (tech === 'full-line-fill') {
         return applyFullLineFill(ctx);
@@ -214,6 +270,9 @@ const applyTechnique = (tech: SolveTechnique, ctx: LineContext): { updates: Arra
     }
     if (tech === 'edge-overlap') {
         return applyEdgeOverlap(ctx);
+    }
+    if (tech === 'region-split') {
+        return applyRegionSplit(ctx);
     }
     return applyCandidateCommon(ctx);
 };
@@ -261,6 +320,160 @@ const isGridConsistent = (grid: KnownCell[][], rowHints: number[][], colHints: n
     return true;
 };
 
+const buildColumnKnown = (grid: KnownCell[][], x: number): KnownCell[] => {
+    const out: KnownCell[] = [];
+    for (let y = 0; y < grid.length; y += 1) {
+        out.push(grid[y][x]);
+    }
+    return out;
+};
+
+const applyCrossConstraint = (
+    grid: KnownCell[][],
+    rowHints: number[][],
+    colHints: number[][],
+    maxMillis: number,
+    startedAt: number,
+): { updates: Array<[number, number, BinaryCell]> } => {
+    const height = grid.length;
+    const width = grid[0]?.length ?? 0;
+    const updates: Array<[number, number, BinaryCell]> = [];
+
+    const rowCandidates: BinaryCell[][][] = [];
+    for (let y = 0; y < height; y += 1) {
+        rowCandidates.push(generateCandidates({ hints: rowHints[y], known: grid[y], maxMillis, startTime: startedAt }));
+    }
+
+    const colCandidates: BinaryCell[][][] = [];
+    for (let x = 0; x < width; x += 1) {
+        colCandidates.push(generateCandidates({ hints: colHints[x], known: buildColumnKnown(grid, x), maxMillis, startTime: startedAt }));
+    }
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            if (grid[y][x] !== null) {
+                continue;
+            }
+            if (isTimeout(startedAt, maxMillis)) {
+                return { updates };
+            }
+
+            const rowHas0 = rowCandidates[y].some((c) => c[x] === 0);
+            const rowHas1 = rowCandidates[y].some((c) => c[x] === 1);
+            const colHas0 = colCandidates[x].some((c) => c[y] === 0);
+            const colHas1 = colCandidates[x].some((c) => c[y] === 1);
+
+            const can0 = rowHas0 && colHas0;
+            const can1 = rowHas1 && colHas1;
+            if (can0 !== can1) {
+                updates.push([x, y, can1 ? 1 : 0]);
+            }
+        }
+    }
+
+    return { updates };
+};
+
+const applyBoxReduction = (
+    grid: KnownCell[][],
+    rowHints: number[][],
+    colHints: number[][],
+    maxMillis: number,
+    startedAt: number,
+): { updates: Array<[number, number, BinaryCell]> } => {
+    const height = grid.length;
+    const width = grid[0]?.length ?? 0;
+    const updates: Array<[number, number, BinaryCell]> = [];
+
+    for (let y = 0; y < height; y += 1) {
+        const candidates = generateCandidates({ hints: rowHints[y], known: grid[y], maxMillis, startTime: startedAt });
+        if (candidates.length <= 1) {
+            continue;
+        }
+
+        const valid: BinaryCell[][] = [];
+        for (const cand of candidates) {
+            if (isTimeout(startedAt, maxMillis)) {
+                return { updates };
+            }
+            let feasible = true;
+            for (let x = 0; x < width; x += 1) {
+                const colKnown = buildColumnKnown(grid, x);
+                colKnown[y] = cand[x];
+                const colCands = generateCandidates({ hints: colHints[x], known: colKnown, maxMillis, startTime: startedAt });
+                if (colCands.length === 0) {
+                    feasible = false;
+                    break;
+                }
+            }
+            if (feasible) {
+                valid.push(cand);
+            }
+        }
+
+        if (valid.length === 0) {
+            continue;
+        }
+
+        for (let x = 0; x < width; x += 1) {
+            if (grid[y][x] !== null) {
+                continue;
+            }
+            const value = valid[0][x];
+            let allSame = true;
+            for (let i = 1; i < valid.length; i += 1) {
+                if (valid[i][x] !== value) {
+                    allSame = false;
+                    break;
+                }
+            }
+            if (allSame) {
+                updates.push([x, y, value]);
+            }
+        }
+    }
+
+    return { updates };
+};
+
+const applyProbeConsistency = (
+    grid: KnownCell[][],
+    rowHints: number[][],
+    colHints: number[][],
+    maxMillis: number,
+    startedAt: number,
+): { updates: Array<[number, number, BinaryCell]> } => {
+    const height = grid.length;
+    const width = grid[0]?.length ?? 0;
+    const updates: Array<[number, number, BinaryCell]> = [];
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            if (grid[y][x] !== null) {
+                continue;
+            }
+            if (isTimeout(startedAt, maxMillis)) {
+                return { updates };
+            }
+
+            const possible: BinaryCell[] = [];
+            for (const value of [0, 1] as BinaryCell[]) {
+                const next = grid.map((row) => row.slice()) as KnownCell[][];
+                next[y][x] = value;
+                if (isGridConsistent(next, rowHints, colHints, maxMillis, startedAt)) {
+                    possible.push(value);
+                }
+            }
+
+            if (possible.length === 1) {
+                updates.push([x, y, possible[0]]);
+            }
+        }
+    }
+
+    return { updates };
+};
+
 const estimateDifficulty = (score: number, logical: boolean): DifficultyRank => {
     if (!logical) {
         return 'unsolved';
@@ -291,6 +504,54 @@ export const analyzePuzzle = (solution: BinaryCell[][], rowHints: number[][], co
             if (isTimeout(startedAt, maxMillis)) {
                 timedOut = true;
                 break;
+            }
+
+            if (tech === 'cross-constraint') {
+                const result = applyCrossConstraint(known, rowHints, colHints, maxMillis, startedAt);
+                let passProgressed = false;
+                for (const [x, y, value] of result.updates) {
+                    if (known[y][x] === null) {
+                        known[y][x] = value;
+                        passProgressed = true;
+                        progressed = true;
+                    }
+                }
+                if (passProgressed) {
+                    techniquesUsed[tech] = (techniquesUsed[tech] ?? 0) + 1;
+                }
+                continue;
+            }
+
+            if (tech === 'box-reduction') {
+                const result = applyBoxReduction(known, rowHints, colHints, maxMillis, startedAt);
+                let passProgressed = false;
+                for (const [x, y, value] of result.updates) {
+                    if (known[y][x] === null) {
+                        known[y][x] = value;
+                        passProgressed = true;
+                        progressed = true;
+                    }
+                }
+                if (passProgressed) {
+                    techniquesUsed[tech] = (techniquesUsed[tech] ?? 0) + 1;
+                }
+                continue;
+            }
+
+            if (tech === 'probe-consistency') {
+                const result = applyProbeConsistency(known, rowHints, colHints, maxMillis, startedAt);
+                let passProgressed = false;
+                for (const [x, y, value] of result.updates) {
+                    if (known[y][x] === null) {
+                        known[y][x] = value;
+                        passProgressed = true;
+                        progressed = true;
+                    }
+                }
+                if (passProgressed) {
+                    techniquesUsed[tech] = (techniquesUsed[tech] ?? 0) + 1;
+                }
+                continue;
             }
 
             for (let y = 0; y < height; y += 1) {
@@ -378,7 +639,9 @@ export const analyzePuzzle = (solution: BinaryCell[][], rowHints: number[][], co
         }
     };
 
-    const seed = known.map((row) => row.slice()) as KnownCell[][];
+    // Count solutions from an unconstrained seed so uniqueness is not affected
+    // by any intermediate logical deductions.
+    const seed = Array.from({ length: height }, () => Array.from({ length: width }, () => null as KnownCell));
     search(seed);
 
     if (isTimeout(startedAt, maxMillis)) {

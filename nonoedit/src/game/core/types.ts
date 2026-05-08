@@ -6,7 +6,11 @@ export type SolveTechnique =
     | 'full-line-fill'
     | 'full-line-empty'
     | 'edge-overlap'
-    | 'candidate-common';
+    | 'candidate-common'
+    | 'cross-constraint'
+    | 'region-split'
+    | 'box-reduction'
+    | 'probe-consistency';
 
 export type DifficultyRank = 'easy' | 'normal' | 'hard' | 'unsolved';
 
