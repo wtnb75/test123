@@ -74,6 +74,8 @@ export class Game extends Scene {
     private renderScheduled = false;
     private renderRafId: number | null = null;
     private cleanupDone = false;
+    private dragPreviewGraphics: Phaser.GameObjects.Graphics | null = null;
+    private messageText: Phaser.GameObjects.Text | null = null;
     private readonly onPointerUp = (): void => {
         this.finishDrag();
     };
@@ -149,6 +151,14 @@ export class Game extends Scene {
             this.renderRafId = null;
         }
         this.renderScheduled = false;
+        if (this.dragPreviewGraphics) {
+            this.dragPreviewGraphics.destroy();
+            this.dragPreviewGraphics = null;
+        }
+        if (this.messageText) {
+            this.messageText.destroy();
+            this.messageText = null;
+        }
         this.closeImportDialog();
     }
 
@@ -361,6 +371,20 @@ export class Game extends Scene {
         this.drag.lastX = x;
         this.drag.lastY = y;
         this.drag.moved = false;
+
+        // Initialize persistent drag preview graphics and message text
+        if (this.dragPreviewGraphics) {
+            this.dragPreviewGraphics.destroy();
+        }
+        this.dragPreviewGraphics = this.add.graphics();
+
+        if (!this.messageText) {
+            this.messageText = this.add.text(24, this.scale.height - 68, '', {
+                ...UI_STYLE,
+                color: '#ffe08a',
+                fontSize: '14px',
+            });
+        }
     }
 
     private getDragRange(x: number, y: number): { minX: number; maxX: number; minY: number; maxY: number; targetX: number; targetY: number } {
@@ -418,11 +442,7 @@ export class Game extends Scene {
     private applyPlayClick(x: number, y: number): number {
         const current = this.player[y][x];
         const target: PlayerCell = this.playInputMode === 'fill' ? 'filled' : 'marked';
-        const next: PlayerCell = current === 'unknown' ? target : 'unknown';
-        if (next === current) {
-            return 0;
-        }
-        this.player[y][x] = next;
+        this.player[y][x] = current === 'unknown' ? target : 'unknown';
         return 1;
     }
 
@@ -511,10 +531,13 @@ export class Game extends Scene {
 
         const range = this.getDragRange(x, y);
 
+        // Update message text directly without full re-render
         this.message = this.mode === 'edit'
             ? `Preview edit line from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`
             : `Preview play line (${this.playInputMode}) from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`;
-        this.requestRender();
+        if (this.messageText) {
+            this.messageText.setText(this.message);
+        }
     }
 
     private finishDrag(): void {
@@ -551,6 +574,17 @@ export class Game extends Scene {
         }
 
         this.drag.active = false;
+
+        // Clean up persistent drag preview graphics
+        if (this.dragPreviewGraphics) {
+            this.dragPreviewGraphics.destroy();
+            this.dragPreviewGraphics = null;
+        }
+        if (this.messageText) {
+            this.messageText.destroy();
+            this.messageText = null;
+        }
+
         if (this.mode === 'edit') {
             this.runAnalysis();
         } else if (this.drag.moved) {
@@ -643,35 +677,6 @@ export class Game extends Scene {
                 this.updateCellVisual(xx, yy);
             }
         }
-    }
-
-    private drawDragPreview(gridLeft: number, gridTop: number, cellSize: number): void {
-        if (!this.drag.active) {
-            return;
-        }
-
-        const range = this.drag.moved
-            ? this.getDragRange(this.drag.lastX, this.drag.lastY)
-            : {
-                minX: this.drag.startX,
-                maxX: this.drag.startX,
-                minY: this.drag.startY,
-                maxY: this.drag.startY,
-                targetX: this.drag.startX,
-                targetY: this.drag.startY,
-            };
-
-        const preview = this.add.graphics();
-        const fillColor = this.mode === 'edit' ? 0x2f7bff : 0x5ca35c;
-        preview.fillStyle(fillColor, 0.2);
-        preview.lineStyle(2, fillColor, 0.9);
-
-        const x = gridLeft + range.minX * cellSize;
-        const y = gridTop + range.minY * cellSize;
-        const w = (range.maxX - range.minX + 1) * cellSize - 1;
-        const h = (range.maxY - range.minY + 1) * cellSize - 1;
-        preview.fillRect(x, y, w, h);
-        preview.strokeRect(x, y, w, h);
     }
 
     private render(): void {
@@ -829,7 +834,35 @@ export class Game extends Scene {
             }
         }
 
-        this.drawDragPreview(gridLeft, gridTop, cellSize);
+        // Draw drag preview using persistent graphics object
+        if (this.drag.active) {
+            const range = this.drag.moved
+                ? this.getDragRange(this.drag.lastX, this.drag.lastY)
+                : {
+                    minX: this.drag.startX,
+                    maxX: this.drag.startX,
+                    minY: this.drag.startY,
+                    maxY: this.drag.startY,
+                    targetX: this.drag.startX,
+                    targetY: this.drag.startY,
+                };
+
+            if (this.dragPreviewGraphics) {
+                this.dragPreviewGraphics.clear();
+                const fillColor = this.mode === 'edit' ? 0x2f7bff : 0x5ca35c;
+                this.dragPreviewGraphics.fillStyle(fillColor, 0.2);
+                this.dragPreviewGraphics.lineStyle(2, fillColor, 0.9);
+
+                const x = gridLeft + range.minX * cellSize;
+                const y = gridTop + range.minY * cellSize;
+                const w = (range.maxX - range.minX + 1) * cellSize - 1;
+                const h = (range.maxY - range.minY + 1) * cellSize - 1;
+                this.dragPreviewGraphics.fillRect(x, y, w, h);
+                this.dragPreviewGraphics.strokeRect(x, y, w, h);
+            }
+        } else if (this.dragPreviewGraphics) {
+            this.dragPreviewGraphics.clear();
+        }
 
         // 5-cell subdivision overlay
         const subGraphics = this.add.graphics();
