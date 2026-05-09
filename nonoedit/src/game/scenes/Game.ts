@@ -512,8 +512,8 @@ export class Game extends Scene {
         const range = this.getDragRange(x, y);
 
         this.message = this.mode === 'edit'
-            ? `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`
-            : `Play line (${this.playInputMode}) from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`;
+            ? `Preview edit line from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`
+            : `Preview play line (${this.playInputMode}) from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`;
         this.requestRender();
     }
 
