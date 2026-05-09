@@ -40,12 +40,12 @@
 
 - 入力モード: `Fill` / `Mark` をトグル切替
 - タップ/クリック:
-	- `Fill` 時: `unknown -> filled`, `filled/marked -> unknown`
-	- `Mark` 時: `unknown -> marked`, `filled/marked -> unknown`
+  - `Fill` 時: `unknown -> filled`, `filled/marked -> unknown`
+  - `Mark` 時: `unknown -> marked`, `filled/marked -> unknown`
 - ドラッグ（直線）:
-	- 範囲内に `unknown` があれば、`unknown` のみを現在モードで更新
-	- `unknown` がなく、現在モード対象（`filled` または `marked`）のみで構成される場合は `unknown` に戻す
-	- `filled` と `marked` の混在のみの場合は変更しない
+  - 範囲内に `unknown` があれば、`unknown` のみを現在モードで更新
+  - `unknown` がなく、現在モード対象（`filled` または `marked`）のみで構成される場合は `unknown` に戻す
+  - `filled` と `marked` の混在のみの場合は変更しない
 - クリア時に `moves` と `time` を表示
 - `Edit` で編集に戻る
 
