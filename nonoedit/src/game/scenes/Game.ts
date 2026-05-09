@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { analyzePuzzle } from '../core/solver';
-import { createBinaryBoard, createPlayerBoard, cyclePlayerCell, filledMatch, resizeBinaryBoard } from '../core/board';
+import { createBinaryBoard, createPlayerBoard, filledMatch, resizeBinaryBoard } from '../core/board';
 import { exportPBM, importPBM } from '../core/pbm';
 import { generateColHints, generateRowHints } from '../core/hints';
 import type { AnalysisResult, BinaryCell, PlayerCell } from '../core/types';
@@ -18,14 +18,13 @@ type Button = {
 };
 
 type MobileTab = 'edit' | 'analysis' | 'data';
+type PlayInputMode = 'fill' | 'mark';
 
 type DragState = {
     active: boolean;
     startX: number;
     startY: number;
     axis: 'horizontal' | 'vertical' | null;
-    value: BinaryCell;
-    playValue: PlayerCell;
     lastX: number;
     lastY: number;
     moved: boolean;
@@ -58,13 +57,12 @@ export class Game extends Scene {
     private message = 'Ready';
     private moveCount = 0;
     private startedAt = Date.now();
+    private playInputMode: PlayInputMode = 'fill';
     private drag: DragState = {
         active: false,
         startX: 0,
         startY: 0,
         axis: null,
-        value: 1,
-        playValue: 'filled',
         lastX: -1,
         lastY: -1,
         moved: false,
@@ -218,6 +216,7 @@ export class Game extends Scene {
 
     private startPlayMode(): void {
         this.mode = 'play';
+        this.playInputMode = 'fill';
         this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
         this.moveCount = 0;
         this.startedAt = Date.now();
@@ -362,21 +361,135 @@ export class Game extends Scene {
         this.drag.lastX = x;
         this.drag.lastY = y;
         this.drag.moved = false;
-        this.drag.value = this.solution[y][x] === 1 ? 0 : 1;
-        this.drag.playValue = cyclePlayerCell(this.player[y][x]);
     }
 
-    private applyPlaySegment(minX: number, maxX: number, minY: number, maxY: number): void {
+    private getDragRange(x: number, y: number): { minX: number; maxX: number; minY: number; maxY: number; targetX: number; targetY: number } {
+        const targetX = this.drag.axis === 'vertical' ? this.drag.startX : x;
+        const targetY = this.drag.axis === 'horizontal' ? this.drag.startY : y;
+        return {
+            minX: Math.min(this.drag.startX, targetX),
+            maxX: Math.max(this.drag.startX, targetX),
+            minY: Math.min(this.drag.startY, targetY),
+            maxY: Math.max(this.drag.startY, targetY),
+            targetX,
+            targetY,
+        };
+    }
+
+    private applyEditClick(x: number, y: number): number {
+        this.solution[y][x] = this.solution[y][x] === 1 ? 0 : 1;
+        return 1;
+    }
+
+    private applyEditDrag(minX: number, maxX: number, minY: number, maxY: number): number {
+        let anyEmpty = false;
         let changed = 0;
         for (let yy = minY; yy <= maxY; yy += 1) {
             for (let xx = minX; xx <= maxX; xx += 1) {
-                if (this.player[yy][xx] !== this.drag.playValue) {
-                    this.player[yy][xx] = this.drag.playValue;
+                if (this.solution[yy][xx] === 0) {
+                    anyEmpty = true;
+                }
+            }
+        }
+
+        if (anyEmpty) {
+            for (let yy = minY; yy <= maxY; yy += 1) {
+                for (let xx = minX; xx <= maxX; xx += 1) {
+                    if (this.solution[yy][xx] === 0) {
+                        this.solution[yy][xx] = 1;
+                        changed += 1;
+                    }
+                }
+            }
+            return changed;
+        }
+
+        for (let yy = minY; yy <= maxY; yy += 1) {
+            for (let xx = minX; xx <= maxX; xx += 1) {
+                if (this.solution[yy][xx] === 1) {
+                    this.solution[yy][xx] = 0;
                     changed += 1;
                 }
             }
         }
-        this.moveCount += changed;
+        return changed;
+    }
+
+    private applyPlayClick(x: number, y: number): number {
+        const current = this.player[y][x];
+        const target: PlayerCell = this.playInputMode === 'fill' ? 'filled' : 'marked';
+        const next: PlayerCell = current === 'unknown' ? target : 'unknown';
+        if (next === current) {
+            return 0;
+        }
+        this.player[y][x] = next;
+        return 1;
+    }
+
+    private applyPlayDrag(minX: number, maxX: number, minY: number, maxY: number): number {
+        let unknownCount = 0;
+        let filledCount = 0;
+        let markedCount = 0;
+
+        for (let yy = minY; yy <= maxY; yy += 1) {
+            for (let xx = minX; xx <= maxX; xx += 1) {
+                const value = this.player[yy][xx];
+                if (value === 'unknown') {
+                    unknownCount += 1;
+                } else if (value === 'filled') {
+                    filledCount += 1;
+                } else {
+                    markedCount += 1;
+                }
+            }
+        }
+
+        let changed = 0;
+        const total = unknownCount + filledCount + markedCount;
+        if (unknownCount > 0) {
+            const target: PlayerCell = this.playInputMode === 'fill' ? 'filled' : 'marked';
+            for (let yy = minY; yy <= maxY; yy += 1) {
+                for (let xx = minX; xx <= maxX; xx += 1) {
+                    if (this.player[yy][xx] === 'unknown') {
+                        this.player[yy][xx] = target;
+                        changed += 1;
+                    }
+                }
+            }
+            return changed;
+        }
+
+        if (this.playInputMode === 'fill' && filledCount === total) {
+            for (let yy = minY; yy <= maxY; yy += 1) {
+                for (let xx = minX; xx <= maxX; xx += 1) {
+                    this.player[yy][xx] = 'unknown';
+                    changed += 1;
+                }
+            }
+            return changed;
+        }
+
+        if (this.playInputMode === 'mark' && markedCount === total) {
+            for (let yy = minY; yy <= maxY; yy += 1) {
+                for (let xx = minX; xx <= maxX; xx += 1) {
+                    this.player[yy][xx] = 'unknown';
+                    changed += 1;
+                }
+            }
+            return changed;
+        }
+
+        return 0;
+    }
+
+    private setPlayInputMode(nextMode: PlayInputMode): void {
+        this.playInputMode = nextMode;
+        this.message = `Play input: ${nextMode}`;
+        this.requestRender();
+    }
+
+    private togglePlayInputMode(): void {
+        this.setPlayInputMode(this.playInputMode === 'fill' ? 'mark' : 'fill');
     }
 
     private applyDragTo(x: number, y: number): void {
@@ -396,31 +509,12 @@ export class Game extends Scene {
             this.drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
         }
 
-        const targetX = this.drag.axis === 'vertical' ? this.drag.startX : x;
-        const targetY = this.drag.axis === 'horizontal' ? this.drag.startY : y;
-
-        const minX = Math.min(this.drag.startX, targetX);
-        const maxX = Math.max(this.drag.startX, targetX);
-        const minY = Math.min(this.drag.startY, targetY);
-        const maxY = Math.max(this.drag.startY, targetY);
-
-        for (let yy = minY; yy <= maxY; yy += 1) {
-            for (let xx = minX; xx <= maxX; xx += 1) {
-                if (this.mode === 'edit') {
-                    this.solution[yy][xx] = this.drag.value;
-                }
-            }
-        }
-
-        if (this.mode === 'play') {
-            this.applyPlaySegment(minX, maxX, minY, maxY);
-        }
-
-        this.updateCellsInRange(minX, maxX, minY, maxY);
+        const range = this.getDragRange(x, y);
 
         this.message = this.mode === 'edit'
-            ? `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`
-            : `Play line from (${this.drag.startX}, ${this.drag.startY}) to (${targetX}, ${targetY})`;
+            ? `Edited line from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`
+            : `Play line (${this.playInputMode}) from (${this.drag.startX}, ${this.drag.startY}) to (${range.targetX}, ${range.targetY})`;
+        this.requestRender();
     }
 
     private finishDrag(): void {
@@ -431,19 +525,28 @@ export class Game extends Scene {
         // Tap/click without movement toggles just one cell.
         if (!this.drag.moved) {
             if (this.mode === 'edit') {
-                this.solution[this.drag.startY][this.drag.startX] = this.drag.value;
+                this.applyEditClick(this.drag.startX, this.drag.startY);
                 this.message = `Edited cell (${this.drag.startX}, ${this.drag.startY})`;
             } else {
-                if (this.player[this.drag.startY][this.drag.startX] !== this.drag.playValue) {
-                    this.player[this.drag.startY][this.drag.startX] = this.drag.playValue;
-                    this.moveCount += 1;
-                }
+                const changed = this.applyPlayClick(this.drag.startX, this.drag.startY);
+                this.moveCount += changed;
                 if (filledMatch(this.solution, this.player)) {
                     const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
                     this.message = `Cleared! moves=${this.moveCount} time=${elapsedSec}s`;
                 } else {
                     this.message = `Play move ${this.moveCount}`;
                 }
+            }
+            this.updateCellsInRange(this.drag.startX, this.drag.startX, this.drag.startY, this.drag.startY);
+        } else {
+            const range = this.getDragRange(this.drag.lastX, this.drag.lastY);
+            if (this.mode === 'edit') {
+                this.applyEditDrag(range.minX, range.maxX, range.minY, range.maxY);
+                this.updateCellsInRange(range.minX, range.maxX, range.minY, range.maxY);
+            } else {
+                const changed = this.applyPlayDrag(range.minX, range.maxX, range.minY, range.maxY);
+                this.moveCount += changed;
+                this.updateCellsInRange(range.minX, range.maxX, range.minY, range.maxY);
             }
         }
 
@@ -542,6 +645,35 @@ export class Game extends Scene {
         }
     }
 
+    private drawDragPreview(gridLeft: number, gridTop: number, cellSize: number): void {
+        if (!this.drag.active) {
+            return;
+        }
+
+        const range = this.drag.moved
+            ? this.getDragRange(this.drag.lastX, this.drag.lastY)
+            : {
+                minX: this.drag.startX,
+                maxX: this.drag.startX,
+                minY: this.drag.startY,
+                maxY: this.drag.startY,
+                targetX: this.drag.startX,
+                targetY: this.drag.startY,
+            };
+
+        const preview = this.add.graphics();
+        const fillColor = this.mode === 'edit' ? 0x2f7bff : 0x5ca35c;
+        preview.fillStyle(fillColor, 0.2);
+        preview.lineStyle(2, fillColor, 0.9);
+
+        const x = gridLeft + range.minX * cellSize;
+        const y = gridTop + range.minY * cellSize;
+        const w = (range.maxX - range.minX + 1) * cellSize - 1;
+        const h = (range.maxY - range.minY + 1) * cellSize - 1;
+        preview.fillRect(x, y, w, h);
+        preview.strokeRect(x, y, w, h);
+    }
+
     private render(): void {
         this.children.removeAll(true);
         this.cellCache = [];
@@ -560,6 +692,9 @@ export class Game extends Scene {
         this.add.text(headerX, 16, 'NonoEdit', TITLE_STYLE);
         this.add.text(headerX, 44, `Mode: ${this.mode}`, UI_STYLE);
         this.add.text(headerX, 64, `Size: ${width} x ${height}`, UI_STYLE);
+        if (this.mode === 'play') {
+            this.add.text(headerX, 84, `Input: ${this.playInputMode}`, UI_STYLE);
+        }
 
         const desktopButtons: Button[] = [
             {
@@ -605,6 +740,17 @@ export class Game extends Scene {
                 },
             },
         ];
+
+        if (this.mode === 'play') {
+            desktopButtons.push({
+                x: 720,
+                y: 20,
+                label: this.playInputMode === 'fill' ? '[Input: Fill]' : '[Input: Mark]',
+                width: 128,
+                active: true,
+                onClick: () => this.togglePlayInputMode(),
+            });
+        }
 
         if (!this.isMobileLayout) {
             for (const button of desktopButtons) {
@@ -682,6 +828,8 @@ export class Game extends Scene {
                 });
             }
         }
+
+        this.drawDragPreview(gridLeft, gridTop, cellSize);
 
         // 5-cell subdivision overlay
         const subGraphics = this.add.graphics();
@@ -762,11 +910,11 @@ export class Game extends Scene {
                     this.add.text(panelX + 10, panelY + 96, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
                 }
             } else if (this.mobileTab === 'data') {
-                this.add.text(panelX + 10, panelY + 10, 'PBM import/export', { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 10, 'PBM I/O', { ...UI_STYLE, fontSize: '13px' });
                 this.drawButton({ x: panelX + 10, y: panelY + 34, label: 'Import', width: 100, onClick: () => this.openImportDialog() });
-                this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy PBM', width: 110, onClick: () => this.copyPBM() });
+                this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy', width: 98, onClick: () => this.copyPBM() });
             } else {
-                this.add.text(panelX + 10, panelY + 10, 'Edit tools', { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 10, this.mode === 'edit' ? 'Edit tools' : 'Play tools', { ...UI_STYLE, fontSize: '13px' });
                 this.drawButton({
                     x: panelX + 10,
                     y: panelY + 34,
@@ -781,29 +929,46 @@ export class Game extends Scene {
                         this.applySize(Number(w), Number(h));
                     },
                 });
-                this.drawButton({
-                    x: panelX + 112,
-                    y: panelY + 34,
-                    label: this.mode === 'edit' ? 'Test Play' : 'Back to Edit',
-                    width: 130,
-                    onClick: () => {
-                        if (this.mode === 'edit') {
-                            this.startPlayMode();
-                        } else {
+                if (this.mode === 'play') {
+                    this.drawButton({
+                        x: panelX + 94,
+                        y: panelY + 34,
+                        label: 'Edit',
+                        width: 70,
+                        onClick: () => {
                             this.mode = 'edit';
                             this.message = 'Back to edit mode';
                             this.requestRender();
-                        }
-                    },
-                });
-                this.add.text(panelX + 10, panelY + 76, 'Analysis is updated automatically', { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
+                        },
+                    });
+                    this.drawButton({
+                        x: panelX + 170,
+                        y: panelY + 34,
+                        label: this.playInputMode === 'fill' ? 'Fill' : 'Mark',
+                        width: 92,
+                        active: true,
+                        onClick: () => this.togglePlayInputMode(),
+                    });
+                    this.add.text(panelX + 10, panelY + 82, `input: ${this.playInputMode}`, { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
+                } else {
+                    this.drawButton({
+                        x: panelX + 112,
+                        y: panelY + 34,
+                        label: 'Play',
+                        width: 94,
+                        onClick: () => {
+                            this.startPlayMode();
+                        },
+                    });
+                    this.add.text(panelX + 10, panelY + 76, 'Analysis is updated automatically', { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
+                }
             }
 
             const tabY = worldHeight - (toolbarHeight + tabHeight);
             const tabW = Math.floor((worldWidth - 24 - 16) / 3);
             this.drawButton({ x: 12, y: tabY, label: '編集', width: tabW, height: 38, active: this.mobileTab === 'edit', onClick: () => { this.mobileTab = 'edit'; this.requestRender(); } });
             this.drawButton({ x: 20 + tabW, y: tabY, label: '情報', width: tabW, height: 38, active: this.mobileTab === 'analysis', onClick: () => { this.mobileTab = 'analysis'; this.requestRender(); } });
-            this.drawButton({ x: 28 + tabW * 2, y: tabY, label: 'Import/Export', width: tabW, height: 38, active: this.mobileTab === 'data', onClick: () => { this.mobileTab = 'data'; this.requestRender(); } });
+            this.drawButton({ x: 28 + tabW * 2, y: tabY, label: '入出力', width: tabW, height: 38, active: this.mobileTab === 'data', onClick: () => { this.mobileTab = 'data'; this.requestRender(); } });
         }
 
         const messageY = this.isMobileLayout ? Math.max(76, gridTop - 18) : worldHeight - 68;
