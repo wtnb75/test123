@@ -1,14 +1,16 @@
 import { Scene } from 'phaser';
-import type { KogoEntry } from '../logic/types';
+import type { GameConfig, KogoEntry } from '../logic/types';
 import { findExampleSentence } from '../logic/kogodrop';
 import { exampleSentences } from '../data/exampleSentences';
 
 interface ReviewData {
     wrongEntries?: KogoEntry[];
+    config?: GameConfig;
 }
 
 export class Review extends Scene {
     private wrongEntries: KogoEntry[] = [];
+    private config!: GameConfig;
     private overlayEl: HTMLElement | null = null;
 
     constructor() {
@@ -17,6 +19,7 @@ export class Review extends Scene {
 
     init(data: ReviewData) {
         this.wrongEntries = data.wrongEntries ?? [];
+        this.config = data.config ?? { langMode: 'kogo-to-jp', difficulty: 'normal', questionCount: 20 };
     }
 
     create() {
@@ -67,25 +70,45 @@ export class Review extends Scene {
 
         overlay.appendChild(list);
 
-        const btn = document.createElement('button');
-        btn.textContent = 'タイトルへ';
-        btn.style.cssText = [
-            'margin:12px auto',
-            'display:block',
-            'padding:12px 32px',
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;padding:12px 16px;flex-shrink:0;';
+
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = 'もう一度';
+        retryBtn.style.cssText = [
+            'padding:12px 28px',
+            'background:#8ac926',
+            'color:#14213d',
+            'border:none',
+            'border-radius:4px',
+            'font-size:18px',
+            'font-weight:bold',
+            'cursor:pointer',
+        ].join(';');
+        retryBtn.addEventListener('click', () => {
+            this.destroyOverlay();
+            this.scene.start('Game', this.config);
+        });
+
+        const titleBtn = document.createElement('button');
+        titleBtn.textContent = 'タイトルへ';
+        titleBtn.style.cssText = [
+            'padding:12px 28px',
             'background:#415a77',
             'color:#f1faee',
             'border:none',
             'border-radius:4px',
             'font-size:18px',
             'cursor:pointer',
-            'flex-shrink:0',
         ].join(';');
-        btn.addEventListener('click', () => {
+        titleBtn.addEventListener('click', () => {
             this.destroyOverlay();
             this.scene.start('Title');
         });
-        overlay.appendChild(btn);
+
+        btnRow.appendChild(retryBtn);
+        btnRow.appendChild(titleBtn);
+        overlay.appendChild(btnRow);
 
         document.body.appendChild(overlay);
         this.overlayEl = overlay;

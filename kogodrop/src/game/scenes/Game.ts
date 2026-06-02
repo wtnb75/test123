@@ -1,4 +1,4 @@
-import { Input, Scene, type GameObjects } from 'phaser';
+import { Geom, Input, Scene, type GameObjects } from 'phaser';
 import type { GameConfig, KogoEntry } from '../logic/types';
 import {
     generateSlots,
@@ -18,10 +18,41 @@ const SLOT_HEIGHT = 160;
 const FLASH_DURATION_MS = 2500;
 const DROP_ANIM_MS = 140;
 const SLOT_COUNT = 4;
+const FONT_MINCHO = '"Shippori Mincho", serif';
+const FONT_SANS = 'sans-serif';
 
 interface SlotView {
     background: GameObjects.Rectangle;
     label: GameObjects.Text;
+}
+
+function toVertical(text: string): string {
+    return text.split('').join('\n');
+}
+
+function tileDisplayText(value: string, mode: string): string {
+    if (mode === 'kogo-to-en' || mode === 'en-to-kogo') return value;
+    return toVertical(value);
+}
+
+function tileFontSize(value: string, mode: string): string {
+    if (mode === 'kogo-to-en' || mode === 'en-to-kogo') {
+        return value.length > 12 ? '18px' : value.length > 6 ? '22px' : '28px';
+    }
+    return '28px';
+}
+
+function flashWordFontSize(value: string): string {
+    if (value.length > 10) return '28px';
+    if (value.length > 6) return '36px';
+    return '44px';
+}
+
+function slotFontSize(text: string): string {
+    if (text.length > 20) return '14px';
+    if (text.length > 14) return '16px';
+    if (text.length > 8) return '19px';
+    return '22px';
 }
 
 export class Game extends Scene {
@@ -31,13 +62,22 @@ export class Game extends Scene {
     private slots: KogoEntry[] = [];
     private correctCount = 0;
     private wrongEntries: KogoEntry[] = [];
+    private results: boolean[] = [];
     private pool: KogoEntry[] = [];
 
-    private tileText!: GameObjects.Text;
+    private tileContainer!: GameObjects.Container;
+    private tileCardGfx!: GameObjects.Graphics;
+    private tileTxt!: GameObjects.Text;
+
+    private nextContainer!: GameObjects.Container;
+    private nextCardGfx!: GameObjects.Graphics;
+    private nextTxt!: GameObjects.Text;
+
     private progressText!: GameObjects.Text;
-    private scoreText!: GameObjects.Text;
-    private nextText!: GameObjects.Text;
-    private flashText!: GameObjects.Text;
+    private questionSegments: GameObjects.Rectangle[] = [];
+    private flashBg!: GameObjects.Graphics;
+    private flashWordTxt!: GameObjects.Text;
+    private flashMeaningTxt!: GameObjects.Text;
     private slotViews: SlotView[] = [];
 
     private currentX = 0;
@@ -59,6 +99,7 @@ export class Game extends Scene {
         this.questions = createQuestionSequence(this.pool, this.config.questionCount);
         this.correctCount = 0;
         this.wrongEntries = [];
+        this.results = [];
         this.currentIndex = 0;
         this.isEntering = true;
         this.isResolving = false;
@@ -75,32 +116,56 @@ export class Game extends Scene {
 
         this.cameras.main.setBackgroundColor('#1b263b');
 
-        this.progressText = this.add.text(16, 20, '', {
+        // Progress text "answered/total" at top-right
+        this.progressText = this.add.text(width - 12, 4, '', {
             color: '#d7e3fc',
-            fontFamily: 'sans-serif',
-            fontSize: '20px',
-        });
-
-        this.scoreText = this.add.text(width - 16, 20, '', {
-            color: '#f1faee',
-            fontFamily: 'sans-serif',
-            fontSize: '20px',
+            fontFamily: FONT_SANS,
+            fontSize: '14px',
         }).setOrigin(1, 0);
 
-        this.nextText = this.add.text(16, 56, '', {
-            color: '#a8dadc',
-            fontFamily: 'sans-serif',
-            fontSize: '18px',
-        });
+        // Segmented gauge: one rect per question
+        this.questionSegments = [];
+        const segCount = this.config.questionCount;
+        const segH = 10;
+        const segY = 6;
+        const segStartX = 8;
+        const segEndX = width - 56;
+        const segW = Math.max(4, Math.floor((segEndX - segStartX) / segCount) - 2);
+        for (let i = 0; i < segCount; i++) {
+            const seg = this.add.rectangle(
+                segStartX + i * (segW + 2) + segW / 2,
+                segY + segH / 2,
+                segW, segH,
+                0x333333,
+            );
+            this.questionSegments.push(seg);
+        }
 
-        this.tileText = this.add.text(this.currentX, this.currentY, '', {
+        // NEXT card container
+        this.nextCardGfx = this.add.graphics();
+        this.nextTxt = this.add.text(0, 0, '', {
+            color: '#a8dadc',
+            fontFamily: FONT_SANS,
+            fontSize: '14px',
+            align: 'center',
+        }).setOrigin(0.5);
+        this.nextContainer = this.add.container(16 + 64, 60, [this.nextCardGfx, this.nextTxt]);
+
+        // Tile card container
+        this.tileCardGfx = this.add.graphics();
+        this.tileTxt = this.add.text(0, 0, '', {
             color: '#ffd166',
-            fontFamily: 'sans-serif',
-            fontSize: '36px',
+            fontFamily: FONT_MINCHO,
+            fontSize: '28px',
             fontStyle: 'bold',
-            backgroundColor: '#1d3557',
-            padding: { x: 16, y: 10 },
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+            align: 'center',
+        }).setOrigin(0.5);
+        this.tileContainer = this.add.container(this.currentX, this.currentY, [this.tileCardGfx, this.tileTxt]);
+        this.tileContainer.setSize(80, 80);
+        this.tileContainer.setInteractive(
+            new Geom.Rectangle(-40, -40, 80, 80),
+            Geom.Rectangle.Contains,
+        );
 
         const slotTop = height - SLOT_HEIGHT - 72;
         for (let i = 0; i < SLOT_COUNT; i++) {
@@ -112,30 +177,74 @@ export class Game extends Scene {
             const lbl = this.add.text(x + this.colWidth / 2, slotTop + SLOT_HEIGHT / 2, '', {
                 align: 'center',
                 color: '#f1faee',
-                fontFamily: 'sans-serif',
+                fontFamily: FONT_MINCHO,
                 fontSize: '17px',
-                wordWrap: { width: this.colWidth - 8 },
+                wordWrap: { width: this.colWidth - 8, useAdvancedWrap: true },
             }).setOrigin(0.5);
             this.slotViews.push({ background: bg, label: lbl });
         }
 
-        this.flashText = this.add.text(width / 2, height * 0.46, '', {
-            align: 'center',
+        this.flashBg = this.add.graphics().setDepth(19).setVisible(false);
+        this.flashWordTxt = this.add.text(width / 2, 0, '', {
             color: '#80ed99',
-            fontFamily: 'sans-serif',
-            fontSize: '26px',
+            fontFamily: FONT_MINCHO,
+            fontSize: '44px',
             fontStyle: 'bold',
-            backgroundColor: '#0d1b2a',
-            padding: { x: 20, y: 14 },
-            wordWrap: { width: width - 64 },
-        }).setOrigin(0.5).setDepth(20).setVisible(false);
+            align: 'center',
+        }).setOrigin(0.5, 0).setDepth(20).setVisible(false);
+        this.flashMeaningTxt = this.add.text(width / 2, 0, '', {
+            color: '#d7e3fc',
+            fontFamily: FONT_MINCHO,
+            fontSize: '20px',
+            align: 'center',
+            wordWrap: { width: width - 80, useAdvancedWrap: true },
+        }).setOrigin(0.5, 0).setDepth(20).setVisible(false);
 
         this.buildInputHandlers(width);
         this.startNewTile();
     }
 
+    private drawTileCard(value: string) {
+        const isJapanese = this.config.langMode !== 'kogo-to-en' && this.config.langMode !== 'en-to-kogo';
+        const vertVal = tileDisplayText(value, this.config.langMode);
+        const fontSize = tileFontSize(value, this.config.langMode);
+
+        this.tileTxt.setFontSize(fontSize);
+        this.tileTxt.setFontFamily(isJapanese ? FONT_MINCHO : FONT_SANS);
+        this.tileTxt.setText(vertVal);
+
+        const tw = Math.max(isJapanese ? 56 : this.tileTxt.width + 32, 64);
+        const th = Math.max(this.tileTxt.height + 28, 64);
+
+        this.tileCardGfx.clear();
+        this.tileCardGfx.fillStyle(0x1d3557);
+        this.tileCardGfx.fillRoundedRect(-tw / 2, -th / 2, tw, th, 12);
+        this.tileCardGfx.lineStyle(2, 0x778da9);
+        this.tileCardGfx.strokeRoundedRect(-tw / 2, -th / 2, tw, th, 12);
+
+        this.tileContainer.setSize(tw, th);
+        this.tileContainer.setInteractive(
+            new Geom.Rectangle(-tw / 2, -th / 2, tw, th),
+            Geom.Rectangle.Contains,
+        );
+    }
+
+    private drawNextCard(value: string) {
+        const label = `NEXT\n【${value}】`;
+        this.nextTxt.setText(label);
+
+        const tw = Math.max(this.nextTxt.width + 24, 80);
+        const th = this.nextTxt.height + 16;
+
+        this.nextCardGfx.clear();
+        this.nextCardGfx.fillStyle(0x162032);
+        this.nextCardGfx.fillRoundedRect(-tw / 2, -th / 2, tw, th, 8);
+        this.nextCardGfx.lineStyle(1, 0x415a77);
+        this.nextCardGfx.strokeRoundedRect(-tw / 2, -th / 2, tw, th, 8);
+    }
+
     private buildInputHandlers(width: number) {
-        this.tileText.on('pointerdown', (pointer: Input.Pointer) => {
+        this.input.on('pointerdown', (pointer: Input.Pointer) => {
             if (this.isEntering || this.isResolving) return;
             this.dragging = true;
             this.syncPointerX(pointer.x, width);
@@ -150,7 +259,6 @@ export class Game extends Scene {
             if (!this.dragging || this.isResolving) return;
             this.dragging = false;
             this.syncPointerX(pointer.x, width);
-            // Only commit if released within the screen bounds (always valid here)
             this.confirmDrop();
         });
 
@@ -188,7 +296,7 @@ export class Game extends Scene {
                 this.currentY = TILE_READY_Y;
                 this.isEntering = false;
             }
-            this.tileText.setPosition(this.currentX, this.currentY);
+            this.tileContainer.setPosition(this.currentX, this.currentY);
         }
     }
 
@@ -198,25 +306,65 @@ export class Game extends Scene {
         const entry = this.questions[this.currentIndex];
         this.slots = generateSlots(entry, this.pool, this.config.langMode);
 
+        const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode)).length;
+        if (correctCount !== 1) {
+            // eslint-disable-next-line no-console
+            console.warn(
+                `[KogoDrop] Q${this.currentIndex + 1}: 正解スロット数=${correctCount}`,
+                `tile="${getTileValue(entry, this.config.langMode)}"`,
+                this.slots.map((s, i) => ({
+                    slot: i,
+                    value: getSlotValue(s, this.config.langMode),
+                    correct: isCorrect(entry, s, this.config.langMode),
+                })),
+            );
+        } else {
+            // eslint-disable-next-line no-console
+            console.log(
+                `[KogoDrop] Q${this.currentIndex + 1}:`,
+                `tile="${getTileValue(entry, this.config.langMode)}"`,
+                `slots=[${this.slots.map((s) => `"${getSlotValue(s, this.config.langMode)}"`).join(', ')}]`,
+                `correctAt=${this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode))}`,
+            );
+        }
+
         for (let i = 0; i < SLOT_COUNT; i++) {
-            this.slotViews[i].label.setText(getSlotValue(this.slots[i], this.config.langMode));
+            const slotVal = getSlotValue(this.slots[i], this.config.langMode);
+            this.slotViews[i].label.setText(slotVal);
+            this.slotViews[i].label.setFontSize(slotFontSize(slotVal));
+            this.slotViews[i].label.setWordWrapWidth(this.colWidth - 8, true);
             this.slotViews[i].background.setFillStyle(i % 2 === 0 ? 0x415a77 : 0x33415c);
         }
 
         const nextEntry = this.questions[this.currentIndex + 1];
         const nextVal = nextEntry ? getTileValue(nextEntry, this.config.langMode) : '---';
-        this.nextText.setText(`NEXT: 【${nextVal}】`);
+        this.drawNextCard(nextVal);
 
-        this.tileText.setText(getTileValue(entry, this.config.langMode));
+        const tileVal = getTileValue(entry, this.config.langMode);
+        this.drawTileCard(tileVal);
+
         this.currentX = this.cameras.main.width / 2;
         this.currentY = TILE_START_Y;
-        this.tileText.setPosition(this.currentX, this.currentY);
-        this.tileText.setVisible(true);
+        this.tileContainer.setPosition(this.currentX, this.currentY);
+        this.tileContainer.setVisible(true);
         this.isEntering = true;
         this.isResolving = false;
 
-        this.progressText.setText(`${this.currentIndex + 1}問目 / ${this.config.questionCount}問`);
-        this.scoreText.setText(`正答: ${this.correctCount} / 出題: ${this.currentIndex}`);
+        this.updateGauge();
+    }
+
+    private updateGauge() {
+        const answered = this.results.length;
+        this.progressText.setText(`${answered} / ${this.config.questionCount}`);
+        for (let i = 0; i < this.questionSegments.length; i++) {
+            let color: number;
+            if (i < answered) {
+                color = this.results[i] ? 0x80ed99 : 0xff6b6b;
+            } else {
+                color = 0x333333;
+            }
+            this.questionSegments[i].setFillStyle(color);
+        }
     }
 
     private confirmDrop() {
@@ -228,7 +376,7 @@ export class Game extends Scene {
         const targetY = this.slotRegionTop + SLOT_HEIGHT / 2;
 
         this.tweens.add({
-            targets: this.tileText,
+            targets: this.tileContainer,
             x: targetX,
             y: targetY,
             duration: DROP_ANIM_MS,
@@ -249,16 +397,16 @@ export class Game extends Scene {
         } else {
             this.wrongEntries.push(entry);
         }
+        this.results.push(correct);
 
         const tileVal = getTileValue(entry, this.config.langMode);
         const fullMeaning = getFullMeaning(entry, this.config.langMode);
 
-        this.flashText.setText(`${correct ? '✓' : '✗'} ${tileVal} → ${fullMeaning}`);
-        this.flashText.setColor(correct ? '#80ed99' : '#ffadad');
+        this.showFlash(correct, tileVal, fullMeaning);
+        this.tileContainer.setVisible(false);
 
-        this.flashText.setVisible(true);
-        this.tileText.setVisible(false);
-        this.scoreText.setText(`正答: ${this.correctCount} / 出題: ${this.currentIndex + 1}`);
+        this.currentIndex++;
+        this.updateGauge();
 
         const overlays: GameObjects.Text[] = [];
         if (correct) {
@@ -268,10 +416,10 @@ export class Game extends Scene {
             overlays.push(...this.showSlotFeedback(slotIndex, correctSlotIdx));
         }
 
-        this.currentIndex++;
-
         this.time.delayedCall(FLASH_DURATION_MS, () => {
-            this.flashText.setVisible(false);
+            this.flashBg.setVisible(false);
+            this.flashWordTxt.setVisible(false);
+            this.flashMeaningTxt.setVisible(false);
             overlays.forEach((o) => o.destroy());
 
             if (this.currentIndex >= this.config.questionCount) {
@@ -287,6 +435,44 @@ export class Game extends Scene {
         });
     }
 
+    private showFlash(correct: boolean, word: string, meaning: string) {
+        const { width, height } = this.cameras.main;
+        const flashCenterY = height * 0.42;
+        const gap = 12;
+        const padX = 28;
+        const padY = 18;
+
+        this.flashWordTxt
+            .setFontSize(flashWordFontSize(word))
+            .setColor(correct ? '#80ed99' : '#ffadad')
+            .setText(word);
+        this.flashMeaningTxt.setText(meaning);
+
+        const wordH = this.flashWordTxt.height;
+        const totalH = wordH + gap + this.flashMeaningTxt.height;
+        const startY = flashCenterY - totalH / 2;
+
+        this.flashWordTxt.setY(startY);
+        this.flashMeaningTxt.setY(startY + wordH + gap);
+
+        const contentW = Math.max(this.flashWordTxt.width, this.flashMeaningTxt.width);
+        const panelW = Math.min(contentW + padX * 2, width - 24);
+        const panelH = totalH + padY * 2;
+        const panelX = width / 2 - panelW / 2;
+        const panelY = startY - padY;
+        const borderColor = correct ? 0x80ed99 : 0xff6b6b;
+
+        this.flashBg.clear();
+        this.flashBg.fillStyle(0x0d1b2a, 0.95);
+        this.flashBg.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
+        this.flashBg.lineStyle(2, borderColor, 0.5);
+        this.flashBg.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+
+        this.flashBg.setVisible(true);
+        this.flashWordTxt.setVisible(true);
+        this.flashMeaningTxt.setVisible(true);
+    }
+
     private showSlotFeedback(wrongIdx: number, correctIdx: number): GameObjects.Text[] {
         const { height } = this.cameras.main;
         const slotCenterY = height - SLOT_HEIGHT - 72 + SLOT_HEIGHT / 2;
@@ -297,7 +483,7 @@ export class Game extends Scene {
             this.slotViews[wrongIdx].background.setFillStyle(0x5c0000);
             const xText = this.add.text(
                 this.getSlotCenter(wrongIdx), slotCenterY, '✗',
-                { color: '#ff5555', fontFamily: 'sans-serif', fontSize: '72px', fontStyle: 'bold' }
+                { color: '#ff5555', fontFamily: FONT_SANS, fontSize: '72px', fontStyle: 'bold' }
             ).setOrigin(0.5).setDepth(25).setAlpha(0.9);
             overlays.push(xText);
         }
@@ -308,7 +494,7 @@ export class Game extends Scene {
             const checkSize = isCorrectOnly ? '64px' : '44px';
             const checkText = this.add.text(
                 this.getSlotCenter(correctIdx), checkY, '✓',
-                { color: '#55ff55', fontFamily: 'sans-serif', fontSize: checkSize, fontStyle: 'bold' }
+                { color: '#55ff55', fontFamily: FONT_SANS, fontSize: checkSize, fontStyle: 'bold' }
             ).setOrigin(0.5).setDepth(25);
             overlays.push(checkText);
         }
@@ -327,7 +513,7 @@ export class Game extends Scene {
     private syncPointerX(pointerX: number, width: number) {
         this.currentX = Math.min(width - this.colWidth / 2, Math.max(this.colWidth / 2, pointerX));
         if (!this.isResolving) {
-            this.tileText.setPosition(this.currentX, this.currentY);
+            this.tileContainer.setPosition(this.currentX, this.currentY);
         }
         this.updateHighlight();
     }
@@ -340,4 +526,3 @@ export class Game extends Scene {
         }
     }
 }
-

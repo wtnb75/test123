@@ -64,7 +64,7 @@ export class Result extends Scene {
                 fontSize: '20px',
             }).setOrigin(0.5);
             reviewBtn.on('pointerdown', () => {
-                this.scene.start('Review', { wrongEntries: this.wrongEntries });
+                this.scene.start('Review', { wrongEntries: this.wrongEntries, config: this.config });
             });
             nextButtonY = height * 0.72;
         }

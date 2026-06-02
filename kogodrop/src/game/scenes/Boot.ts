@@ -9,7 +9,8 @@ export class Boot extends Scene {
         // No external assets to load
     }
 
-    create() {
+    async create() {
+        await document.fonts.ready;
         this.scene.start('Title');
     }
 }

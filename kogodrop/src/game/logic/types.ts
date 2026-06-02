@@ -30,11 +30,11 @@ export interface KogoEntry {
     word: string;
     reading?: string;
     meaning: string;
-    shortMeaning: string;
+    shortMeaning: string[];
     level: Level;
     pos: PosValue;
     englishMeaning: string;
-    shortEnglishMeaning: string;
+    shortEnglishMeaning: string[];
     verified: boolean;
 }
 
