@@ -20,60 +20,30 @@ tasks:
       - task -l --sort alphanumeric
     silent: true
 
-  npmall:
-    internal: true
-    requires:
-      vars:
-        - CMD
-    cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && npm {{ .CMD }}
-
-  npxall:
-    internal: true
-    requires:
-      vars:
-        - CMD
-    cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && npx {{ .CMD }}
-
   ci:
-    desc: npm ci
+    desc: pnpm install (frozen)
     cmds:
-      - task: npmall
-        vars:
-          CMD: ci
+      - pnpm install --frozen-lockfile
 
   lint:
     desc: lint games
     cmds:
-      - task: npmall
-        vars:
-          CMD: run lint
+      - pnpm -r run lint
 
   test:
     desc: test games
     cmds:
-      - task: npmall
-        vars:
-          CMD: run test
+      - pnpm -r run test
 
   test:coverage:
-    desc: test games
+    desc: test games with coverage
     cmds:
-      - task: npmall
-        vars:
-          CMD: run test:coverage
+      - pnpm -r run test:coverage
 
   build:games:
     desc: build games
     cmds:
-      - task: npmall
-        vars:
-          CMD: run build
+      - pnpm -r run build
 
   build:output:
     desc: build output
@@ -226,23 +196,17 @@ tasks:
   audit:
     desc: audit fix
     cmds:
-      - task: npmall
-        vars:
-          CMD: audit fix
+      - pnpm audit --fix
 
   update:
     desc: update packages
     cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && npx -p npm-check-updates -c "ncu -u" && npm i
+      - pnpm update -r
 
   update:check:
     desc: check update
     cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && npx -p npm-check-updates -c "ncu"
+      - pnpm outdated -r
 
   deploy:
     desc: deploy to gh pages
@@ -262,9 +226,9 @@ tasks:
   depcheck:
     desc: depcheck
     cmds:
-      - task: npxall
-        vars:
-          CMD: depcheck
+      - for:
+          var: GAMES
+        cmd: cd {{ .ITEM }} && pnpm dlx depcheck
 
   pkgmod:
     desc: modify package of PACKAGE=
@@ -278,7 +242,7 @@ tasks:
   newgame:
     desc: create new project template PACKAGE=
     cmds:
-      - npm create @phaserjs/game@latest {{ .PACKAGE }}
+      - pnpm create @phaserjs/game@latest {{ .PACKAGE }}
       - "rm {{ .PACKAGE }}/log.js"
       - task: pkgmod
 

@@ -16,16 +16,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^10.3.0",
-    "typescript": "~6.0.3",
-    "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.11",
-    "vitest": "^4.1.5"
+    "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "dependencies": {
-    "phaser": "4.1.0",
-    "terser": "^5.47.1"
+    "phaser": "catalog:",
+    "terser": "catalog:"
   }
 }
