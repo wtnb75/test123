@@ -161,6 +161,22 @@ describe('createQuestionSequence', () => {
         expect(seq).toHaveLength(5);
         expect(seq.every((e) => e.id === e1.id)).toBe(true);
     });
+
+    it('swaps deck[0] when reshuffle would repeat the last word', () => {
+        // Controlled RNG:
+        //   1st shuffleArray (initial deck [e1,e2]): rng()=0.9 → j=floor(1.8)=1 → [e1,e2]
+        //   2nd shuffleArray (reshuffle): rng()=0.1 → j=floor(0.2)=0 → [e2,e1]
+        //     → deck[0].word === lastWord ('word2') → triggers swap
+        //     swapIdx = 1 + floor(rng()*1) = 1 + floor(0.1) = 1 → deck=[e1,e2]
+        const vals = [0.9, 0.1, 0.1];
+        let vi = 0;
+        const rng = () => vals[vi++ % vals.length];
+        const seq = createQuestionSequence([e1, e2], 4, rng);
+        expect(seq).toHaveLength(4);
+        for (let i = 1; i < seq.length; i++) {
+            expect(seq[i].word).not.toBe(seq[i - 1].word);
+        }
+    });
 });
 
 describe('getTileValue', () => {

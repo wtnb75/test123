@@ -165,6 +165,10 @@ export class Review extends Scene {
         return item;
     }
 
+    shutdown() {
+        this.destroyOverlay();
+    }
+
     private destroyOverlay() {
         if (this.overlayEl) {
             this.overlayEl.remove();
