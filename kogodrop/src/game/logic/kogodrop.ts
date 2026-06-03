@@ -85,8 +85,10 @@ export const generateSlots = (
     correct: KogoEntry,
     pool: KogoEntry[],
     mode: LangMode,
-    rng: () => number = Math.random
+    rng: () => number = Math.random,
+    slotCount = 4
 ): KogoEntry[] => {
+    const dummyTarget = slotCount - 1;
     const allCorrectValues = new Set(getAllSlotValues(correct, mode));
 
     // Never use entries whose slot value is any valid answer for the correct entry
@@ -99,7 +101,7 @@ export const generateSlots = (
     const dummies: KogoEntry[] = [];
     const usedValues = new Set<string>(allCorrectValues);
     for (const e of candidates) {
-        if (dummies.length >= 3) break;
+        if (dummies.length >= dummyTarget) break;
         const val = getSlotValue(e, mode);
         if (!usedValues.has(val)) {
             dummies.push(e);
@@ -109,13 +111,13 @@ export const generateSlots = (
 
     // Second pass: allow repeated display values when pool is too small
     for (const e of candidates) {
-        if (dummies.length >= 3) break;
+        if (dummies.length >= dummyTarget) break;
         if (!dummies.includes(e)) dummies.push(e);
     }
 
     // Last resort: pad when pool is tiny (e.g. single-entry pool)
     const padSource = candidates.length > 0 ? candidates : [correct];
-    while (dummies.length < 3) {
+    while (dummies.length < dummyTarget) {
         dummies.push(padSource[dummies.length % padSource.length]);
     }
 
@@ -129,10 +131,10 @@ export const generateSlots = (
               ? { ...correct, shortMeaning: [displayValue] }
               : { ...correct, shortEnglishMeaning: [displayValue] };
 
-    const correctPosition = Math.floor(rng() * 4);
+    const correctPosition = Math.floor(rng() * slotCount);
     const slots: KogoEntry[] = [];
     let dummyIndex = 0;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < slotCount; i++) {
         slots.push(i === correctPosition ? correctSlotEntry : dummies[dummyIndex++]);
     }
     return slots;

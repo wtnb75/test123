@@ -5,12 +5,13 @@ export const kogoList: KogoEntry[] = [
         id: 'aware',
         word: 'あはれ',
         meaning: 'しみじみとした感動・趣',
-        shortMeaning: ['しみじみ', '感動'],
+        shortMeaning: ['しみじみ', '感動', '趣がある'],
         level: 'basic',
         pos: '形容動詞・ナリ活用',
         englishMeaning: 'pathos; touching sentiment',
         shortEnglishMeaning: ['pathos', 'touching'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'okashi',
@@ -22,6 +23,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'charming; interesting; witty',
         shortEnglishMeaning: ['charming', 'interesting', 'witty'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'imiji',
@@ -33,6 +35,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'very; terribly; wonderful',
         shortEnglishMeaning: ['very', 'terribly', 'wonderful'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'medetashi',
@@ -44,6 +47,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'splendid; auspicious; wonderful',
         shortEnglishMeaning: ['splendid', 'auspicious', 'wonderful'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'kanashi',
@@ -55,6 +59,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'dear; lovely; sad',
         shortEnglishMeaning: ['dear', 'lovely', 'sad'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'wabishi',
@@ -66,6 +71,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'lonely; miserable; shabby',
         shortEnglishMeaning: ['lonely', 'miserable', 'shabby'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'utsukushi',
@@ -77,6 +83,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'cute; beautiful; lovely',
         shortEnglishMeaning: ['cute', 'beautiful', 'lovely'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'arigatashi',
@@ -88,6 +95,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'rare; precious; hard to find',
         shortEnglishMeaning: ['rare', 'precious'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'ayashi',
@@ -99,6 +107,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'strange; humble; of low rank',
         shortEnglishMeaning: ['strange', 'humble'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'yukashi',
@@ -110,6 +119,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'yearning; curious; attracted',
         shortEnglishMeaning: ['yearning', 'curious', 'attracted'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'natsukashi',
@@ -121,6 +131,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'familiar; dear; nostalgic',
         shortEnglishMeaning: ['nostalgic', 'familiar', 'dear'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'asamashi',
@@ -132,6 +143,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'astonishing; shameful; wretched',
         shortEnglishMeaning: ['astonishing', 'shameful', 'wretched'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'obotsuka',
@@ -143,17 +155,19 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'uneasy; vague; unreliable',
         shortEnglishMeaning: ['uneasy', 'vague', 'unreliable'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'tsurenashi',
         word: 'つれなし',
         meaning: '冷淡だ・平気だ',
-        shortMeaning: ['冷淡だ', '平気だ'],
+        shortMeaning: ['冷淡だ', 'よそよそしい', '平気だ', '素知らぬふり', '変わらない'],
         level: 'standard',
         pos: '形容詞・ク活用',
         englishMeaning: 'cold; indifferent; unconcerned',
         shortEnglishMeaning: ['indifferent', 'cold', 'unconcerned'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'kokoromoto',
@@ -165,6 +179,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'anxious; impatient; uncertain',
         shortEnglishMeaning: ['anxious', 'impatient', 'uncertain'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'nengoroni',
@@ -176,6 +191,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'sincere; kind; earnest',
         shortEnglishMeaning: ['sincere', 'kind', 'earnest'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'hashitanashi',
@@ -187,6 +203,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'awkward; improper; incomplete',
         shortEnglishMeaning: ['awkward', 'improper', 'incomplete'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'souzaushi',
@@ -198,6 +215,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'unsatisfying; lonely; lacking',
         shortEnglishMeaning: ['unsatisfying', 'lonely', 'lacking'],
         verified: true,
+        rank: 3,
     },
     {
         id: 'monogurohoshi',
@@ -209,6 +227,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'mad; frantic; out of one\'s mind',
         shortEnglishMeaning: ['frantic', 'mad'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'rautashi',
@@ -220,6 +239,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'endearing; sweet; pitiable',
         shortEnglishMeaning: ['endearing', 'sweet', 'pitiable'],
         verified: true,
+        rank: 3,
     },
     // ---- basic additions ----
     {
@@ -232,6 +252,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'pitiful; dear; lovable',
         shortEnglishMeaning: ['pitiful', 'dear', 'lovable'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'yamugoto',
@@ -243,6 +264,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'noble; important; indispensable',
         shortEnglishMeaning: ['noble', 'important'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'kokoronikushi',
@@ -254,6 +276,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'refined; elegant; tasteful',
         shortEnglishMeaning: ['refined', 'elegant', 'tasteful'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'tanomoshi',
@@ -265,6 +288,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'reliable; reassuring; promising',
         shortEnglishMeaning: ['reliable', 'reassuring'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'mezamashi',
@@ -276,6 +300,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'remarkable; surprising; offensive',
         shortEnglishMeaning: ['remarkable', 'surprising'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'yuyushi',
@@ -287,6 +312,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'ominous; dreadful; extraordinary',
         shortEnglishMeaning: ['ominous', 'dreadful'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'kuchioshi',
@@ -298,6 +324,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'regrettable; vexing; disappointing',
         shortEnglishMeaning: ['regrettable', 'vexing'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'susamaji',
@@ -309,6 +336,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'awful; bleak; anticlimactic',
         shortEnglishMeaning: ['awful', 'bleak', 'anticlimactic'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'ushi',
@@ -320,6 +348,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'miserable; gloomy; hateful',
         shortEnglishMeaning: ['miserable', 'gloomy', 'hateful'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'atarashi',
@@ -331,6 +360,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'wasteful; precious; regrettable',
         shortEnglishMeaning: ['wasteful', 'precious'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'tafutoshi',
@@ -342,6 +372,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'sacred; venerable; august',
         shortEnglishMeaning: ['sacred', 'venerable', 'august'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'ito',
@@ -353,6 +384,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'very; extremely; greatly',
         shortEnglishMeaning: ['very', 'extremely', 'greatly'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'geni',
@@ -364,6 +396,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'indeed; truly; as expected',
         shortEnglishMeaning: ['indeed', 'truly'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'yagate',
@@ -375,6 +408,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'immediately; as is; before long',
         shortEnglishMeaning: ['immediately', 'as is'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'nakanaka',
@@ -386,6 +420,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'rather; on the contrary; halfway',
         shortEnglishMeaning: ['rather', 'on the contrary'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'amata',
@@ -397,6 +432,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'many; much; a great number',
         shortEnglishMeaning: ['many', 'much', 'a great number'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'odoroku',
@@ -408,6 +444,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'wake up; be surprised; be startled',
         shortEnglishMeaning: ['wake up', 'be surprised'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'shinobu',
@@ -419,6 +456,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'yearn; endure; hide',
         shortEnglishMeaning: ['yearn', 'endure', 'hide'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'aku',
@@ -430,6 +468,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'tire of; be satisfied; have enough',
         shortEnglishMeaning: ['tire of', 'be satisfied'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'otonau',
@@ -441,6 +480,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'visit; make a sound; arrive',
         shortEnglishMeaning: ['visit', 'make a sound', 'arrive'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'nanamekashi',
@@ -452,6 +492,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'graceful; elegant; sensual',
         shortEnglishMeaning: ['graceful', 'elegant', 'sensual'],
         verified: true,
+        rank: 2,
     },
     // ---- standard additions ----
     {
@@ -464,6 +505,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'unpleasant; troublesome; difficult',
         shortEnglishMeaning: ['unpleasant', 'troublesome'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'akarasama',
@@ -475,6 +517,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'briefly; slightly; for a moment',
         shortEnglishMeaning: ['briefly', 'slightly'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'tsukiduki',
@@ -486,6 +529,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'fitting; suitable; becoming',
         shortEnglishMeaning: ['fitting', 'suitable', 'becoming'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'kotowari',
@@ -497,6 +541,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'reasonable; natural; as expected',
         shortEnglishMeaning: ['reasonable', 'natural'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'yoshinashi',
@@ -508,6 +553,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'pointless; irrelevant; improper',
         shortEnglishMeaning: ['pointless', 'irrelevant'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'kokoroyasu',
@@ -519,6 +565,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'at ease; familiar; comfortable',
         shortEnglishMeaning: ['at ease', 'familiar', 'comfortable'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'mairu',
@@ -530,6 +577,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'visit; offer; eat (humble)',
         shortEnglishMeaning: ['visit', 'offer', 'eat (humble)'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'haberi',
@@ -541,6 +589,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'be; exist (polite/humble)',
         shortEnglishMeaning: ['be (polite)', 'exist (polite)'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'saburau',
@@ -552,6 +601,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'serve; wait upon; be present',
         shortEnglishMeaning: ['serve', 'wait upon', 'be present'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'tamau',
@@ -563,6 +613,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'give (honor.); do (honor.)',
         shortEnglishMeaning: ['give (honor.)', 'do (honor.)'],
         verified: true,
+        rank: 1,
     },
     {
         id: 'nagamu',
@@ -574,6 +625,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'gaze; ponder; be lost in thought',
         shortEnglishMeaning: ['gaze', 'ponder'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'akugaru',
@@ -585,6 +637,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'wander; be distracted; drift away',
         shortEnglishMeaning: ['wander', 'be distracted'],
         verified: true,
+        rank: 3,
     },
     {
         id: 'oboyu',
@@ -596,6 +649,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'seem; feel; resemble',
         shortEnglishMeaning: ['seem', 'feel', 'resemble'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'sanagara',
@@ -607,6 +661,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'as is; entirely; just like',
         shortEnglishMeaning: ['as is', 'entirely', 'just like'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'ikade',
@@ -618,6 +673,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'somehow; why; how on earth',
         shortEnglishMeaning: ['somehow', 'why', 'how on earth'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'adanari',
@@ -629,6 +685,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'fickle; unfaithful; fleeting',
         shortEnglishMeaning: ['fickle', 'unfaithful', 'fleeting'],
         verified: true,
+        rank: 3,
     },
     // ---- advanced additions ----
     {
@@ -641,6 +698,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'meaningless; vain; wretched',
         shortEnglishMeaning: ['meaningless', 'vain', 'wretched'],
         verified: true,
+        rank: 2,
     },
     {
         id: 'utateshi',
@@ -652,6 +710,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'unpleasant; pitiable; disgraceful',
         shortEnglishMeaning: ['unpleasant', 'pitiable'],
         verified: true,
+        rank: 3,
     },
     {
         id: 'mukutsuke',
@@ -663,6 +722,7 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'eerie; terrifying; boorish',
         shortEnglishMeaning: ['eerie', 'terrifying', 'boorish'],
         verified: true,
+        rank: 3,
     },
     {
         id: 'oboroke',
@@ -674,5 +734,6 @@ export const kogoList: KogoEntry[] = [
         englishMeaning: 'ordinary; mediocre; commonplace',
         shortEnglishMeaning: ['ordinary', 'mediocre', 'commonplace'],
         verified: true,
+        rank: 3,
     },
 ];
