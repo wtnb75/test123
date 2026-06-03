@@ -30,6 +30,7 @@ const makeEntry = (
     englishMeaning: `english meaning for ${id}`,
     shortEnglishMeaning: [`en${id}`],
     verified: true,
+    rank: 1,
     ...overrides,
 });
 

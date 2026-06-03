@@ -110,6 +110,7 @@ export class Game extends Scene {
     private isResolving = false;
     private slotRegionTop = 0;
     private colWidth = 0;
+    private tierNotifyTimer?: Phaser.Time.TimerEvent;
 
     constructor() {
         super('Game');
@@ -137,7 +138,7 @@ export class Game extends Scene {
         this.slotViews = [];
         const { width, height } = this.cameras.main;
         this.colWidth = width / SLOT_COUNT;
-        this.slotRegionTop = height - SLOT_HEIGHT - 80;
+        this.slotRegionTop = height - SLOT_HEIGHT - 72;
         this.currentX = width / 2;
         this.currentY = TILE_START_Y;
 
@@ -682,10 +683,10 @@ export class Game extends Scene {
         const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
         this.adaptivePool = getPool(kogoList, poolDiff, ignoreVerified);
 
-        const remaining = this.config.questionCount - this.currentIndex;
+        const remaining = this.config.questionCount - this.currentIndex - 1;
         if (remaining > 0) {
             const newSeq = createQuestionSequence(this.adaptivePool, remaining);
-            this.questions = [...this.questions.slice(0, this.currentIndex), ...newSeq];
+            this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
         }
 
         const msg = upgraded
@@ -693,7 +694,8 @@ export class Game extends Scene {
             : `難易度 DOWN  スロット ${this.adaptiveSlotCount}個`;
         const color = upgraded ? '#ffd166' : '#a8dadc';
         this.tierNotifyText.setText(msg).setColor(color).setVisible(true);
-        this.time.delayedCall(2000, () => { this.tierNotifyText.setVisible(false); });
+        this.tierNotifyTimer?.remove();
+        this.tierNotifyTimer = this.time.delayedCall(2000, () => { this.tierNotifyText.setVisible(false); });
     }
 
     private createSlotDeco(i: number, x: number, slotTop: number): { deco: GameObjects.Graphics; indexLabel: GameObjects.Text } {
