@@ -1,5 +1,5 @@
 import { Geom, Input, Scene, type GameObjects } from 'phaser';
-import type { GameConfig, KogoEntry } from '../logic/types';
+import type { GameConfig, KogoEntry, Level } from '../logic/types';
 import {
     generateSlots,
     getFullMeaning,
@@ -15,15 +15,31 @@ const FALL_SPEED = 400;
 const TILE_START_Y = -80;
 const TILE_READY_Y = 320;
 const SLOT_HEIGHT = 160;
-const FLASH_DURATION_MS = 2500;
+const FLASH_DURATION_CORRECT_MS = 1200;
+const FLASH_DURATION_WRONG_MS = 2500;
 const DROP_ANIM_MS = 140;
 const SLOT_COUNT = 4;
 const FONT_MINCHO = '"Shippori Mincho", serif';
 const FONT_SANS = 'sans-serif';
 
+const ADAPTIVE_EVAL_WINDOW = 5;
+const ADAPTIVE_UPGRADE_RATE = 0.8;
+const ADAPTIVE_DOWNGRADE_RATE = 0.4;
+const ADAPTIVE_SLOT_COUNTS = [4, 5, 6] as const;
+const ADAPTIVE_TIER_MAX = ADAPTIVE_SLOT_COUNTS.length - 1;
+const SLOT_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥'] as const;
+
+const TILE_STYLES: Record<Level, { fill: number; stroke: number; textColor: string }> = {
+    basic:    { fill: 0x1d3557, stroke: 0x778da9, textColor: '#ffd166' },
+    standard: { fill: 0x1a3a2a, stroke: 0x52b788, textColor: '#b7e4c7' },
+    advanced: { fill: 0x3d1520, stroke: 0xe07070, textColor: '#ffb3b3' },
+};
+
 interface SlotView {
     background: GameObjects.Rectangle;
     label: GameObjects.Text;
+    deco: GameObjects.Graphics;
+    indexLabel: GameObjects.Text;
 }
 
 function toVertical(text: string): string {
@@ -61,9 +77,13 @@ export class Game extends Scene {
     private currentIndex = 0;
     private slots: KogoEntry[] = [];
     private correctCount = 0;
+    private comboCount = 0;
     private wrongEntries: KogoEntry[] = [];
     private results: boolean[] = [];
     private pool: KogoEntry[] = [];
+    private adaptiveTier = 0;
+    private adaptiveSlotCount = SLOT_COUNT;
+    private adaptivePool: KogoEntry[] = [];
 
     private tileContainer!: GameObjects.Container;
     private tileCardGfx!: GameObjects.Graphics;
@@ -74,10 +94,13 @@ export class Game extends Scene {
     private nextTxt!: GameObjects.Text;
 
     private progressText!: GameObjects.Text;
+    private comboText!: GameObjects.Text;
+    private tierNotifyText!: GameObjects.Text;
     private questionSegments: GameObjects.Rectangle[] = [];
     private flashBg!: GameObjects.Graphics;
     private flashWordTxt!: GameObjects.Text;
     private flashMeaningTxt!: GameObjects.Text;
+    private flashComboTxt!: GameObjects.Text;
     private slotViews: SlotView[] = [];
 
     private currentX = 0;
@@ -87,6 +110,7 @@ export class Game extends Scene {
     private isResolving = false;
     private slotRegionTop = 0;
     private colWidth = 0;
+    private tierNotifyTimer?: Phaser.Time.TimerEvent;
 
     constructor() {
         super('Game');
@@ -96,8 +120,12 @@ export class Game extends Scene {
         this.config = data;
         const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
         this.pool = getPool(kogoList, this.config.difficulty, ignoreVerified);
+        this.adaptiveTier = 0;
+        this.adaptiveSlotCount = SLOT_COUNT;
+        this.adaptivePool = [...this.pool];
         this.questions = createQuestionSequence(this.pool, this.config.questionCount);
         this.correctCount = 0;
+        this.comboCount = 0;
         this.wrongEntries = [];
         this.results = [];
         this.currentIndex = 0;
@@ -110,7 +138,7 @@ export class Game extends Scene {
         this.slotViews = [];
         const { width, height } = this.cameras.main;
         this.colWidth = width / SLOT_COUNT;
-        this.slotRegionTop = height - SLOT_HEIGHT - 80;
+        this.slotRegionTop = height - SLOT_HEIGHT - 72;
         this.currentX = width / 2;
         this.currentY = TILE_START_Y;
 
@@ -122,6 +150,23 @@ export class Game extends Scene {
             fontFamily: FONT_SANS,
             fontSize: '14px',
         }).setOrigin(1, 0);
+
+        // Combo counter — shown below the progress bar when combo >= 2
+        this.comboText = this.add.text(12, 22, '', {
+            color: '#ffd166',
+            fontFamily: FONT_SANS,
+            fontSize: '14px',
+            fontStyle: 'bold',
+        }).setVisible(false);
+
+        // Adaptive difficulty notification
+        this.tierNotifyText = this.add.text(width / 2, 76, '', {
+            color: '#ffd166',
+            fontFamily: FONT_SANS,
+            fontSize: '16px',
+            fontStyle: 'bold',
+            align: 'center',
+        }).setOrigin(0.5).setDepth(30).setVisible(false);
 
         // Segmented gauge: one rect per question
         this.questionSegments = [];
@@ -174,6 +219,7 @@ export class Game extends Scene {
             const bg = this.add.rectangle(x, slotTop, this.colWidth, SLOT_HEIGHT, fillColor)
                 .setOrigin(0)
                 .setStrokeStyle(1, 0x778da9);
+            const { deco, indexLabel } = this.createSlotDeco(i, x, slotTop);
             const lbl = this.add.text(x + this.colWidth / 2, slotTop + SLOT_HEIGHT / 2, '', {
                 align: 'center',
                 color: '#f1faee',
@@ -181,7 +227,7 @@ export class Game extends Scene {
                 fontSize: '17px',
                 wordWrap: { width: this.colWidth - 8, useAdvancedWrap: true },
             }).setOrigin(0.5);
-            this.slotViews.push({ background: bg, label: lbl });
+            this.slotViews.push({ background: bg, deco, indexLabel, label: lbl });
         }
 
         this.flashBg = this.add.graphics().setDepth(19).setVisible(false);
@@ -199,28 +245,72 @@ export class Game extends Scene {
             align: 'center',
             wordWrap: { width: width - 80, useAdvancedWrap: true },
         }).setOrigin(0.5, 0).setDepth(20).setVisible(false);
+        this.flashComboTxt = this.add.text(width / 2, 0, '', {
+            color: '#ffd166',
+            fontFamily: FONT_SANS,
+            fontSize: '18px',
+            fontStyle: 'bold',
+            align: 'center',
+        }).setOrigin(0.5, 0).setDepth(20).setVisible(false);
 
         this.buildInputHandlers(width);
         this.startNewTile();
     }
 
-    private drawTileCard(value: string) {
+    private drawTileCard(value: string, level: Level, rank: 1 | 2 | 3) {
         const isJapanese = this.config.langMode !== 'kogo-to-en' && this.config.langMode !== 'en-to-kogo';
         const vertVal = tileDisplayText(value, this.config.langMode);
         const fontSize = tileFontSize(value, this.config.langMode);
+        const style = TILE_STYLES[level];
 
         this.tileTxt.setFontSize(fontSize);
         this.tileTxt.setFontFamily(isJapanese ? FONT_MINCHO : FONT_SANS);
+        this.tileTxt.setColor(style.textColor);
         this.tileTxt.setText(vertVal);
 
         const tw = Math.max(isJapanese ? 56 : this.tileTxt.width + 32, 64);
         const th = Math.max(this.tileTxt.height + 28, 64);
 
         this.tileCardGfx.clear();
-        this.tileCardGfx.fillStyle(0x1d3557);
+        this.tileCardGfx.fillStyle(style.fill);
         this.tileCardGfx.fillRoundedRect(-tw / 2, -th / 2, tw, th, 12);
-        this.tileCardGfx.lineStyle(2, 0x778da9);
+        this.tileCardGfx.lineStyle(2, style.stroke);
         this.tileCardGfx.strokeRoundedRect(-tw / 2, -th / 2, tw, th, 12);
+
+        // Inner border
+        this.tileCardGfx.lineStyle(1, style.stroke, 0.35);
+        this.tileCardGfx.strokeRoundedRect(-tw / 2 + 5, -th / 2 + 5, tw - 10, th - 10, 8);
+
+        // Corner diamonds
+        const ds = 4;
+        this.tileCardGfx.fillStyle(style.stroke, 0.85);
+        for (const [cx, cy] of [
+            [-tw / 2, -th / 2], [tw / 2, -th / 2],
+            [tw / 2,   th / 2], [-tw / 2, th / 2],
+        ] as [number, number][]) {
+            this.tileCardGfx.beginPath();
+            this.tileCardGfx.moveTo(cx, cy - ds);
+            this.tileCardGfx.lineTo(cx + ds, cy);
+            this.tileCardGfx.lineTo(cx, cy + ds);
+            this.tileCardGfx.lineTo(cx - ds, cy);
+            this.tileCardGfx.closePath();
+            this.tileCardGfx.fillPath();
+        }
+
+        // Rank pips (3 small diamonds at bottom; filled count = rank)
+        const pipR = 3;
+        const pipY = th / 2 - 8;
+        for (let p = 0; p < 3; p++) {
+            const pipX = (p - 1) * 10;
+            this.tileCardGfx.fillStyle(style.stroke, p < rank ? 0.9 : 0.2);
+            this.tileCardGfx.beginPath();
+            this.tileCardGfx.moveTo(pipX, pipY - pipR);
+            this.tileCardGfx.lineTo(pipX + pipR, pipY);
+            this.tileCardGfx.lineTo(pipX, pipY + pipR);
+            this.tileCardGfx.lineTo(pipX - pipR, pipY);
+            this.tileCardGfx.closePath();
+            this.tileCardGfx.fillPath();
+        }
 
         this.tileContainer.setSize(tw, th);
         this.tileContainer.setInteractive(
@@ -272,7 +362,7 @@ export class Game extends Scene {
         this.input.keyboard?.on('keydown-RIGHT', () => {
             if (this.isEntering || this.isResolving) return;
             const idx = this.getNearestSlotIndex(this.currentX);
-            this.currentX = this.getSlotCenter(Math.min(SLOT_COUNT - 1, idx + 1));
+            this.currentX = this.getSlotCenter(Math.min(this.adaptiveSlotCount - 1, idx + 1));
             this.updateHighlight();
         });
 
@@ -303,8 +393,12 @@ export class Game extends Scene {
     private startNewTile() {
         if (this.questions.length === 0) return;
 
+        if (this.slotViews.length !== this.adaptiveSlotCount) {
+            this.rebuildSlotViews(this.adaptiveSlotCount);
+        }
+
         const entry = this.questions[this.currentIndex];
-        this.slots = generateSlots(entry, this.pool, this.config.langMode);
+        this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode, Math.random, this.adaptiveSlotCount);
 
         const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode)).length;
         if (correctCount !== 1) {
@@ -328,7 +422,7 @@ export class Game extends Scene {
             );
         }
 
-        for (let i = 0; i < SLOT_COUNT; i++) {
+        for (let i = 0; i < this.adaptiveSlotCount; i++) {
             const slotVal = getSlotValue(this.slots[i], this.config.langMode);
             this.slotViews[i].label.setText(slotVal);
             this.slotViews[i].label.setFontSize(slotFontSize(slotVal));
@@ -341,7 +435,7 @@ export class Game extends Scene {
         this.drawNextCard(nextVal);
 
         const tileVal = getTileValue(entry, this.config.langMode);
-        this.drawTileCard(tileVal);
+        this.drawTileCard(tileVal, entry.level, entry.rank);
 
         this.currentX = this.cameras.main.width / 2;
         this.currentY = TILE_START_Y;
@@ -394,15 +488,19 @@ export class Game extends Scene {
 
         if (correct) {
             this.correctCount++;
+            this.comboCount++;
         } else {
             this.wrongEntries.push(entry);
+            this.comboCount = 0;
         }
         this.results.push(correct);
+        this.evaluateAdaptive();
+        this.updateComboHud();
 
         const tileVal = getTileValue(entry, this.config.langMode);
         const fullMeaning = getFullMeaning(entry, this.config.langMode);
 
-        this.showFlash(correct, tileVal, fullMeaning);
+        this.showFlash(correct, tileVal, fullMeaning, this.comboCount);
         this.tileContainer.setVisible(false);
 
         this.currentIndex++;
@@ -416,10 +514,11 @@ export class Game extends Scene {
             overlays.push(...this.showSlotFeedback(slotIndex, correctSlotIdx));
         }
 
-        this.time.delayedCall(FLASH_DURATION_MS, () => {
+        this.time.delayedCall(correct ? FLASH_DURATION_CORRECT_MS : FLASH_DURATION_WRONG_MS, () => {
             this.flashBg.setVisible(false);
             this.flashWordTxt.setVisible(false);
             this.flashMeaningTxt.setVisible(false);
+            this.flashComboTxt.setVisible(false);
             overlays.forEach((o) => o.destroy());
 
             if (this.currentIndex >= this.config.questionCount) {
@@ -435,12 +534,19 @@ export class Game extends Scene {
         });
     }
 
-    private showFlash(correct: boolean, word: string, meaning: string) {
+    private showFlash(correct: boolean, word: string, meaning: string, combo: number) {
         const { width, height } = this.cameras.main;
         const flashCenterY = height * 0.42;
         const gap = 12;
+        const comboGap = 6;
         const padX = 28;
         const padY = 18;
+
+        const bonusLine = correct && combo >= 3
+            ? combo >= 10 ? `${combo} 連続正解！！！`
+                : combo >= 5  ? `${combo} 連続正解！！`
+                :               `${combo} 連続正解！`
+            : null;
 
         this.flashWordTxt
             .setFontSize(flashWordFontSize(word))
@@ -448,19 +554,35 @@ export class Game extends Scene {
             .setText(word);
         this.flashMeaningTxt.setText(meaning);
 
+        if (bonusLine) {
+            this.flashComboTxt.setText(bonusLine);
+        }
+
         const wordH = this.flashWordTxt.height;
-        const totalH = wordH + gap + this.flashMeaningTxt.height;
+        const meaningH = this.flashMeaningTxt.height;
+        const comboH = bonusLine ? comboGap + this.flashComboTxt.height : 0;
+        const totalH = wordH + gap + meaningH + comboH;
         const startY = flashCenterY - totalH / 2;
 
         this.flashWordTxt.setY(startY);
         this.flashMeaningTxt.setY(startY + wordH + gap);
+        if (bonusLine) {
+            this.flashComboTxt.setY(startY + wordH + gap + meaningH + comboGap);
+            this.flashComboTxt.setVisible(true);
+        } else {
+            this.flashComboTxt.setVisible(false);
+        }
 
-        const contentW = Math.max(this.flashWordTxt.width, this.flashMeaningTxt.width);
+        const contentW = Math.max(
+            this.flashWordTxt.width,
+            this.flashMeaningTxt.width,
+            bonusLine ? this.flashComboTxt.width : 0,
+        );
         const panelW = Math.min(contentW + padX * 2, width - 24);
         const panelH = totalH + padY * 2;
         const panelX = width / 2 - panelW / 2;
         const panelY = startY - padY;
-        const borderColor = correct ? 0x80ed99 : 0xff6b6b;
+        const borderColor = !correct ? 0xff6b6b : combo >= 5 ? 0xffd166 : 0x80ed99;
 
         this.flashBg.clear();
         this.flashBg.fillStyle(0x0d1b2a, 0.95);
@@ -471,6 +593,15 @@ export class Game extends Scene {
         this.flashBg.setVisible(true);
         this.flashWordTxt.setVisible(true);
         this.flashMeaningTxt.setVisible(true);
+    }
+
+    private updateComboHud() {
+        if (this.comboCount >= 2) {
+            this.comboText.setText(`×${this.comboCount} 連続`);
+            this.comboText.setVisible(true);
+        } else {
+            this.comboText.setVisible(false);
+        }
     }
 
     private showSlotFeedback(wrongIdx: number, correctIdx: number): GameObjects.Text[] {
@@ -507,7 +638,7 @@ export class Game extends Scene {
     }
 
     private getNearestSlotIndex(x: number): number {
-        return Math.min(SLOT_COUNT - 1, Math.max(0, Math.floor(x / this.colWidth)));
+        return Math.min(this.adaptiveSlotCount - 1, Math.max(0, Math.floor(x / this.colWidth)));
     }
 
     private syncPointerX(pointerX: number, width: number) {
@@ -520,9 +651,127 @@ export class Game extends Scene {
 
     private updateHighlight() {
         const activeIdx = this.getNearestSlotIndex(this.currentX);
-        for (let i = 0; i < SLOT_COUNT; i++) {
+        for (let i = 0; i < this.adaptiveSlotCount; i++) {
             const fill = i === activeIdx ? 0x778da9 : (i % 2 === 0 ? 0x415a77 : 0x33415c);
             this.slotViews[i].background.setFillStyle(fill);
+        }
+    }
+
+    private evaluateAdaptive() {
+        if (this.results.length < ADAPTIVE_EVAL_WINDOW) return;
+        const recent = this.results.slice(-ADAPTIVE_EVAL_WINDOW);
+        const rate = recent.filter(Boolean).length / ADAPTIVE_EVAL_WINDOW;
+
+        if (rate >= ADAPTIVE_UPGRADE_RATE && this.adaptiveTier < ADAPTIVE_TIER_MAX) {
+            this.adaptiveTier++;
+            this.applyAdaptiveTier(true);
+        } else if (rate <= ADAPTIVE_DOWNGRADE_RATE && this.adaptiveTier > 0) {
+            this.adaptiveTier--;
+            this.applyAdaptiveTier(false);
+        }
+    }
+
+    private applyAdaptiveTier(upgraded: boolean) {
+        this.adaptiveSlotCount = ADAPTIVE_SLOT_COUNTS[this.adaptiveTier];
+
+        const poolDiff = this.config.difficulty === 'easy'
+            ? (['easy', 'normal', 'hard'] as const)[this.adaptiveTier]
+            : this.config.difficulty === 'normal' && this.adaptiveTier >= 2
+                ? 'hard'
+                : this.config.difficulty;
+
+        const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
+        this.adaptivePool = getPool(kogoList, poolDiff, ignoreVerified);
+
+        const remaining = this.config.questionCount - this.currentIndex - 1;
+        if (remaining > 0) {
+            const newSeq = createQuestionSequence(this.adaptivePool, remaining);
+            this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
+        }
+
+        const msg = upgraded
+            ? `難易度 UP  スロット ${this.adaptiveSlotCount}個`
+            : `難易度 DOWN  スロット ${this.adaptiveSlotCount}個`;
+        const color = upgraded ? '#ffd166' : '#a8dadc';
+        this.tierNotifyText.setText(msg).setColor(color).setVisible(true);
+        this.tierNotifyTimer?.remove();
+        this.tierNotifyTimer = this.time.delayedCall(2000, () => { this.tierNotifyText.setVisible(false); });
+    }
+
+    private createSlotDeco(i: number, x: number, slotTop: number): { deco: GameObjects.Graphics; indexLabel: GameObjects.Text } {
+        const colWidth = this.colWidth;
+        const deco = this.add.graphics();
+
+        // Top accent bar
+        deco.fillStyle(i % 2 === 0 ? 0x6b7f99 : 0x5a6e88, 0.6);
+        deco.fillRect(x + 1, slotTop, colWidth - 2, 3);
+
+        // Corner bracket decorations (L-shapes at all 4 corners)
+        const bsz = 10;
+        deco.lineStyle(1.5, 0xa8dadc, 0.45);
+        // top-left
+        deco.beginPath();
+        deco.moveTo(x + bsz, slotTop + 1);
+        deco.lineTo(x + 1, slotTop + 1);
+        deco.lineTo(x + 1, slotTop + bsz);
+        deco.strokePath();
+        // top-right
+        deco.beginPath();
+        deco.moveTo(x + colWidth - bsz, slotTop + 1);
+        deco.lineTo(x + colWidth - 1, slotTop + 1);
+        deco.lineTo(x + colWidth - 1, slotTop + bsz);
+        deco.strokePath();
+        // bottom-left
+        deco.beginPath();
+        deco.moveTo(x + bsz, slotTop + SLOT_HEIGHT - 1);
+        deco.lineTo(x + 1, slotTop + SLOT_HEIGHT - 1);
+        deco.lineTo(x + 1, slotTop + SLOT_HEIGHT - bsz);
+        deco.strokePath();
+        // bottom-right
+        deco.beginPath();
+        deco.moveTo(x + colWidth - bsz, slotTop + SLOT_HEIGHT - 1);
+        deco.lineTo(x + colWidth - 1, slotTop + SLOT_HEIGHT - 1);
+        deco.lineTo(x + colWidth - 1, slotTop + SLOT_HEIGHT - bsz);
+        deco.strokePath();
+
+        const indexLabel = this.add.text(
+            x + colWidth / 2,
+            slotTop + 5,
+            SLOT_NUMBERS[i],
+            { color: '#778da9', fontFamily: FONT_SANS, fontSize: '11px' },
+        ).setOrigin(0.5, 0).setAlpha(0.7);
+
+        return { deco, indexLabel };
+    }
+
+    private rebuildSlotViews(count: number) {
+        this.slotViews.forEach((sv) => {
+            sv.background.destroy();
+            sv.label.destroy();
+            sv.deco.destroy();
+            sv.indexLabel.destroy();
+        });
+        this.slotViews = [];
+
+        const { width, height } = this.cameras.main;
+        this.colWidth = width / count;
+        const slotTop = height - SLOT_HEIGHT - 72;
+
+        for (let i = 0; i < count; i++) {
+            const x = i * this.colWidth;
+            const fillColor = i % 2 === 0 ? 0x415a77 : 0x33415c;
+            const bg = this.add.rectangle(x, slotTop, this.colWidth, SLOT_HEIGHT, fillColor)
+                .setOrigin(0)
+                .setStrokeStyle(1, 0x778da9);
+            const { deco, indexLabel } = this.createSlotDeco(i, x, slotTop);
+            const lbl = this.add.text(x + this.colWidth / 2, slotTop + SLOT_HEIGHT / 2, '', {
+                align: 'center',
+                color: '#f1faee',
+                fontFamily: FONT_MINCHO,
+                fontSize: '17px',
+                wordWrap: { width: this.colWidth - 8, useAdvancedWrap: true },
+            }).setOrigin(0.5);
+            this.slotViews.push({ background: bg, deco, indexLabel, label: lbl });
         }
     }
 }

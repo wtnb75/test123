@@ -36,6 +36,7 @@ export interface KogoEntry {
     englishMeaning: string;
     shortEnglishMeaning: string[];
     verified: boolean;
+    rank: 1 | 2 | 3;
 }
 
 export interface Highlight {

@@ -30,6 +30,7 @@ const makeEntry = (
     englishMeaning: `english meaning for ${id}`,
     shortEnglishMeaning: [`en${id}`],
     verified: true,
+    rank: 1,
     ...overrides,
 });
 
@@ -360,6 +361,28 @@ describe('generateSlots', () => {
         const slots = generateSlots(e1, pool, 'en-to-kogo');
         expect(slots.some((s) => isCorrect(e1, s, 'en-to-kogo'))).toBe(true);
     });
+
+    it('slotCount=5 returns 5 slots with exactly 1 correct', () => {
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(e1, pool, 'kogo-to-jp', Math.random, 5);
+            expect(slots).toHaveLength(5);
+            expect(slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp'))).toHaveLength(1);
+        }
+    });
+
+    it('slotCount=6 returns 6 slots with exactly 1 correct', () => {
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(e1, pool, 'kogo-to-jp', Math.random, 6);
+            expect(slots).toHaveLength(6);
+            expect(slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp'))).toHaveLength(1);
+        }
+    });
+
+    it('slotCount=5 with tiny pool falls back gracefully', () => {
+        const slots = generateSlots(e1, [e1, e2], 'kogo-to-jp', Math.random, 5);
+        expect(slots).toHaveLength(5);
+        expect(slots.some((s) => isCorrect(e1, s, 'kogo-to-jp'))).toBe(true);
+    });
 });
 
 describe('findExampleSentence', () => {
@@ -439,6 +462,20 @@ describe('data integrity: kogoList', () => {
     it('all ids are unique', () => {
         const ids = kogoList.map((e) => e.id);
         expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('all entries have rank 1, 2, or 3', () => {
+        for (const e of kogoList) {
+            expect([1, 2, 3]).toContain(e.rank);
+        }
+    });
+
+    it('rank counts match expected distribution', () => {
+        const counts = { 1: 0, 2: 0, 3: 0 };
+        for (const e of kogoList) counts[e.rank]++;
+        expect(counts[1]).toBe(20);
+        expect(counts[2]).toBe(34);
+        expect(counts[3]).toBe(7);
     });
 });
 
