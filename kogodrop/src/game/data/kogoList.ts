@@ -897,7 +897,7 @@ export const kogoList: KogoEntry[] = [
         id: 'tada',
         word: 'ただ',
         meaning: '直: じかに・すぐ / 唯/只: わずかに・むやみに・ちょうど',
-        shortMeaning: ['じかに','すぐ', 'ちょうど', 'わずかに'],
+        shortMeaning: ['じかに','すぐに', 'ちょうど', 'わずかに'],
         level: 'basic',
         pos: '副詞',
         englishMeaning: 'solely; entirely; at once',

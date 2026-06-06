@@ -77,6 +77,11 @@ const getAllSlotValues = (entry: KogoEntry, mode: LangMode): string[] => {
     return [entry.word];
 };
 
+export const sharesConfusingPrefix = (a: string, b: string): boolean => {
+    if (a === b || a.length < 2 || b.length < 2) return false;
+    return a.slice(0, 2) === b.slice(0, 2);
+};
+
 export const isCorrect = (correct: KogoEntry, selected: KogoEntry, mode: LangMode): boolean => {
     return getAllSlotValues(correct, mode).includes(getSlotValue(selected, mode));
 };
@@ -100,6 +105,19 @@ export const generateSlots = (
     // First pass: pick dummies with all-distinct slot values
     const dummies: KogoEntry[] = [];
     const usedValues = new Set<string>(allCorrectValues);
+
+    // First pass: distinct values AND no confusing 2-char prefix with any correct value
+    for (const e of candidates) {
+        if (dummies.length >= dummyTarget) break;
+        const val = getSlotValue(e, mode);
+        const confusing = [...allCorrectValues].some((cv) => sharesConfusingPrefix(val, cv));
+        if (!usedValues.has(val) && !confusing) {
+            dummies.push(e);
+            usedValues.add(val);
+        }
+    }
+
+    // Second pass: allow confusing prefix when first pass couldn't fill all slots
     for (const e of candidates) {
         if (dummies.length >= dummyTarget) break;
         const val = getSlotValue(e, mode);
@@ -109,7 +127,7 @@ export const generateSlots = (
         }
     }
 
-    // Second pass: allow repeated display values when pool is too small
+    // Third pass: allow repeated display values when pool is too small
     for (const e of candidates) {
         if (dummies.length >= dummyTarget) break;
         if (!dummies.includes(e)) dummies.push(e);

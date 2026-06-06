@@ -5,6 +5,7 @@ interface ResultData {
     correctCount?: number;
     totalCount?: number;
     wrongEntries?: KogoEntry[];
+    correctEntries?: KogoEntry[];
     config?: GameConfig;
 }
 
@@ -12,6 +13,7 @@ export class Result extends Scene {
     private correctCount = 0;
     private totalCount = 0;
     private wrongEntries: KogoEntry[] = [];
+    private correctEntries: KogoEntry[] = [];
     private config!: GameConfig;
 
     constructor() {
@@ -22,6 +24,7 @@ export class Result extends Scene {
         this.correctCount = data.correctCount ?? 0;
         this.totalCount = data.totalCount ?? 0;
         this.wrongEntries = data.wrongEntries ?? [];
+        this.correctEntries = data.correctEntries ?? [];
         this.config = data.config ?? { langMode: 'kogo-to-jp', difficulty: 'normal', questionCount: 20 };
     }
 
@@ -64,7 +67,11 @@ export class Result extends Scene {
                 fontSize: '20px',
             }).setOrigin(0.5);
             reviewBtn.on('pointerdown', () => {
-                this.scene.start('Review', { wrongEntries: this.wrongEntries, config: this.config });
+                this.scene.start('Review', {
+                    wrongEntries: this.wrongEntries,
+                    correctEntries: this.correctEntries,
+                    config: this.config,
+                });
             });
             nextButtonY = height * 0.72;
         }

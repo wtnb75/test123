@@ -79,6 +79,7 @@ export class Game extends Scene {
     private correctCount = 0;
     private comboCount = 0;
     private wrongEntries: KogoEntry[] = [];
+    private correctEntries: KogoEntry[] = [];
     private results: boolean[] = [];
     private pool: KogoEntry[] = [];
     private adaptiveTier = 0;
@@ -129,6 +130,7 @@ export class Game extends Scene {
         this.correctCount = 0;
         this.comboCount = 0;
         this.wrongEntries = [];
+        this.correctEntries = [];
         this.results = [];
         this.currentIndex = 0;
         this.isEntering = true;
@@ -507,6 +509,7 @@ export class Game extends Scene {
         if (correct) {
             this.correctCount++;
             this.comboCount++;
+            this.correctEntries.push(entry);
         } else {
             this.wrongEntries.push(entry);
             this.comboCount = 0;
@@ -544,6 +547,7 @@ export class Game extends Scene {
                     correctCount: this.correctCount,
                     totalCount: this.config.questionCount,
                     wrongEntries: this.wrongEntries,
+                    correctEntries: this.correctEntries,
                     config: this.config,
                 });
             } else {

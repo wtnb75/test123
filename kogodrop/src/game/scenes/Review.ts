@@ -1,15 +1,17 @@
 import { Scene } from 'phaser';
-import type { GameConfig, KogoEntry } from '../logic/types';
+import type { GameConfig, Highlight, KogoEntry } from '../logic/types';
 import { findExampleSentence } from '../logic/kogodrop';
 import { exampleSentences } from '../data/exampleSentences';
 
 interface ReviewData {
     wrongEntries?: KogoEntry[];
+    correctEntries?: KogoEntry[];
     config?: GameConfig;
 }
 
 export class Review extends Scene {
     private wrongEntries: KogoEntry[] = [];
+    private correctEntries: KogoEntry[] = [];
     private config!: GameConfig;
     private overlayEl: HTMLElement | null = null;
 
@@ -19,6 +21,7 @@ export class Review extends Scene {
 
     init(data: ReviewData) {
         this.wrongEntries = data.wrongEntries ?? [];
+        this.correctEntries = data.correctEntries ?? [];
         this.config = data.config ?? { langMode: 'kogo-to-jp', difficulty: 'normal', questionCount: 20 };
     }
 
@@ -49,25 +52,49 @@ export class Review extends Scene {
         ].join(';');
 
         const title = document.createElement('div');
-        title.textContent = '復習 — 間違えた単語';
+        title.textContent = '復習';
         title.style.cssText = [
             'text-align:center',
             'font-size:20px',
             'font-weight:bold',
-            'padding:16px',
+            'padding:12px 16px 8px',
             'color:#ffd166',
-            'border-bottom:1px solid rgba(255,255,255,0.2)',
             'flex-shrink:0',
         ].join(';');
         overlay.appendChild(title);
 
+        // Toggle row — only shown when there are correct entries
+        if (this.correctEntries.length > 0) {
+            const toggleRow = document.createElement('div');
+            toggleRow.style.cssText = [
+                'text-align:center',
+                'padding:0 16px 8px',
+                'border-bottom:1px solid rgba(255,255,255,0.2)',
+                'flex-shrink:0',
+            ].join(';');
+
+            const toggleLabel = document.createElement('label');
+            toggleLabel.style.cssText = 'color:#a8dadc;cursor:pointer;font-size:14px;user-select:none;';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.style.cssText = 'margin-right:6px;cursor:pointer;accent-color:#80ed99;';
+            checkbox.addEventListener('change', () => {
+                this.renderList(list, checkbox.checked);
+            });
+
+            toggleLabel.appendChild(checkbox);
+            toggleLabel.appendChild(document.createTextNode(`正解した単語も表示（${this.correctEntries.length}語）`));
+            toggleRow.appendChild(toggleLabel);
+            overlay.appendChild(toggleRow);
+        } else {
+            title.style.borderBottom = '1px solid rgba(255,255,255,0.2)';
+            title.style.paddingBottom = '16px';
+        }
+
         const list = document.createElement('div');
         list.style.cssText = 'flex:1;overflow-y:auto;padding:12px 16px;';
-
-        this.wrongEntries.forEach((entry, idx) => {
-            list.appendChild(this.buildEntryEl(entry, idx));
-        });
-
+        this.renderList(list, false);
         overlay.appendChild(list);
 
         const btnRow = document.createElement('div');
@@ -114,13 +141,42 @@ export class Review extends Scene {
         this.overlayEl = overlay;
     }
 
-    private buildEntryEl(entry: KogoEntry, idx: number): HTMLElement {
+    private renderList(list: HTMLElement, showCorrect: boolean) {
+        while (list.firstChild) list.removeChild(list.firstChild);
+
+        if (this.wrongEntries.length === 0 && !showCorrect) {
+            const empty = document.createElement('div');
+            empty.textContent = '間違えた単語はありません';
+            empty.style.cssText = 'text-align:center;color:#aaa;padding:32px 0;';
+            list.appendChild(empty);
+            return;
+        }
+
+        this.wrongEntries.forEach((entry, idx) => {
+            list.appendChild(this.buildEntryEl(entry, idx + 1, false));
+        });
+
+        if (showCorrect && this.correctEntries.length > 0) {
+            if (this.wrongEntries.length > 0) {
+                const sep = document.createElement('div');
+                sep.textContent = '── 正解した単語 ──';
+                sep.style.cssText = 'text-align:center;color:#80ed99;font-size:13px;padding:12px 0 4px;';
+                list.appendChild(sep);
+            }
+            this.correctEntries.forEach((entry, idx) => {
+                list.appendChild(this.buildEntryEl(entry, this.wrongEntries.length + idx + 1, true));
+            });
+        }
+    }
+
+    private buildEntryEl(entry: KogoEntry, num: number, wasCorrect: boolean): HTMLElement {
         const item = document.createElement('div');
         item.style.cssText = 'margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.15);';
 
         const header = document.createElement('div');
-        header.textContent = `${idx + 1}. ${entry.word}［${entry.pos}］`;
-        header.style.cssText = 'font-weight:bold;color:#ffd166;font-size:16px;';
+        const badge = wasCorrect ? '✓ ' : '';
+        header.textContent = `${badge}${num}. ${entry.word}［${entry.pos}］`;
+        header.style.cssText = `font-weight:bold;color:${wasCorrect ? '#80ed99' : '#ffd166'};font-size:16px;`;
         item.appendChild(header);
 
         const jpMeaning = document.createElement('div');
@@ -138,8 +194,14 @@ export class Review extends Scene {
             const highlight = example.highlights.find((h) => h.word === entry.word);
 
             const sentenceEl = document.createElement('div');
-            sentenceEl.textContent = `例）「${example.sentence}」`;
             sentenceEl.style.cssText = 'margin-top:8px;color:#ccc;font-size:14px;';
+            sentenceEl.appendChild(document.createTextNode('例）「'));
+            if (highlight) {
+                sentenceEl.appendChild(this.buildHighlightedText(example.sentence, highlight));
+            } else {
+                sentenceEl.appendChild(document.createTextNode(example.sentence));
+            }
+            sentenceEl.appendChild(document.createTextNode('」'));
             item.appendChild(sentenceEl);
 
             const transEl = document.createElement('div');
@@ -163,6 +225,23 @@ export class Review extends Scene {
         }
 
         return item;
+    }
+
+    private buildHighlightedText(sentence: string, highlight: Highlight): DocumentFragment {
+        const fragment = document.createDocumentFragment();
+        const idx = sentence.indexOf(highlight.form);
+        if (idx < 0) {
+            fragment.appendChild(document.createTextNode(sentence));
+            return fragment;
+        }
+        if (idx > 0) fragment.appendChild(document.createTextNode(sentence.slice(0, idx)));
+        const span = document.createElement('span');
+        span.textContent = highlight.form;
+        span.style.cssText = 'color:#ffd166;font-weight:bold;';
+        fragment.appendChild(span);
+        const after = sentence.slice(idx + highlight.form.length);
+        if (after) fragment.appendChild(document.createTextNode(after));
+        return fragment;
     }
 
     shutdown() {
