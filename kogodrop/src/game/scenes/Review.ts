@@ -224,7 +224,39 @@ export class Review extends Scene {
             }
         }
 
+        item.appendChild(this.buildDictLinksEl(entry.word));
+
         return item;
+    }
+
+    private buildDictLinksEl(word: string): HTMLElement {
+        const q = encodeURIComponent(word);
+        const links: Array<{ label: string; url: string }> = [
+            { label: 'weblio古語', url: `https://kobun.weblio.jp/content/${q}` },
+            { label: 'コトバンク', url: `https://kotobank.jp/search?q=${q}&t=ja` },
+        ];
+
+        const row = document.createElement('div');
+        row.style.cssText = 'margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;';
+
+        for (const { label, url } of links) {
+            const a = document.createElement('a');
+            a.textContent = label;
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.style.cssText = [
+                'font-size:12px',
+                'padding:2px 8px',
+                'border:1px solid rgba(168,218,220,0.5)',
+                'border-radius:3px',
+                'color:#a8dadc',
+                'text-decoration:none',
+            ].join(';');
+            row.appendChild(a);
+        }
+
+        return row;
     }
 
     private buildHighlightedText(sentence: string, highlight: Highlight): DocumentFragment {

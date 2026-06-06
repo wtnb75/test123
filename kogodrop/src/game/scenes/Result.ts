@@ -56,25 +56,25 @@ export class Result extends Scene {
             lineSpacing: 16,
         }).setOrigin(0.5);
 
-        let nextButtonY = height * 0.72;
-
-        if (incorrectCount > 0) {
-            const reviewBtn = this.add.rectangle(width / 2, height * 0.56, width * 0.82, 64, 0x778da9)
-                .setInteractive({ useHandCursor: true });
-            this.add.text(width / 2, height * 0.56, `間違えた単語を復習する (${incorrectCount}語)`, {
-                color: '#f1faee',
-                fontFamily: 'sans-serif',
-                fontSize: '20px',
-            }).setOrigin(0.5);
-            reviewBtn.on('pointerdown', () => {
-                this.scene.start('Review', {
-                    wrongEntries: this.wrongEntries,
-                    correctEntries: this.correctEntries,
-                    config: this.config,
-                });
+        const reviewLabel = incorrectCount > 0
+            ? `間違えた単語を復習する (${incorrectCount}語)`
+            : `全単語を復習する (${this.totalCount}語)`;
+        const reviewBtn = this.add.rectangle(width / 2, height * 0.56, width * 0.82, 64, 0x778da9)
+            .setInteractive({ useHandCursor: true });
+        this.add.text(width / 2, height * 0.56, reviewLabel, {
+            color: '#f1faee',
+            fontFamily: 'sans-serif',
+            fontSize: '20px',
+        }).setOrigin(0.5);
+        reviewBtn.on('pointerdown', () => {
+            this.scene.start('Review', {
+                wrongEntries: this.wrongEntries,
+                correctEntries: this.correctEntries,
+                config: this.config,
             });
-            nextButtonY = height * 0.72;
-        }
+        });
+
+        const nextButtonY = height * 0.72;
 
         const retryBtn = this.add.rectangle(width / 2 - width * 0.26, nextButtonY, width * 0.44, 60, 0x8ac926)
             .setInteractive({ useHandCursor: true });
