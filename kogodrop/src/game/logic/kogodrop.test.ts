@@ -473,9 +473,34 @@ describe('data integrity: kogoList', () => {
     it('rank counts match expected distribution', () => {
         const counts = { 1: 0, 2: 0, 3: 0 };
         for (const e of kogoList) counts[e.rank]++;
-        expect(counts[1]).toBe(20);
-        expect(counts[2]).toBe(34);
-        expect(counts[3]).toBe(7);
+        expect(counts[1]).toBe(45);
+        expect(counts[2]).toBe(72);
+        expect(counts[3]).toBe(17);
+    });
+
+    it('no two entries share a 2-char prefix in shortMeaning (causes confusing distractors)', () => {
+        // 完全一致 (distance=0) は出題時に除去されるため問題なし。
+        // 「言う」「言う（謙）」や「惜しむ」「惜しい」のように
+        // 先頭2文字が共通な別表現は選択肢として並ぶと紛らわしい。
+        // 先頭1文字だけだと 心〜/見〜/不〜 など偽陽性が多いため2文字以上を要件にする。
+        const allValues: Array<{ id: string; value: string }> = [];
+        for (const entry of kogoList)
+            for (const m of entry.shortMeaning)
+                allValues.push({ id: entry.id, value: m });
+
+        const nearDuplicates: string[] = [];
+        for (let i = 0; i < allValues.length; i++) {
+            for (let j = i + 1; j < allValues.length; j++) {
+                const a = allValues[i], b = allValues[j];
+                if (a.id === b.id) continue;        // 同エントリ内はスキップ
+                if (a.value === b.value) continue;  // 完全一致はOK（出題時に除去）
+                if (a.value.length < 2 || b.value.length < 2) continue;
+                if (a.value.slice(0, 2) === b.value.slice(0, 2)) {
+                    nearDuplicates.push(`'${a.value}'(${a.id}) ≈ '${b.value}'(${b.id})`);
+                }
+            }
+        }
+        expect(nearDuplicates).toEqual([]);
     });
 });
 

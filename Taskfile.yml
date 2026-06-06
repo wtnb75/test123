@@ -4,14 +4,14 @@ version: "3"
 
 vars:
   GAMES:
+    - kogodrop
+    - primtris
     - first-game
-    - editmin
     - digdle
     - shoot1
     - calc1
-    - primtris
-    - nonoedit
-    - kogodrop
+    #- nonoedit
+    #- editmin
 
 tasks:
   default:
