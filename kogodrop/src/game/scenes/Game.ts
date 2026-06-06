@@ -29,10 +29,10 @@ const ADAPTIVE_SLOT_COUNTS = [4, 5, 6] as const;
 const ADAPTIVE_TIER_MAX = ADAPTIVE_SLOT_COUNTS.length - 1;
 const SLOT_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥'] as const;
 
-const TILE_STYLES: Record<Level, { fill: number; stroke: number; textColor: string }> = {
-    basic:    { fill: 0x1d3557, stroke: 0x778da9, textColor: '#ffd166' },
-    standard: { fill: 0x1a3a2a, stroke: 0x52b788, textColor: '#b7e4c7' },
-    advanced: { fill: 0x3d1520, stroke: 0xe07070, textColor: '#ffb3b3' },
+const TILE_STYLES: Record<Level, { fill: number; stroke: number; accent: number; textColor: string }> = {
+    basic:    { fill: 0xfdf5e3, stroke: 0xb22222, accent: 0xc8922e, textColor: '#2c1a0e' },
+    standard: { fill: 0xeef2f7, stroke: 0x1a3a6b, accent: 0x5882aa, textColor: '#1a2a3a' },
+    advanced: { fill: 0xfdf5e3, stroke: 0x6b2d8a, accent: 0xb08020, textColor: '#3a0a3a' },
 };
 
 interface SlotView {
@@ -79,11 +79,13 @@ export class Game extends Scene {
     private correctCount = 0;
     private comboCount = 0;
     private wrongEntries: KogoEntry[] = [];
+    private correctEntries: KogoEntry[] = [];
     private results: boolean[] = [];
     private pool: KogoEntry[] = [];
     private adaptiveTier = 0;
     private adaptiveSlotCount = SLOT_COUNT;
     private adaptivePool: KogoEntry[] = [];
+    private lastTierChangeIndex = 0;
 
     private tileContainer!: GameObjects.Container;
     private tileCardGfx!: GameObjects.Graphics;
@@ -123,10 +125,12 @@ export class Game extends Scene {
         this.adaptiveTier = 0;
         this.adaptiveSlotCount = SLOT_COUNT;
         this.adaptivePool = [...this.pool];
+        this.lastTierChangeIndex = 0;
         this.questions = createQuestionSequence(this.pool, this.config.questionCount);
         this.correctCount = 0;
         this.comboCount = 0;
         this.wrongEntries = [];
+        this.correctEntries = [];
         this.results = [];
         this.currentIndex = 0;
         this.isEntering = true;
@@ -272,44 +276,60 @@ export class Game extends Scene {
         const th = Math.max(this.tileTxt.height + 28, 64);
 
         this.tileCardGfx.clear();
-        this.tileCardGfx.fillStyle(style.fill);
-        this.tileCardGfx.fillRoundedRect(-tw / 2, -th / 2, tw, th, 12);
-        this.tileCardGfx.lineStyle(2, style.stroke);
-        this.tileCardGfx.strokeRoundedRect(-tw / 2, -th / 2, tw, th, 12);
 
-        // Inner border
-        this.tileCardGfx.lineStyle(1, style.stroke, 0.35);
-        this.tileCardGfx.strokeRoundedRect(-tw / 2 + 5, -th / 2 + 5, tw - 10, th - 10, 8);
+        // Drop shadow
+        this.tileCardGfx.fillStyle(0x000000, 0.18);
+        this.tileCardGfx.fillRoundedRect(-tw / 2 + 3, -th / 2 + 3, tw, th, 4);
 
-        // Corner diamonds
-        const ds = 4;
-        this.tileCardGfx.fillStyle(style.stroke, 0.85);
-        for (const [cx, cy] of [
-            [-tw / 2, -th / 2], [tw / 2, -th / 2],
-            [tw / 2,   th / 2], [-tw / 2, th / 2],
-        ] as [number, number][]) {
-            this.tileCardGfx.beginPath();
-            this.tileCardGfx.moveTo(cx, cy - ds);
-            this.tileCardGfx.lineTo(cx + ds, cy);
-            this.tileCardGfx.lineTo(cx, cy + ds);
-            this.tileCardGfx.lineTo(cx - ds, cy);
-            this.tileCardGfx.closePath();
-            this.tileCardGfx.fillPath();
-        }
+        // Washi paper background
+        this.tileCardGfx.fillStyle(style.fill, 1);
+        this.tileCardGfx.fillRoundedRect(-tw / 2, -th / 2, tw, th, 4);
 
-        // Rank pips (3 small diamonds at bottom; filled count = rank)
+        // Outer colored border (thick — level color)
+        this.tileCardGfx.lineStyle(3, style.stroke, 1);
+        this.tileCardGfx.strokeRoundedRect(-tw / 2, -th / 2, tw, th, 4);
+
+        // Inner accent border (thin gold/silver line, inset)
+        this.tileCardGfx.lineStyle(1, style.accent, 0.75);
+        this.tileCardGfx.strokeRoundedRect(-tw / 2 + 5, -th / 2 + 5, tw - 10, th - 10, 2);
+
+        // Corner L-brackets (色紙の四隅押さえ)
+        const bsz = 7;
+        const bi = 7;
+        this.tileCardGfx.lineStyle(1.5, style.accent, 0.9);
+        this.tileCardGfx.beginPath();
+        this.tileCardGfx.moveTo(-tw / 2 + bi + bsz, -th / 2 + bi);
+        this.tileCardGfx.lineTo(-tw / 2 + bi, -th / 2 + bi);
+        this.tileCardGfx.lineTo(-tw / 2 + bi, -th / 2 + bi + bsz);
+        this.tileCardGfx.strokePath();
+        this.tileCardGfx.beginPath();
+        this.tileCardGfx.moveTo(tw / 2 - bi - bsz, -th / 2 + bi);
+        this.tileCardGfx.lineTo(tw / 2 - bi, -th / 2 + bi);
+        this.tileCardGfx.lineTo(tw / 2 - bi, -th / 2 + bi + bsz);
+        this.tileCardGfx.strokePath();
+        this.tileCardGfx.beginPath();
+        this.tileCardGfx.moveTo(-tw / 2 + bi, th / 2 - bi - bsz);
+        this.tileCardGfx.lineTo(-tw / 2 + bi, th / 2 - bi);
+        this.tileCardGfx.lineTo(-tw / 2 + bi + bsz, th / 2 - bi);
+        this.tileCardGfx.strokePath();
+        this.tileCardGfx.beginPath();
+        this.tileCardGfx.moveTo(tw / 2 - bi - bsz, th / 2 - bi);
+        this.tileCardGfx.lineTo(tw / 2 - bi, th / 2 - bi);
+        this.tileCardGfx.lineTo(tw / 2 - bi, th / 2 - bi - bsz);
+        this.tileCardGfx.strokePath();
+
+        // Rank pips — filled circles for rank, empty for unearned
         const pipR = 3;
-        const pipY = th / 2 - 8;
+        const pipY = th / 2 - 9;
         for (let p = 0; p < 3; p++) {
             const pipX = (p - 1) * 10;
-            this.tileCardGfx.fillStyle(style.stroke, p < rank ? 0.9 : 0.2);
-            this.tileCardGfx.beginPath();
-            this.tileCardGfx.moveTo(pipX, pipY - pipR);
-            this.tileCardGfx.lineTo(pipX + pipR, pipY);
-            this.tileCardGfx.lineTo(pipX, pipY + pipR);
-            this.tileCardGfx.lineTo(pipX - pipR, pipY);
-            this.tileCardGfx.closePath();
-            this.tileCardGfx.fillPath();
+            if (p < rank) {
+                this.tileCardGfx.fillStyle(style.stroke, 0.85);
+                this.tileCardGfx.fillCircle(pipX, pipY, pipR);
+            } else {
+                this.tileCardGfx.lineStyle(1, style.stroke, 0.3);
+                this.tileCardGfx.strokeCircle(pipX, pipY, pipR);
+            }
         }
 
         this.tileContainer.setSize(tw, th);
@@ -489,6 +509,7 @@ export class Game extends Scene {
         if (correct) {
             this.correctCount++;
             this.comboCount++;
+            this.correctEntries.push(entry);
         } else {
             this.wrongEntries.push(entry);
             this.comboCount = 0;
@@ -526,6 +547,7 @@ export class Game extends Scene {
                     correctCount: this.correctCount,
                     totalCount: this.config.questionCount,
                     wrongEntries: this.wrongEntries,
+                    correctEntries: this.correctEntries,
                     config: this.config,
                 });
             } else {
@@ -659,14 +681,17 @@ export class Game extends Scene {
 
     private evaluateAdaptive() {
         if (this.results.length < ADAPTIVE_EVAL_WINDOW) return;
+        if (this.results.length < this.lastTierChangeIndex + ADAPTIVE_EVAL_WINDOW) return;
         const recent = this.results.slice(-ADAPTIVE_EVAL_WINDOW);
         const rate = recent.filter(Boolean).length / ADAPTIVE_EVAL_WINDOW;
 
         if (rate >= ADAPTIVE_UPGRADE_RATE && this.adaptiveTier < ADAPTIVE_TIER_MAX) {
             this.adaptiveTier++;
+            this.lastTierChangeIndex = this.results.length;
             this.applyAdaptiveTier(true);
         } else if (rate <= ADAPTIVE_DOWNGRADE_RATE && this.adaptiveTier > 0) {
             this.adaptiveTier--;
+            this.lastTierChangeIndex = this.results.length;
             this.applyAdaptiveTier(false);
         }
     }

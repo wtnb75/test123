@@ -25,3 +25,6 @@
 /output/
 TODO.md
 package-lock.json
+
+# collect-examples キャッシュ
+**/tools/.cache/
