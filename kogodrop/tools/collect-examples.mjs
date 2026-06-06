@@ -190,7 +190,7 @@ async function fetchRenderedText(pageTitle) {
 function htmlToPlainText(html) {
     return html
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '')
         .replace(/<rt[^>]*>[\s\S]*?<\/rt>/gi, '')
         .replace(/<\/?ruby[^>]*>/gi, '')
         .replace(/<[^>]+>/g, ' ')
