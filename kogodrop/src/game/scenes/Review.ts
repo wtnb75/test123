@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import type { GameConfig, Highlight, KogoEntry } from '../logic/types';
-import { findExampleSentence } from '../logic/kogodrop';
+import { findExampleSentences } from '../logic/kogodrop';
 import { exampleSentences } from '../data/exampleSentences';
 
 interface ReviewData {
@@ -189,8 +189,14 @@ export class Review extends Scene {
         enMeaning.style.cssText = 'margin-top:2px;color:#90e0ef;';
         item.appendChild(enMeaning);
 
-        const example = findExampleSentence(entry.word, exampleSentences);
-        if (example) {
+        const examples = findExampleSentences(entry.word, exampleSentences, 2);
+        examples.forEach((example, idx) => {
+            if (idx > 0) {
+                const sep = document.createElement('div');
+                sep.style.cssText = 'margin:6px 0 4px;border-top:1px dashed rgba(255,255,255,0.1);';
+                item.appendChild(sep);
+            }
+
             const highlight = example.highlights.find((h) => h.word === entry.word);
 
             const sentenceEl = document.createElement('div');
@@ -222,7 +228,7 @@ export class Review extends Scene {
                 sourceEl.style.cssText = 'margin-left:20px;margin-top:2px;color:#888;font-size:12px;';
                 item.appendChild(sourceEl);
             }
-        }
+        });
 
         item.appendChild(this.buildDictLinksEl(entry.word));
 

@@ -158,9 +158,20 @@ export const generateSlots = (
     return slots;
 };
 
+export const findExampleSentences = (
+    word: string,
+    examples: ExampleSentence[],
+    max = 2
+): ExampleSentence[] => {
+    const result: ExampleSentence[] = [];
+    for (const ex of examples) {
+        if (result.length >= max) break;
+        if (ex.verified && ex.highlights.some((h) => h.word === word)) result.push(ex);
+    }
+    return result;
+};
+
 export const findExampleSentence = (
     word: string,
     examples: ExampleSentence[]
-): ExampleSentence | undefined => {
-    return examples.find((ex) => ex.verified && ex.highlights.some((h) => h.word === word));
-};
+): ExampleSentence | undefined => findExampleSentences(word, examples, 1)[0];

@@ -14,7 +14,8 @@
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "collect": "node tools/collect-examples.mjs"
+    "collect": "node tools/collect-examples.mjs",
+    "filter": "node tools/filter-candidates.mjs"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

@@ -46,51 +46,105 @@ async function loadKogoData() {
 // u段 → e段の変換テーブル（下二段活用の連用形・未然形生成用）
 const U_TO_E = { 'く':'け','ぐ':'げ','す':'せ','づ':'で','つ':'て','ぬ':'ね','ぶ':'べ','む':'め','ゆ':'え','る':'れ','ふ':'へ' };
 
+// u段 → i段の変換テーブル（四段活用の連用形生成用）
+const U_TO_I = { 'く':'き','ぐ':'ぎ','す':'し','づ':'ぢ','つ':'ち','ぬ':'に','ぶ':'び','む':'み','ゆ':'い','る':'り','ふ':'ひ' };
+
+/**
+ * Wikisource 古典テキストでよく漢字で書かれる語頭の対応テーブル。
+ * 例: こころにくし → 心にくし のように書かれた文でも検索できるよう使う。
+ * ※ 読みが一対一対応する確実なものだけ登録する（おも=面/思/重 のように多義の語は除外）
+ */
+const KANA_TO_KANJI_PREFIX = [
+    ['こころ', '心'],  // こころ ≒ 心（他の訓読みがほぼない）
+    ['ひと',   '人'],  // ひと ≒ 人
+    ['みち',   '道'],  // みち ≒ 道
+];
+
+/** 検索語の先頭平仮名を漢字に置き換えたバリアントを追加生成する */
+function addKanjiVariants(terms) {
+    const extra = [];
+    for (const term of terms) {
+        for (const [kana, kanji] of KANA_TO_KANJI_PREFIX) {
+            if (term.startsWith(kana)) {
+                const variant = kanji + term.slice(kana.length);
+                if (variant !== term && !terms.includes(variant) && !extra.includes(variant)) {
+                    extra.push(variant);
+                }
+            }
+        }
+    }
+    return [...terms, ...extra];
+}
+
 /**
  * 品詞に応じた検索語リストを生成する
  *
- * 形容詞・形容動詞・副詞は終止形自体が全活用形の前置詞になるため word そのままを返す。
- * 動詞は活用形ごとに次の方針で展開する:
- *   カ行変格:  き/くる/くれ/こ の4形（語幹が空のため終止形ベースで展開）
- *   サ行変格:  し/する/すれ/せ の4形（語幹が空のため終止形ベースで展開）
- *   下二段:    終止形(u段) + 連用/未然形(e段) の2形を生成。
- *   上二段:    語幹 2文字以上なら語幹、それ以下は終止形のみ。
- *   ラ行変格:  ら/り/る/れ の4形を生成（語幹 + 行末）。
- *   四段・上一段: 語幹 3文字以上なら語幹で全形をカバー。2文字以下は終止形のみ。
+ * 動詞:
+ *   カ行変格:    き/くる/くれ/こ の4形
+ *   サ行変格:    し/する/すれ/せ の4形
+ *   下二段:      終止形(u段) + 連用/未然形(e段) の2形
+ *   上二段:      語幹 2文字以上なら語幹、それ以下は終止形のみ
+ *   ラ行変格:    語幹 + ら/り/る/れ の4形
+ *   四段・上一段: 語幹 3文字以上なら語幹。2文字以下は連用形(i段) + 終止形 の2形
+ *
+ * 形容詞（ク活用・シク活用）:
+ *   語幹（終止形末尾の「し」を除く）が 3文字以上なら語幹のみ
+ *   2文字以下は終止形 + 連用形(stem+く) + 連体形(stem+き) の3形
+ *
+ * 形容動詞・ナリ活用:
+ *   語幹（末尾の「なり」を除く）が 3文字以上なら語幹のみ
+ *   2文字以下は終止形 + に形 + なる形 の3形
+ *
+ * 副詞・名詞・感動詞: 終止形そのまま
  */
 function getSearchTerms(word, pos) {
-    if (!pos || !pos.startsWith('動詞')) return [word];
+    if (!pos) return [word];
 
-    const last = word.slice(-1);
-    const stem = word.slice(0, -1);
+    // ─── 動詞 ────────────────────────────────────────────────────────────────────
+    if (pos.startsWith('動詞')) {
+        const last = word.slice(-1);
+        const stem = word.slice(0, -1);
 
-    // カ行変格: く → き/くる/くれ/こ
-    if (pos === '動詞・カ行変格活用') {
-        return ['き', 'くる', 'くれ', 'こ'];
+        if (pos === '動詞・カ行変格活用') return ['き', 'くる', 'くれ', 'こ'];
+        if (pos === '動詞・サ行変格活用') return ['し', 'する', 'すれ', 'せ'];
+
+        if (pos === '動詞・下二段活用') {
+            const eForm = U_TO_E[last];
+            return stem.length >= 2 && eForm ? [stem + eForm, word] : [word];
+        }
+
+        if (pos === '動詞・上二段活用') {
+            return stem.length >= 2 ? [stem] : [word];
+        }
+
+        if (pos === '動詞・ラ行変格活用') {
+            return stem.length >= 2 ? [stem + 'ら', stem + 'り', stem + 'る', stem + 'れ'] : [word];
+        }
+
+        // 四段・上一段・その他
+        if (stem.length >= 3) return [stem];
+        // 語幹が短い場合: 連用形(i段) + 終止形 で主要形をカバー
+        const iForm = U_TO_I[last];
+        return iForm ? [stem + iForm, word] : [word];
     }
 
-    // サ行変格: す → し/する/すれ/せ
-    if (pos === '動詞・サ行変格活用') {
-        return ['し', 'する', 'すれ', 'せ'];
+    // ─── 形容詞（ク活用・シク活用）─────────────────────────────────────────────
+    if (pos.startsWith('形容詞')) {
+        // 終止形末尾の「し」を除くと語幹
+        const adjStem = word.endsWith('し') ? word.slice(0, -1) : word;
+        const base = adjStem.length >= 3 ? [adjStem] : [word, adjStem + 'く', adjStem + 'き'];
+        return addKanjiVariants(base);
     }
 
-    if (pos === '動詞・下二段活用') {
-        const eForm = U_TO_E[last];
-        return stem.length >= 2 && eForm ? [stem + eForm, word] : [word];
+    // ─── 形容動詞・ナリ活用 ───────────────────────────────────────────────────
+    if (pos === '形容動詞・ナリ活用') {
+        const adjvStem = word.endsWith('なり') ? word.slice(0, -2) : word;
+        const base = adjvStem.length >= 3 ? [adjvStem] : [word, adjvStem + 'に', adjvStem + 'なる'];
+        return addKanjiVariants(base);
     }
 
-    // 上二段: 語幹 2文字以上なら語幹（おつ → お だと短すぎるので終止形）
-    if (pos === '動詞・上二段活用') {
-        return stem.length >= 2 ? [stem] : [word];
-    }
-
-    if (pos === '動詞・ラ行変格活用') {
-        // ら行変格: 語幹 + ら/り/る/れ（はべり → はべら, はべり, はべる, はべれ）
-        return stem.length >= 2 ? [stem + 'ら', stem + 'り', stem + 'る', stem + 'れ'] : [word];
-    }
-
-    // 四段・上一段・その他: 語幹 3文字以上なら語幹、それ以下は終止形のみ
-    return stem.length >= 3 ? [stem] : [word];
+    // 副詞・名詞・感動詞・その他
+    return addKanjiVariants([word]);
 }
 
 /**
@@ -191,9 +245,17 @@ function htmlToPlainText(html) {
     return html
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '')
-        .replace(/<rt[^>]*>[\s\S]*?<\/rt>/gi, '')
-        .replace(/<\/?ruby[^>]*>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
+        // ruby要素: ルビの読み（<rt>かな</rt>）でベーステキスト（漢字）を置き換える。
+        // 例: <ruby>心許<rt>こころもとな</rt></ruby>し → こころもとなし
+        // これにより平仮名検索語と一致させられる。ルビのない漢字は後段のタグ除去で残る。
+        .replace(/<ruby[^>]*>[\s\S]*?<\/ruby>/gi, (match) => {
+            const rtContent = match.match(/<rt[^>]*>([\s\S]*?)<\/rt>/i);
+            return rtContent ? rtContent[1] : match.replace(/<[^>]+>/g, '');
+        })
+        // ブロック要素は改行に変換（文区切りとして機能させる）
+        .replace(/<\/?(p|div|section|article|h[1-6]|li|br|hr|tr|td|th|blockquote)\b[^>]*>/gi, '\n')
+        // インライン要素は空文字に（スペースを残さない）
+        .replace(/<[^>]+>/g, '')
         .replace(/&lt;/g,    '<')
         .replace(/&gt;/g,    '>')
         .replace(/&nbsp;/g,  ' ')
@@ -214,6 +276,36 @@ function htmlToPlainText(html) {
         .trim();
 }
 
+/**
+ * 「」の対応が取れていない文を修正する。
+ * - 「が多い: 最左の「を順に除去してバランスを取る
+ * - 」が多い: 最右の」を順に除去してバランスを取る
+ * - 修正後も括弧の順序がおかしい場合（」が「より先に来る）は null を返す（除外）
+ */
+function normalizeBrackets(s) {
+    let result = s;
+    let open  = (result.match(/「/g) ?? []).length;
+    let close = (result.match(/」/g) ?? []).length;
+    while (close > open) {
+        result = result.slice(0, result.lastIndexOf('」')) + result.slice(result.lastIndexOf('」') + 1);
+        close--;
+    }
+    while (open > close) {
+        result = result.slice(0, result.indexOf('「')) + result.slice(result.indexOf('「') + 1);
+        open--;
+    }
+    // 修正後に括弧の順序が正しいか検証（深さが負になったら不正）
+    let depth = 0;
+    for (const c of result) {
+        if (c === '「') depth++;
+        else if (c === '」') { depth--; if (depth < 0) return null; }
+    }
+    return result.trim() || null;
+}
+
+// 直前の引用・思考が切れた断片文を示す文頭パターン
+const FRAGMENT_RE = /^(?:とて[、。]|と[思の言聞見申]|とのたまひ|と[、。])/;
+
 function extractSentences(plainText, searchTerms) {
     const results = new Set();
     for (const line of plainText.split('\n')) {
@@ -221,9 +313,12 @@ function extractSentences(plainText, searchTerms) {
         if (t.length < 5) continue;
         // 句点・感嘆符・疑問符で区切る
         for (const chunk of t.split(/(?<=[。！？])/)) {
-            const s = chunk.trim();
+            let s = chunk.trim();
             if (s.length < 6 || !searchTerms.some(term => s.includes(term))) continue;
-            results.add(s.endsWith('。') || s.endsWith('！') || s.endsWith('？') ? s : s + '。');
+            if (FRAGMENT_RE.test(s)) continue; // 前文依存の断片を除外
+            if (!s.endsWith('。') && !s.endsWith('！') && !s.endsWith('？')) s += '。';
+            const normalized = normalizeBrackets(s);
+            if (normalized) results.add(normalized);
         }
     }
     return [...results];
