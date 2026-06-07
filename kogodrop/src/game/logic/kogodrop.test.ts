@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     DIFFICULTY_LEVELS,
     findExampleSentence,
+    findExampleSentences,
     generateSlots,
     getFullMeaning,
     getPool,
@@ -464,6 +465,54 @@ describe('findExampleSentence', () => {
     });
 });
 
+describe('findExampleSentences', () => {
+    const ex1: ExampleSentence = {
+        sentence: 'wordA is here.',
+        translation: 'translation',
+        highlights: [{ word: 'wordA', form: 'wordA' }],
+        verified: true,
+    };
+    const ex2: ExampleSentence = {
+        sentence: 'wordB is here.',
+        translation: 'translation',
+        highlights: [{ word: 'wordB', form: 'wordB' }],
+        verified: false,
+    };
+    const ex3: ExampleSentence = {
+        sentence: 'wordA again.',
+        translation: 'second',
+        highlights: [{ word: 'wordA', form: 'wordA' }],
+        verified: true,
+    };
+    const ex4: ExampleSentence = {
+        sentence: 'wordA third.',
+        translation: 'third',
+        highlights: [{ word: 'wordA', form: 'wordA' }],
+        verified: true,
+    };
+
+    it('returns empty array when no match', () => {
+        expect(findExampleSentences('wordX', [ex1, ex2])).toEqual([]);
+    });
+
+    it('excludes unverified examples', () => {
+        expect(findExampleSentences('wordB', [ex2])).toEqual([]);
+    });
+
+    it('returns up to max=2 by default', () => {
+        expect(findExampleSentences('wordA', [ex1, ex3, ex4])).toEqual([ex1, ex3]);
+    });
+
+    it('returns fewer than max when not enough matches', () => {
+        expect(findExampleSentences('wordA', [ex1])).toEqual([ex1]);
+    });
+
+    it('respects custom max', () => {
+        expect(findExampleSentences('wordA', [ex1, ex3, ex4], 3)).toEqual([ex1, ex3, ex4]);
+        expect(findExampleSentences('wordA', [ex1, ex3, ex4], 1)).toEqual([ex1]);
+    });
+});
+
 describe('data integrity: kogoList', () => {
     it('all pos values are valid', () => {
         for (const entry of kogoList) {
@@ -564,5 +613,29 @@ describe('data integrity: exampleSentences', () => {
                 expect(words.has(h.word)).toBe(true);
             }
         }
+    });
+
+    it('no duplicate sentences', () => {
+        const seen = new Map<string, number>();
+        const duplicates: string[] = [];
+        for (const ex of exampleSentences) {
+            const prev = seen.get(ex.sentence);
+            if (prev !== undefined) {
+                duplicates.push(`「${ex.sentence}」 (first seen at index ${prev})`);
+            } else {
+                seen.set(ex.sentence, exampleSentences.indexOf(ex));
+            }
+        }
+        expect(duplicates, `duplicate sentences:\n${duplicates.join('\n')}`).toEqual([]);
+    });
+
+    it('verified entries must have a non-empty translation', () => {
+        const offenders: string[] = [];
+        for (const ex of exampleSentences) {
+            if (ex.verified && ex.translation.trim() === '') {
+                offenders.push(`「${ex.sentence}」`);
+            }
+        }
+        expect(offenders, `verified but missing translation:\n${offenders.join('\n')}`).toEqual([]);
     });
 });
