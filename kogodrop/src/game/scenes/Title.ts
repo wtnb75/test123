@@ -1,10 +1,10 @@
 import { Scene, type GameObjects } from 'phaser';
-import type { Difficulty, GameConfig, LangMode, QuestionCount } from '../logic/types';
+import type { Difficulty, GameConfig, Lang, QuestionCount } from '../logic/types';
 
-const LANG_MODES: { key: LangMode; label: string }[] = [
-    { key: 'kogo-to-jp', label: '古語→現代語' },
-    { key: 'kogo-to-en', label: '古語→英語' },
-    { key: 'en-to-kogo', label: '英語→古語' },
+const LANGS: { key: Lang; label: string }[] = [
+    { key: 'kogo', label: '古語' },
+    { key: 'jp',   label: '現代語' },
+    { key: 'en',   label: '英語' },
 ];
 
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
@@ -24,11 +24,14 @@ const COLOR_DEFAULT = 0x1d3557;
 const COLOR_START = 0xffd166;
 
 export class Title extends Scene {
-    private selectedLangMode: LangMode = 'kogo-to-jp';
+    private selectedTileLang: Lang = 'kogo';
+    private selectedSlotLang: Lang = 'jp';
     private selectedDifficulty: Difficulty = 'normal';
     private selectedCount: QuestionCount = 20;
     private startButton!: GameObjects.Rectangle;
     private startLabel!: GameObjects.Text;
+    private updateTileHighlight!: (key: string) => void;
+    private updateSlotHighlight!: (key: string) => void;
 
     constructor() {
         super('Title');
@@ -45,51 +48,69 @@ export class Title extends Scene {
             fontStyle: 'bold',
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height * 0.17, 'KogoDrop — 落として覚える古語', {
+        this.add.text(width / 2, height * 0.16, 'KogoDrop — 落として覚える古語', {
             color: '#d7e3fc',
             fontFamily: 'sans-serif',
             fontSize: '18px',
         }).setOrigin(0.5);
 
-        this.buildButtonGroup(
+        // Tile language row (タイル：落とすカードの言語)
+        this.updateTileHighlight = this.buildButtonGroup(
             width,
-            height * 0.27,
-            '言語モードを選んでください',
-            LANG_MODES,
+            height * 0.25,
+            'タイル（出題）の言語',
+            LANGS,
             (key: string) => {
-                this.selectedLangMode = key as LangMode;
-                this.updateStartButton();
+                this.selectedTileLang = key as Lang;
+                if (this.selectedTileLang === this.selectedSlotLang) {
+                    const auto = LANGS.find((l) => l.key !== key)!.key;
+                    this.selectedSlotLang = auto;
+                    this.updateSlotHighlight(auto);
+                }
             },
-            this.selectedLangMode
+            this.selectedTileLang
         );
 
+        // Slot language row (スロット：答えの言語)
+        this.updateSlotHighlight = this.buildButtonGroup(
+            width,
+            height * 0.39,
+            'スロット（答え）の言語',
+            LANGS,
+            (key: string) => {
+                this.selectedSlotLang = key as Lang;
+                if (this.selectedSlotLang === this.selectedTileLang) {
+                    const auto = LANGS.find((l) => l.key !== key)!.key;
+                    this.selectedTileLang = auto;
+                    this.updateTileHighlight(auto);
+                }
+            },
+            this.selectedSlotLang
+        );
+
+        // Difficulty row
         this.buildButtonGroup(
             width,
-            height * 0.47,
+            height * 0.53,
             '難易度を選んでください',
             DIFFICULTIES,
-            (key: string) => {
-                this.selectedDifficulty = key as Difficulty;
-                this.updateStartButton();
-            },
+            (key: string) => { this.selectedDifficulty = key as Difficulty; },
             this.selectedDifficulty
         );
 
+        // Question count row
         this.buildButtonGroup(
             width,
-            height * 0.67,
+            height * 0.68,
             '出題数を選んでください',
             QUESTION_COUNTS,
-            (key: string) => {
-                this.selectedCount = Number(key) as QuestionCount;
-                this.updateStartButton();
-            },
+            (key: string) => { this.selectedCount = Number(key) as QuestionCount; },
             String(this.selectedCount)
         );
 
-        this.startButton = this.add.rectangle(width / 2, height * 0.86, width * 0.68, 68, COLOR_START)
+        this.startButton = this.add.rectangle(width / 2, height * 0.84, width * 0.68, 68, COLOR_START)
             .setInteractive({ useHandCursor: true });
-        this.startLabel = this.add.text(width / 2, height * 0.86, 'はじめる', {
+        this.startLabel = this.add.text(width / 2, height * 0.84, 'はじめる', {
             color: '#222222',
             fontFamily: 'sans-serif',
             fontSize: '26px',
@@ -98,7 +119,7 @@ export class Title extends Scene {
 
         const startGame = () => {
             const config: GameConfig = {
-                langMode: this.selectedLangMode,
+                langMode: { tile: this.selectedTileLang, slot: this.selectedSlotLang },
                 difficulty: this.selectedDifficulty,
                 questionCount: this.selectedCount,
             };
@@ -117,7 +138,7 @@ export class Title extends Scene {
         options: { key: string; label: string }[],
         onSelect: (key: string) => void,
         defaultKey: string
-    ) {
+    ): (key: string) => void {
         this.add.text(width / 2, topY, label, {
             color: '#a8dadc',
             fontFamily: 'sans-serif',
@@ -130,7 +151,6 @@ export class Title extends Scene {
         const startX = 16 + btnWidth / 2;
 
         const backgrounds: GameObjects.Rectangle[] = [];
-        const labels: GameObjects.Text[] = [];
 
         const updateHighlight = (selectedKey: string) => {
             options.forEach((opt, i) => {
@@ -152,7 +172,6 @@ export class Title extends Scene {
                 align: 'center',
                 wordWrap: { width: btnWidth - 8 },
             }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-            labels.push(txt);
 
             const select = () => {
                 const keyStr = String(opt.key);
@@ -164,10 +183,6 @@ export class Title extends Scene {
         });
 
         updateHighlight(defaultKey);
-    }
-
-    private updateStartButton() {
-        this.startButton.setFillStyle(COLOR_START);
-        this.startLabel.setColor('#222222');
+        return updateHighlight;
     }
 }

@@ -21,7 +21,8 @@ export const POS_VALUES = [
 
 export type PosValue = (typeof POS_VALUES)[number];
 export type Level = 'basic' | 'standard' | 'advanced';
-export type LangMode = 'kogo-to-jp' | 'kogo-to-en' | 'en-to-kogo';
+export type Lang = 'kogo' | 'jp' | 'en';
+export type LangMode = { tile: Lang; slot: Lang };
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type QuestionCount = 10 | 20 | 30;
 

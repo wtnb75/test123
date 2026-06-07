@@ -22,7 +22,7 @@ export class Review extends Scene {
     init(data: ReviewData) {
         this.wrongEntries = data.wrongEntries ?? [];
         this.correctEntries = data.correctEntries ?? [];
-        this.config = data.config ?? { langMode: 'kogo-to-jp', difficulty: 'normal', questionCount: 20 };
+        this.config = data.config ?? { langMode: { tile: 'kogo', slot: 'jp' }, difficulty: 'normal', questionCount: 20 };
     }
 
     create() {

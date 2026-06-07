@@ -4,8 +4,7 @@ import {
     generateSlots,
     getFullMeaning,
     getPool,
-    getSlotValue,
-    getTileValue,
+    getLangValue,
     isCorrect,
     createQuestionSequence,
 } from '../logic/kogodrop';
@@ -46,13 +45,13 @@ function toVertical(text: string): string {
     return text.split('').join('\n');
 }
 
-function tileDisplayText(value: string, mode: string): string {
-    if (mode === 'kogo-to-en' || mode === 'en-to-kogo') return value;
+function tileDisplayText(value: string, tileLang: string): string {
+    if (tileLang === 'en') return value;
     return toVertical(value);
 }
 
-function tileFontSize(value: string, mode: string): string {
-    if (mode === 'kogo-to-en' || mode === 'en-to-kogo') {
+function tileFontSize(value: string, tileLang: string): string {
+    if (tileLang === 'en') {
         return value.length > 12 ? '18px' : value.length > 6 ? '22px' : '28px';
     }
     return '28px';
@@ -82,6 +81,7 @@ export class Game extends Scene {
     private correctEntries: KogoEntry[] = [];
     private results: boolean[] = [];
     private pool: KogoEntry[] = [];
+    private masteredIds = new Set<string>();
     private adaptiveTier = 0;
     private adaptiveSlotCount = SLOT_COUNT;
     private adaptivePool: KogoEntry[] = [];
@@ -132,6 +132,7 @@ export class Game extends Scene {
         this.wrongEntries = [];
         this.correctEntries = [];
         this.results = [];
+        this.masteredIds = new Set();
         this.currentIndex = 0;
         this.isEntering = true;
         this.isResolving = false;
@@ -262,9 +263,9 @@ export class Game extends Scene {
     }
 
     private drawTileCard(value: string, level: Level, rank: 1 | 2 | 3) {
-        const isJapanese = this.config.langMode !== 'kogo-to-en' && this.config.langMode !== 'en-to-kogo';
-        const vertVal = tileDisplayText(value, this.config.langMode);
-        const fontSize = tileFontSize(value, this.config.langMode);
+        const isJapanese = this.config.langMode.tile !== 'en';
+        const vertVal = tileDisplayText(value, this.config.langMode.tile);
+        const fontSize = tileFontSize(value, this.config.langMode.tile);
         const style = TILE_STYLES[level];
 
         this.tileTxt.setFontSize(fontSize);
@@ -418,32 +419,32 @@ export class Game extends Scene {
         }
 
         const entry = this.questions[this.currentIndex];
-        this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode, Math.random, this.adaptiveSlotCount);
+        this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode.slot, Math.random, this.adaptiveSlotCount);
 
-        const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode)).length;
+        const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode.slot)).length;
         if (correctCount !== 1) {
             // eslint-disable-next-line no-console
             console.warn(
                 `[KogoDrop] Q${this.currentIndex + 1}: 正解スロット数=${correctCount}`,
-                `tile="${getTileValue(entry, this.config.langMode)}"`,
+                `tile="${getLangValue(entry, this.config.langMode.tile)}"`,
                 this.slots.map((s, i) => ({
                     slot: i,
-                    value: getSlotValue(s, this.config.langMode),
-                    correct: isCorrect(entry, s, this.config.langMode),
+                    value: getLangValue(s, this.config.langMode.slot),
+                    correct: isCorrect(entry, s, this.config.langMode.slot),
                 })),
             );
         } else {
             // eslint-disable-next-line no-console
             console.log(
                 `[KogoDrop] Q${this.currentIndex + 1}:`,
-                `tile="${getTileValue(entry, this.config.langMode)}"`,
-                `slots=[${this.slots.map((s) => `"${getSlotValue(s, this.config.langMode)}"`).join(', ')}]`,
-                `correctAt=${this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode))}`,
+                `tile="${getLangValue(entry, this.config.langMode.tile)}"`,
+                `slots=[${this.slots.map((s) => `"${getLangValue(s, this.config.langMode.slot)}"`).join(', ')}]`,
+                `correctAt=${this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode.slot))}`,
             );
         }
 
         for (let i = 0; i < this.adaptiveSlotCount; i++) {
-            const slotVal = getSlotValue(this.slots[i], this.config.langMode);
+            const slotVal = getLangValue(this.slots[i], this.config.langMode.slot);
             this.slotViews[i].label.setText(slotVal);
             this.slotViews[i].label.setFontSize(slotFontSize(slotVal));
             this.slotViews[i].label.setWordWrapWidth(this.colWidth - 8, true);
@@ -451,10 +452,10 @@ export class Game extends Scene {
         }
 
         const nextEntry = this.questions[this.currentIndex + 1];
-        const nextVal = nextEntry ? getTileValue(nextEntry, this.config.langMode) : '---';
+        const nextVal = nextEntry ? getLangValue(nextEntry, this.config.langMode.tile) : '---';
         this.drawNextCard(nextVal);
 
-        const tileVal = getTileValue(entry, this.config.langMode);
+        const tileVal = getLangValue(entry, this.config.langMode.tile);
         this.drawTileCard(tileVal, entry.level, entry.rank);
 
         this.currentX = this.cameras.main.width / 2;
@@ -504,22 +505,31 @@ export class Game extends Scene {
     private commitResult(slotIndex: number) {
         const entry = this.questions[this.currentIndex];
         const selected = this.slots[slotIndex];
-        const correct = isCorrect(entry, selected, this.config.langMode);
+        const correct = isCorrect(entry, selected, this.config.langMode.slot);
 
         if (correct) {
             this.correctCount++;
             this.comboCount++;
             this.correctEntries.push(entry);
+            this.masteredIds.add(entry.id);
         } else {
             this.wrongEntries.push(entry);
             this.comboCount = 0;
         }
         this.results.push(correct);
         this.evaluateAdaptive();
+
+        if (correct) {
+            const remaining = this.config.questionCount - this.currentIndex - 1;
+            if (remaining > 0) {
+                const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
+                this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
+            }
+        }
         this.updateComboHud();
 
-        const tileVal = getTileValue(entry, this.config.langMode);
-        const fullMeaning = getFullMeaning(entry, this.config.langMode);
+        const tileVal = getLangValue(entry, this.config.langMode.tile);
+        const fullMeaning = getFullMeaning(entry, this.config.langMode.slot);
 
         this.showFlash(correct, tileVal, fullMeaning, this.comboCount);
         this.tileContainer.setVisible(false);
@@ -531,7 +541,7 @@ export class Game extends Scene {
         if (correct) {
             overlays.push(...this.showSlotFeedback(-1, slotIndex));
         } else {
-            const correctSlotIdx = this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode));
+            const correctSlotIdx = this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode.slot));
             overlays.push(...this.showSlotFeedback(slotIndex, correctSlotIdx));
         }
 
@@ -710,7 +720,7 @@ export class Game extends Scene {
 
         const remaining = this.config.questionCount - this.currentIndex - 1;
         if (remaining > 0) {
-            const newSeq = createQuestionSequence(this.adaptivePool, remaining);
+            const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
             this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
         }
 

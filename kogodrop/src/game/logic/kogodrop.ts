@@ -1,4 +1,4 @@
-import type { KogoEntry, ExampleSentence, LangMode, Difficulty, Level } from './types';
+import type { KogoEntry, ExampleSentence, Lang, Difficulty, Level } from './types';
 
 export const DIFFICULTY_LEVELS: Record<Difficulty, Level[]> = {
     easy: ['basic'],
@@ -27,22 +27,26 @@ export const shuffleArray = <T>(arr: T[], rng: () => number = Math.random): T[] 
 export const createQuestionSequence = (
     pool: KogoEntry[],
     count: number,
-    rng: () => number = Math.random
+    rng: () => number = Math.random,
+    excludeIds: Set<string> = new Set()
 ): KogoEntry[] => {
     if (pool.length === 0) {
         return [];
     }
 
+    const filtered = excludeIds.size > 0 ? pool.filter((e) => !excludeIds.has(e.id)) : pool;
+    const activePool = filtered.length > 0 ? filtered : pool;
+
     const result: KogoEntry[] = [];
-    let deck = shuffleArray(pool, rng);
+    let deck = shuffleArray(activePool, rng);
     let deckIndex = 0;
 
     for (let i = 0; i < count; i++) {
         if (deckIndex >= deck.length) {
             const lastWord = result.length > 0 ? result[result.length - 1].word : null;
-            deck = shuffleArray(pool, rng);
+            deck = shuffleArray(activePool, rng);
 
-            if (pool.length > 1 && lastWord !== null && deck[0].word === lastWord) {
+            if (activePool.length > 1 && lastWord !== null && deck[0].word === lastWord) {
                 const swapIdx = 1 + Math.floor(rng() * (deck.length - 1));
                 [deck[0], deck[swapIdx]] = [deck[swapIdx], deck[0]];
             }
@@ -55,26 +59,22 @@ export const createQuestionSequence = (
     return result;
 };
 
-export const getTileValue = (entry: KogoEntry, mode: LangMode): string => {
-    return mode === 'en-to-kogo' ? entry.shortEnglishMeaning[0] : entry.word;
+export const getLangValue = (entry: KogoEntry, lang: Lang): string => {
+    if (lang === 'kogo') return entry.word;
+    if (lang === 'jp') return entry.shortMeaning[0];
+    return entry.shortEnglishMeaning[0];
 };
 
-export const getSlotValue = (entry: KogoEntry, mode: LangMode): string => {
-    if (mode === 'kogo-to-jp') return entry.shortMeaning[0];
-    if (mode === 'kogo-to-en') return entry.shortEnglishMeaning[0];
-    return entry.word;
+export const getFullMeaning = (entry: KogoEntry, slotLang: Lang): string => {
+    if (slotLang === 'kogo') return entry.word;
+    if (slotLang === 'jp') return entry.meaning;
+    return entry.englishMeaning;
 };
 
-export const getFullMeaning = (entry: KogoEntry, mode: LangMode): string => {
-    if (mode === 'kogo-to-jp') return entry.meaning;
-    if (mode === 'kogo-to-en') return entry.englishMeaning;
-    return entry.word;
-};
-
-const getAllSlotValues = (entry: KogoEntry, mode: LangMode): string[] => {
-    if (mode === 'kogo-to-jp') return entry.shortMeaning;
-    if (mode === 'kogo-to-en') return entry.shortEnglishMeaning;
-    return [entry.word];
+const getAllLangValues = (entry: KogoEntry, lang: Lang): string[] => {
+    if (lang === 'kogo') return [entry.word];
+    if (lang === 'jp') return entry.shortMeaning;
+    return entry.shortEnglishMeaning;
 };
 
 export const sharesConfusingPrefix = (a: string, b: string): boolean => {
@@ -82,34 +82,32 @@ export const sharesConfusingPrefix = (a: string, b: string): boolean => {
     return a.slice(0, 2) === b.slice(0, 2);
 };
 
-export const isCorrect = (correct: KogoEntry, selected: KogoEntry, mode: LangMode): boolean => {
-    return getAllSlotValues(correct, mode).includes(getSlotValue(selected, mode));
+export const isCorrect = (correct: KogoEntry, selected: KogoEntry, slotLang: Lang): boolean => {
+    return getAllLangValues(correct, slotLang).includes(getLangValue(selected, slotLang));
 };
 
 export const generateSlots = (
     correct: KogoEntry,
     pool: KogoEntry[],
-    mode: LangMode,
+    slotLang: Lang,
     rng: () => number = Math.random,
     slotCount = 4
 ): KogoEntry[] => {
     const dummyTarget = slotCount - 1;
-    const allCorrectValues = new Set(getAllSlotValues(correct, mode));
+    const allCorrectValues = new Set(getAllLangValues(correct, slotLang));
 
-    // Never use entries whose slot value is any valid answer for the correct entry
     const candidates = shuffleArray(
-        pool.filter((e) => e.id !== correct.id && !allCorrectValues.has(getSlotValue(e, mode))),
+        pool.filter((e) => e.id !== correct.id && !allCorrectValues.has(getLangValue(e, slotLang))),
         rng
     );
 
-    // First pass: pick dummies with all-distinct slot values
     const dummies: KogoEntry[] = [];
     const usedValues = new Set<string>(allCorrectValues);
 
     // First pass: distinct values AND no confusing 2-char prefix with any correct value
     for (const e of candidates) {
         if (dummies.length >= dummyTarget) break;
-        const val = getSlotValue(e, mode);
+        const val = getLangValue(e, slotLang);
         const confusing = [...allCorrectValues].some((cv) => sharesConfusingPrefix(val, cv));
         if (!usedValues.has(val) && !confusing) {
             dummies.push(e);
@@ -120,7 +118,7 @@ export const generateSlots = (
     // Second pass: allow confusing prefix when first pass couldn't fill all slots
     for (const e of candidates) {
         if (dummies.length >= dummyTarget) break;
-        const val = getSlotValue(e, mode);
+        const val = getLangValue(e, slotLang);
         if (!usedValues.has(val)) {
             dummies.push(e);
             usedValues.add(val);
@@ -133,7 +131,7 @@ export const generateSlots = (
         if (!dummies.includes(e)) dummies.push(e);
     }
 
-    // Last resort: pad when pool is tiny (e.g. single-entry pool)
+    // Last resort: pad when pool is tiny
     const padSource = candidates.length > 0 ? candidates : [correct];
     while (dummies.length < dummyTarget) {
         dummies.push(padSource[dummies.length % padSource.length]);
@@ -143,11 +141,13 @@ export const generateSlots = (
     const correctValues = [...allCorrectValues];
     const displayValue = correctValues[Math.floor(rng() * correctValues.length)];
     const correctSlotEntry: KogoEntry =
-        displayValue === getSlotValue(correct, mode)
+        displayValue === getLangValue(correct, slotLang)
             ? correct
-            : mode === 'kogo-to-jp'
+            : slotLang === 'jp'
               ? { ...correct, shortMeaning: [displayValue] }
-              : { ...correct, shortEnglishMeaning: [displayValue] };
+              : slotLang === 'en'
+                ? { ...correct, shortEnglishMeaning: [displayValue] }
+                : correct;
 
     const correctPosition = Math.floor(rng() * slotCount);
     const slots: KogoEntry[] = [];
