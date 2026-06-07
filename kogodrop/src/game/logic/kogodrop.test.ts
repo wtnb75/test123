@@ -6,8 +6,7 @@ import {
     generateSlots,
     getFullMeaning,
     getPool,
-    getSlotValue,
-    getTileValue,
+    getLangValue,
     isCorrect,
     createQuestionSequence,
     sharesConfusingPrefix,
@@ -165,6 +164,26 @@ describe('createQuestionSequence', () => {
         expect(seq.every((e) => e.id === e1.id)).toBe(true);
     });
 
+    it('excludeIds removes specified entries from sequence', () => {
+        const pool = [e1, e2, e3, e4, e5];
+        const exclude = new Set([e1.id, e3.id]);
+        const seq = createQuestionSequence(pool, 20, Math.random, exclude);
+        expect(seq.every((e) => !exclude.has(e.id))).toBe(true);
+    });
+
+    it('excludeIds falls back to full pool when all entries are excluded', () => {
+        const pool = [e1, e2];
+        const exclude = new Set([e1.id, e2.id]);
+        const seq = createQuestionSequence(pool, 5, Math.random, exclude);
+        expect(seq).toHaveLength(5);
+    });
+
+    it('empty excludeIds has no effect', () => {
+        const pool = [e1, e2, e3];
+        const seq = createQuestionSequence(pool, 9, seqRng, new Set());
+        expect(seq).toHaveLength(9);
+    });
+
     it('swaps deck[0] when reshuffle would repeat the last word', () => {
         // Controlled RNG:
         //   1st shuffleArray (initial deck [e1,e2]): rng()=0.9 → j=floor(1.8)=1 → [e1,e2]
@@ -182,67 +201,55 @@ describe('createQuestionSequence', () => {
     });
 });
 
-describe('getTileValue', () => {
-    it('kogo-to-jp returns word', () => {
-        expect(getTileValue(e1, 'kogo-to-jp')).toBe(e1.word);
+describe('getLangValue', () => {
+    it("'kogo' returns word", () => {
+        expect(getLangValue(e1, 'kogo')).toBe(e1.word);
     });
-    it('kogo-to-en returns word', () => {
-        expect(getTileValue(e1, 'kogo-to-en')).toBe(e1.word);
+    it("'jp' returns first shortMeaning", () => {
+        expect(getLangValue(e1, 'jp')).toBe(e1.shortMeaning[0]);
     });
-    it('en-to-kogo returns first shortEnglishMeaning', () => {
-        expect(getTileValue(e1, 'en-to-kogo')).toBe(e1.shortEnglishMeaning[0]);
-    });
-});
-
-describe('getSlotValue', () => {
-    it('kogo-to-jp returns first shortMeaning', () => {
-        expect(getSlotValue(e1, 'kogo-to-jp')).toBe(e1.shortMeaning[0]);
-    });
-    it('kogo-to-en returns first shortEnglishMeaning', () => {
-        expect(getSlotValue(e1, 'kogo-to-en')).toBe(e1.shortEnglishMeaning[0]);
-    });
-    it('en-to-kogo returns word', () => {
-        expect(getSlotValue(e1, 'en-to-kogo')).toBe(e1.word);
+    it("'en' returns first shortEnglishMeaning", () => {
+        expect(getLangValue(e1, 'en')).toBe(e1.shortEnglishMeaning[0]);
     });
 });
 
 describe('getFullMeaning', () => {
-    it('kogo-to-jp returns meaning', () => {
-        expect(getFullMeaning(e1, 'kogo-to-jp')).toBe(e1.meaning);
+    it("'jp' returns meaning", () => {
+        expect(getFullMeaning(e1, 'jp')).toBe(e1.meaning);
     });
-    it('kogo-to-en returns englishMeaning', () => {
-        expect(getFullMeaning(e1, 'kogo-to-en')).toBe(e1.englishMeaning);
+    it("'en' returns englishMeaning", () => {
+        expect(getFullMeaning(e1, 'en')).toBe(e1.englishMeaning);
     });
-    it('en-to-kogo returns word', () => {
-        expect(getFullMeaning(e1, 'en-to-kogo')).toBe(e1.word);
+    it("'kogo' returns word", () => {
+        expect(getFullMeaning(e1, 'kogo')).toBe(e1.word);
     });
 });
 
 describe('isCorrect', () => {
     it('same entry is correct', () => {
-        expect(isCorrect(e1, e1, 'kogo-to-jp')).toBe(true);
+        expect(isCorrect(e1, e1, 'jp')).toBe(true);
     });
     it('different entry is incorrect', () => {
-        expect(isCorrect(e1, e2, 'kogo-to-jp')).toBe(false);
+        expect(isCorrect(e1, e2, 'jp')).toBe(false);
     });
     it('different entries with same shortMeaning[0] are correct', () => {
-        expect(isCorrect(e1, eDupShort, 'kogo-to-jp')).toBe(true);
+        expect(isCorrect(e1, eDupShort, 'jp')).toBe(true);
     });
     it('slot showing an alt meaning (non-[0]) of correct entry is accepted', () => {
         const altSlot = makeEntry('x', 'basic', { shortMeaning: ['alt1'] });
-        expect(isCorrect(eAlt, altSlot, 'kogo-to-jp')).toBe(true);
+        expect(isCorrect(eAlt, altSlot, 'jp')).toBe(true);
     });
     it('slot showing unrelated meaning is rejected', () => {
-        expect(isCorrect(eAlt, e2, 'kogo-to-jp')).toBe(false);
+        expect(isCorrect(eAlt, e2, 'jp')).toBe(false);
     });
-    it('kogo-to-en accepts alt shortEnglishMeaning', () => {
+    it("'en' slot accepts alt shortEnglishMeaning", () => {
         const altSlot = makeEntry('x', 'basic', { shortEnglishMeaning: ['altEn1'] });
-        expect(isCorrect(eEnAlt, altSlot, 'kogo-to-en')).toBe(true);
-        expect(isCorrect(eEnAlt, e2, 'kogo-to-en')).toBe(false);
+        expect(isCorrect(eEnAlt, altSlot, 'en')).toBe(true);
+        expect(isCorrect(eEnAlt, e2, 'en')).toBe(false);
     });
-    it('en-to-kogo mode checks word field', () => {
-        expect(isCorrect(e1, e1, 'en-to-kogo')).toBe(true);
-        expect(isCorrect(e1, e2, 'en-to-kogo')).toBe(false);
+    it("'kogo' slot checks word field", () => {
+        expect(isCorrect(e1, e1, 'kogo')).toBe(true);
+        expect(isCorrect(e1, e2, 'kogo')).toBe(false);
     });
 });
 
@@ -250,28 +257,28 @@ describe('generateSlots', () => {
     const pool = [e1, e2, e3, e4, e5];
 
     it('returns exactly 4 slots', () => {
-        const slots = generateSlots(e1, pool, 'kogo-to-jp');
+        const slots = generateSlots(e1, pool, 'jp');
         expect(slots).toHaveLength(4);
     });
 
     it('correct entry slot value is always present', () => {
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(e1, pool, 'kogo-to-jp');
-            expect(slots.some((s) => isCorrect(e1, s, 'kogo-to-jp'))).toBe(true);
+            const slots = generateSlots(e1, pool, 'jp');
+            expect(slots.some((s) => isCorrect(e1, s, 'jp'))).toBe(true);
         }
     });
 
     it('slot values have no duplicates with sufficient pool', () => {
-        const slots = generateSlots(e1, pool, 'kogo-to-jp');
-        const values = slots.map((s) => getSlotValue(s, 'kogo-to-jp'));
+        const slots = generateSlots(e1, pool, 'jp');
+        const values = slots.map((s) => getLangValue(s, 'jp'));
         expect(new Set(values).size).toBe(4);
     });
 
     it('correct position is randomized across multiple calls', () => {
         const positions = new Set<number>();
         for (let i = 0; i < 100; i++) {
-            const slots = generateSlots(e1, pool, 'kogo-to-jp');
-            const pos = slots.findIndex((s) => isCorrect(e1, s, 'kogo-to-jp'));
+            const slots = generateSlots(e1, pool, 'jp');
+            const pos = slots.findIndex((s) => isCorrect(e1, s, 'jp'));
             positions.add(pos);
         }
         expect(positions.size).toBeGreaterThan(1);
@@ -281,9 +288,9 @@ describe('generateSlots', () => {
         const poolWithAlt = [eAlt, e2, e3, e4, e5];
         const displayed = new Set<string>();
         for (let i = 0; i < 100; i++) {
-            const slots = generateSlots(eAlt, poolWithAlt, 'kogo-to-jp');
-            const correctSlot = slots.find((s) => isCorrect(eAlt, s, 'kogo-to-jp'));
-            if (correctSlot) displayed.add(getSlotValue(correctSlot, 'kogo-to-jp'));
+            const slots = generateSlots(eAlt, poolWithAlt, 'jp');
+            const correctSlot = slots.find((s) => isCorrect(eAlt, s, 'jp'));
+            if (correctSlot) displayed.add(getLangValue(correctSlot, 'jp'));
         }
         expect(displayed.has(eAlt.shortMeaning[0])).toBe(true);
         expect(displayed.has('alt1')).toBe(true);
@@ -292,10 +299,10 @@ describe('generateSlots', () => {
     it('dummies never show any meaning from shortMeaning of the correct entry', () => {
         const poolWithAlt = [eAlt, e2, e3, e4, e5];
         for (let i = 0; i < 30; i++) {
-            const slots = generateSlots(eAlt, poolWithAlt, 'kogo-to-jp');
-            const dummies = slots.filter((s) => !isCorrect(eAlt, s, 'kogo-to-jp'));
+            const slots = generateSlots(eAlt, poolWithAlt, 'jp');
+            const dummies = slots.filter((s) => !isCorrect(eAlt, s, 'jp'));
             for (const d of dummies) {
-                expect(eAlt.shortMeaning).not.toContain(getSlotValue(d, 'kogo-to-jp'));
+                expect(eAlt.shortMeaning).not.toContain(getLangValue(d, 'jp'));
             }
         }
     });
@@ -303,8 +310,8 @@ describe('generateSlots', () => {
     it('no dummy has same slot value as correct (prevents multiple correct slots)', () => {
         const poolWithDup = [e1, e2, e3, e4, e5, eDupShort];
         for (let i = 0; i < 30; i++) {
-            const slots = generateSlots(e1, poolWithDup, 'kogo-to-jp');
-            const correctCount = slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp')).length;
+            const slots = generateSlots(e1, poolWithDup, 'jp');
+            const correctCount = slots.filter((s) => isCorrect(e1, s, 'jp')).length;
             expect(correctCount).toBe(1);
         }
     });
@@ -312,38 +319,38 @@ describe('generateSlots', () => {
     it('slot values are all distinct when pool has enough unique entries', () => {
         const poolWithDup = [e1, e2, e3, e4, e5, eDupShort];
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(e2, poolWithDup, 'kogo-to-jp');
-            const values = slots.map((s) => getSlotValue(s, 'kogo-to-jp'));
+            const slots = generateSlots(e2, poolWithDup, 'jp');
+            const values = slots.map((s) => getLangValue(s, 'jp'));
             expect(new Set(values).size).toBe(4);
         }
     });
 
     it('second pass allows duplicate display values when first pass yields fewer than 3', () => {
         const dupPool = [e1, eDupVal1, eDupVal2, eDupVal3];
-        const slots = generateSlots(e1, dupPool, 'kogo-to-jp');
+        const slots = generateSlots(e1, dupPool, 'jp');
         expect(slots).toHaveLength(4);
-        const correctCount = slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp')).length;
+        const correctCount = slots.filter((s) => isCorrect(e1, s, 'jp')).length;
         expect(correctCount).toBe(1);
     });
 
     it('fallback works with small pool (3 entries)', () => {
         const smallPool = [e1, e2, e3];
-        const slots = generateSlots(e1, smallPool, 'kogo-to-jp');
+        const slots = generateSlots(e1, smallPool, 'jp');
         expect(slots).toHaveLength(4);
-        expect(slots.some((s) => isCorrect(e1, s, 'kogo-to-jp'))).toBe(true);
+        expect(slots.some((s) => isCorrect(e1, s, 'jp'))).toBe(true);
     });
 
     it('fallback never uses correct slot value even in tiny pool', () => {
         const smallPool = [e1, e2, e3];
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(e1, smallPool, 'kogo-to-jp');
-            const correctCount = slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp')).length;
+            const slots = generateSlots(e1, smallPool, 'jp');
+            const correctCount = slots.filter((s) => isCorrect(e1, s, 'jp')).length;
             expect(correctCount).toBe(1);
         }
     });
 
     it('fallback works with single-entry pool', () => {
-        const slots = generateSlots(e1, [e1], 'kogo-to-jp');
+        const slots = generateSlots(e1, [e1], 'jp');
         expect(slots).toHaveLength(4);
     });
 
@@ -351,39 +358,39 @@ describe('generateSlots', () => {
         const poolEn = [eEnAlt, e2, e3, e4, e5];
         const displayed = new Set<string>();
         for (let i = 0; i < 100; i++) {
-            const slots = generateSlots(eEnAlt, poolEn, 'kogo-to-en');
-            const correctSlot = slots.find((s) => isCorrect(eEnAlt, s, 'kogo-to-en'));
-            if (correctSlot) displayed.add(getSlotValue(correctSlot, 'kogo-to-en'));
+            const slots = generateSlots(eEnAlt, poolEn, 'en');
+            const correctSlot = slots.find((s) => isCorrect(eEnAlt, s, 'en'));
+            if (correctSlot) displayed.add(getLangValue(correctSlot, 'en'));
         }
         expect(displayed.has(eEnAlt.shortEnglishMeaning[0])).toBe(true);
         expect(displayed.has('altEn1')).toBe(true);
     });
 
     it('en-to-kogo mode uses correct fields', () => {
-        const slots = generateSlots(e1, pool, 'en-to-kogo');
-        expect(slots.some((s) => isCorrect(e1, s, 'en-to-kogo'))).toBe(true);
+        const slots = generateSlots(e1, pool, 'kogo');
+        expect(slots.some((s) => isCorrect(e1, s, 'kogo'))).toBe(true);
     });
 
     it('slotCount=5 returns 5 slots with exactly 1 correct', () => {
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(e1, pool, 'kogo-to-jp', Math.random, 5);
+            const slots = generateSlots(e1, pool, 'jp', Math.random, 5);
             expect(slots).toHaveLength(5);
-            expect(slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp'))).toHaveLength(1);
+            expect(slots.filter((s) => isCorrect(e1, s, 'jp'))).toHaveLength(1);
         }
     });
 
     it('slotCount=6 returns 6 slots with exactly 1 correct', () => {
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(e1, pool, 'kogo-to-jp', Math.random, 6);
+            const slots = generateSlots(e1, pool, 'jp', Math.random, 6);
             expect(slots).toHaveLength(6);
-            expect(slots.filter((s) => isCorrect(e1, s, 'kogo-to-jp'))).toHaveLength(1);
+            expect(slots.filter((s) => isCorrect(e1, s, 'jp'))).toHaveLength(1);
         }
     });
 
     it('slotCount=5 with tiny pool falls back gracefully', () => {
-        const slots = generateSlots(e1, [e1, e2], 'kogo-to-jp', Math.random, 5);
+        const slots = generateSlots(e1, [e1, e2], 'jp', Math.random, 5);
         expect(slots).toHaveLength(5);
-        expect(slots.some((s) => isCorrect(e1, s, 'kogo-to-jp'))).toBe(true);
+        expect(slots.some((s) => isCorrect(e1, s, 'jp'))).toBe(true);
     });
 
     it('first pass avoids confusing distractors when alternatives exist', () => {
@@ -394,9 +401,9 @@ describe('generateSlots', () => {
         const clean3 = makeEntry('cl3', 'basic', { shortMeaning: ['さびしい'] });
 
         for (let i = 0; i < 20; i++) {
-            const slots = generateSlots(correct, [correct, confusing, clean1, clean2, clean3], 'kogo-to-jp');
-            const dummies = slots.filter((s) => !isCorrect(correct, s, 'kogo-to-jp'));
-            expect(dummies.every((d) => getSlotValue(d, 'kogo-to-jp') !== 'あいして')).toBe(true);
+            const slots = generateSlots(correct, [correct, confusing, clean1, clean2, clean3], 'jp');
+            const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+            expect(dummies.every((d) => getLangValue(d, 'jp') !== 'あいして')).toBe(true);
         }
     });
 
@@ -406,9 +413,43 @@ describe('generateSlots', () => {
         // Only one non-confusing entry — not enough to fill 3 dummy slots
         const clean1 = makeEntry('cl1', 'basic', { shortMeaning: ['かわいい'] });
 
-        const slots = generateSlots(correct, [correct, confusing, clean1], 'kogo-to-jp');
+        const slots = generateSlots(correct, [correct, confusing, clean1], 'jp');
         expect(slots).toHaveLength(4);
-        expect(slots.some((s) => isCorrect(correct, s, 'kogo-to-jp'))).toBe(true);
+        expect(slots.some((s) => isCorrect(correct, s, 'jp'))).toBe(true);
+    });
+
+    it('tileLang: excludes dummies whose tile-side meaning overlaps with correct entry', () => {
+        // Regression: jp→kogo mode — tile shows "言う", both "いふ" and "まうす" have "言う"
+        // in shortMeaning, so "まうす" must not appear as a dummy slot
+        const ifu = makeEntry('ifu', 'basic', { word: 'いふ', shortMeaning: ['言う'] });
+        const mousu = makeEntry('mousu', 'basic', { word: 'まうす', shortMeaning: ['言う', '申す'] });
+        const afu = makeEntry('afu', 'basic', { word: 'あふ', shortMeaning: ['会う'] });
+        const miru = makeEntry('miru', 'basic', { word: 'みる', shortMeaning: ['見る'] });
+        const kuru = makeEntry('kuru', 'basic', { word: 'く', shortMeaning: ['来る'] });
+
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(ifu, [ifu, mousu, afu, miru, kuru], 'kogo', Math.random, 4, 'jp');
+            // "まうす" shares tile-side meaning "言う" with correct → must not appear
+            expect(slots.every((s) => s.id !== mousu.id)).toBe(true);
+            // correct slot is always present
+            expect(slots.some((s) => s.id === ifu.id)).toBe(true);
+        }
+    });
+
+    it('tileLang: undefined falls back to old behavior (no tile-side filtering)', () => {
+        const ifu = makeEntry('ifu', 'basic', { word: 'いふ', shortMeaning: ['言う'] });
+        const mousu = makeEntry('mousu', 'basic', { word: 'まうす', shortMeaning: ['言う'] });
+        const afu = makeEntry('afu', 'basic', { word: 'あふ', shortMeaning: ['会う'] });
+        const miru = makeEntry('miru', 'basic', { word: 'みる', shortMeaning: ['見る'] });
+
+        // Without tileLang, mousu may appear (old behavior preserved for backwards compat)
+        const allSlotIds = new Set<string>();
+        for (let i = 0; i < 50; i++) {
+            const slots = generateSlots(ifu, [ifu, mousu, afu, miru], 'kogo', Math.random, 4);
+            slots.forEach((s) => allSlotIds.add(s.id));
+        }
+        // mousu can appear as a dummy when tileLang is not provided
+        expect(allSlotIds.has(mousu.id)).toBe(true);
     });
 });
 
