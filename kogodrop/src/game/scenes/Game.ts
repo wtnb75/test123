@@ -419,7 +419,7 @@ export class Game extends Scene {
         }
 
         const entry = this.questions[this.currentIndex];
-        this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode.slot, Math.random, this.adaptiveSlotCount);
+        this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode.slot, Math.random, this.adaptiveSlotCount, this.config.langMode.tile);
 
         const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode.slot)).length;
         if (correctCount !== 1) {

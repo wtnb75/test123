@@ -417,6 +417,40 @@ describe('generateSlots', () => {
         expect(slots).toHaveLength(4);
         expect(slots.some((s) => isCorrect(correct, s, 'jp'))).toBe(true);
     });
+
+    it('tileLang: excludes dummies whose tile-side meaning overlaps with correct entry', () => {
+        // Regression: jp→kogo mode — tile shows "言う", both "いふ" and "まうす" have "言う"
+        // in shortMeaning, so "まうす" must not appear as a dummy slot
+        const ifu = makeEntry('ifu', 'basic', { word: 'いふ', shortMeaning: ['言う'] });
+        const mousu = makeEntry('mousu', 'basic', { word: 'まうす', shortMeaning: ['言う', '申す'] });
+        const afu = makeEntry('afu', 'basic', { word: 'あふ', shortMeaning: ['会う'] });
+        const miru = makeEntry('miru', 'basic', { word: 'みる', shortMeaning: ['見る'] });
+        const kuru = makeEntry('kuru', 'basic', { word: 'く', shortMeaning: ['来る'] });
+
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(ifu, [ifu, mousu, afu, miru, kuru], 'kogo', Math.random, 4, 'jp');
+            // "まうす" shares tile-side meaning "言う" with correct → must not appear
+            expect(slots.every((s) => s.id !== mousu.id)).toBe(true);
+            // correct slot is always present
+            expect(slots.some((s) => s.id === ifu.id)).toBe(true);
+        }
+    });
+
+    it('tileLang: undefined falls back to old behavior (no tile-side filtering)', () => {
+        const ifu = makeEntry('ifu', 'basic', { word: 'いふ', shortMeaning: ['言う'] });
+        const mousu = makeEntry('mousu', 'basic', { word: 'まうす', shortMeaning: ['言う'] });
+        const afu = makeEntry('afu', 'basic', { word: 'あふ', shortMeaning: ['会う'] });
+        const miru = makeEntry('miru', 'basic', { word: 'みる', shortMeaning: ['見る'] });
+
+        // Without tileLang, mousu may appear (old behavior preserved for backwards compat)
+        const allSlotIds = new Set<string>();
+        for (let i = 0; i < 50; i++) {
+            const slots = generateSlots(ifu, [ifu, mousu, afu, miru], 'kogo', Math.random, 4);
+            slots.forEach((s) => allSlotIds.add(s.id));
+        }
+        // mousu can appear as a dummy when tileLang is not provided
+        expect(allSlotIds.has(mousu.id)).toBe(true);
+    });
 });
 
 describe('sharesConfusingPrefix', () => {

@@ -91,13 +91,22 @@ export const generateSlots = (
     pool: KogoEntry[],
     slotLang: Lang,
     rng: () => number = Math.random,
-    slotCount = 4
+    slotCount = 4,
+    tileLang?: Lang
 ): KogoEntry[] => {
     const dummyTarget = slotCount - 1;
     const allCorrectValues = new Set(getAllLangValues(correct, slotLang));
+    // When tileLang is provided, exclude entries that share any tile-side meaning with correct
+    // (they would look like valid answers to the player, causing ambiguity)
+    const correctTileValues = tileLang ? new Set(getAllLangValues(correct, tileLang)) : null;
 
     const candidates = shuffleArray(
-        pool.filter((e) => e.id !== correct.id && !allCorrectValues.has(getLangValue(e, slotLang))),
+        pool.filter((e) => {
+            if (e.id === correct.id) return false;
+            if (allCorrectValues.has(getLangValue(e, slotLang))) return false;
+            if (correctTileValues && tileLang && getAllLangValues(e, tileLang).some((v) => correctTileValues.has(v))) return false;
+            return true;
+        }),
         rng
     );
 
