@@ -215,6 +215,13 @@ export class Review extends Scene {
             transEl.style.cssText = 'margin-left:20px;color:#aaa;font-size:13px;';
             item.appendChild(transEl);
 
+            if (example.translationEn) {
+                const transEnEl = document.createElement('div');
+                transEnEl.textContent = `(${example.translationEn})`;
+                transEnEl.style.cssText = 'margin-left:20px;color:#7ab3c8;font-size:12px;';
+                item.appendChild(transEnEl);
+            }
+
             if (highlight?.note) {
                 const noteEl = document.createElement('div');
                 noteEl.textContent = `※「${highlight.form}」= ${highlight.note}`;

@@ -465,8 +465,11 @@ for (const source of targetSources) {
                     wordId: id,
                     word,
                     sentence,
-                    source: source.label,
+                    source: source.prefix
+                        ? source.label + ' ' + title.slice(source.prefix.length)
+                        : source.label,
                     translation: '',
+                    translationEn: '',
                     highlights: [],
                     verified: false,
                 };

@@ -49,6 +49,7 @@ export interface Highlight {
 export interface ExampleSentence {
     sentence: string;
     translation: string;
+    translationEn?: string;
     highlights: Highlight[];
     source?: string;
     verified: boolean;
