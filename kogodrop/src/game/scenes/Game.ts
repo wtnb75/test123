@@ -512,8 +512,13 @@ export class Game extends Scene {
             this.comboCount++;
             this.correctEntries.push(entry);
             this.masteredIds.add(entry.id);
-        } else {
+            // A word that has been answered correctly should only show in the
+            // "correct" review list, even if it was missed on an earlier attempt.
+            this.wrongEntries = this.wrongEntries.filter((e) => e.id !== entry.id);
+        } else if (!this.correctEntries.some((e) => e.id === entry.id)) {
             this.wrongEntries.push(entry);
+            this.comboCount = 0;
+        } else {
             this.comboCount = 0;
         }
         this.results.push(correct);

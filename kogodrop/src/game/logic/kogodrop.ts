@@ -105,6 +105,10 @@ export const generateSlots = (
             if (e.id === correct.id) return false;
             if (allCorrectValues.has(getLangValue(e, slotLang))) return false;
             if (correctTileValues && tileLang && getAllLangValues(e, tileLang).some((v) => correctTileValues.has(v))) return false;
+            // Exclude entries that are manually flagged as semantically confusable
+            // with the correct answer, in either direction.
+            if (correct.confusableWith?.includes(e.id)) return false;
+            if (e.confusableWith?.includes(correct.id)) return false;
             return true;
         }),
         rng

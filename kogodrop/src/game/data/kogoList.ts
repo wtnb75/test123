@@ -16,6 +16,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['rare', 'precious'],
         verified: true,
         rank: 1,
+        confusableWith: ['wosawosa'],
     },
     {
         id: 'ayashi',
@@ -52,6 +53,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['indifferent', 'cold'],
         verified: true,
         rank: 2,
+        confusableWith: ['susamaji'],
     },
     {
         id: 'kokoromoto',
@@ -76,6 +78,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['awkward', 'improper'],
         verified: true,
         rank: 2,
+        confusableWith: ['asamashi'],
     },
     {
         id: 'yamugoto',
@@ -232,6 +235,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['wise', 'awe-inspiring'],
         verified: true,
         rank: 2,
+        confusableWith: ['satoshi'],
     },
     {
         id: 'hakanashi',
@@ -328,6 +332,19 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['mischievous', 'wicked'],
         verified: true,
         rank: 3,
+    },
+    {
+        id: 'satoshi',
+        word: 'さとし',
+        meaning: '明敏である。理解が早い。賢い。',
+        shortMeaning: ['明敏である', '理解が早い', '賢い'],
+        level: 'standard',
+        pos: '形容詞・ク活用',
+        englishMeaning: 'wise; clever; intelligent; bright',
+        shortEnglishMeaning: ['wise', 'clever', 'intelligent'],
+        verified: true,
+        rank: 2,
+        confusableWith: ['kashikoshi'],
     },
 
     // ═══════════════════════════════════════════
@@ -440,6 +457,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['astonishing', 'shameful'],
         verified: true,
         rank: 2,
+        confusableWith: ['hashitanashi'],
     },
     {
         id: 'itohoshi',
@@ -512,6 +530,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['awful', 'bleak'],
         verified: true,
         rank: 1,
+        confusableWith: ['tsurenashi'],
     },
     {
         id: 'nanamekashi',
@@ -941,6 +960,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['not at all', 'not the least'],
         verified: true,
         rank: 2,
+        confusableWith: ['sarani', 'wosawosa', 'yoni'],
     },
     {
         id: 'wosawosa',
@@ -953,6 +973,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['hardly', 'rarely'],
         verified: true,
         rank: 2,
+        confusableWith: ['arigatashi', 'tuyu', 'sarani', 'yoni'],
     },
     {
         id: 'sarani',
@@ -965,6 +986,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['not at all', 'even more'],
         verified: true,
         rank: 2,
+        confusableWith: ['tuyu', 'wosawosa', 'yoni'],
     },
     {
         id: 'masite',
@@ -1050,6 +1072,7 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['extremely', 'not at all'],
         verified: true,
         rank: 3,
+        confusableWith: ['tuyu', 'sarani', 'wosawosa'],
     },
 
     // ═══════════════════════════════════════════
@@ -1131,7 +1154,7 @@ export const kogoList: KogoEntry[] = [
     {
         id: 'tamau',
         word: 'たまふ',
-        meaning: '賜ふ/給ふ: お与えになる・〜なさる（尊敬）',
+        meaning: '賜ふ/給ふ: お与えになる・〜なさる（尊敬）・（命令形で）しなさい',
         shortMeaning: ['お与えになる', '〜なさる'],
         level: 'standard',
         pos: '動詞・四段活用',
@@ -1640,6 +1663,18 @@ export const kogoList: KogoEntry[] = [
         shortEnglishMeaning: ['connection', 'support'],
         verified: true,
         rank: 3,
+    },
+    {
+        id: 'yauyau',
+        word: 'やうやう',
+        meaning: 'さまざま・いろいろ',
+        shortMeaning: ['さまざま', 'いろいろ'],
+        level: 'basic',
+        pos: '名詞',
+        englishMeaning: 'various',
+        shortEnglishMeaning: ['various'],
+        verified: true,
+        rank: 2,
     },
 
     // ═══════════════════════════════════════════

@@ -7,6 +7,7 @@ export const exampleSentences: ExampleSentence[] = [
         translationEn: 'The mountain ridge gradually turning white, slightly brightening, with wisps of purple cloud trailing thinly — how charming.',
         highlights: [
             { word: 'をかし', form: 'をかしけれ', note: '已然形（係り結び）' },
+            { word: 'やうやう', form: 'やうやう' },
         ],
         source: '枕草子 第一段',
         verified: true,
@@ -39,6 +40,7 @@ export const exampleSentences: ExampleSentence[] = [
             { word: 'いみじ', form: 'いみじう', note: '連用形・ウ音便' },
             { word: 'わびし', form: 'わびしげ', note: '語幹 + 接尾語「げ」' },
             { word: 'あはれ', form: 'あはれ', note: '形容動詞の語幹' },
+            { word: 'うつくし', form: '美しき' },
         ],
         verified: true,
     },
@@ -762,4 +764,235 @@ export const exampleSentences: ExampleSentence[] = [
         source: '源氏物語 手習',
         verified: true,
     },
+    {
+        sentence: 'しるしの札は持ち給へるや',
+        translation: 'ポイントカードはお持ちですか',
+        translationEn: 'Do you have a loyalty card?',
+        highlights: [
+            { word: 'たまふ', form: '給へ' },
+        ],
+        source: '現代日常語',
+        verified: true,
+    },
+    {
+        sentence: 'なんぢがごとく、さとき小童は好かず',
+        translation: '君のような勘のいいガキは嫌いだよ',
+        translationEn: 'I hate perceptive brats like you.',
+        source: '鋼の錬金術師',
+        highlights: [
+            { word: 'さとし', form: 'さとき' },
+        ],
+        verified: true,
+    },
+    {
+        sentence: '世に仕へむことは負くるに似たりと思ひ侍る。今の身こそ勝ちたるやうに覚ゆれ',
+        translation: '働いたら負けかなと思っている。今の自分は勝ってると思います',
+        translationEn: "I used to think that working meant losing. But I think I'm winning right now.",
+        source: 'ネットミーム',
+        highlights: [
+            { word: 'はべり', form: '侍る' },
+            { word: 'おぼゆ', form: '覚ゆ' },
+        ],
+        verified: true,
+    },
+    {
+        // tamtama
+        sentence: 'そのゆゑは、我が身をば次になして、男にもあれ女にもあれ、いたはしく思ふかたに、たまたま乞ひ得たる物を、まづゆづるによりてなり。',
+        translation: 'その理由は、自分自身を後回しにして、男であれ女であれ、いたわしいと思う相手に、たまたま手に入れた物を、まず譲るからである。',
+        translationEn: "The reason is that one puts oneself last and, whether it be a man or a woman one feels compassion for, gives away whatever one happens to obtain to them first.",
+        highlights: [
+            { word: 'たまたま', form: 'たまたま' },
+        ],
+        source: '方丈記',
+        verified: true,
+    },
+    {
+        // tamtama
+        sentence: 'たまたまこの道にまかり入りにければ、かうだにわきまへ知られはべるといふ。',
+        translation: 'たまたまこの（建築の）道に入ったので、これくらいは分かるようになりましたと言う。',
+        translationEn: '"Having happened to enter this path," he says, "I have come to understand at least this much."',
+        highlights: [
+            { word: 'たまたま', form: 'たまたまこの' },
+            { word: 'まかる', form: 'まかり' },
+        ],
+        source: '枕草子 第五段',
+        verified: true,
+    },
+    {
+        // akarasama
+        sentence: '大将の君は、二条院にだに、あからさまにも渡りたまはず、あはれに心深う思ひ嘆きて、行ひをまめにしたまひつつ、明かし暮らしたまふ。',
+        translation: '大将の君（光源氏）は、二条院にさえ、ちょっとの間もお行きにならず、しみじみと深く思い嘆いて、勤行をまじめになさりながら、日々を過ごしていらっしゃる。',
+        translationEn: 'The Commander does not go even briefly to the Nijō residence; deeply moved and sorrowful, he spends his days devoting himself earnestly to religious practice.',
+        highlights: [
+            { word: 'あからさまなり', form: 'あからさまに' },
+            { word: 'あはれ', form: 'あはれに' },
+            { word: 'まめなり', form: 'まめに' },
+        ],
+        source: '源氏物語 葵',
+        verified: true,
+    },
+    {
+        // akarasama
+        sentence: 'あからさまに聖教の一句を見れば、何となく前後のふみも見ゆ。',
+        translation: 'ちょっとの間でも仏典の一句を見れば、なんとなく前後の文章も目に入ってくる。',
+        translationEn: 'Even a brief glance at a single passage of scripture brings the surrounding text into view as well, somehow.',
+        highlights: [
+            { word: 'あからさまなり', form: 'あからさまに' },
+        ],
+        source: '徒然草',
+        verified: true,
+    },
+    {
+        // kashikoshi
+        sentence: '昔かしこき天竺のひじり、この國にもて渡りて侍りける、西の山寺にありと聞き及びて、公に申して、辛うじて買ひとりて奉る。',
+        translation: '昔、優れた天竺（インド）の聖人が、この国に持って渡ってきたものが、西の山寺にあると聞き及んで、朝廷に申し上げて、ようやくのことで買い取って献上するものです。',
+        translationEn: 'Hearing that an object once brought to this land long ago by a venerable sage of India was kept at a temple in the western mountains, he reported it to the court and, with great difficulty, purchased and presented it.',
+        highlights: [
+            { word: 'かしこし', form: 'かしこき' },
+        ],
+        source: '竹取物語',
+        verified: true,
+    },
+    {
+        // tayu
+        sentence: 'たゆからずしもあらねど、人をしたがへ、人をかへりみるよりはやすし。',
+        translation: '疲れないわけではないが、人に従がったり、人の機嫌をとるよりは楽だ。',
+        translationEn: 'It is not that one feels no fatigue, but it is easier than obeying others or trying to please them..',
+        highlights: [
+            { word: 'たゆ', form: 'たゆ' },
+            { word: 'かへる', form: 'かへりみる' },
+        ],
+        source: '方丈記',
+        verified: true,
+    },
+    {
+        // kotowari
+        sentence: 'しづかなる曉、このことわりを思ひつゞけて、みづから心に問ひていはく、世をのがれて山林にまじはるは、心ををさめて道を行はむがためなり。',
+        translation: '静かな明け方に、この道理を思い続けて、自分の心に問いかけて言うことには、世を逃れて山林に交わるのは、心を治めて仏道修行をするためである。',
+        translationEn: 'On a quiet dawn, pondering this reasoning, I asked myself: the purpose of fleeing the world to dwell among the mountains and forests is to discipline the heart and pursue the Buddhist path.',
+        highlights: [
+            { word: 'ことわりなり', form: 'ことわり' },
+        ],
+        source: '方丈記',
+        verified: true,
+    },
+    {
+        // kotowari
+        sentence: '恨みむもことわりなるほどなれど、あまりに人憎くもと、つらき涙の落つれば、「ましていかに思ひつらむ」と、さまざまあはれに思し知らる。',
+        translation: '（あなたを）恨むのも当然な事情ではあるが、あまりにも憎いとも思えず、つらい涙が落ちるので、「まして（あの方は）どれほど辛く思っただろう」と、さまざまにしみじみと思い知らされる。',
+        translationEn: 'It would be only natural to feel resentment, yet, I can\'t bring myself to hate you that much, painful tears fall; and he is made to feel keenly, in many ways, "how much more painfully she must have felt this."',
+        highlights: [
+            { word: 'ことわりなり', form: 'ことわりなる' },
+            { word: 'つらし', form: 'つらき' },
+            { word: 'まして', form: 'ましてい' },
+            { word: 'いかに', form: 'いかに' },
+            { word: 'あはれ', form: 'あはれに' },
+        ],
+        source: '源氏物語 総角',
+        verified: true,
+    },
+    {
+        // sugu
+        sentence: 'かならずしも情あると、すぐなるとをば愛せず、たゞ絲竹花月を友とせむにはしかじ。',
+        translation: '必ずしも人情がある人や素直な人を愛することもせず、ただ音楽や花鳥風月を友とするのが一番である。',
+        translationEn: 'It is not necessarily about loving people who are kind or honest; nothing is better than taking music and the beauty of nature.',
+        highlights: [
+            { word: 'すぐ', form: 'すぐなる' },
+        ],
+        source: '方丈記',
+        verified: true,
+    },
+    {
+        // kurushi
+        sentence: 'ことにたのもしき人なともなきなめりかしと心くるしうおほえて。',
+        translation: '特に頼りになる人もいないようだと、心苦しく思われて。',
+        translationEn: 'Feeling that there seemed to be no one in particular she could rely on, she found it distressing.',
+        highlights: [
+            { word: 'くるし', form: 'くるしう' },
+            { word: 'たのもし', form: 'たのもしき' },
+        ],
+        source: '和泉式部日記',
+        verified: true,
+    },
+    {
+        // kurushi
+        sentence: '心また身のくるしみを知れゝば、くるしむ時はやすめつ、まめなる時はつかふ。',
+        translation: '（自分の）心もまた身体の苦しみを知っているので、苦しむ時は休ませ、元気な時は働かせる。',
+        translationEn: 'The mind, too, knows the body\'s own suffering, so when it suffers I let it rest, and when it is well I put it to work.',
+        highlights: [
+            { word: 'くるし', form: 'くるしみ' },
+            { word: 'まめなり', form: 'まめなる' },
+        ],
+        source: '方丈記',
+        verified: true,
+    },
+    {
+        // yomu
+        sentence: 'かた野をかりてあまの河にいたるを題にてうたよみて。',
+        translation: '交野で狩りをして天の川（という地名）に至ったことを題にして歌を詠んで。',
+        translationEn: 'Taking as their topic the fact that, while hunting at Katano, they had arrived at a place called the River of Heaven, they composed poems.',
+        highlights: [
+            { word: 'よむ', form: 'よみ' },
+        ],
+        source: '伊勢物語',
+        verified: true,
+    },
+    {
+        // yomu
+        sentence: 'うへも聞しめして、めでさせ給ひ、「いかでさ多くよませ給ひけん、われは三卷四卷だにもえよみはてじ」と仰せらる。',
+        translation: '帝もお聞きになって感心なさり、「どうしてそんなに多くお読みになれたのだろう、私など三巻四巻でさえ読み終えられないだろう」とおっしゃる。',
+        translationEn: 'His Majesty heard of this too and was full of admiration, saying, "However did she manage to read so much? I myself could never finish even three or four volumes."',
+        highlights: [
+            { word: 'よむ', form: 'よみ' },
+            { word: 'いかで', form: 'いかでさ' },
+        ],
+        source: '枕草子 第二十段',
+        verified: true,
+    },
+    {
+        // motomu
+        sentence: '内を愼まず、輕くほしきまゝにしてみだりなれば、遠國必ずそむく時、始めてはかりごとをもとむ。',
+        translation: '内政を整えず、軽々しく欲望のままにの政治をして乱れていると、遠くの国は必ず背く。その時に慌てて対策を求める。',
+        translationEn: 'If one fails to govern with care at home and behaves recklessly and self-indulgently, bringing disorder, then only when the distant provinces inevitably revolt does one finally seek a countermeasure.',
+        highlights: [
+            { word: 'もとむ', form: 'もとむ' },
+        ],
+        source: '徒然草',
+        verified: true,
+    },
+    {
+        // motomu
+        sentence: 'こなたにて御くだもの参りなどしたまへど、やうやう見めぐらして、母君の見えぬをもとめて、らうたげにうちひそみたまへば、乳母召し出でて、慰め紛らはしきこえたまふ。',
+        translation: 'こちらで果物などを召し上がりなさるが、だんだん辺りを見回して、母君の姿が見えないのを探し求めて、いじらしげに泣き顔をなさるので、乳母を呼び出して、お慰め申し上げなさる。',
+        translationEn: 'While she is given fruit and the like to eat here, she gradually looks about and, finding her mother nowhere to be seen, searches for her and screws up her face pitifully as if to cry; so they summon the wet nurse to comfort and distract her.',
+        highlights: [
+            { word: 'もとむ', form: 'もとめ' },
+            { word: 'やうやう', form: 'やうやう' },
+            { word: 'らうたし', form: 'らうたげ' },
+        ],
+        source: '源氏物語 薄雲',
+        verified: true,
+    },
+    {
+        // makaru
+        sentence: '竹取心惑ひて泣き伏せる所に寄りて、かぐや姫いふ、こゝにも心にもあらでかくまかるに、昇らんをだに見送り給へ。',
+        translation: '竹取の翁が心が乱れて泣き伏している所に近寄って、かぐや姫が言うことには、「私もこの場所から不本意ながらこのように去っていくのですから、せめて昇っていくのだけでもお見送りください」。',
+        translationEn: 'Going to where the bamboo cutter lay weeping in distraction, Princess Kaguya says, "Since even I must leave this place against my will in this way, please at least see me off as I ascend."',
+        highlights: [
+            { word: 'まかる', form: 'まかる' },
+        ],
+        source: '竹取物語',
+        verified: true,
+    },
+    {
+        sentence: 'いとうつくしき筆なり。',
+        translation: 'これはとても美しいペンです。',
+        translationEn: 'This is a very beautiful pen.',
+        highlights: [
+            { word: 'いと', form: 'いと' },
+            { word: 'うつくし', form: 'うつくしき' },
+        ],
+        source: '英語の教科書',
+        verified: true,
+    }
 ];
