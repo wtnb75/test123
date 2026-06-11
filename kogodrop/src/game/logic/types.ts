@@ -38,6 +38,7 @@ export interface KogoEntry {
     shortEnglishMeaning: string[];
     verified: boolean;
     rank: 1 | 2 | 3;
+    confusableWith?: string[];
 }
 
 export interface Highlight {

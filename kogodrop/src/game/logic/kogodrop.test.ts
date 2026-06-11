@@ -407,6 +407,40 @@ describe('generateSlots', () => {
         }
     });
 
+    it('excludes entries listed in confusableWith from dummy candidates', () => {
+        const correct = makeEntry('c', 'basic', {
+            shortMeaning: ['まれだ'],
+            confusableWith: ['confusable'],
+        });
+        const confusable = makeEntry('confusable', 'basic', { shortMeaning: ['ほとんど〜ない'] });
+        const clean1 = makeEntry('cl1', 'basic', { shortMeaning: ['かわいい'] });
+        const clean2 = makeEntry('cl2', 'basic', { shortMeaning: ['きれいだ'] });
+        const clean3 = makeEntry('cl3', 'basic', { shortMeaning: ['さびしい'] });
+
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(correct, [correct, confusable, clean1, clean2, clean3], 'jp');
+            const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+            expect(dummies.every((d) => d.id !== 'confusable')).toBe(true);
+        }
+    });
+
+    it('excludes the correct entry when it is listed in a candidate confusableWith (reverse direction)', () => {
+        const correct = makeEntry('c', 'basic', { shortMeaning: ['まれだ'] });
+        const confusable = makeEntry('confusable', 'basic', {
+            shortMeaning: ['ほとんど〜ない'],
+            confusableWith: ['c'],
+        });
+        const clean1 = makeEntry('cl1', 'basic', { shortMeaning: ['かわいい'] });
+        const clean2 = makeEntry('cl2', 'basic', { shortMeaning: ['きれいだ'] });
+        const clean3 = makeEntry('cl3', 'basic', { shortMeaning: ['さびしい'] });
+
+        for (let i = 0; i < 20; i++) {
+            const slots = generateSlots(correct, [correct, confusable, clean1, clean2, clean3], 'jp');
+            const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+            expect(dummies.every((d) => d.id !== 'confusable')).toBe(true);
+        }
+    });
+
     it('falls back to confusing distractor when no clean alternative exists', () => {
         const correct = makeEntry('c', 'basic', { shortMeaning: ['あいさつ'] });
         const confusing = makeEntry('cf', 'basic', { shortMeaning: ['あいして'] });
@@ -606,8 +640,18 @@ describe('data integrity: kogoList', () => {
         const counts = { 1: 0, 2: 0, 3: 0 };
         for (const e of kogoList) counts[e.rank]++;
         expect(counts[1]).toBe(45);
-        expect(counts[2]).toBe(72);
+        expect(counts[2]).toBe(74);
         expect(counts[3]).toBe(17);
+    });
+
+    it('confusableWith references valid, distinct entry ids', () => {
+        const ids = new Set(kogoList.map((e) => e.id));
+        for (const entry of kogoList) {
+            for (const otherId of entry.confusableWith ?? []) {
+                expect(otherId).not.toBe(entry.id);
+                expect(ids.has(otherId)).toBe(true);
+            }
+        }
     });
 
     it('reports entries sharing a 2-char prefix in shortMeaning (filtered at runtime by generateSlots)', () => {
