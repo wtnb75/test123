@@ -1,0 +1,59 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 1 * * 1'  # 毎週月曜 01:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+
+      - uses: arduino/setup-task@v2
+
+      - name: Install dependencies
+        run: task ci
+
+      - name: Update all packages
+        run: task update
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet pnpm-lock.yaml pnpm-workspace.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint, test, build
+        if: steps.changes.outputs.changed == 'true'
+        run: task all
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          branch: chore/update-deps
+          delete-branch: true
+          title: 'chore: update dependencies'
+          body: |
+            ## 依存ライブラリの更新
+
+            `pnpm update -r` による自動更新です。
+
+            PR 作成前に lint・テスト・ビルドはすべて通過済みです。
+            main ブランチの CI も確認してからマージしてください。
+          labels: dependencies
