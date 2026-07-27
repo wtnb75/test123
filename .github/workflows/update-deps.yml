@@ -1,57 +1,18 @@
-name: Update Dependencies
+name: update-deps
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  update:
+  update-deps:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-
-      - uses: arduino/setup-task@v2
-
-      - name: Install dependencies
-        run: task ci
-
-      - name: Update all packages
-        run: task update
-
-      - name: Check for changes
-        id: changes
-        run: |
-          if git diff --quiet pnpm-lock.yaml pnpm-workspace.yaml; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Lint, test, build
-        if: steps.changes.outputs.changed == 'true'
-        run: task all
-
-      - name: Create Pull Request
-        if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'chore: update dependencies'
-          branch: chore/update-deps
-          delete-branch: true
-          title: 'chore: update dependencies'
-          body: |
-            ## 依存ライブラリの更新
-
-            `pnpm update -r` による自動更新です。
-
-            PR 作成前に lint・テスト・ビルドはすべて通過済みです。
-            main ブランチの CI も確認してからマージしてください。
-          labels: dependencies
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: wtnb75/actions/node@59135f92ed798e7963ac725ba850ad93a40f2639 # v1.0.5
+    - uses: wtnb75/actions/nodeupdate@59135f92ed798e7963ac725ba850ad93a40f2639 # v1.0.5
+      with:
+        test-args: "test"

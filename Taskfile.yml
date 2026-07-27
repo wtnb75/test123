@@ -208,21 +208,6 @@ tasks:
     cmds:
       - pnpm outdated -r
 
-  deploy:
-    desc: deploy to gh pages
-    cmds:
-      - task: build:games
-      - task: build:output
-      - |
-        cd output
-        touch .nojekyll
-        git init
-        git checkout -b gh-pages
-        git add -A .
-        git commit -m 'pages'
-        git remote add origin https://github.com/wtnb75/test123.git
-        git push -f origin gh-pages
-
   depcheck:
     desc: depcheck
     cmds:
