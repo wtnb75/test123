@@ -1,27 +1,30 @@
-name: CI
+name: main
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build:
-    permissions:
-      contents: read
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - uses: pnpm/action-setup@v6
-    - uses: actions/setup-node@v6
-    - uses: arduino/setup-task@v2
-    - run: task ci
-    - run: task lint
-    - run: task test
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: wtnb75/actions/node@59135f92ed798e7963ac725ba850ad93a40f2639 # v1.0.5
+    - uses: wtnb75/actions/eslint@59135f92ed798e7963ac725ba850ad93a40f2639 # v1.0.5
+    - uses: wtnb75/actions/vitest@59135f92ed798e7963ac725ba850ad93a40f2639 # v1.0.5
+    - uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
     - run: task build
     - name: create artifact
-      uses: actions/upload-pages-artifact@v5
+      uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
       with:
         path: ./output
+
   deploy:
     needs: build
     permissions:
@@ -31,8 +34,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    if: github.ref_name == 'main'
     steps:
     - name: pages
       id: deployment
-      uses: actions/deploy-pages@v5
+      uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
