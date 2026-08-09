@@ -12,6 +12,7 @@ vars:
     - calc1
     #- nonoedit
     #- editmin
+    #- dutchcalc
 
 tasks:
   default:

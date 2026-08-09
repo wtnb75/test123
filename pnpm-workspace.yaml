@@ -1,6 +1,7 @@
 packages:
   - 'calc1'
   - 'digdle'
+  - 'dutchcalc'
   - 'editmin'
   - 'first-game'
   - 'kogodrop'
