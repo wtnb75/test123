@@ -1,15 +1,27 @@
+:root {
+    --bg: #f4f1e8;
+    --panel: #fffdf7;
+    --line: #d8cfbe;
+    --ink: #2f2a24;
+    --accent: #b24a2e;
+    --error: #b3261e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     padding: 0;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #0f0f0f;
+    color: var(--ink);
+    background: var(--bg);
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
 }
 
-#app {
+#app,
+#game-container,
+canvas {
     width: 100%;
     height: 100vh;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
