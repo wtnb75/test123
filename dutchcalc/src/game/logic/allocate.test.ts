@@ -14,6 +14,11 @@ describe('allocate validation', () => {
         expect(() => allocate({ odds: [Infinity, 2.0], totalUnits: 5, unitPrice: 100 })).toThrow();
     });
 
+    it('throws when more than 20 candidates are given', () => {
+        const odds = new Array(21).fill(2.0);
+        expect(() => allocate({ odds, totalUnits: 21, unitPrice: 100 })).toThrow();
+    });
+
     it('throws when totalUnits is less than the number of candidates', () => {
         expect(() => allocate({ odds: [1.5, 2.0, 3.0], totalUnits: 2, unitPrice: 100 })).toThrow();
     });
@@ -30,6 +35,10 @@ describe('allocate validation', () => {
     it('throws when unitPrice is below 100 or not a multiple of 100', () => {
         expect(() => allocate({ odds: [1.5, 2.0], totalUnits: 10, unitPrice: 50 })).toThrow();
         expect(() => allocate({ odds: [1.5, 2.0], totalUnits: 10, unitPrice: 150 })).toThrow();
+    });
+
+    it('throws when unitPrice is not an integer', () => {
+        expect(() => allocate({ odds: [1.5, 2.0], totalUnits: 10, unitPrice: 150.5 })).toThrow();
     });
 });
 

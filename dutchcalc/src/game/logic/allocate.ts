@@ -20,12 +20,16 @@ export interface AllocationResult {
 }
 
 const MAX_TOTAL_UNITS = 100000;
+const MAX_CANDIDATES = 20;
 
 function validate(input: AllocateInput): void {
     const { odds, totalUnits, unitPrice } = input;
 
     if (odds.length < 2) {
         throw new Error('候補は2件以上指定してください');
+    }
+    if (odds.length > MAX_CANDIDATES) {
+        throw new Error(`候補は${MAX_CANDIDATES}件以下にしてください`);
     }
     for (const o of odds) {
         if (!Number.isFinite(o) || o <= 1.0) {
