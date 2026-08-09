@@ -52,9 +52,10 @@ function validate(input: AllocateInput): void {
 }
 
 // Sequential greedy: always add one unit to whichever candidate currently has
-// the smallest projected payout, tie-broken by the lowest index. Verified
-// against brute-force enumeration for small candidate counts in allocate.test.ts.
-function computeUnits(odds: number[], totalUnits: number): number[] {
+// the smallest projected payout, tie-broken by the lowest index. This alone is
+// not guaranteed optimal (it can overshoot on the last few units), so it is
+// followed by a local-search refinement pass — see refineSpread().
+function greedyAllocate(odds: number[], totalUnits: number): number[] {
     const units = new Array<number>(odds.length).fill(1);
     let remaining = totalUnits - odds.length;
 
@@ -73,6 +74,44 @@ function computeUnits(odds: number[], totalUnits: number): number[] {
     }
 
     return units;
+}
+
+// Repeatedly move one unit from the current max-payout candidate to the
+// current min-payout candidate, as long as doing so strictly reduces the
+// spread (max payout - min payout) across all candidates. Each accepted move
+// strictly decreases the spread over a finite set of unit distributions, so
+// this always terminates. This closes most of the gap the greedy pass alone
+// leaves behind, though it is still a heuristic, not a proven global optimum.
+function refineSpread(units: number[], odds: number[]): number[] {
+    const refined = units.slice();
+
+    for (;;) {
+        const payouts = refined.map((u, i) => u * odds[i]);
+        const maxIndex = payouts.indexOf(Math.max(...payouts));
+        const minIndex = payouts.indexOf(Math.min(...payouts));
+        if (maxIndex === minIndex || refined[maxIndex] <= 1) {
+            break;
+        }
+
+        const currentSpread = payouts[maxIndex] - payouts[minIndex];
+        const movedMaxPayout = (refined[maxIndex] - 1) * odds[maxIndex];
+        const movedMinPayout = (refined[minIndex] + 1) * odds[minIndex];
+        const unaffectedPayouts = payouts.filter((_, i) => i !== maxIndex && i !== minIndex);
+        const candidatePayouts = [movedMaxPayout, movedMinPayout, ...unaffectedPayouts];
+        const newSpread = Math.max(...candidatePayouts) - Math.min(...candidatePayouts);
+
+        if (newSpread >= currentSpread) {
+            break;
+        }
+        refined[maxIndex] -= 1;
+        refined[minIndex] += 1;
+    }
+
+    return refined;
+}
+
+function computeUnits(odds: number[], totalUnits: number): number[] {
+    return refineSpread(greedyAllocate(odds, totalUnits), odds);
 }
 
 export function allocate(input: AllocateInput): AllocationResult {

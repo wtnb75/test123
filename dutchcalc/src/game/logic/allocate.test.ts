@@ -113,7 +113,11 @@ describe('allocate algorithm', () => {
         const cases = [
             { odds: [1.5, 2.3, 5.0], totalUnits: 10, unitPrice: 100 },
             { odds: [1.1, 1.1, 1.1, 1.1], totalUnits: 9, unitPrice: 100 },
-            { odds: [2.0, 100.0], totalUnits: 6, unitPrice: 100 }
+            { odds: [2.0, 100.0], totalUnits: 6, unitPrice: 100 },
+            // Regression case: the greedy pass alone overshoots here (units
+            // [6, 2], spread 700) and only the local-search refinement pass
+            // reaches the brute-force optimum (units [7, 1], spread 250).
+            { odds: [1.5, 8.0], totalUnits: 8, unitPrice: 100 }
         ];
 
         for (const testCase of cases) {
