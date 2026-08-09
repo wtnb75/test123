@@ -13,6 +13,8 @@ vars:
     #- nonoedit
     #- editmin
     #- dutchcalc
+  ALL_GAMES:
+    sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 
 tasks:
   default:
@@ -52,7 +54,7 @@ tasks:
       - rm -rf output
       - mkdir output
       - for:
-          var: GAMES
+          var: ALL_GAMES
         cmd: rsync -av {{ .ITEM }}/dist/ output/{{ .ITEM }}/
       - |
         cat <<EOF > output/index.html
