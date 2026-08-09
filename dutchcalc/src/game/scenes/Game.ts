@@ -1,8 +1,5 @@
 import { Scene } from 'phaser';
-import { allocate, type AllocationResult } from '../logic/allocate';
-
-const MAX_CANDIDATES = 20;
-const MIN_CANDIDATES = 2;
+import { allocate, MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES, type AllocationResult } from '../logic/allocate';
 
 type UiRefs = {
     root: HTMLDivElement;
@@ -57,7 +54,7 @@ export class Game extends Scene {
             <button class="dutchcalc-btn" data-role="add-candidate">候補を追加</button>
             <div class="dutchcalc-row">
               <label>合計口数</label>
-              <input data-role="total-units" type="number" min="1" step="1" value="10" />
+              <input data-role="total-units" type="number" min="1" max="${MAX_TOTAL_UNITS}" step="1" value="10" />
             </div>
             <div class="dutchcalc-row">
               <label>1口あたり金額</label>

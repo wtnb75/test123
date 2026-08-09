@@ -31,12 +31,12 @@ dutchcalc
 
 # 画面・Scene 構成
 
-## MainScene（単一 Scene）
+## Game（単一 Scene）
 
 - フォーム入力・結果表示を単一 Scene 内の DOM オーバーレイで完結させる
 - `create` でフォーム DOM（候補行・合計口数・単価・ボタン群）と結果表示用 DOM を構築する
 - 毎フレーム処理（`update`）は行わない。すべてイベント駆動（ボタン click / input change）で更新する
-- 配分計算ロジックは Scene から分離した `src/logic/allocate.ts` の純粋関数として実装し、Scene はその呼び出しと DOM 反映のみを担当する
+- 配分計算ロジックは Scene から分離した `src/game/logic/allocate.ts` の純粋関数として実装し、Scene はその呼び出しと DOM 反映のみを担当する
 
 # ルール（勝利条件、失敗条件、スコア条件）
 
@@ -77,7 +77,7 @@ dutchcalc
 # 技術要件
 
 - Phaser 4 + TypeScript + Vite で実装する（`editmin` と同じ構成を踏襲）
-- 配分計算ロジック（`src/logic/allocate.ts`）は Phaser に依存しない純粋関数として実装し、Vitest で単体テストする
+- 配分計算ロジック（`src/game/logic/allocate.ts`）は Phaser に依存しない純粋関数として実装し、Vitest で単体テストする
 - フォーム・結果表示は `Phaser.GameObjects.DOMElement` による DOM オーバーレイで実装する（`editmin` の `<input type="number">` パターンを踏襲）
 - ビルドは Vite（静的出力）を前提とする
 - ESLint エラー 0 を維持する
@@ -91,7 +91,7 @@ dutchcalc
   - `totalUnits < candidates.length` の場合にエラーになる
   - `odds[i] <= 1.0` を含む場合にエラーになる
   - `unitPrice` が 100 未満、または 100 の倍数でない場合にエラーになる
-  - 候補が1件のみの場合、全口数がその候補に割り当てられる
+  - 候補数が1件、または21件以上の場合にエラーになる（候補数は2〜20件）
   - `totalUnits === candidates.length`（remaining = 0）の場合、全候補が1口ずつになる
   - 払戻額が同値でタイになった場合、インデックスが小さい候補から優先して口数が加算される（決定論的な挙動）
   - `totalUnits` が上限（100,000）を超える場合にエラーになる
@@ -105,5 +105,5 @@ dutchcalc
 # 完了条件
 
 - `npm run lint` / `npm run test` / `npm run test:coverage` / `npm run build` がすべて成功する
-- `src/logic/allocate.ts` のテストカバレッジが 90% 以上
+- `src/game/logic/allocate.ts` のテストカバレッジが 90% 以上
 - README.md に目的・ルール・操作方法を記載する

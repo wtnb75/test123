@@ -19,14 +19,15 @@ export interface AllocationResult {
     spread: number;
 }
 
-const MAX_TOTAL_UNITS = 100000;
-const MAX_CANDIDATES = 20;
+export const MAX_TOTAL_UNITS = 100000;
+export const MIN_CANDIDATES = 2;
+export const MAX_CANDIDATES = 20;
 
 function validate(input: AllocateInput): void {
     const { odds, totalUnits, unitPrice } = input;
 
-    if (odds.length < 2) {
-        throw new Error('候補は2件以上指定してください');
+    if (odds.length < MIN_CANDIDATES) {
+        throw new Error(`候補は${MIN_CANDIDATES}件以上指定してください`);
     }
     if (odds.length > MAX_CANDIDATES) {
         throw new Error(`候補は${MAX_CANDIDATES}件以下にしてください`);

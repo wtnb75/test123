@@ -26,14 +26,14 @@
 
 ### ファイル構成
 
-- `src/logic/allocate.ts`: 配分計算のピュア関数群。Phaser に依存しない純粋な TypeScript として実装し、Vitest で単体テストする
-- `src/game/scenes/MainScene.ts`: 単一 Scene。DOM オーバーレイ（`Phaser.GameObjects.DOMElement`）でフォームと結果テーブルを描画する（`editmin` の `<input type="number">` パターンを踏襲）
+- `src/game/logic/allocate.ts`: 配分計算のピュア関数群。Phaser に依存しない純粋な TypeScript として実装し、Vitest で単体テストする
+- `src/game/scenes/Game.ts`: 単一 Scene。DOM オーバーレイ（`Phaser.GameObjects.DOMElement`）でフォームと結果テーブルを描画する（`editmin` の `<input type="number">` パターンを踏襲）
 - `docs/spec.md`: `AGENTS.md` 2.4 節の必須項目に沿ったゲーム（ツール）仕様書。既に作成済み（`AGENTS.md` 2.4 の規定通り実装前に作成した）
 - `README.md`: ツールの目的・ルール・操作方法を記載
 
 フォーム入力 → 計算 → 結果表示は単一 Scene 内の状態遷移として扱い、`init`/`create`/`update` の責務混在は避ける（フォーム構築は `create`、毎フレーム処理は使わない想定）。
 
-## データモデル・配分アルゴリズム（`src/logic/allocate.ts`）
+## データモデル・配分アルゴリズム（`src/game/logic/allocate.ts`）
 
 ### 入力
 
@@ -91,7 +91,7 @@ interface AllocationResult {
 
 エラー時は `Error` を投げる（呼び出し側の Scene で捕捉し、DOM 上にエラーメッセージを表示する）。
 
-## UI（`MainScene`）
+## UI（`Game`）
 
 - 候補行: 倍率入力（`<input type="number" step="0.1" min="1.01">`）＋ 削除ボタンを行ごとに配置。「候補を追加」ボタンで行を増やせる（上限 20 件程度）
 - 候補行が 2 件のときは削除ボタンを無効化する（最低 2 候補を維持）
@@ -107,7 +107,7 @@ interface AllocationResult {
 
 ## テスト方針
 
-`src/logic/allocate.ts` に対する Vitest 単体テストでカバレッジ 90% 以上を狙う（純粋関数のため到達しやすい）。
+`src/game/logic/allocate.ts` に対する Vitest 単体テストでカバレッジ 90% 以上を狙う（純粋関数のため到達しやすい）。
 
 - 倍率がすべて同一 → 口数がほぼ均等に分配される（差が 1 以内）
 - 倍率が大きく偏っている → 払戻額の `spread` が最小化されること、かつ `sum(units) === totalUnits` が常に成立すること
@@ -124,6 +124,6 @@ Scene 側（DOM 操作・フォームの追加削除・エラー表示）は `ed
 ## 完了条件
 
 - `npm run lint` / `npm run test` / `npm run test:coverage` / `npm run build` がすべて成功する
-- `src/logic/allocate.ts` のテストカバレッジが 90% 以上
+- `src/game/logic/allocate.ts` のテストカバレッジが 90% 以上
 - `README.md` に目的・ルール・操作方法を記載
 - `docs/spec.md` を `AGENTS.md` 2.4 節の必須項目に沿って作成する
