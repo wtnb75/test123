@@ -40,6 +40,14 @@ describe('generateWaypoints', () => {
         expect(start).toEqual({ x: bounds.margin, y: bounds.height / 2 });
     });
 
+    it('returns only the start point when waypointCount is 1, avoiding a 0/0 division', () => {
+        const points = generateWaypoints(7, 1, 30, bounds);
+        expect(points).toHaveLength(1);
+        expect(points[0]).toEqual({ x: bounds.margin, y: bounds.height / 2 });
+        expect(Number.isNaN(points[0].x)).toBe(false);
+        expect(Number.isNaN(points[0].y)).toBe(false);
+    });
+
     it('reaches close to the right edge of the playable width regardless of curvature', () => {
         const waypointCount = 8;
         const points = generateWaypoints(3, waypointCount, 60, bounds);
