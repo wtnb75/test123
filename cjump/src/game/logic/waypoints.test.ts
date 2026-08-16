@@ -39,4 +39,14 @@ describe('generateWaypoints', () => {
         const [start] = generateWaypoints(1, 4, 30, bounds);
         expect(start).toEqual({ x: bounds.margin, y: bounds.height / 2 });
     });
+
+    it('reaches close to the right edge of the playable width regardless of curvature', () => {
+        const waypointCount = 8;
+        const points = generateWaypoints(3, waypointCount, 60, bounds);
+        const last = points[points.length - 1];
+        const targetX = bounds.width - bounds.margin;
+        const playableSpan = targetX - bounds.margin;
+        expect(last.x).toBeGreaterThan(targetX - playableSpan * 0.3);
+        expect(last.x).toBeLessThan(targetX + playableSpan * 0.3);
+    });
 });

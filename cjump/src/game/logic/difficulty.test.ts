@@ -6,7 +6,7 @@ describe('getDifficultyParams', () => {
     it('returns the baseline values for stage 1', () => {
         expect(getDifficultyParams(1)).toEqual({
             thetaMaxDeg: 30,
-            waypointCount: 4,
+            waypointCount: 6,
             circleSpawnIntervalMs: 400,
             circleGrowthSpeedPxPerSec: 220
         });
@@ -15,7 +15,7 @@ describe('getDifficultyParams', () => {
     it('returns the hardest values for the final stage', () => {
         expect(getDifficultyParams(STAGE_COUNT)).toEqual({
             thetaMaxDeg: 90,
-            waypointCount: 13,
+            waypointCount: 15,
             circleSpawnIntervalMs: 130,
             circleGrowthSpeedPxPerSec: 400
         });

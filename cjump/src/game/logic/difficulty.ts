@@ -11,7 +11,7 @@ export function getDifficultyParams(stage: number): DifficultyParams {
     const s = Math.min(Math.max(stage, 1), STAGE_COUNT);
     return {
         thetaMaxDeg: Math.min(30 + 10 * (s - 1), 90),
-        waypointCount: 3 + s,
+        waypointCount: 5 + s,
         circleSpawnIntervalMs: Math.max(400 - 30 * (s - 1), 130),
         circleGrowthSpeedPxPerSec: 220 + 20 * (s - 1)
     };
