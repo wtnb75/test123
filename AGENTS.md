@@ -24,17 +24,23 @@
 
 ### 2.2 ゲームディレクトリ作成コマンド
 
-- 新規ゲーム作成は以下を使用する
-	- `npm create @phaserjs/game@latest <game-dir>`
+- 新規ゲーム作成は `npm create @phaserjs/game@latest` を直接使わず、必ずリポジトリルートの以下タスクを使う
+	- `task newgame PACKAGE=<game-dir>`
 - 例
-	- `npm create @phaserjs/game@latest game-memory-cards`
+	- `task newgame PACKAGE=game-memory-cards`
+- このタスクは内部で `pnpm create @phaserjs/game@latest <game-dir>` を実行したうえで、以下をまとめて行う
+	- `package.json` を `base.json`（モノレポ共通設定）とマージし、依存関係を `pnpm-workspace.yaml` の `catalog:` 参照に統一する
+	- `scaffold/eslint.config.mjs` / `scaffold/vitest.config.ts`（カバレッジ90%閾値つき）を配置する
+	- `pnpm-workspace.yaml` の `packages:` と `Taskfile.yml` の `GAMES`（コメントアウト状態）に登録する
+- `task newgame` 実行後、必ず以下を行う
+	- `<game-dir>/package.json` の `description` をゲーム内容に合わせて書き換える
+	- `pnpm install` を実行してロックファイルを更新する
+	- 公開一覧（トップページ）に載せる準備ができたら `Taskfile.yml` の `GAMES` 該当行のコメントアウトを外す
 
 ### 2.3 オプション指定ルール
 
-- CLI 引数で指定できる主要オプションはフォルダ名のみ
-- テンプレート種別（Web Bundler など）や Bundler（Vite など）は対話プロンプトで選択する
-- 初回の推奨選択は `Web Bundler` -> `Vite`
-- 言語選択が表示される場合は、プロジェクト方針に合わせて JavaScript または TypeScript を選ぶ
+- `task newgame` の `PACKAGE=` にはフォルダ名のみを指定する（テンプレート種別・Bundler 選択などは内部で `Web Bundler` -> `Vite` に固定される）
+- 言語は TypeScript を用いる（既存ゲームはすべて TypeScript）
 - 新規ゲーム作成後は、ルートの `.gitignore` 共通ルールに合うよう除外設定を確認する
 
 ### 2.4 アイデア仕様ファイル
@@ -132,5 +138,20 @@
 - `test`: Vitest 実行
 - `test:coverage`: Vitest カバレッジ実行
 - `build`: Vite ビルド（定義済み）
+
+## 9. ヘッドレスブラウザでの動作確認（Docker + Playwright）
+
+- 単体テストでは検証できない見た目・操作感（速度感、当たり判定の体感、演出）は、可能な限り実ブラウザで確認する
+- サンドボックス環境に headless Chromium の依存関係が無く直接は動かせない場合でも、`docker` が使えるなら Playwright の公式イメージ（`mcr.microsoft.com/playwright:<tag>`。Chromium 同梱、事前キャッシュされていることが多い）で代替できる
+- 手順
+	1. 確認したいゲームのディレクトリで dev サーバーを起動する（例: `npm run dev -- --port <PORT> --host 0.0.0.0`）
+	2. **エージェントセッション自体が Docker コンテナ内で動いている場合の注意**: QA 用コンテナに `--network host` を指定しても、それは dockerd 側ホストのネットワークを指すのであって、このセッションの `localhost` には届かない
+		- 自セッションが属する Docker ネットワークを先に調べる: `hostname` でコンテナIDを取得し、`docker inspect <そのID> --format '{{json .NetworkSettings.Networks}}'` でネットワーク名と自分の IP を確認する
+		- QA 用コンテナは `--network host` ではなく、自セッションと同じネットワーク名を指定して起動する: `docker run -d --name <name> --network <自分と同じネットワーク名> mcr.microsoft.com/playwright:<tag> sleep infinity`
+		- dev サーバーへは `localhost` ではなく自セッションの IP（例 `http://192.168.x.x:<PORT>`）でアクセスする
+	3. ホストのファイルを直接コンテナへ bind mount (`-v`) しない。dockerd が別VM/別マウント名前空間で動いている環境では、bind mount したパスがコンテナ内で空ディレクトリになる（サイレント失敗）。スクリプトの受け渡しや結果の回収は `docker cp` で行う
+	4. Playwright イメージにはブラウザ本体のみプリインストールされているため、コンテナ内で `npm install playwright@<バージョン>`（イメージのタグと合わせる）を実行してから使う
+	5. Phaser などキャンバス描画のゲームは結果を DOM から読めないため、`page.screenshot()` で撮ったスクリーンショットを `docker cp` で取り出し、目視で確認する（クリア／ゲームオーバー等の判定も同様）
+	6. 確認が終わったら QA 用コンテナ（`docker rm -f <name>`）と dev サーバープロセスを必ず後片付けする
 
 以上。

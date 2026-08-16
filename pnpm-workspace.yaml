@@ -1,5 +1,6 @@
 packages:
   - 'calc1'
+  - 'cjump'
   - 'digdle'
   - 'dutchcalc'
   - 'editmin'

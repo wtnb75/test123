@@ -31,3 +31,7 @@ package-lock.json
 
 # design docs
 **/superpowers/plans/*.md
+
+/.codegraph
+/.pnpm-store
+.gstack/
