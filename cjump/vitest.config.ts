@@ -13,7 +13,11 @@ export default defineConfig({
                 'src/vite-env.d.ts',
                 'src/main.ts',
                 'src/game/main.ts',
-                'src/game/scenes/Game.ts'
+                'src/game/scenes/Boot.ts',
+                'src/game/scenes/StageSelect.ts',
+                'src/game/scenes/Game.ts',
+                'src/game/scenes/StageClear.ts',
+                'src/game/scenes/GameOver.ts'
             ],
             thresholds: {
                 statements: 90,
