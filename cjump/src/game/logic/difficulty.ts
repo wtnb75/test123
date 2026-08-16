@@ -12,7 +12,7 @@ export function getDifficultyParams(stage: number): DifficultyParams {
     return {
         thetaMaxDeg: Math.min(30 + 10 * (s - 1), 90),
         waypointCount: 3 + s,
-        circleSpawnIntervalMs: Math.max(1800 - 120 * (s - 1), 600),
-        circleGrowthSpeedPxPerSec: 40 + 8 * (s - 1)
+        circleSpawnIntervalMs: Math.max(400 - 30 * (s - 1), 130),
+        circleGrowthSpeedPxPerSec: 220 + 20 * (s - 1)
     };
 }

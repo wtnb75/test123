@@ -7,8 +7,8 @@ describe('getDifficultyParams', () => {
         expect(getDifficultyParams(1)).toEqual({
             thetaMaxDeg: 30,
             waypointCount: 4,
-            circleSpawnIntervalMs: 1800,
-            circleGrowthSpeedPxPerSec: 40
+            circleSpawnIntervalMs: 400,
+            circleGrowthSpeedPxPerSec: 220
         });
     });
 
@@ -16,8 +16,8 @@ describe('getDifficultyParams', () => {
         expect(getDifficultyParams(STAGE_COUNT)).toEqual({
             thetaMaxDeg: 90,
             waypointCount: 13,
-            circleSpawnIntervalMs: 720,
-            circleGrowthSpeedPxPerSec: 112
+            circleSpawnIntervalMs: 130,
+            circleGrowthSpeedPxPerSec: 400
         });
     });
 
@@ -35,12 +35,12 @@ describe('getDifficultyParams', () => {
         }
     });
 
-    it('decreases circleSpawnIntervalMs as the stage advances, floored at 600', () => {
+    it('decreases circleSpawnIntervalMs as the stage advances, floored at 130', () => {
         for (let stage = 1; stage < STAGE_COUNT; stage++) {
             const current = getDifficultyParams(stage);
             const next = getDifficultyParams(stage + 1);
             expect(next.circleSpawnIntervalMs).toBeLessThanOrEqual(current.circleSpawnIntervalMs);
-            expect(next.circleSpawnIntervalMs).toBeGreaterThanOrEqual(600);
+            expect(next.circleSpawnIntervalMs).toBeGreaterThanOrEqual(130);
         }
     });
 });
