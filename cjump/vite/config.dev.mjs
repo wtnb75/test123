@@ -5,8 +5,11 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                manualChunks: {
-                    phaser: ['phaser']
+                manualChunks: (id) => {
+                    if (id.includes('/node_modules/phaser/')) {
+                        return 'phaser';
+                    }
+                    return undefined;
                 }
             }
         },
