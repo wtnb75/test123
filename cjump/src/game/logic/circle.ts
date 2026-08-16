@@ -19,9 +19,18 @@ export function createCircle(id: number, rng: () => number, bounds: ScreenBounds
     };
 }
 
-export function getRadius(circle: CircleObstacle, nowMs: number, growthSpeedPxPerSec: number): number {
-    const elapsedSec = Math.max(nowMs - circle.spawnedAtMs, 0) / 1000;
+export function getRadius(
+    circle: CircleObstacle,
+    nowMs: number,
+    growthSpeedPxPerSec: number,
+    warningMs: number
+): number {
+    const elapsedSec = Math.max(nowMs - circle.spawnedAtMs - warningMs, 0) / 1000;
     return elapsedSec * growthSpeedPxPerSec;
+}
+
+export function isWarning(circle: CircleObstacle, nowMs: number, warningMs: number): boolean {
+    return nowMs - circle.spawnedAtMs < warningMs;
 }
 
 export function isOffScreen(circle: CircleObstacle, radius: number, bounds: ScreenBounds): boolean {

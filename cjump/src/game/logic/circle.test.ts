@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createCircle, getRadius, isOffScreen } from './circle';
+import { createCircle, getRadius, isOffScreen, isWarning } from './circle';
 
 const bounds = { width: 960, height: 600 };
 
@@ -15,14 +15,36 @@ describe('createCircle', () => {
 describe('getRadius', () => {
     const circle = { id: 1, x: 0, y: 0, spawnedAtMs: 1000 };
 
-    it('grows linearly with elapsed time', () => {
-        expect(getRadius(circle, 1000, 50)).toBe(0);
-        expect(getRadius(circle, 2000, 50)).toBe(50);
-        expect(getRadius(circle, 3000, 50)).toBe(100);
+    it('stays at 0 during the warning phase', () => {
+        expect(getRadius(circle, 1000, 50, 500)).toBe(0);
+        expect(getRadius(circle, 1300, 50, 500)).toBe(0);
+        expect(getRadius(circle, 1499, 50, 500)).toBe(0);
+    });
+
+    it('grows linearly with elapsed time after the warning phase ends', () => {
+        expect(getRadius(circle, 1500, 50, 500)).toBe(0);
+        expect(getRadius(circle, 2500, 50, 500)).toBe(50);
+        expect(getRadius(circle, 3500, 50, 500)).toBe(100);
     });
 
     it('never returns a negative radius when called before the spawn time', () => {
-        expect(getRadius(circle, 500, 50)).toBe(0);
+        expect(getRadius(circle, 500, 50, 500)).toBe(0);
+    });
+});
+
+describe('isWarning', () => {
+    const circle = { id: 1, x: 0, y: 0, spawnedAtMs: 1000 };
+
+    it('is true immediately after spawn', () => {
+        expect(isWarning(circle, 1000, 500)).toBe(true);
+    });
+
+    it('is true just before the warning duration elapses', () => {
+        expect(isWarning(circle, 1499, 500)).toBe(true);
+    });
+
+    it('is false once the warning duration has elapsed', () => {
+        expect(isWarning(circle, 1500, 500)).toBe(false);
     });
 });
 

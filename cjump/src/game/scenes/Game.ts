@@ -6,11 +6,12 @@ import {
     EDGE_LINE_WIDTH,
     COLLISION_TOLERANCE,
     JUMP_DURATION_MS,
-    CHARACTER_PIXEL_SPEED_PER_SEC
+    CHARACTER_PIXEL_SPEED_PER_SEC,
+    CIRCLE_WARNING_MS
 } from '../logic/constants';
 import { getDifficultyParams } from '../logic/difficulty';
 import { generateWaypoints } from '../logic/waypoints';
-import { createCircle, getRadius, isOffScreen, type CircleObstacle } from '../logic/circle';
+import { createCircle, getRadius, isOffScreen, isWarning, type CircleObstacle } from '../logic/circle';
 import { isTouchingEdge } from '../logic/collision';
 import {
     createCharacterState,
@@ -139,14 +140,20 @@ export class Game extends Scene {
 
     private updateCircles() {
         this.circles = this.circles.filter((live) => {
-            const radius = getRadius(live.obstacle, this.time.now, this.growthSpeedPxPerSec);
+            const warning = isWarning(live.obstacle, this.time.now, CIRCLE_WARNING_MS);
+            const radius = getRadius(live.obstacle, this.time.now, this.growthSpeedPxPerSec, CIRCLE_WARNING_MS);
             if (isOffScreen(live.obstacle, radius, { width: GAME_WIDTH, height: GAME_HEIGHT })) {
                 live.graphics.destroy();
                 return false;
             }
             live.graphics.clear();
-            live.graphics.lineStyle(EDGE_LINE_WIDTH, 0xe74c3c, 1);
-            live.graphics.strokeCircle(live.obstacle.x, live.obstacle.y, radius);
+            if (warning) {
+                live.graphics.lineStyle(2, 0xffffff, 0.8);
+                live.graphics.strokeCircle(live.obstacle.x, live.obstacle.y, 6);
+            } else {
+                live.graphics.lineStyle(EDGE_LINE_WIDTH, 0xe74c3c, 1);
+                live.graphics.strokeCircle(live.obstacle.x, live.obstacle.y, radius);
+            }
             return true;
         });
     }
@@ -154,7 +161,10 @@ export class Game extends Scene {
     private checkCollisions() {
         const point = this.path.getPoint(this.character.t);
         for (const live of this.circles) {
-            const radius = getRadius(live.obstacle, this.time.now, this.growthSpeedPxPerSec);
+            if (isWarning(live.obstacle, this.time.now, CIRCLE_WARNING_MS)) {
+                continue;
+            }
+            const radius = getRadius(live.obstacle, this.time.now, this.growthSpeedPxPerSec, CIRCLE_WARNING_MS);
             if (isTouchingEdge(point.x, point.y, live.obstacle.x, live.obstacle.y, radius, COLLISION_TOLERANCE)) {
                 this.finish(false);
                 return;
