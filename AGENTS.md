@@ -24,17 +24,23 @@
 
 ### 2.2 ゲームディレクトリ作成コマンド
 
-- 新規ゲーム作成は以下を使用する
-	- `npm create @phaserjs/game@latest <game-dir>`
+- 新規ゲーム作成は `npm create @phaserjs/game@latest` を直接使わず、必ずリポジトリルートの以下タスクを使う
+	- `task newgame PACKAGE=<game-dir>`
 - 例
-	- `npm create @phaserjs/game@latest game-memory-cards`
+	- `task newgame PACKAGE=game-memory-cards`
+- このタスクは内部で `pnpm create @phaserjs/game@latest <game-dir>` を実行したうえで、以下をまとめて行う
+	- `package.json` を `base.json`（モノレポ共通設定）とマージし、依存関係を `pnpm-workspace.yaml` の `catalog:` 参照に統一する
+	- `scaffold/eslint.config.mjs` / `scaffold/vitest.config.ts`（カバレッジ90%閾値つき）を配置する
+	- `pnpm-workspace.yaml` の `packages:` と `Taskfile.yml` の `GAMES`（コメントアウト状態）に登録する
+- `task newgame` 実行後、必ず以下を行う
+	- `<game-dir>/package.json` の `description` をゲーム内容に合わせて書き換える
+	- `pnpm install` を実行してロックファイルを更新する
+	- 公開一覧（トップページ）に載せる準備ができたら `Taskfile.yml` の `GAMES` 該当行のコメントアウトを外す
 
 ### 2.3 オプション指定ルール
 
-- CLI 引数で指定できる主要オプションはフォルダ名のみ
-- テンプレート種別（Web Bundler など）や Bundler（Vite など）は対話プロンプトで選択する
-- 初回の推奨選択は `Web Bundler` -> `Vite`
-- 言語選択が表示される場合は、プロジェクト方針に合わせて JavaScript または TypeScript を選ぶ
+- `task newgame` の `PACKAGE=` にはフォルダ名のみを指定する（テンプレート種別・Bundler 選択などは内部で `Web Bundler` -> `Vite` に固定される）
+- 言語は TypeScript を用いる（既存ゲームはすべて TypeScript）
 - 新規ゲーム作成後は、ルートの `.gitignore` 共通ルールに合うよう除外設定を確認する
 
 ### 2.4 アイデア仕様ファイル
