@@ -139,4 +139,19 @@
 - `test:coverage`: Vitest カバレッジ実行
 - `build`: Vite ビルド（定義済み）
 
+## 9. ヘッドレスブラウザでの動作確認（Docker + Playwright）
+
+- 単体テストでは検証できない見た目・操作感（速度感、当たり判定の体感、演出）は、可能な限り実ブラウザで確認する
+- サンドボックス環境に headless Chromium の依存関係が無く直接は動かせない場合でも、`docker` が使えるなら Playwright の公式イメージ（`mcr.microsoft.com/playwright:<tag>`。Chromium 同梱、事前キャッシュされていることが多い）で代替できる
+- 手順
+	1. 確認したいゲームのディレクトリで dev サーバーを起動する（例: `npm run dev -- --port <PORT> --host 0.0.0.0`）
+	2. **エージェントセッション自体が Docker コンテナ内で動いている場合の注意**: QA 用コンテナに `--network host` を指定しても、それは dockerd 側ホストのネットワークを指すのであって、このセッションの `localhost` には届かない
+		- 自セッションが属する Docker ネットワークを先に調べる: `hostname` でコンテナIDを取得し、`docker inspect <そのID> --format '{{json .NetworkSettings.Networks}}'` でネットワーク名と自分の IP を確認する
+		- QA 用コンテナは `--network host` ではなく、自セッションと同じネットワーク名を指定して起動する: `docker run -d --name <name> --network <自分と同じネットワーク名> mcr.microsoft.com/playwright:<tag> sleep infinity`
+		- dev サーバーへは `localhost` ではなく自セッションの IP（例 `http://192.168.x.x:<PORT>`）でアクセスする
+	3. ホストのファイルを直接コンテナへ bind mount (`-v`) しない。dockerd が別VM/別マウント名前空間で動いている環境では、bind mount したパスがコンテナ内で空ディレクトリになる（サイレント失敗）。スクリプトの受け渡しや結果の回収は `docker cp` で行う
+	4. Playwright イメージにはブラウザ本体のみプリインストールされているため、コンテナ内で `npm install playwright@<バージョン>`（イメージのタグと合わせる）を実行してから使う
+	5. Phaser などキャンバス描画のゲームは結果を DOM から読めないため、`page.screenshot()` で撮ったスクリーンショットを `docker cp` で取り出し、目視で確認する（クリア／ゲームオーバー等の判定も同様）
+	6. 確認が終わったら QA 用コンテナ（`docker rm -f <name>`）と dev サーバープロセスを必ず後片付けする
+
 以上。
