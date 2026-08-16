@@ -39,6 +39,8 @@ export class Game extends Scene {
     private routeGraphics!: GameObjects.Graphics;
     private characterGraphics!: GameObjects.Graphics;
     private finished = false;
+    private readonly handlePointerDown = () => this.jump();
+    private readonly handleSpaceDown = () => this.jump();
 
     constructor() {
         super('Game');
@@ -74,8 +76,22 @@ export class Game extends Scene {
 
         this.characterGraphics = this.add.graphics();
 
-        this.input.on('pointerdown', () => this.jump());
-        this.input.keyboard?.on('keydown-SPACE', () => this.jump());
+        this.registerInputHandlers();
+        this.events.once('shutdown', this.shutdown, this);
+    }
+
+    private registerInputHandlers() {
+        // Remove first so a scene restart (retry / next stage) never double-registers.
+        this.input.off('pointerdown', this.handlePointerDown);
+        this.input.keyboard?.off('keydown-SPACE', this.handleSpaceDown);
+
+        this.input.on('pointerdown', this.handlePointerDown);
+        this.input.keyboard?.on('keydown-SPACE', this.handleSpaceDown);
+    }
+
+    private shutdown() {
+        this.input.off('pointerdown', this.handlePointerDown);
+        this.input.keyboard?.off('keydown-SPACE', this.handleSpaceDown);
     }
 
     private jump() {
