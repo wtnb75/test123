@@ -6,7 +6,7 @@ import type { BinaryCell } from './types';
 const analyzeGrid = (grid: BinaryCell[][], maxMillis = 3000) =>
     analyzePuzzle(grid, generateRowHints(grid), generateColHints(grid), maxMillis);
 
-// 6x6 fixtures found by seeded search; each needs the named technique to make progress.
+// Fixtures found by seeded search; each needs the named technique to make progress.
 const boxReductionGrid: BinaryCell[][] = [
     [1, 1, 0, 1, 1, 0],
     [1, 0, 0, 1, 0, 0],
@@ -24,12 +24,11 @@ const probeGrid: BinaryCell[][] = [
     [0, 0, 1, 1, 0, 1],
 ];
 const regionSplitGrid: BinaryCell[][] = [
-    [1, 1, 1, 0, 0, 0],
-    [0, 0, 1, 0, 0, 1],
-    [0, 1, 0, 0, 0, 1],
-    [1, 1, 0, 1, 1, 0],
-    [0, 1, 0, 1, 1, 1],
-    [0, 1, 0, 1, 1, 0],
+    [1, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0],
+    [1, 0, 1, 0, 0],
+    [0, 0, 1, 1, 1],
+    [0, 1, 1, 0, 1],
 ];
 
 describe('solver', () => {
@@ -244,18 +243,66 @@ describe('solver advanced techniques', () => {
         );
 
         expect(result.score).toBe(expected);
-        expect(result.score).toBe(67);
+        expect(result.score).toBe(75);
     });
 
-    it('marks entangled cells as empty via region-split and leaves the rest unsolved logically', () => {
+    it('uses region-split on a small board and still solves it uniquely', () => {
         const result = analyzeGrid(regionSplitGrid);
 
         expect(result.techniquesUsed['region-split']).toBeGreaterThan(0);
+        expect(result).toMatchObject({ solvable: true, unique: true, logical: true, remainingCells: 0, difficulty: 'normal' });
+    });
+});
+
+describe('solver soundness', () => {
+    // Row 5 has hints [1, 2]: the leftmost placement (101100) and rightmost placement (001011)
+    // both fill column 2, but with different blocks, so column 2 must not be deduced as filled.
+    // Rows 4-5 x columns 0-1 form a 2x2 switch, so this puzzle has exactly two solutions.
+    const twoSolutionGrid: BinaryCell[][] = [
+        [1, 1, 1, 1, 0, 1],
+        [0, 0, 1, 1, 0, 1],
+        [1, 0, 0, 1, 1, 1],
+        [0, 0, 0, 0, 0, 1],
+        [0, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1, 1],
+    ];
+
+    it('does not claim a logical solution for a puzzle with two solutions', () => {
+        const result = analyzeGrid(twoSolutionGrid);
+
         expect(result.solvable).toBe(true);
-        expect(result.unique).toBe(true);
+        expect(result.unique).toBe(false);
         expect(result.logical).toBe(false);
-        expect(result.remainingCells).toBeGreaterThan(0);
+        expect(result.remainingCells).toBe(4);
         expect(result.difficulty).toBe('unsolved');
+    });
+
+    it('never reports a logical solution unless the puzzle is unique', () => {
+        const lcg = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+        let logicalRuns = 0;
+
+        for (const size of [5, 6]) {
+            for (let seed = 1; seed <= 200; seed += 1) {
+                const next = lcg(seed * 31 + size);
+                const grid = Array.from({ length: size }, () =>
+                    Array.from({ length: size }, () => (next() < 0.5 ? 1 : 0) as BinaryCell),
+                );
+
+                const result = analyzeGrid(grid, 10_000);
+
+                if (result.logical) {
+                    logicalRuns += 1;
+                    expect({ size, seed, unique: result.unique, remaining: result.remainingCells }).toEqual({
+                        size,
+                        seed,
+                        unique: true,
+                        remaining: 0,
+                    });
+                }
+            }
+        }
+
+        expect(logicalRuns).toBeGreaterThan(0);
     });
 });
 

@@ -145,43 +145,27 @@ const applyFullLineEmpty = (ctx: LineContext): { updates: Array<[number, BinaryC
     return { updates };
 };
 
-const leftMostPlacement = (hints: number[], length: number): BinaryCell[] => {
-    const out = Array.from({ length }, () => 0 as BinaryCell);
-    const norm = normalizeHints(hints);
-    if (norm.length === 0) {
-        return out;
-    }
-    let cursor = 0;
-    for (let h = 0; h < norm.length; h += 1) {
-        for (let i = 0; i < norm[h]; i += 1) {
-            out[cursor] = 1;
-            cursor += 1;
-        }
-        if (h < norm.length - 1) {
-            cursor += 1;
-        }
-    }
-    return out;
-};
-
-const rightMostPlacement = (hints: number[], length: number): BinaryCell[] => {
-    const reversed = leftMostPlacement([...hints].reverse(), length).reverse();
-    return reversed as BinaryCell[];
-};
-
+// A block can slide between its leftmost and rightmost start. Cells it covers at both
+// extremes are certainly filled. This must be evaluated per block: comparing whole-line
+// placements would match cells that belong to different blocks in each placement.
 const applyEdgeOverlap = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const hints = normalizeHints(ctx.hints);
     if (hints.length === 0) {
         return { updates: [] };
     }
 
-    const left = leftMostPlacement(hints, ctx.known.length);
-    const right = rightMostPlacement(hints, ctx.known.length);
+    const length = ctx.known.length;
     const updates: Array<[number, BinaryCell]> = [];
 
-    for (let i = 0; i < ctx.known.length; i += 1) {
-        if (ctx.known[i] === null && left[i] === 1 && right[i] === 1) {
-            updates.push([i, 1]);
+    for (let h = 0; h < hints.length; h += 1) {
+        const blockLen = hints[h];
+        const leftStart = sum(hints.slice(0, h)) + h;
+        const rightStart = length - (sum(hints.slice(h)) + (hints.length - h - 1));
+
+        for (let i = rightStart; i < leftStart + blockLen; i += 1) {
+            if (ctx.known[i] === null) {
+                updates.push([i, 1]);
+            }
         }
     }
     return { updates };
