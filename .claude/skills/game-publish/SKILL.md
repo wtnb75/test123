@@ -1,0 +1,79 @@
+---
+name: game-publish
+description: Use for the final step of adding a finished game to this monorepo's public listing — uncommenting it in Taskfile.yml's GAMES list and opening a "add one game" PR (AGENTS.md section 2.2).
+---
+
+# game-publish
+
+Add `<game-dir>` to the public top-page listing and open a PR for it. This
+is the last workflow stage — only run it once balance has been signed off
+by the user.
+
+## Inputs
+
+- `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
+- Requires `status_balance: done` for this game.
+
+## Steps
+
+`task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`
+
+1. Confirm `<game-dir>/README.md` documents purpose, rules, and controls
+   (AGENTS.md 4.1 — required, not optional).
+2. This is a user-visible change (it adds a link on the public top page) —
+   confirm with the user before touching `Taskfile.yml`.
+3. Uncomment the `<game-dir>` line under `GAMES:` in `Taskfile.yml`.
+
+`task build` / `output/index.html` verification is CI's job, not this
+skill's — don't run it here (confirmed with the user: this repo's CI
+builds and verifies the top-page output on its own).
+
+### Opening the PR
+
+The finished PR's content should be scoped to exactly one thing: adding
+`<game-dir>`. Confirm with the user before pushing anything or opening the
+PR — pushing and PR creation are both visible, and this skill has no
+standing authorization to do them silently.
+
+By this point you should already be on a dedicated branch for this game
+(`feat/<game-dir>` from `game-init` for a first publish, or a
+`<type>/<game-dir>-<slug>` branch from `game-spec` for a post-publish
+revision — see that skill) — **not** `main`. If you're on `main`, stop:
+something upstream skipped its branch step, and committing here would mix
+this game with whatever else is on `main`. Don't improvise a fix by
+hand-picking hunks; go back and create the branch that skill should have
+created, from `main`, then return here.
+
+Given that, staging is normally just `git add -A` on this branch — the
+whole point of branching per-game upfront is that everything sitting dirty
+on it already belongs to this change. Still, run `git status` once before
+staging: this repo's per-game directories are independent, so it's
+possible (if unlikely, on a correctly-branched session) for something
+unrelated to have ended up here too — if so, stop and ask rather than
+silently including or excluding it.
+
+Then: commit the staged files with a message describing the change, push
+the branch, and `gh pr create` with a title/body describing the change —
+for a first publish, "add one game" with one line on what it is and a link
+to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed and
+why.
+
+## Self-review (before completion)
+
+- Does `README.md` actually let a stranger understand the goal, rules, and
+  controls, or does it just restate the game's name?
+- Is `status_balance` genuinely `done` (user signed off), not just
+  `status_qa` — don't publish a game that was never balance-checked.
+- Is the `Taskfile.yml` `GAMES:` line actually uncommented for this game,
+  not just edited nearby?
+- Is the branch actually not `main`, and does `git show --stat` on the
+  commit touch only files that belong to this change — nothing from
+  unrelated in-flight work?
+
+## Completion
+
+1. `Taskfile.yml` change is correct, the user has confirmed the listing,
+   and the PR is open with a link to show them.
+2. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
+3. Tell the user this game's workflow is complete —
+   `task game:dashboard` will now show it as `next=complete`.

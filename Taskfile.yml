@@ -241,15 +241,36 @@ tasks:
       - 'sed -i "/^  ALL_GAMES:$/i\\    #- {{ .PACKAGE }}" Taskfile.yml'
 
   newgame:
-    desc: create new project template PACKAGE=
+    desc: create new project template PACKAGE= (from scaffold/base-template, no network/interactive wizard)
+    preconditions:
+      - "test ! -e {{ .PACKAGE }}"
+      - "test -d scaffold/base-template"
     cmds:
-      - pnpm create @phaserjs/game@latest {{ .PACKAGE }}
-      - "rm {{ .PACKAGE }}/log.js"
+      - cp -r scaffold/base-template {{ .PACKAGE }}
       - task: pkgmod
       - cp scaffold/eslint.config.mjs {{ .PACKAGE }}/eslint.config.mjs
       - cp scaffold/vitest.config.ts {{ .PACKAGE }}/vitest.config.ts
       - task: registerworkspace
       - "echo 'done - review {{ .PACKAGE }}/package.json description, then run pnpm install to update the lockfile'"
+
+  scaffold:update-base-template:
+    desc: refresh scaffold/base-template from the latest official Phaser+Vite+TypeScript template
+    vars:
+      FETCHDIR:
+        sh: mktemp -d
+    cmds:
+      - cd {{ .FETCHDIR }} && python3 {{ .TASKFILE_DIR }}/scripts/fetch-phaser-template.py game
+      - cp {{ .FETCHDIR }}/game/.gitignore scaffold/base-template/.gitignore
+      - cp {{ .FETCHDIR }}/game/LICENSE scaffold/base-template/LICENSE
+      - cp {{ .FETCHDIR }}/game/README.md scaffold/base-template/README.md
+      - cp {{ .FETCHDIR }}/game/index.html scaffold/base-template/index.html
+      - cp {{ .FETCHDIR }}/game/screenshot.png scaffold/base-template/screenshot.png
+      - cp {{ .FETCHDIR }}/game/tsconfig.json scaffold/base-template/tsconfig.json
+      - cp {{ .FETCHDIR }}/game/package.json scaffold/base-template/package.json
+      - cp -r {{ .FETCHDIR }}/game/public/. scaffold/base-template/public/
+      - cp -r {{ .FETCHDIR }}/game/src/. scaffold/base-template/src/
+      - cp -r {{ .FETCHDIR }}/game/vite/. scaffold/base-template/vite/
+      - "echo 'scaffold/base-template updated from upstream - review with: git diff -- scaffold/base-template'"
 
   all:
     desc: lint + test:coverage + build
@@ -257,3 +278,28 @@ tasks:
       - task: lint
       - task: test:coverage
       - task: build
+
+  game:status:
+    desc: show workflow progress for PACKAGE= (docs/spec.md frontmatter)
+    cmds:
+      - scripts/game-status.sh get {{ .PACKAGE }} {{ .STAGE }}
+
+  game:status:set:
+    desc: set workflow progress for PACKAGE= STAGE= to VALUE= (pending|in_progress|done)
+    cmds:
+      - scripts/game-status.sh set {{ .PACKAGE }} {{ .STAGE }} {{ .VALUE }}
+
+  game:next:
+    desc: show the next incomplete workflow stage for PACKAGE=
+    cmds:
+      - scripts/game-status.sh next {{ .PACKAGE }}
+
+  game:dashboard:
+    desc: show workflow progress for every game with status frontmatter
+    cmds:
+      - scripts/game-status.sh dashboard
+
+  game:detect:
+    desc: guess which game is currently being worked on
+    cmds:
+      - scripts/game-status.sh detect

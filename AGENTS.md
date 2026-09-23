@@ -28,6 +28,10 @@
 	- `task newgame PACKAGE=<game-dir>`
 - 例
 	- `task newgame PACKAGE=game-memory-cards`
+- ゲームごとに専用ブランチを作ってから作業する（`main` に直接コミットしない）
+	- 新規ゲーム追加: `main` から `feat/<game-dir>` を作成（同名が既に存在する場合は `-2`・`-3` 等の空いている名前を使う。中身が分からない既存ブランチを無条件で再利用・上書きしない）
+	- 公開後の修正（バグ修正・バランス調整・機能追加など）: 変更内容に応じて `fix/<game-dir>-xxx` / `balance/<game-dir>-xxx` / `feat/<game-dir>-xxx` のように種別を表すprefixを付けた別ブランチを、その都度 `main` から新規に作成する（最初のブランチを使い回さない）
+	- 1ゲームの追加・修正は1PRにスコープを絞る。他の作業中の変更と混在させない
 - このタスクは内部で `pnpm create @phaserjs/game@latest <game-dir>` を実行したうえで、以下をまとめて行う
 	- `package.json` を `base.json`（モノレポ共通設定）とマージし、依存関係を `pnpm-workspace.yaml` の `catalog:` 参照に統一する
 	- `scaffold/eslint.config.mjs` / `scaffold/vitest.config.ts`（カバレッジ90%閾値つき）を配置する
@@ -153,5 +157,35 @@
 	4. Playwright イメージにはブラウザ本体のみプリインストールされているため、コンテナ内で `npm install playwright@<バージョン>`（イメージのタグと合わせる）を実行してから使う
 	5. Phaser などキャンバス描画のゲームは結果を DOM から読めないため、`page.screenshot()` で撮ったスクリーンショットを `docker cp` で取り出し、目視で確認する（クリア／ゲームオーバー等の判定も同様）
 	6. 確認が終わったら QA 用コンテナ（`docker rm -f <name>`）と dev サーバープロセスを必ず後片付けする
+
+## 10. 開発ワークフロー（Claude Code スキル）
+
+Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/skills/game-*` と
+してスキル化されている。各スキルは `task game:status` 系タスク
+（`scripts/game-status.sh`、`docs/spec.md` のフロントマターに進捗を記録）を
+使って現在の進捗を追跡するので、次に何をすべきかは基本的に機械的に判断できる。
+
+段階と対応スキル:
+
+| 段階 | スキル | 内容 |
+|---|---|---|
+| アイデア | `game-idea` | コンセプト・コアループ・MVP範囲をユーザーと対話して固める（ファイルはまだ作らない） |
+| 初期化 | `game-init` | `feat/<game-dir>` ブランチを作成し `task newgame` でディレクトリをスキャフォールド（2.2節） |
+| 仕様 | `game-spec` | `docs/spec.md` を作成・改訂する（2.4節）。仕様変更のたびに呼ばれ、公開後の改訂ならブランチも新規に作る |
+| 実装 | `game-impl` | 承認済みの spec.md に対して Phaser.js コードを実装（4節） |
+| テスト | `game-test` | Vitest 単体テストをカバレッジ90%以上で追加（4.5節） |
+| 品質ゲート | `game-check` | lint/test/coverage/build を通す（6節） |
+| ビジュアルQA | `game-qa` | Docker + Playwright で実ブラウザの描画・操作感を確認（9節） |
+| バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→qa をループする |
+| 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
+
+- 迷ったら `game-next` を実行するだけでよい。現在どのゲームのどの段階が未完了
+  かを自動判定し（`task game:detect` / `task game:next`）、該当スキルへ自動で
+  進む
+- 複数ゲームを並行して進めている場合、`game-next` はカレントブランチ名
+  （`feat/<game-dir>` など。2.2節）を最優先の手がかりに対象ゲームを判定する
+- 全ゲームの進捗一覧は `task game:dashboard` で確認できる
+- 各スキルは完了前に自己レビュー観点を持ち、内容に不備があれば黙って直して
+  から提示する（判断基準の詳細は各スキルファイル自体を参照）
 
 以上。
