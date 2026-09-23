@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateStage, stageParams } from './generator';
 import { indexOf, neighbors8 } from './board';
 
@@ -46,5 +46,31 @@ describe('generator', () => {
       const linearBaseline = Math.max(6, 4 + stageNo * 4);
       expect(params.bombCount).toBeGreaterThanOrEqual(linearBaseline);
     }
+  });
+
+  describe('with default options', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('seeds from the clock and still returns a stage that meets its depth target', () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+
+      const stage = generateStage(1);
+
+      expect(stage.width).toBe(8);
+      expect(stage.height).toBe(8);
+      expect(stage.generation.solverDepth).toBeGreaterThanOrEqual(stage.generation.depthTarget);
+    });
+
+    it('produces the same stage for the same clock value', () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+
+      const first = generateStage(2);
+      const second = generateStage(2);
+
+      expect(second.cells).toEqual(first.cells);
+      expect(second.goal).toEqual(first.goal);
+    });
   });
 });

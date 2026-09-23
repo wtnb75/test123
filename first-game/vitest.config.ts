@@ -1,11 +1,1 @@
-import { mergeConfig } from 'vitest/config';
-import base from '../scaffold/vitest.base.mjs';
-
-// TODO: raise branches/functions to the shared 90% (generator.ts and rules.ts are the gap).
-export default mergeConfig(base, {
-    test: {
-        coverage: {
-            thresholds: { branches: 81, functions: 89 }
-        }
-    }
-});
+export { default } from '../scaffold/vitest.base.mjs';
