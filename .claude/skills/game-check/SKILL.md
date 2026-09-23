@@ -1,6 +1,6 @@
 ---
 name: game-check
-description: Use to run the full completion gate for a game in this monorepo — lint, test, coverage, build (AGENTS.md section 6) — before it's considered ready for QA or publishing.
+description: Use to run the full completion gate for a game in this monorepo — unused scaffold assets, lint, test, coverage, build (AGENTS.md section 6) — before it's considered ready for QA or publishing.
 ---
 
 # game-check
@@ -20,13 +20,27 @@ gate (AGENTS.md 7: 禁止事項 — lint/test/buildの失敗を残したまま�
 
 Inside `<game-dir>`, run in order and capture each result:
 
-1. `npm run lint` — must be 0 errors. Any disable comment in the codebase
+1. Check `public/` (including `public/assets/`) for files carried over
+   from `task newgame`'s scaffold that nothing actually uses — most
+   commonly `bg.png` and `logo.png`, the Phaser template's stock demo
+   images, which are dead weight in every game in this repo since they
+   draw via `Phaser.Graphics` instead of raster assets (AGENTS.md 技術要件
+   convention). For each file under `public/`, grep `src/` and
+   `index.html` for its filename; if nothing references it, delete it
+   (`git rm` if already tracked). This can't be caught by `vite build`
+   succeeding — Vite copies everything under `public/` into `dist/`
+   verbatim regardless of whether anything references it, so an unused
+   file here ships forever unless removed by hand. If a filename search
+   turns up nothing but you suspect it might still be referenced via a
+   dynamically-built path (e.g. a template string), double-check before
+   deleting rather than assuming the grep is conclusive.
+2. `npm run lint` — must be 0 errors. Any disable comment in the codebase
    must already carry a reason and be minimally scoped (AGENTS.md 4.4); if
    you find one without a reason while here, that's worth flagging, not
    silently leaving.
-2. `npm run test`
-3. `npm run test:coverage` — statement/branch/function/line all ≥ 90%.
-4. `npm run build` — must produce static output with no Node-server-only
+3. `npm run test`
+4. `npm run test:coverage` — statement/branch/function/line all ≥ 90%.
+5. `npm run build` — must produce static output with no Node-server-only
    runtime dependency.
 
 ## On failure
@@ -48,9 +62,12 @@ The four commands passing is necessary but not sufficient — also check:
 - Does the build output actually look like a working static site (not just
   "the build command exited 0") — spot-check `dist/` if anything about the
   build step changed.
+- Does `public/` still contain any file that isn't actually referenced by
+  `src/` or `index.html` — something step 1 should have caught?
 
 ## Completion
 
-1. All four commands pass.
+1. All five steps done — scaffold cleanup applied, and the four commands
+   pass.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`
 3. Tell the user the next step is `game-qa`.
