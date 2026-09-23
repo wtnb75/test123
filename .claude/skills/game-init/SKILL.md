@@ -1,0 +1,87 @@
+---
+name: game-init
+description: Use when a game concept has been agreed (see game-idea) and needs its directory scaffolded via `task newgame` — the required first filesystem step for any new game in this monorepo (AGENTS.md section 2.2).
+---
+
+# game-init
+
+Scaffold a new game directory. Follows `AGENTS.md` section 2.2/2.3 exactly —
+never call `pnpm create @phaserjs/game@latest` directly.
+
+## Inputs
+
+- `PACKAGE=<game-dir>`: folder name only (kebab/lowercase, e.g. `cjump`). If
+  not given, ask the user — do not guess a name silently.
+
+## Steps
+
+1. Confirm with the user this is the directory name they want (it becomes
+   the public URL path). Renaming later is possible but costs a rerun.
+2. Create and check out a dedicated branch for this game before touching
+   any files: `feat/<game-dir>`, branched from the current `main`. This is
+   what lets `game-publish` later open a PR scoped to exactly this game,
+   without needing to pick this game's changes out of a working tree that
+   also has unrelated work sitting in it (learned the hard way — sorting
+   that out by hand after the fact is real, avoidable effort).
+   - If the current branch isn't `main`, stop and confirm with the user
+     before branching from it — branching from the wrong base carries
+     whatever unrelated work is on that branch into the new game's branch
+     too.
+   - `git checkout -b feat/<game-dir> main`
+   - If `feat/<game-dir>` already exists, don't reuse or overwrite it
+     silently — you don't know what state it's in (an abandoned earlier
+     attempt, leftover from a rename, something else entirely). Find the
+     next free name instead (`feat/<game-dir>-2`, `-3`, ...) and create
+     that, and tell the user a branch by the original name already existed
+     so they can look at it later if it's worth recovering.
+3. Run `task newgame PACKAGE=<game-dir>`. This merges `package.json` with
+   `base.json`, copies `scaffold/eslint.config.mjs` and
+   `scaffold/vitest.config.ts` (90% coverage threshold), and registers the
+   package in `pnpm-workspace.yaml` plus a **commented-out** line in
+   `Taskfile.yml`'s `GAMES` list.
+4. Required follow-ups (do all of these — AGENTS.md 2.2 lists them as
+   mandatory, not optional):
+   - Edit `<game-dir>/package.json` `description` to match the game concept
+     from `game-idea`.
+   - Run `pnpm install` to update the lockfile.
+   - Leave the `GAMES` line commented out — it gets uncommented only by
+     `game-publish`, once the game is ready to be listed on the top page.
+5. Create `<game-dir>/docs/spec.md` with **only** this frontmatter block —
+   no body content yet, that's `game-spec`'s job. This is what makes the
+   game visible to `task game:detect` / `task game:next` / `game-next`
+   immediately, instead of only after the spec is written:
+
+   ```yaml
+   ---
+   status_idea: done
+   status_init: done
+   status_spec: pending
+   status_impl: pending
+   status_test: pending
+   status_check: pending
+   status_qa: pending
+   status_balance: pending
+   status_publish: pending
+   ---
+   ```
+
+## Self-review (before handoff)
+
+- Is the current branch actually `feat/<game-dir>` (or the next free
+  `-2`/`-3`/... variant if that name was taken), branched from `main` (not
+  still on `main`, and not branched from some other in-progress branch)?
+- Did `task newgame` actually finish — is `<game-dir>/package.json` the
+  merged version (has `catalog:` deps from `base.json`), not the raw
+  template's?
+- Is `<game-dir>` really registered in both `pnpm-workspace.yaml` and the
+  commented-out `Taskfile.yml` `GAMES` line (not left un-registered, and
+  not accidentally uncommented)?
+- Does `<game-dir>/docs/spec.md` have all 9 `status_*` keys, with `idea`
+  and `init` set to `done` and everything else `pending`?
+- Did `pnpm install` actually run (check `<game-dir>/node_modules` exists
+  and `pnpm-lock.yaml` changed)?
+
+## Handoff
+
+Tell the user the directory is ready and the next step is `game-spec`
+(or just `game-next`, which will now find it on its own).

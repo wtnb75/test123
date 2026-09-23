@@ -28,6 +28,10 @@
 	- `task newgame PACKAGE=<game-dir>`
 - 例
 	- `task newgame PACKAGE=game-memory-cards`
+- ゲームごとに専用ブランチを作ってから作業する（`main` に直接コミットしない）
+	- 新規ゲーム追加: `main` から `feat/<game-dir>` を作成（同名が既に存在する場合は `-2`・`-3` 等の空いている名前を使う。中身が分からない既存ブランチを無条件で再利用・上書きしない）
+	- 公開後の修正（バグ修正・バランス調整・機能追加など）: 変更内容に応じて `fix/<game-dir>-xxx` / `balance/<game-dir>-xxx` / `feat/<game-dir>-xxx` のように種別を表すprefixを付けた別ブランチを、その都度 `main` から新規に作成する（最初のブランチを使い回さない）
+	- 1ゲームの追加・修正は1PRにスコープを絞る。他の作業中の変更と混在させない
 - このタスクは内部で `pnpm create @phaserjs/game@latest <game-dir>` を実行したうえで、以下をまとめて行う
 	- `package.json` を `base.json`（モノレポ共通設定）とマージし、依存関係を `pnpm-workspace.yaml` の `catalog:` 参照に統一する
 	- `scaffold/eslint.config.mjs` / `scaffold/vitest.config.ts`（カバレッジ90%閾値つき）を配置する

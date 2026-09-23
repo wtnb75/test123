@@ -1,0 +1,59 @@
+---
+name: game-balance
+description: Use after a game passes game-qa but doesn't feel fun or well-tuned yet — plays the game, adjusts difficulty/pacing parameters, updates docs/spec.md, and loops the change back through impl/test/check/qa.
+---
+
+# game-balance
+
+`game-qa` confirms the game works correctly. This skill is for the separate,
+common problem: it works exactly as specced, and specced correctly, and
+it's still not fun. That's a judgment call only playing (or watching
+someone play) the game can answer — it's not caught by lint, tests, or a
+one-off screenshot.
+
+## Inputs
+
+- `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
+- Requires `status_qa: done` for this game.
+
+## Process
+
+`task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=in_progress`
+
+1. Play the game (or reuse `game-qa`'s Docker+Playwright setup to drive
+   several playthroughs) focused on feel, not correctness: is the
+   difficulty curve fair, is there a dead spot where nothing interesting
+   happens, does an early failure feel like a "wait, again?" or like
+   information the player can act on next time?
+2. Discuss findings with the user — this is a subjective call, don't decide
+   alone what "fun" means for their game. Propose specific parameter
+   changes (speed, spawn rate, hit-box size, timing windows, etc.) with
+   reasoning, not vague "make it more fun" edits.
+3. On agreement, invoke `game-spec` to update `docs/spec.md` first (AGENTS.md
+   2.4: 仕様変更時は docs/spec.md を先に更新), documenting the tuning
+   change and why. `game-spec` resets every downstream stage back to
+   `pending` on its own as part of any revision — this skill doesn't need
+   to do that itself.
+4. Hand off to `game-impl` to apply the tuning change, then let the normal
+   impl → test → check → qa chain run again.
+
+## When to stop looping
+
+Only the user decides the game is fun enough to ship — don't declare this
+stage done on your own judgment. Ask explicitly.
+
+## Self-review (before completion)
+
+- Is every proposed parameter change stated with a specific number and a
+  reason ("spawn interval 1.2s → 0.9s, the 3s gap before the first
+  obstacle felt dead"), not a vague "made it more fun"?
+- Does `docs/spec.md` reflect the *reason* for the tuning change, not just
+  the new numbers, so a future balance pass has context?
+
+## Completion
+
+Once the user confirms the current feel is good and QA has passed again on
+the tuned version:
+
+1. `task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=done`
+2. Tell the user the next step is `game-publish`.
