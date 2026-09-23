@@ -2,7 +2,8 @@ import type { AnalysisResult, BinaryCell, DifficultyRank, SolveTechnique } from 
 
 type KnownCell = BinaryCell | null;
 
-type LineContext = {
+// Line-level helpers below are exported so they can be unit tested exhaustively.
+export type LineContext = {
     hints: number[];
     known: KnownCell[];
     maxMillis: number;
@@ -50,7 +51,7 @@ const matchesKnown = (candidate: BinaryCell[], known: KnownCell[]): boolean => {
     return true;
 };
 
-const generateCandidates = (ctx: LineContext): BinaryCell[][] => {
+export const generateCandidates = (ctx: LineContext): BinaryCell[][] => {
     const hints = normalizeHints(ctx.hints);
     const length = ctx.known.length;
 
@@ -103,7 +104,7 @@ const generateCandidates = (ctx: LineContext): BinaryCell[][] => {
     return candidates;
 };
 
-const applyFullLineFill = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+export const applyFullLineFill = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const hints = normalizeHints(ctx.hints);
     if (hints.length === 0) {
         return { updates: [] };
@@ -128,7 +129,7 @@ const applyFullLineFill = (ctx: LineContext): { updates: Array<[number, BinaryCe
     return { updates };
 };
 
-const applyFullLineEmpty = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+export const applyFullLineEmpty = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const hints = normalizeHints(ctx.hints);
     const targetFilled = sum(hints);
     const currentFilled = ctx.known.filter((v) => v === 1).length;
@@ -148,7 +149,7 @@ const applyFullLineEmpty = (ctx: LineContext): { updates: Array<[number, BinaryC
 // A block can slide between its leftmost and rightmost start. Cells it covers at both
 // extremes are certainly filled. This must be evaluated per block: comparing whole-line
 // placements would match cells that belong to different blocks in each placement.
-const applyEdgeOverlap = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+export const applyEdgeOverlap = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const hints = normalizeHints(ctx.hints);
     if (hints.length === 0) {
         return { updates: [] };
@@ -171,7 +172,7 @@ const applyEdgeOverlap = (ctx: LineContext): { updates: Array<[number, BinaryCel
     return { updates };
 };
 
-const applyCandidateCommon = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+export const applyCandidateCommon = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const candidates = generateCandidates(ctx);
     if (candidates.length === 0) {
         return { updates: [] };
@@ -197,7 +198,7 @@ const applyCandidateCommon = (ctx: LineContext): { updates: Array<[number, Binar
     return { updates };
 };
 
-const applyRegionSplit = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
+export const applyRegionSplit = (ctx: LineContext): { updates: Array<[number, BinaryCell]> } => {
     const hints = normalizeHints(ctx.hints);
     if (hints.length === 0) {
         return { updates: [] };
