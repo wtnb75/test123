@@ -131,7 +131,7 @@ describe('rules', () => {
     stage.cells[indexOf(stage, { x: 1, y: 1 })].hasBomb = true;
     computeHints(stage);
 
-    let cur = toggleFlag(stage, { x: 1, y: 1 });
+    const cur = toggleFlag(stage, { x: 1, y: 1 });
     cur.player = { x: 1, y: 1 };
     cur.goal = { x: 0, y: 0 };
     cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;
@@ -150,7 +150,7 @@ describe('rules', () => {
     stage.cells[indexOf(stage, { x: 1, y: 1 })].hasBomb = true;
     computeHints(stage);
 
-    let cur = toggleFlag(stage, { x: 1, y: 1 });
+    const cur = toggleFlag(stage, { x: 1, y: 1 });
     cur.player = { x: 1, y: 1 };
     cur.goal = { x: 0, y: 0 };
     cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;
@@ -170,7 +170,7 @@ describe('rules', () => {
     stage.cells[indexOf(stage, { x: 1, y: 1 })].hasBomb = true;
     computeHints(stage);
 
-    let cur = toggleFlag(stage, { x: 1, y: 1 });
+    const cur = toggleFlag(stage, { x: 1, y: 1 });
     cur.player = { x: 1, y: 1 };
     cur.goal = { x: 2, y: 2 };
     cur.cells[indexOf(cur, { x: 0, y: 0 })].revealed = true;

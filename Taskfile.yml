@@ -248,8 +248,6 @@ tasks:
     cmds:
       - cp -r scaffold/base-template {{ .PACKAGE }}
       - task: pkgmod
-      - cp scaffold/eslint.config.mjs {{ .PACKAGE }}/eslint.config.mjs
-      - cp scaffold/vitest.config.ts {{ .PACKAGE }}/vitest.config.ts
       - task: registerworkspace
       - "echo 'done - review {{ .PACKAGE }}/package.json description, then run pnpm install to update the lockfile'"
 
@@ -265,12 +263,11 @@ tasks:
       - cp {{ .FETCHDIR }}/game/README.md scaffold/base-template/README.md
       - cp {{ .FETCHDIR }}/game/index.html scaffold/base-template/index.html
       - cp {{ .FETCHDIR }}/game/screenshot.png scaffold/base-template/screenshot.png
-      - cp {{ .FETCHDIR }}/game/tsconfig.json scaffold/base-template/tsconfig.json
       - cp {{ .FETCHDIR }}/game/package.json scaffold/base-template/package.json
       - cp -r {{ .FETCHDIR }}/game/public/. scaffold/base-template/public/
       - cp -r {{ .FETCHDIR }}/game/src/. scaffold/base-template/src/
-      - cp -r {{ .FETCHDIR }}/game/vite/. scaffold/base-template/vite/
       - "echo 'scaffold/base-template updated from upstream - review with: git diff -- scaffold/base-template'"
+      - "echo 'NOTE: tsconfig.json and vite/ are NOT copied (they are thin wrappers around scaffold/*); diff them manually against {{ .FETCHDIR }}/game and port changes into scaffold/'"
 
   all:
     desc: lint + test:coverage + build

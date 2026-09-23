@@ -28,7 +28,9 @@ check (that's `game-qa`).
 - Run `npm run test:coverage` inside `<game-dir>` and check statement,
   branch, function, and line coverage are all ≥ 90%. If not, find the
   uncovered branches and add tests for them — don't lower the threshold in
-  `vitest.config.ts` to make the number pass.
+  `vitest.config.ts` (or the shared `scaffold/vitest.base.mjs`) to make the
+  number pass, and don't add per-game `coverage.exclude` entries for code
+  that can be unit tested.
 
 ## Self-review (before completion)
 

@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/wtnb75/test123/blob/main/first-game/README.md",
   "scripts": {
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint src --ext .ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "dev": "vite --config vite/config.dev.mjs",
@@ -22,11 +22,10 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },

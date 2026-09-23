@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
+// Shared Vitest config for every game. Phaser-dependent glue (scenes, entry
+// points) is excluded from coverage; the game logic must stay above 90%.
+export default {
     test: {
         environment: 'node',
         include: ['src/**/*.test.ts'],
@@ -10,10 +10,9 @@ export default defineConfig({
             exclude: [
                 'src/**/*.test.ts',
                 'src/**/*.d.ts',
-                'src/vite-env.d.ts',
                 'src/main.ts',
                 'src/game/main.ts',
-                'src/game/scenes/Game.ts'
+                'src/game/scenes/**'
             ],
             thresholds: {
                 statements: 90,
@@ -23,4 +22,4 @@ export default defineConfig({
             }
         }
     }
-});
+};
