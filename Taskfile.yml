@@ -260,8 +260,6 @@ tasks:
         sh: mktemp -d
     cmds:
       - cd {{ .FETCHDIR }} && python3 {{ .TASKFILE_DIR }}/scripts/fetch-phaser-template.py game
-      - cp {{ .FETCHDIR }}/game/.gitignore scaffold/base-template/.gitignore
-      - cp {{ .FETCHDIR }}/game/LICENSE scaffold/base-template/LICENSE
       - cp {{ .FETCHDIR }}/game/README.md scaffold/base-template/README.md
       - cp {{ .FETCHDIR }}/game/index.html scaffold/base-template/index.html
       - cp {{ .FETCHDIR }}/game/screenshot.png scaffold/base-template/screenshot.png
