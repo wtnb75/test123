@@ -34,7 +34,7 @@
 	- 1ゲームの追加・修正は1PRにスコープを絞る。他の作業中の変更と混在させない
 - このタスクは内部で `pnpm create @phaserjs/game@latest <game-dir>` を実行したうえで、以下をまとめて行う
 	- `package.json` を `base.json`（モノレポ共通設定）とマージし、依存関係を `pnpm-workspace.yaml` の `catalog:` 参照に統一する
-	- `scaffold/eslint.config.mjs` / `scaffold/vitest.config.ts`（カバレッジ90%閾値つき）を配置する
+	- `tsconfig.json` / `eslint.config.mjs` / `vitest.config.ts` / `vite/config.{dev,prod}.mjs` を配置する（いずれも `scaffold/` 配下の共通設定を参照する薄いファイル。共通の vitest 設定はカバレッジ90%閾値つき）
 	- `pnpm-workspace.yaml` の `packages:` と `Taskfile.yml` の `GAMES`（コメントアウト状態）に登録する
 - `task newgame` 実行後、必ず以下を行う
 	- `<game-dir>/package.json` の `description` をゲーム内容に合わせて書き換える

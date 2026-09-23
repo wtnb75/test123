@@ -35,8 +35,9 @@ never call `pnpm create @phaserjs/game@latest` directly.
      that, and tell the user a branch by the original name already existed
      so they can look at it later if it's worth recovering.
 3. Run `task newgame PACKAGE=<game-dir>`. This merges `package.json` with
-   `base.json`, copies `scaffold/eslint.config.mjs` and
-   `scaffold/vitest.config.ts` (90% coverage threshold), and registers the
+   `base.json`, sets up thin `tsconfig.json` / `eslint.config.mjs` /
+   `vitest.config.ts` / `vite/config.*.mjs` that reference the shared
+   configs under `scaffold/` (90% coverage threshold), and registers the
    package in `pnpm-workspace.yaml` plus a **commented-out** line in
    `Taskfile.yml`'s `GAMES` list.
 4. Required follow-ups (do all of these — AGENTS.md 2.2 lists them as

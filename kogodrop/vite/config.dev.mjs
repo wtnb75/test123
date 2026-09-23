@@ -1,20 +1,8 @@
-import { defineConfig } from 'vite';
+import base from '../../scaffold/vite/config.dev.mjs';
 
-export default defineConfig({
-    base: './',
+export default {
+    ...base,
     define: {
         'import.meta.env.VITE_DEV_IGNORE_VERIFIED': JSON.stringify('true'),
     },
-    build: {
-        rollupOptions: {
-            output: {
-                manualChunks: {
-                    phaser: ['phaser']
-                }
-            }
-        },
-    },
-    server: {
-        port: 8080
-    }
-});
+};

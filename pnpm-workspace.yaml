@@ -19,8 +19,5 @@ catalog:
   eslint: '^10.3.0'
   typescript: '~6.0.3'
   terser: '^5.47.1'
-  '@typescript-eslint/eslint-plugin': '^8.59.2'
-  '@typescript-eslint/parser': '^8.59.2'
   typescript-eslint: '^8.59.2'
   '@eslint/js': '^10.0.1'
-  globals: '^17.6.0'

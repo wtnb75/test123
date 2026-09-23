@@ -1,30 +1,11 @@
-import { defineConfig } from 'vitest/config';
+import { mergeConfig } from 'vitest/config';
+import base from '../scaffold/vitest.base.mjs';
 
-export default defineConfig({
+// drawing.ts is Phaser drawing glue with no unit-testable logic.
+export default mergeConfig(base, {
     test: {
-        environment: 'node',
-        include: ['src/**/*.test.ts'],
         coverage: {
-            provider: 'v8',
-            include: ['src/**/*.ts'],
-            exclude: [
-                'src/**/*.test.ts',
-                'src/**/*.d.ts',
-                'src/vite-env.d.ts',
-                'src/main.ts',
-                'src/game/main.ts',
-                'src/game/drawing.ts',
-                'src/game/scenes/Boot.ts',
-                'src/game/scenes/Title.ts',
-                'src/game/scenes/Game.ts',
-                'src/game/scenes/Result.ts'
-            ],
-            thresholds: {
-                statements: 90,
-                branches: 90,
-                functions: 90,
-                lines: 90
-            }
+            exclude: ['src/game/drawing.ts']
         }
     }
 });
