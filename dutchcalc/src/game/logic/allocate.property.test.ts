@@ -79,6 +79,36 @@ const bestTwoWaySpread = (odds: number[], totalUnits: number, unitPrice: number)
     return best;
 };
 
+// Every way to split `totalUnits` into at least one unit per candidate: the smallest spread, and
+// among the splits reaching it the highest minimum payout.
+const bruteForceOptimum = (
+    odds: number[],
+    totalUnits: number,
+    unitPrice: number
+): { spread: number; minPayout: number } => {
+    const best = { spread: Infinity, minPayout: -Infinity };
+    const recurse = (index: number, remaining: number, payouts: number[]): void => {
+        if (index === odds.length - 1) {
+            const all = [...payouts, remaining * odds[index] * unitPrice];
+            const spread = Math.max(...all) - Math.min(...all);
+            const minPayout = Math.min(...all);
+            if (spread < best.spread - 1e-6) {
+                best.spread = spread;
+                best.minPayout = minPayout;
+            } else if (Math.abs(spread - best.spread) <= 1e-6 && minPayout > best.minPayout) {
+                best.minPayout = minPayout;
+            }
+            return;
+        }
+        for (let units = 1; units <= remaining - (odds.length - index - 1); units += 1) {
+            recurse(index + 1, remaining - units, [...payouts, units * odds[index] * unitPrice]);
+        }
+    };
+    recurse(0, totalUnits, []);
+
+    return best;
+};
+
 describe('allocate optimality', () => {
     it('finds the minimum spread for every two-candidate input tried', () => {
         for (let seed = 1; seed <= 400; seed += 1) {
@@ -94,11 +124,42 @@ describe('allocate optimality', () => {
         }
     });
 
-    // Known gap, found by comparing with brute force: with 3 or more candidates about 5-8% of
-    // random inputs end up with a larger spread than the best split (for example odds
-    // [40.1, 20.9, 7.1] with 11 units gives spread 2260 instead of 1670), because the refinement
-    // only ever tries moving a unit from the highest to the lowest payout.
-    it.todo('finds the minimum spread for three or more candidates');
+    // Regression: the old greedy + "move from max to min" refinement missed these optima.
+    it.each([
+        [[7, 1.2, 6.1], 10, 350],
+        [[18.3, 3, 21.5], 13, 1470],
+        [[40.1, 20.9, 7.1], 11, 1670],
+        [[47.7, 8.8, 12.6], 12, 1390],
+        [[33.7, 5.9, 18.5], 11, 1350]
+    ])('finds the minimum spread for odds %j with %i units', (odds, totalUnits, expectedSpread) => {
+        expect(allocate({ odds, totalUnits, unitPrice: 100 }).spread).toBeCloseTo(expectedSpread, 6);
+    });
+
+    it('finds the minimum spread, preferring the highest minimum payout, for three to five candidates', () => {
+        for (let seed = 1; seed <= 1500; seed += 1) {
+            const rng = lcg(seed * 104729);
+            const count = 3 + Math.floor(rng() * 3);
+            const odds = Array.from({ length: count }, () => Math.round((1.1 + rng() * rng() * 60) * 10) / 10);
+            const totalUnits = count + Math.floor(rng() * 14);
+            const unitPrice = [100, 300][seed % 2];
+            const result = allocate({ odds, totalUnits, unitPrice });
+            const optimum = bruteForceOptimum(odds, totalUnits, unitPrice);
+            const where = `seed=${seed} odds=${odds} total=${totalUnits}`;
+
+            expect(result.spread, where).toBeCloseTo(optimum.spread, 6);
+            // Among equally tight splits, the one that guarantees the highest payout wins.
+            expect(result.minPayout, where).toBeCloseTo(optimum.minPayout, 6);
+        }
+    });
+
+    it('handles the largest supported input (20 candidates, 100000 units)', () => {
+        const odds = Array.from({ length: MAX_CANDIDATES }, (_, i) => 1.5 + i * 0.7);
+        const result = allocate({ odds, totalUnits: MAX_TOTAL_UNITS, unitPrice: 100 });
+
+        expect(result.candidates.reduce((sum, c) => sum + c.units, 0)).toBe(MAX_TOTAL_UNITS);
+        // With this many units the payouts are almost perfectly level.
+        expect(result.spread / result.maxPayout).toBeLessThan(1e-3);
+    });
 });
 
 describe('allocate input boundaries', () => {

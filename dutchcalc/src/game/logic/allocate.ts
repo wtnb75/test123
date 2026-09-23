@@ -51,67 +51,129 @@ function validate(input: AllocateInput): void {
     }
 }
 
-// Sequential greedy: always add one unit to whichever candidate currently has
-// the smallest projected payout, tie-broken by the lowest index. This alone is
-// not guaranteed optimal (it can overshoot on the last few units), so it is
-// followed by a local-search refinement pass — see refineSpread().
-function greedyAllocate(odds: number[], totalUnits: number): number[] {
-    const units = new Array<number>(odds.length).fill(1);
-    let remaining = totalUnits - odds.length;
+// The goal is the smallest possible spread (max payout - min payout), found exactly:
+//
+// 1. The best allocation's minimum payout is some k * odds[i]. Trying every such value as a
+//    "floor" (highest first) covers all candidates for the optimum.
+// 2. For a given floor, each candidate needs at least the units that reach it. The remaining
+//    units are spread so the highest payout is as low as possible (a bisection on the ceiling).
+// 3. Since sum(units) = totalUnits, the payouts cannot all be above or all below
+//    totalUnits / sum(1 / odds); that value bounds the floors worth trying, and lets the search
+//    stop as soon as ideal - floor exceeds the best spread found so far.
 
-    while (remaining > 0) {
-        let minIndex = 0;
-        let minPayout = units[0] * odds[0];
-        for (let i = 1; i < odds.length; i += 1) {
-            const payout = units[i] * odds[i];
-            if (payout < minPayout) {
-                minPayout = payout;
-                minIndex = i;
-            }
-        }
-        units[minIndex] += 1;
-        remaining -= 1;
+const payoutOf = (units: number, odds: number): number => units * odds;
+
+const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
+
+// Fewest units (at least 1) whose payout reaches `target`. The loops correct floating-point
+// rounding so the answer is consistent with payoutOf().
+function minUnitsReaching(target: number, odds: number): number {
+    let units = Math.max(1, Math.ceil(target / odds));
+    while (units > 1 && payoutOf(units - 1, odds) >= target) {
+        units -= 1;
+    }
+    while (payoutOf(units, odds) < target) {
+        units += 1;
     }
 
     return units;
 }
 
-// Repeatedly move one unit from the current max-payout candidate to the
-// current min-payout candidate, as long as doing so strictly reduces the
-// spread (max payout - min payout) across all candidates. Each accepted move
-// strictly decreases the spread over a finite set of unit distributions, so
-// this always terminates. This closes most of the gap the greedy pass alone
-// leaves behind, though it is still a heuristic, not a proven global optimum.
-function refineSpread(units: number[], odds: number[]): number[] {
-    const refined = units.slice();
-
-    for (;;) {
-        const payouts = refined.map((u, i) => u * odds[i]);
-        const maxIndex = payouts.indexOf(Math.max(...payouts));
-        const minIndex = payouts.indexOf(Math.min(...payouts));
-        if (maxIndex === minIndex || refined[maxIndex] <= 1) {
-            break;
-        }
-
-        const currentSpread = payouts[maxIndex] - payouts[minIndex];
-        const movedMaxPayout = (refined[maxIndex] - 1) * odds[maxIndex];
-        const movedMinPayout = (refined[minIndex] + 1) * odds[minIndex];
-        const unaffectedPayouts = payouts.filter((_, i) => i !== maxIndex && i !== minIndex);
-        const candidatePayouts = [movedMaxPayout, movedMinPayout, ...unaffectedPayouts];
-        const newSpread = Math.max(...candidatePayouts) - Math.min(...candidatePayouts);
-
-        if (newSpread >= currentSpread) {
-            break;
-        }
-        refined[maxIndex] -= 1;
-        refined[minIndex] += 1;
+// Most units whose payout stays within `limit` (0 if even one unit exceeds it).
+function maxUnitsWithin(limit: number, odds: number): number {
+    let units = Math.floor(limit / odds);
+    while (units > 0 && payoutOf(units, odds) > limit) {
+        units -= 1;
+    }
+    while (payoutOf(units + 1, odds) <= limit) {
+        units += 1;
     }
 
-    return refined;
+    return units;
+}
+
+// Allocation in which every payout is at least `floor` and the highest payout is minimal, or
+// null when the floor cannot be reached with `totalUnits`. Ties give the extra unit to the
+// lowest index.
+function allocateAboveFloor(odds: number[], totalUnits: number, floor: number): number[] | null {
+    const lower = odds.map((o) => minUnitsReaching(floor, o));
+    const spare = totalUnits - sum(lower);
+    if (spare < 0) {
+        return null;
+    }
+
+    const capacity = (ceiling: number): number =>
+        sum(odds.map((o, i) => Math.max(lower[i], maxUnitsWithin(ceiling, o))));
+
+    let low = Math.max(...lower.map((u, i) => payoutOf(u, odds[i])));
+    let high = Math.max(...lower.map((u, i) => payoutOf(u + spare, odds[i])));
+    if (capacity(low) >= totalUnits) {
+        high = low;
+    }
+    for (let round = 0; round < 200 && low < high; round += 1) {
+        const middle = (low + high) / 2;
+        if (middle <= low || middle >= high) {
+            break;
+        }
+        if (capacity(middle) >= totalUnits) {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+
+    const units = odds.map((o, i) => Math.max(lower[i], maxUnitsWithin(high, o)));
+    // The ceiling can leave a few units too many (ties at the ceiling): take them back from the
+    // highest payouts, last index first, so earlier candidates keep the extra unit.
+    for (let extra = sum(units) - totalUnits; extra > 0; extra -= 1) {
+        let pick = -1;
+        for (let i = odds.length - 1; i >= 0; i -= 1) {
+            const removable = units[i] > lower[i];
+            if (removable && (pick < 0 || payoutOf(units[i], odds[i]) > payoutOf(units[pick], odds[pick]))) {
+                pick = i;
+            }
+        }
+        units[pick] -= 1;
+    }
+
+    return units;
+}
+
+function spreadOf(units: number[], odds: number[]): number {
+    const payouts = units.map((u, i) => payoutOf(u, odds[i]));
+
+    return Math.max(...payouts) - Math.min(...payouts);
 }
 
 function computeUnits(odds: number[], totalUnits: number): number[] {
-    return refineSpread(greedyAllocate(odds, totalUnits), odds);
+    const idealPayout = totalUnits / sum(odds.map((o) => 1 / o));
+
+    const floors: number[] = [];
+    for (const o of odds) {
+        for (let k = 1; payoutOf(k, o) <= idealPayout * (1 + 1e-9); k += 1) {
+            floors.push(payoutOf(k, o));
+        }
+    }
+    floors.sort((x, y) => y - x);
+
+    let best: number[] = [];
+    let bestSpread = Infinity;
+    for (const floor of floors) {
+        if (idealPayout - floor > bestSpread) {
+            break;
+        }
+        const units = allocateAboveFloor(odds, totalUnits, floor);
+        if (units === null) {
+            continue;
+        }
+        const spread = spreadOf(units, odds);
+        if (spread < bestSpread) {
+            best = units;
+            bestSpread = spread;
+        }
+    }
+
+    return best;
 }
 
 export function allocate(input: AllocateInput): AllocationResult {
