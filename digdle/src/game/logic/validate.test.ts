@@ -54,10 +54,10 @@ describe('validateHardMode', () => {
     });
 
     it('green 位置を維持すれば ok', () => {
-        // guess='1009', answer='1013' -> positions 0='1'(green),1='0'(green)
-        const history = makeHistory('1009', ['green', 'green', 'yellow', 'gray']);
-        // '1019': 位置0='1',位置1='0' を維持
-        expect(validateHardMode('1019', history)).toEqual({ ok: true });
+        // guess='1039', answer='1013' -> positions 0='1'(green),1='0'(green),2='3'(yellow)
+        const history = makeHistory('1039', ['green', 'green', 'yellow', 'gray']);
+        // '1031': 位置0='1',位置1='0' を維持し、yellow の '3' も含む
+        expect(validateHardMode('1031', history)).toEqual({ ok: true });
     });
 
     it('green 位置の数字を変えると拒否される', () => {
