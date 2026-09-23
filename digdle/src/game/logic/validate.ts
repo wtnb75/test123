@@ -79,11 +79,12 @@ export const validateHardMode = (guess: string, history: GuessHistory[]): Valida
             }
         }
 
-        // yellow: guess must contain each yellow digit somewhere
-        const yellowRequired = new Map<string, number>();
+        // green + yellow: guess must contain each revealed digit as many times as it was revealed
+        // (a digit that was green once and yellow once must appear twice)
+        const revealedCounts = new Map<string, number>();
         for (let i = 0; i < entry.colors.length; i += 1) {
-            if (entry.colors[i] === 'yellow') {
-                yellowRequired.set(entry.guess[i], (yellowRequired.get(entry.guess[i]) ?? 0) + 1);
+            if (entry.colors[i] !== 'gray') {
+                revealedCounts.set(entry.guess[i], (revealedCounts.get(entry.guess[i]) ?? 0) + 1);
             }
         }
 
@@ -92,7 +93,7 @@ export const validateHardMode = (guess: string, history: GuessHistory[]): Valida
             guessCounts.set(ch, (guessCounts.get(ch) ?? 0) + 1);
         }
 
-        for (const [digit, required] of yellowRequired.entries()) {
+        for (const [digit, required] of revealedCounts.entries()) {
             if ((guessCounts.get(digit) ?? 0) < required) {
                 return { ok: false, message: HARD_MODE_YELLOW_MESSAGE };
             }

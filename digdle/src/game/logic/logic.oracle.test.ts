@@ -11,7 +11,14 @@ import {
     SUPPORTED_DIGITS,
     type PrimeMap
 } from './primes';
-import { validateGuess, validateHardMode, INVALID_LENGTH_MESSAGE, INVALID_PRIME_MESSAGE } from './validate';
+import {
+    HARD_MODE_GREEN_MESSAGE,
+    HARD_MODE_YELLOW_MESSAGE,
+    INVALID_LENGTH_MESSAGE,
+    INVALID_PRIME_MESSAGE,
+    validateGuess,
+    validateHardMode
+} from './validate';
 import type { DigitStatus, GuessHistory } from '../types';
 
 // Checks against independent oracles: a reference implementation, a sieve, and known prime counts.
@@ -286,6 +293,68 @@ describe('validateHardMode', () => {
 
         expect(validateHardMode('1013', history)).toEqual({ ok: true });
         expect(validateHardMode('1019', history).ok).toBe(false);
+    });
+
+    // Hard mode: keep every green in place and include every revealed digit as many times as it was
+    // revealed, counting greens and yellows together (docs/spec.md).
+    const expectedHardModeMessage = (candidate: string, history: GuessHistory[]): string | undefined => {
+        for (const entry of history) {
+            if (entry.colors.some((color, i) => color === 'green' && candidate[i] !== entry.guess[i])) {
+                return HARD_MODE_GREEN_MESSAGE;
+            }
+            for (const digit of new Set(entry.guess)) {
+                const revealed = [...entry.guess].filter((g, i) => g === digit && entry.colors[i] !== 'gray').length;
+                if ([...candidate].filter((c) => c === digit).length < revealed) {
+                    return HARD_MODE_YELLOW_MESSAGE;
+                }
+            }
+        }
+
+        return undefined;
+    };
+
+    it('requires a digit as many times as green and yellow revealed it together', () => {
+        // Answer 1137, guess 1317: the first 1 is green, the second 1 is yellow, 3 is yellow, 7 is green.
+        const history = round('1137', ['1317']);
+        expect(history[0].colors).toEqual(['green', 'yellow', 'yellow', 'green']);
+
+        expect(validateHardMode('1137', history)).toEqual({ ok: true });
+        expect(validateHardMode('1317', history)).toEqual({ ok: true });
+        // Only one 1 although two were revealed.
+        expect(validateHardMode('1337', history)).toEqual({ ok: false, message: HARD_MODE_YELLOW_MESSAGE });
+        expect(validateHardMode('1377', history)).toEqual({ ok: false, message: HARD_MODE_YELLOW_MESSAGE });
+    });
+
+    it('matches the rule for every guess after one earlier guess (digits 1, 3, 7)', () => {
+        for (const answer of strings('137', 4)) {
+            for (const first of strings('137', 4)) {
+                const history = round(answer, [first]);
+                for (const next of strings('137', 4)) {
+                    const expected = expectedHardModeMessage(next, history);
+                    const actual = validateHardMode(next, history);
+                    if (actual.ok !== (expected === undefined) || actual.message !== expected) {
+                        expect.fail(`answer=${answer} first=${first} next=${next}: got ${JSON.stringify(actual)} expected ${expected}`);
+                    }
+                }
+            }
+        }
+    });
+
+    it('matches the rule for every guess after two earlier guesses (digits 1 and 3)', () => {
+        for (const answer of strings('13', 4)) {
+            for (const first of strings('13', 4)) {
+                for (const second of strings('13', 4)) {
+                    const history = round(answer, [first, second]);
+                    for (const next of strings('13', 4)) {
+                        const expected = expectedHardModeMessage(next, history);
+                        const actual = validateHardMode(next, history);
+                        if (actual.ok !== (expected === undefined) || actual.message !== expected) {
+                            expect.fail(`answer=${answer} ${first},${second} next=${next}: got ${JSON.stringify(actual)} expected ${expected}`);
+                        }
+                    }
+                }
+            }
+        }
     });
 
     it('checks every previous guess, not only the latest', () => {
