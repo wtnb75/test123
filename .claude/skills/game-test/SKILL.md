@@ -48,6 +48,19 @@ worth it, a trivial helper is not.
   consistent with its input. *Completeness* (finding everything findable) is
   optional — heuristic solvers are allowed to miss things. Do not copy the
   implementation's own steps into the oracle; that only re-proves itself.
+- **Generate only states the game can really reach.** Random or exhaustive
+  inputs must respect the invariants normal play maintains (for example, an
+  opened zero cell always has its unflagged neighbors opened). Otherwise a
+  failure may just be an impossible input, and you will chase a bug that is
+  not there.
+- **Guard against vacuous runs.** A loop over thousands of random cases that
+  never hits the interesting branch proves nothing. Count the cases that
+  exercised each outcome (a deduction was made, a game was won, a timeout
+  fired) and assert the counts are above zero. This has caught a generator
+  that never produced the shape being tested.
+- **Keep big loops cheap.** Calling `expect(...)` hundreds of thousands of
+  times is slow (one such test took seconds). Inside a hot loop use a plain
+  `if` and `expect.fail(message)` with the failing input in the message.
 - **Sweep time-dependent code deterministically.** Replace `Date.now` with a
   clock that advances one tick per call and run with budgets 1, 2, 3, …
   so every timeout check is hit; assert that a timed-out run reports
@@ -57,6 +70,13 @@ worth it, a trivial helper is not.
   must (characterization test), say so in the test and pair it with an
   oracle check. Avoid assertions that pass for almost any result, such as
   `toBeGreaterThanOrEqual(0)` or `?? 0` on a value you expect to exist.
+- **Make a rejection test reject for the reason you name.** When testing
+  validation or boundaries, build an input that is valid in every other
+  respect and assert the specific message or error code, not just
+  `toThrow()` / `ok: false`. Otherwise another check (a length mismatch, a
+  different range) can reject the input and the check you meant to test may
+  be missing or wrong without any test failing. Two such holes were found
+  only through mutation checks.
 - **Exporting internals for tests is fine** when behavior does not change —
   mention it in the PR.
 - **Spot-check with mutations before finishing.** Temporarily break the
@@ -65,14 +85,20 @@ worth it, a trivial helper is not.
   clean afterwards). Every mutant should make a test fail; for one that
   survives, add a test or explain why it is equivalent (no observable
   change). Do this in a throwaway script under the scratchpad, not by
-  committing broken code.
+  committing broken code. Mutants that only change speed (removing an early
+  exit or a prune) or that no valid input can reach are equivalent — say so
+  rather than chasing them. Survivors are often gaps in the tests, not just
+  in the code: read each one.
 - **When an oracle test fails, find out who is wrong.** It is either a bug
   in the implementation or a wrong assumption in the oracle. Check what the
   code is documented or intended to guarantee before deciding — don't bend
   the test to pass, and don't call it a bug without evidence. If it is a
   real bug, don't fix it inside the test PR: report it and fix it on its own
   branch (AGENTS.md: one change, one purpose), with a failing regression
-  test first.
+  test first. In the test PR, record the gap (an `it.todo` with the
+  numbers, and the PR description); in the fix PR turn it into a real test.
+  If the code documents itself as a heuristic, whether to make it exact is
+  the user's decision — report the size of the gap and propose a fix.
 
 ## Self-review (before completion)
 
@@ -92,6 +118,10 @@ than leaving it for `game-check`'s coverage number to (not) catch:
 - For logic-heavy modules: is there at least one check whose expected value
   comes from somewhere other than the implementation (oracle, hand-derived
   value), and did a mutation spot-check show the tests can fail?
+- Does every random or exhaustive loop prove it exercised what it claims (a
+  non-zero count of the interesting outcome)?
+- Does each rejection/boundary test fail *only* if the check it is named
+  after is broken?
 
 ## Completion
 
