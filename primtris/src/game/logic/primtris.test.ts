@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     advanceQueue,
@@ -30,6 +30,7 @@ describe('getValidBoxes', () => {
     it('allows multiple correct boxes for composite factors', () => {
         expect(getValidBoxes(30)).toEqual(['x2', 'x3', 'x5']);
         expect(getValidBoxes(42)).toEqual(['x2', 'x3', 'x7']);
+        expect(getValidBoxes(35)).toEqual(['x5', 'x7']);
     });
 
     it('routes composites without 2 3 5 7 factors to xN', () => {
@@ -47,10 +48,34 @@ describe('isPrime', () => {
     it('handles low-value edge cases', () => {
         expect(isPrime(1)).toBe(false);
         expect(isPrime(2)).toBe(true);
+        expect(isPrime(0)).toBe(false);
+        expect(isPrime(-7)).toBe(false);
+    });
+
+    it('rejects even numbers greater than 2', () => {
+        expect(isPrime(4)).toBe(false);
+        expect(isPrime(98)).toBe(false);
+    });
+
+    it('rejects odd composites and accepts odd primes', () => {
+        expect(isPrime(9)).toBe(false);
+        expect(isPrime(91)).toBe(false);
+        expect(isPrime(97)).toBe(true);
+        expect(isPrime(997)).toBe(true);
     });
 });
 
 describe('generateNumber', () => {
+    it('uses Math.random when no rng is injected', () => {
+        const spy = vi.spyOn(Math, 'random').mockReturnValue(0);
+
+        try {
+            expect(generateNumber(2)).toBe(10);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
     it('returns a positive integer with the exact digit count', () => {
         expect(generateNumber(2, () => 0)).toBe(10);
         expect(generateNumber(2, () => 0.999999)).toBe(99);
@@ -122,7 +147,7 @@ describe('queue helpers', () => {
         expect(getValidBoxes(queue.current)).toEqual(['P']);
     });
 
-    it('uses xN fallback generation in 3-digit mode when balanced attempts cannot hit xN', () => {
+    it('builds an xN number from prime candidates in 3-digit mode when balanced attempts cannot hit xN', () => {
         const hardDifficulty: Difficulty = { digitCount: 3, boxCapacity: 9 };
         const distribution = createDistributionState();
         distribution.counts.x2 = 10;
@@ -134,7 +159,81 @@ describe('queue helpers', () => {
 
         const queue = createQueue(hardDifficulty, () => 0, distribution);
 
+        expect(queue.current).toBe(121);
         expect(getValidBoxes(queue.current)).toEqual(['xN']);
+    });
+
+    it('scans for the first xN number when no candidate product fits the digit range', () => {
+        const hardDifficulty: Difficulty = { digitCount: 3, boxCapacity: 9 };
+        const distribution = createDistributionState();
+        for (const box of ['x2', 'x3', 'x5', 'x7', 'P'] as const) {
+            distribution.counts[box] = 10;
+        }
+
+        // 0.999999 always picks 37 * 37 = 1369 (4 digits) and generateNumber gives 999 (x3).
+        const queue = createQueue(hardDifficulty, () => 0.999999, distribution);
+
+        expect(queue.current).toBe(121);
+        expect(getValidBoxes(queue.current)).toEqual(['xN']);
+    });
+
+    it('scans for the first prime when no attempt lands on a prime in range', () => {
+        const distribution = createDistributionState();
+        for (const box of ['x2', 'x3', 'x5', 'x7'] as const) {
+            distribution.counts[box] = 10;
+        }
+
+        // 0.999999 always starts from 99, whose next odd value 101 is out of the 2-digit range.
+        const queue = createQueue(difficulty, () => 0.999999, distribution);
+
+        expect(queue.current).toBe(11);
+    });
+
+    it('steps through odd values to find a prime when the start value is an odd composite', () => {
+        const distribution = createDistributionState();
+        for (const box of ['x2', 'x3', 'x5', 'x7'] as const) {
+            distribution.counts[box] = 10;
+        }
+
+        // 0.06 gives 15 (odd composite); the search then walks to 17.
+        const queue = createQueue(difficulty, () => 0.06, distribution);
+
+        expect(queue.current).toBe(17);
+    });
+
+    it('falls back to the smallest multiple when a divisor box has no valid number in range', () => {
+        const oneDigit: Difficulty = { digitCount: 1, boxCapacity: 12 };
+        const distribution = createDistributionState();
+        for (const box of ['x2', 'x3', 'x5', 'P'] as const) {
+            distribution.counts[box] = 10;
+        }
+
+        // The only 1-digit multiple of 7 is the prime 7, which routes to P, not x7.
+        const queue = createQueue(oneDigit, () => 0, distribution);
+
+        expect(queue.current).toBe(7);
+    });
+
+    it('generates without balancing when no distribution state is given', () => {
+        const spy = vi.spyOn(Math, 'random').mockReturnValue(0);
+
+        try {
+            const queue = createQueue(difficulty);
+            expect(queue).toEqual({ current: 10, next: [10, 10] });
+            expect(advanceQueue(queue, difficulty).next).toEqual([10, 10]);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('records the generated number in the distribution state', () => {
+        const distribution = createDistributionState();
+
+        createQueue(difficulty, () => 0.5, distribution);
+
+        expect(distribution.generated).toBe(3);
+        const total = Object.values(distribution.counts).reduce((sum, count) => sum + count, 0);
+        expect(total).toBeGreaterThanOrEqual(3);
     });
 
     it('covers divisor-target generation path for factor boxes', () => {
