@@ -290,7 +290,7 @@ const countUnknown = (grid: KnownCell[][]): number => {
 };
 
 const isGridConsistent = (grid: KnownCell[][], rowHints: number[][], colHints: number[][], maxMillis: number, startedAt: number): boolean => {
-    const width = grid[0].length;
+    const width = grid[0]?.length ?? 0;
     const height = grid.length;
 
     for (let y = 0; y < height; y += 1) {

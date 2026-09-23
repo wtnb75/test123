@@ -193,6 +193,20 @@ describe('solver', () => {
         expect(result.unique).toBe(false);
         expect(result.difficulty).toBe('unsolved');
     });
+
+    it('treats a puzzle with no cells as trivially solved instead of throwing', () => {
+        const result = analyzePuzzle([], [], [], 3000);
+
+        expect(result).toMatchObject({
+            solvable: true,
+            unique: true,
+            logical: true,
+            remainingCells: 0,
+            score: 0,
+            difficulty: 'easy',
+            timedOut: false,
+        });
+    });
 });
 
 describe('solver advanced techniques', () => {
