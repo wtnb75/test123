@@ -195,6 +195,11 @@ describe('single-line techniques (exhaustive up to 8 cells)', () => {
         }
     });
 
+    it('full-line-empty does nothing when more cells are known filled than the hints allow', () => {
+        expect(applyFullLineEmpty(context([1], [1, 1, null])).updates).toEqual([]);
+        expect(applyFullLineEmpty(context([0], [1, null, null])).updates).toEqual([]);
+    });
+
     it('region-split leaves everything alone when no unknown region is shorter than the smallest hint', () => {
         expect(applyRegionSplit(context([3], [null, null, null, 0, null, null, null])).updates).toEqual([]);
         expect(applyRegionSplit(context([0], [null, null])).updates).toEqual([]);
