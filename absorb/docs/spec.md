@@ -3,9 +3,9 @@ status_idea: done
 status_init: done
 status_spec: done
 status_impl: done
-status_test: in_progress
-status_check: pending
-status_qa: pending
+status_test: done
+status_check: done
+status_qa: done
 status_balance: pending
 status_publish: pending
 ---
