@@ -39,6 +39,7 @@
 - `task newgame` 実行後、必ず以下を行う
 	- `<game-dir>/package.json` の `description` をゲーム内容に合わせて書き換える
 	- `pnpm install` を実行してロックファイルを更新する
+	- `task game:favicon PACKAGE=<game-dir>` を実行し、テンプレート既定の `public/favicon.png` をゲーム名から生成した identicon（jdenticon）に置き換える
 	- 公開一覧（トップページ）に載せる準備ができたら `Taskfile.yml` の `GAMES` 該当行のコメントアウトを外す
 
 ### 2.3 オプション指定ルール
@@ -180,8 +181,10 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | 実装 | `game-impl` | 承認済みの spec.md に対して Phaser.js コードを実装（4節） |
 | テスト | `game-test` | Vitest 単体テストをカバレッジ90%以上で追加（4.5節） |
 | 品質ゲート | `game-check` | lint/test/coverage/build を通す（6節） |
+| コードレビュー | `game-codereview` | `/code-review` 相当のレビュー → 指摘の採否をユーザーが決める → 修正、を指摘が出なくなるまで（最大3周）ループする |
 | ビジュアルQA | `game-qa` | Docker + Playwright で実ブラウザの描画・操作感を確認（9節） |
-| バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→qa をループする |
+| 見た目・UI調整 | `game-polish` | エフェクト、入力へのフィードバック、動線・操作の分かりやすさを改善する。spec→impl→test→check→codereview→qa をループする（ゲームバランスに関わる数値は扱わない） |
+| バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→codereview→qa→polish をループする |
 | 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
 
 - 迷ったら `game-next` を実行するだけでよい。現在どのゲームのどの段階が未完了
@@ -190,6 +193,9 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 - 複数ゲームを並行して進めている場合、`game-next` はカレントブランチ名
   （`feat/<game-dir>` など。2.2節）を最優先の手がかりに対象ゲームを判定する
 - 全ゲームの進捗一覧は `task game:dashboard` で確認できる
+- 後から追加された段階（`codereview` / `polish`）のキーを持たない既存ゲームは、
+  その段階をスキップ扱いにする。次に `game-spec` で改訂したときにキーが
+  追加され、以降はその段階も通る
 - 各スキルは段階を完了する前に `game-review STAGE=<段階>` でレビューする。
   全段階のレビュー観点は `game-review` に集約されており、「次の段階が推測
   なしに着手できるか」を基準にする

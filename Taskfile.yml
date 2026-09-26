@@ -303,3 +303,12 @@ tasks:
     desc: guess which game is currently being worked on
     cmds:
       - scripts/game-status.sh detect
+
+  game:favicon:
+    desc: generate PACKAGE=/public/favicon.png as an identicon of NAME= (default PACKAGE) via jdenticon
+    vars:
+      NAME: '{{ .NAME | default .PACKAGE }}'
+    preconditions:
+      - "test -d {{ .PACKAGE }}/public"
+    cmds:
+      - pnpm dlx jdenticon '{{ .NAME }}' -s 64 -o {{ .PACKAGE }}/public/favicon.png

@@ -1,13 +1,14 @@
 ---
 name: game-next
-description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/qa/balance/publish).
+description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish).
 ---
 
 # game-next
 
 One command to keep going. Figures out which game is in progress and which
 of the `game-idea` → `game-init` → `game-spec` → `game-impl` → `game-test` →
-`game-check` → `game-qa` → `game-balance` → `game-publish` stages is next,
+`game-check` → `game-codereview` → `game-qa` → `game-polish` →
+`game-balance` → `game-publish` stages is next,
 then hands off to that skill. This skill never edits files itself — it only
 detects state and dispatches.
 
@@ -47,7 +48,9 @@ detects state and dispatches.
    | `impl` | `game-impl` |
    | `test` | `game-test` |
    | `check` | `game-check` |
+   | `codereview` | `game-codereview` |
    | `qa` | `game-qa` |
+   | `polish` | `game-polish` |
    | `balance` | `game-balance` |
    | `publish` | `game-publish` |
    | `complete` | none — see below |

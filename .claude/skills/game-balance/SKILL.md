@@ -1,6 +1,6 @@
 ---
 name: game-balance
-description: Use after a game passes game-qa but doesn't feel fun or well-tuned yet — plays the game, adjusts difficulty/pacing parameters, updates docs/spec.md, and loops the change back through impl/test/check/qa.
+description: Use after a game passes game-polish but doesn't feel fun or well-tuned yet — plays the game, adjusts difficulty/pacing parameters, updates docs/spec.md, and loops the change back through impl/test/check/codereview/qa/polish.
 ---
 
 # game-balance
@@ -14,7 +14,9 @@ one-off screenshot.
 ## Inputs
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
-- Requires `status_qa: done` for this game.
+- Requires `status_polish: done` for this game (presentation is settled
+  first, so tuning is judged on the game as it will ship). Effects and UI
+  problems noticed here go to `game-polish`, not into a tuning change.
 
 ## Process
 
@@ -35,7 +37,9 @@ one-off screenshot.
    `pending` on its own as part of any revision — this skill doesn't need
    to do that itself.
 4. Hand off to `game-impl` to apply the tuning change, then let the normal
-   impl → test → check → qa chain run again.
+   impl → test → check → codereview → qa → polish chain run again
+   (`game-codereview` and `game-polish` only look at what the tuning
+   changed, so these passes are short).
 
 ## When to stop looping
 

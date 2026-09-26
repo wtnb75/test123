@@ -5,9 +5,15 @@
 # A game only participates once its docs/spec.md carries a status_idea key;
 # games without that frontmatter are left untouched (see AGENTS.md skill
 # design notes).
+#
+# Stages added after a game started tracking (e.g. codereview, polish) have
+# no key in its frontmatter. An absent key reads as "absent" and is skipped
+# by `next`, so already-complete games stay complete; `set` inserts the key,
+# so the stage joins the pipeline the next time game-spec resets downstream
+# stages for a revision.
 set -euo pipefail
 
-STAGES=(idea init spec impl test check qa balance publish)
+STAGES=(idea init spec impl test check codereview qa polish balance publish)
 
 usage() {
   cat <<'EOF'
@@ -44,8 +50,20 @@ known_stage() {
 }
 
 get_stage() {
-  local f="$1" stage="$2"
-  frontmatter "$f" | rg "^status_${stage}: " | awk '{print $2}'
+  local f="$1" stage="$2" v
+  v=$(frontmatter "$f" | rg "^status_${stage}: " | awk '{print $2}' || true)
+  echo "${v:-absent}"
+}
+
+# Insert a status key just before the closing frontmatter fence.
+insert_stage() {
+  local f="$1" stage="$2" value="$3" tmp
+  tmp=$(mktemp)
+  awk -v line="status_${stage}: ${value}" '
+    /^---$/ { n++; if (n == 2) print line }
+    { print }
+  ' "$f" > "$tmp"
+  mv "$tmp" "$f"
 }
 
 cmd_get() {
@@ -72,15 +90,18 @@ cmd_set() {
     pending|in_progress|done) ;;
     *) echo "value must be pending|in_progress|done" >&2; exit 1 ;;
   esac
-  rg -q "^status_${stage}: " "$f" || { echo "no status_${stage} key in $f" >&2; exit 1; }
-  sd "^status_${stage}: .*" "status_${stage}: ${value}" "$f"
+  if [[ "$(get_stage "$f" "$stage")" == "absent" ]]; then
+    insert_stage "$f" "$stage" "$value"
+  else
+    sd "^status_${stage}: .*" "status_${stage}: ${value}" "$f"
+  fi
 }
 
 cmd_next() {
   local game="$1" s v
   for s in "${STAGES[@]}"; do
     v=$(cmd_get "$game" "$s")
-    if [[ "$v" != "done" ]]; then
+    if [[ "$v" != "done" && "$v" != "absent" ]]; then
       echo "$s"
       return
     fi

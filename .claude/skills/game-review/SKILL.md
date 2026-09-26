@@ -1,6 +1,6 @@
 ---
 name: game-review
-description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/init/spec/impl/test/check/qa/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
+description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
 ---
 
 # game-review
@@ -27,7 +27,7 @@ checklist asks "can someone implement this without inventing anything?").
 | STAGE | Reviewer | Why |
 |---|---|---|
 | `spec`, `impl`, `test` | **Fresh subagent** (see below) | The output is consumed by the next stage; the author fills gaps from conversation context without noticing |
-| `idea`, `init`, `check`, `qa`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context |
+| `idea`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
 
 ### Running a subagent review
 
@@ -103,11 +103,14 @@ Before summarizing the concept to the user:
   version (has `catalog:` deps from `base.json`)?
 - Is `<game-dir>` registered in `pnpm-workspace.yaml` and as a
   commented-out line in `Taskfile.yml` `GAMES`?
-- Does `<game-dir>/docs/spec.md` have all 9 `status_*` keys, `idea`/`init`
+- Does `<game-dir>/docs/spec.md` have all 11 `status_*` keys, `idea`/`init`
   `done`, the rest `pending`?
 - Did `pnpm install` run (`<game-dir>/node_modules` exists,
   `pnpm-lock.yaml` changed)?
 - Does `package.json` `description` describe this game?
+- Was `task game:favicon` run (`public/favicon.png` differs from
+  `scaffold/base-template/public/favicon.png`)? If it failed, was the user
+  told?
 
 ## STAGE=spec (subagent) — consumer: game-impl
 
@@ -241,7 +244,22 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - If the build setup changed: does `dist/` actually look like a working
   static site?
 
-## STAGE=qa (self) — consumer: game-balance
+## STAGE=codereview (self) — consumer: game-qa
+
+- Did the user make the accept/reject call, once per round, on a table
+  with your recommendation — not you alone?
+- Was each finding checked against the code before it was recommended,
+  and does every rejected one have a stated reason?
+- Does every accepted correctness fix have a regression test that failed
+  before the fix?
+- Did findings that change player-visible behavior go to `game-spec`
+  instead of being fixed straight in code?
+- Did the four `game-check` commands pass after the *last* fix?
+- Does the diff contain only the accepted fixes — no drive-by refactoring?
+- Did the loop end properly (a round with nothing accepted, or round 3
+  with the rest handed to the user)?
+
+## STAGE=qa (self) — consumer: game-polish
 
 - Is there a screenshot for every Scene and every state transition named in
   spec.md (title, mid-play, clear, game-over, overlays)?
@@ -251,6 +269,22 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - Was feel (speed, hit detection, transition timing) judged against the
   spec, not just "it rendered"?
 - Were the QA container and dev server actually cleaned up?
+
+## STAGE=polish (self) — consumer: game-balance
+
+- Was every Scene/state looked at on both a desktop and a phone-sized
+  viewport, with bursts of frames for effects and transitions?
+- Is each implemented change one the user picked, recorded in spec.md
+  (演出・UI / パラメータ表 / 実装裁量) before it was implemented?
+- Did anything with gameplay weight (speed, hit box, timing window,
+  scoring) sneak in? That belongs to `game-balance` — back it out.
+- Do effects leave input responsive, and are emitters/tweens/texts created
+  once rather than per frame?
+- Can a first-time player tell what to touch first and how to retry,
+  from the screenshots alone?
+- Are `<title>` and `favicon.png` this game's own?
+- Did QA pass again on the polished version, and did the user confirm the
+  look with before/after screenshots?
 
 ## STAGE=balance (self) — consumer: game-spec (revision) / game-publish
 
@@ -264,6 +298,7 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
 - Does `README.md` let a stranger understand the goal, rules and controls?
 - Is `status_balance` genuinely `done` (user signed off)?
+- Is `public/favicon.png` this game's own, not the template's stock icon?
 - Is the `Taskfile.yml` `GAMES` line for this game actually uncommented?
 - Is the branch not `main`, and does `git show --stat` touch only files
   that belong to this change?

@@ -20,9 +20,14 @@ by the user.
 
 1. Confirm `<game-dir>/README.md` documents purpose, rules, and controls
    (AGENTS.md 4.1 — required, not optional).
-2. This is a user-visible change (it adds a link on the public top page) —
+2. Confirm the game has its own favicon:
+   `cmp -s <game-dir>/public/favicon.png scaffold/base-template/public/favicon.png`
+   succeeding means it's still the template's stock icon — run
+   `task game:favicon PACKAGE=<game-dir>` and include the result in this
+   change.
+3. This is a user-visible change (it adds a link on the public top page) —
    confirm with the user before touching `Taskfile.yml`.
-3. Uncomment the `<game-dir>` line under `GAMES:` in `Taskfile.yml`.
+4. Uncomment the `<game-dir>` line under `GAMES:` in `Taskfile.yml`.
 
 `task build` / `output/index.html` verification is CI's job, not this
 skill's — don't run it here (confirmed with the user: this repo's CI

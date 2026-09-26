@@ -61,4 +61,4 @@ fails rather than just noting it.
 1. All five steps done — scaffold cleanup applied, and the four commands
    pass.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`
-3. Tell the user the next step is `game-qa`.
+3. Tell the user the next step is `game-codereview`.

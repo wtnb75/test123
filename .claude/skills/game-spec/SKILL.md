@@ -63,6 +63,11 @@ apply to this game — skip what genuinely doesn't apply, don't pad:
   say exactly what triggers each transition (a specific player action vs.
   a timer vs. a game-logic condition). "Various phases" is not enough —
   ambiguity here is exactly the kind of thing that stalls `game-impl`.
+- **演出・UI** (usually added by a `game-polish` revision): the effects
+  and UI cues each Scene has — what triggers each one, what it looks like,
+  and whether input is accepted while it plays. Player-relevant durations
+  and sizes go into the パラメータ表; cosmetic details (easing, tint) can
+  be delegated in 実装裁量.
 
 ## Progress frontmatter
 
@@ -80,7 +85,7 @@ frontmatter block by hand otherwise.
 
 Before touching frontmatter or drafting, check the *current* value of
 `status_publish` (`task game:status PACKAGE=<game-dir> STAGE=publish`) —
-before the six-stage reset below overwrites it:
+before the downstream reset below overwrites it:
 
 - **First write** (`status_spec` was `pending`): no branch action. You're
   already on the branch `game-init` created (`feat/<game-dir>`).
@@ -119,12 +124,14 @@ revision (not a first write):
 task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=pending
+task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=pending
+task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=pending
 ```
 
-Run all six unconditionally — resetting a stage that's already `pending`
+Run all eight unconditionally — resetting a stage that's already `pending`
 is a harmless no-op, and trying to guess which stages the change "actually
 affects" is exactly the kind of judgment call that's easy to get wrong.
 (If the caller is itself mid-flight or the stage this settles it into
@@ -143,7 +150,7 @@ Also check the process yourself, for a revision:
 
 - Did you check `status_publish`'s value *before* resetting it, and branch
   accordingly (new branch only if it was `done`)?
-- Did you actually run the six downstream resets above, not just remember
+- Did you actually run the eight downstream resets above, not just remember
   that they exist?
 
 ## Completion
