@@ -50,20 +50,11 @@ fix root causes (not by disabling checks), and re-run from the top. If a
 coverage shortfall can't be closed in this pass, state the shortfall and a
 concrete plan per AGENTS.md 6 — don't paper over it.
 
-## Self-review (before completion)
+## Review (before completion)
 
-The four commands passing is necessary but not sufficient — also check:
-
-- Was any failure fixed at the root cause, or masked (a new lint-disable
-  comment, a loosened assertion, a lowered coverage threshold)? A masked
-  fix doesn't count as passing; go back and fix the real issue.
-- Do any lint-disable comments in the diff lack a reason, or cover more
-  code than necessary?
-- Does the build output actually look like a working static site (not just
-  "the build command exited 0") — spot-check `dist/` if anything about the
-  build step changed.
-- Does `public/` still contain any file that isn't actually referenced by
-  `src/` or `index.html` — something step 1 should have caught?
+Run `game-review STAGE=check PACKAGE=<game-dir>` — a self-review against
+its `STAGE=check` checklist — before marking this stage done. Fix anything that
+fails rather than just noting it.
 
 ## Completion
 

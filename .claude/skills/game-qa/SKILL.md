@@ -47,15 +47,11 @@ Don't mark this stage done. Report what looked wrong with the screenshots
 as evidence, and route back to `game-impl` for a fix (one change, one
 purpose — don't bundle the fix with unrelated work).
 
-## Self-review (before completion)
+## Review (before completion)
 
-- For each screenshot, can you state specifically what it confirms (which
-  spec.md Scene/rule it matches), not just "looks fine, didn't crash"?
-- Did you actually judge feel (speed, hit-detection, transition timing)
-  against what `docs/spec.md` describes, or only whether something
-  rendered?
-- Did cleanup (QA container, dev server) actually happen, even though QA
-  passed? Verify, don't assume.
+Run `game-review STAGE=qa PACKAGE=<game-dir>` — a self-review against
+its `STAGE=qa` checklist — before marking this stage done. Fix anything that
+fails rather than just noting it.
 
 ## Completion
 

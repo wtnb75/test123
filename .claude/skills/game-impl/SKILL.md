@@ -21,6 +21,20 @@ Re-read `<game-dir>/docs/spec.md` fully — it is the source of truth for
 scope. If what's being asked diverges from the spec, stop and route back to
 `game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新).
 
+### When the spec is silent
+
+The spec already passed `game-review STAGE=spec`, so gaps should be rare —
+but when writing code reveals one, don't guess silently and don't stall:
+
+- **Listed in 実装裁量, or no player-visible effect** (internal structure,
+  helper naming): decide it yourself and move on. Mention player-visible
+  choices you made under 実装裁量 in the completion summary.
+- **Player-visible and not delegated** (a rule, a number, what happens in
+  an edge case): collect all such gaps, then ask the user once with a
+  recommended answer for each, and route the answers to `game-spec` as a
+  revision before implementing that part. Parts of the spec that aren't
+  affected can be implemented meanwhile.
+
 ### If code already exists, implement the delta, not a rewrite
 
 `status_impl` coming back to this skill after already having been `done`
@@ -63,23 +77,14 @@ to misread as "the hit area is just too small" — confirmed by direct
 instrumentation (logging the callback's `x, y` against the container's
 known position) in `fukuwarai`, not by guessing from symptoms.
 
-## Self-review (before completion)
+## Review (before completion)
 
-Re-read the diff against these and fix anything that fails, don't just note
-it:
-
-- Does every changed file serve the one stated purpose of this session? Any
-  drive-by refactor or formatting-only change to unrelated code should be
-  reverted out.
-- Check each rule in the list above individually against the diff (Scene
-  responsibilities, `preload`/`create`/`update` separation, per-frame
-  allocation, explicit state, listener cleanup) — don't just assume they
-  were followed because they were kept in mind while writing.
-- Does the implemented behavior match `docs/spec.md` exactly, including
-  edge cases it specifies (boundary conditions, MVP-vs-non-MVP scope)? Flag
-  anything implemented that the spec doesn't actually ask for.
-- Existing feel (input response, speed, transitions) unchanged, unless that
-  was the explicit point of this change.
+After `npm run build` succeeds, run `game-review STAGE=impl
+PACKAGE=<game-dir>`. A fresh subagent checks the change against
+`docs/spec.md` (every rule/parameter implemented, nothing invented,
+parameters in one place, logic testable without Phaser) and the Phaser
+rules above. Fix blockers; a finding that turns out to be a spec gap goes
+to `game-spec` as described in "When the spec is silent".
 
 ## Before declaring done: does this need a human look first?
 
@@ -112,7 +117,7 @@ settles risks wasting that work on a mechanic that's still moving.
 ## Completion
 
 1. `npm run build` succeeds (static output).
-2. No unrelated files touched.
+2. `game-review STAGE=impl` has no remaining blockers.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=done`
 4. Tell the user the next step is `game-test`.
 
