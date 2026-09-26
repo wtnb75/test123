@@ -2,10 +2,10 @@
 status_idea: done
 status_init: done
 status_spec: done
-status_impl: done
-status_test: done
-status_check: done
-status_qa: done
+status_impl: pending
+status_test: pending
+status_check: pending
+status_qa: pending
 status_balance: pending
 status_publish: pending
 ---
@@ -42,7 +42,7 @@ status_publish: pending
 | 操作 | 方法 |
 |------|------|
 | 移動 | 矢印キー または WASD（8方向） |
-| 解放 | X キー または Enter キー（押した瞬間に発動） |
+| 解放 | スペースキー・X キー・Enter キーのいずれか（押した瞬間に発動。押し続けても 1 回だけ） |
 | リスタート | ゲームオーバー画面で R キー、またはクリック |
 
 ### タッチ（スマートフォン・タブレット）
