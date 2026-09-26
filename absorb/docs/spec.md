@@ -3,7 +3,7 @@ status_idea: done
 status_init: done
 status_spec: done
 status_impl: done
-status_test: in_progress
+status_test: done
 status_check: pending
 status_qa: pending
 status_balance: pending
