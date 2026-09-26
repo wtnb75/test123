@@ -128,4 +128,15 @@ export const BOSS_RETURN_SPEED = 200;
 export const BOSS_CONTACT_DAMAGE = 10;
 export const BOSS_ANNOUNCE_DURATION = 1.5;
 export const BOSS_BAR_WIDTH_RATIO = 0.5;
-export const BOSS_BAR_HEIGHT = 10;
+export const BOSS_BAR_HEIGHT = 16;
+export const BOSS_LABEL_SIZE = 22;
+/** The announcement fades out over its last BOSS_ANNOUNCE_FADE seconds. */
+export const BOSS_ANNOUNCE_FADE = 0.5;
+export const BOSS_HIT_FLASH = 0.06;
+export const BOSS_HIT_FLASH_WIDTH = 4;
+export const BOSS_DEFEAT_RING_DURATION = 0.6;
+/** The second defeat ring starts this long after the first. */
+export const BOSS_DEFEAT_RING_DELAY = 0.15;
+export const BOSS_DEFEAT_RING_MAX_RADIUS = 160;
+export const BOSS_SCORE_POPUP_DURATION = 1;
+export const BOSS_SCORE_POPUP_RISE = 40;

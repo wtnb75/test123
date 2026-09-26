@@ -1,8 +1,13 @@
 import { GameObjects, Input, Scene } from 'phaser';
+import { bossScore } from '../logic/boss';
 import {
-    BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN,
-    HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
+    BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE, ENDING_DURATION,
+    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
 } from '../logic/constants';
+import {
+    announceAlpha, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
+    scorePopupRise
+} from '../logic/effects';
 import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
 import { computeScreenSize } from '../logic/screen';
@@ -37,6 +42,10 @@ const GAUGE_Y = 22;
 const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
+const BOSS_CSS_COLOR = `#${COLORS.boss.toString(16).padStart(6, '0')}`;
+const DEFEAT_RING_LINE = 6;
+const SCORE_POPUP_FONT_SIZE = 32;
+
 type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'x' | 'enter' | 'space', Input.Keyboard.Key>;
 
 export class Game extends Scene {
@@ -51,6 +60,17 @@ export class Game extends Scene {
     private buttonText: GameObjects.Text | null;
     private bossGfx: GameObjects.Graphics;
     private bossLabel: GameObjects.Text;
+    /** Defeat rings, drawn over the play area but under the HUD. */
+    private fxGfx: GameObjects.Graphics;
+    private popupText: GameObjects.Text;
+    /** The boss and its HP as of the previous frame, to spot hits and the kill. */
+    private lastBoss: Enemy | null = null;
+    private lastBossHp = 0;
+    /** Seconds since the last boss hit / kill; Infinity when nothing is playing. */
+    private hitFlashAge = Infinity;
+    private defeatAge = Infinity;
+    private defeatX = 0;
+    private defeatY = 0;
     private shownScore = -1;
     private shownLives = -1;
     private shownStock = -1;
@@ -81,6 +101,8 @@ export class Game extends Scene {
         this.shownScore = this.shownLives = this.shownStock = this.shownBossHp = -1;
         this.dragPointerId = -1;
         this.releaseQueued = false;
+        this.lastBoss = null;
+        this.hitFlashAge = this.defeatAge = Infinity;
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
@@ -106,8 +128,12 @@ export class Game extends Scene {
             : null;
         this.bossGfx = this.add.graphics().setDepth(10);
         this.bossLabel = this.add.text(this.bossBarX() - 8, HUD_HEIGHT + BOSS_BAR_HEIGHT / 2, 'BOSS', {
-            fontFamily: 'monospace', fontSize: 14, color: `#${COLORS.boss.toString(16).padStart(6, '0')}`
+            fontFamily: 'monospace', fontSize: BOSS_LABEL_SIZE, color: BOSS_CSS_COLOR
         }).setOrigin(1, 0.5).setDepth(10).setVisible(false);
+        this.fxGfx = this.add.graphics().setDepth(5);
+        this.popupText = this.add.text(0, 0, '', {
+            fontFamily: 'monospace', fontSize: SCORE_POPUP_FONT_SIZE, color: BOSS_CSS_COLOR
+        }).setOrigin(0.5).setDepth(5).setVisible(false);
     }
 
     private bossBarX(): number {
@@ -179,7 +205,9 @@ export class Game extends Scene {
         this.world.step(dt, this.input_);
         this.input_.dragX = 0;
         this.input_.dragY = 0;
+        this.trackBoss(dt);
         this.draw();
+        this.drawBossEffects();
         this.drawHud();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
@@ -196,15 +224,52 @@ export class Game extends Scene {
         this.releaseQueued = false;
     }
 
+    /**
+     * Starts the boss's hit flash when its HP drops and its defeat effect when it dies, by comparing
+     * with the previous frame. A killing hit shows only the defeat effect.
+     */
+    private trackBoss(dt: number) {
+        this.hitFlashAge += dt;
+        this.defeatAge += dt;
+        const boss = this.world.boss;
+        const last = this.lastBoss;
+        if (last && boss !== last) {
+            this.defeatAge = 0;
+            this.defeatX = last.x;
+            this.defeatY = last.y;
+            this.popupText.setText(`+${bossScore(last)}`);
+        } else if (boss && boss.hp < this.lastBossHp) {
+            this.hitFlashAge = 0;
+        }
+        this.lastBoss = boss;
+        this.lastBossHp = boss ? boss.hp : 0;
+    }
+
+    /** Defeat rings and the score popup: above the player, below the HUD. */
+    private drawBossEffects() {
+        const g = this.fxGfx;
+        g.clear();
+        for (let i = 0; i < 2; i++) {
+            const p = defeatRingProgress(this.defeatAge, i);
+            if (p < 0) continue;
+            g.lineStyle(DEFEAT_RING_LINE, COLORS.boss, fadeAlpha(p));
+            g.strokeCircle(this.defeatX, this.defeatY, defeatRingRadius(p));
+        }
+        const p = scorePopupProgress(this.defeatAge);
+        this.popupText.setVisible(p >= 0);
+        if (p >= 0) this.popupText.setPosition(this.defeatX, this.defeatY - scorePopupRise(p)).setAlpha(fadeAlpha(p));
+    }
+
     private draw() {
         const g = this.gfx;
         const w = this.world;
         g.clear();
 
-        for (const e of w.enemies) this.drawEnemy(e);
-
+        // Back to front: enemy bullets, enemies, release bullets, player.
         g.fillStyle(COLORS.enemyBullet, 1);
         for (const b of w.enemyBullets) g.fillCircle(b.x, b.y, ENEMY_BULLET_RADIUS);
+
+        for (const e of w.enemies) this.drawEnemy(e);
 
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
@@ -307,6 +372,10 @@ export class Game extends Scene {
         g.fillCircle(e.x, e.y, r);
         g.fillStyle(COLORS.bossCore, 1);
         g.fillCircle(e.x, e.y, r * 0.45);
+        if (hitFlashVisible(this.hitFlashAge)) {
+            g.lineStyle(BOSS_HIT_FLASH_WIDTH, COLORS.warn, 1);
+            g.strokeCircle(e.x, e.y, r);
+        }
     }
 
     /** The HP bar under the HUD band, shown only while a boss is on the field. */
@@ -343,10 +412,14 @@ export class Game extends Scene {
             this.redrawGaugeAndButton();
         }
         this.drawBossBar();
-        const center = w.phase === 'ready'
+        const countdown = w.phase === 'ready';
+        const center = countdown
             ? String(Math.max(1, Math.ceil(READY_DURATION - w.phaseTime)))
             : w.bossAnnounce > 0 ? 'BOSS' : '';
-        if (this.centerText.text !== center) this.centerText.setText(center);
+        if (this.centerText.text !== center) {
+            this.centerText.setText(center).setColor(countdown ? '#ffffff' : BOSS_CSS_COLOR);
+        }
+        this.centerText.setAlpha(countdown ? 1 : announceAlpha(w.bossAnnounce));
     }
 
     private redrawGaugeAndButton() {
