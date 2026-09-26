@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEnemy, type Enemy } from './enemy';
+import { assignHeavySlots, createEnemy, type Enemy } from './enemy';
 import type { ScreenSize } from './screen';
 import { shortfall, World, type Input } from './world';
 
@@ -668,5 +668,324 @@ describe('movement', () => {
         expect(w.hasDragTarget).toBe(false);
         w.step(DT, NONE);
         expect(w.player.x).toBeLessThan(x0);
+    });
+});
+
+describe('boss', () => {
+    /** Spawns the first boss right away and returns it. */
+    function spawnBoss(w: World): Enemy {
+        w.elapsed = w.nextBossAt;
+        w.step(DT, NONE);
+        if (!w.boss) expect.fail('boss did not spawn');
+        return w.boss;
+    }
+
+    /** Parks the boss at (x, y) swaying, with its fire and charge clocks stopped. */
+    function hold(boss: Enemy, x: number, y: number): Enemy {
+        boss.x = x;
+        boss.y = y;
+        boss.stationY = y;
+        boss.state = 'sway';
+        boss.fireTimer = Infinity;
+        boss.actionTimer = Infinity;
+        return boss;
+    }
+
+    describe('spawning', () => {
+        it('appears exactly when playing time reaches 45 s, not before', () => {
+            const w = playingWorld();
+            expect(w.nextBossAt).toBe(45);
+            w.elapsed = 45 - 1e-9;
+            w.step(DT, NONE);
+            expect(w.boss).toBeNull();
+            w.elapsed = 45;
+            w.step(DT, NONE);
+            expect(w.boss).not.toBeNull();
+            expect(w.enemies).toContain(w.boss);
+            expect(w.boss).toMatchObject({ kind: 'boss', hp: 80, maxHp: 80 });
+        });
+
+        it('announces itself for 1.5 s', () => {
+            const w = playingWorld();
+            spawnBoss(w);
+            expect(w.bossAnnounce).toBeCloseTo(1.5);
+            steps(w, 1.4);
+            expect(w.bossAnnounce).toBeGreaterThan(0);
+            steps(w, 0.15);
+            expect(w.bossAnnounce).toBe(0);
+        });
+
+        it('never has two bosses at once', () => {
+            const w = playingWorld();
+            const boss = spawnBoss(w);
+            w.elapsed = 1000;
+            steps(w, 0.5);
+            expect(w.enemies.filter((e) => e.kind === 'boss')).toEqual([boss]);
+            expect(w.bossCount).toBe(1);
+        });
+
+        it('does not appear during ready or ending', () => {
+            const ready = new World(S, () => 0.5);
+            ready.nextBossAt = 0;
+            ready.step(1, NONE);
+            expect(ready.boss).toBeNull();
+
+            const w = playingWorld();
+            w.player.lives = 1;
+            still(w, 'grunt', w.player.x, w.player.y);
+            w.step(DT, NONE);
+            expect(w.phase).toBe('ending');
+            w.nextBossAt = 0;
+            steps(w, 0.5);
+            expect(w.boss).toBeNull();
+        });
+
+        it('comes back 60 s after a defeat with 40 more HP', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            boss.hp = 10;
+            w.elapsed = 100;
+            w.step(DT, NONE); // rammed to death at 100 s
+            expect(w.boss).toBeNull();
+            expect(w.nextBossAt).toBe(160);
+            w.elapsed = 160 - 1e-9;
+            w.step(DT, NONE);
+            expect(w.boss).toBeNull();
+            w.elapsed = 160;
+            w.step(DT, NONE);
+            expect(w.boss).toMatchObject({ hp: 120, maxHp: 120 });
+            expect(w.bossCount).toBe(2);
+        });
+    });
+
+    describe('alongside regular enemies', () => {
+        const regulars = (w: World) => w.enemies.filter((e) => e.kind !== 'boss' && e.kind !== 'rammer');
+
+        it('is not counted toward the 6-enemy cap', () => {
+            const w = playingWorld();
+            spawnBoss(w);
+            for (let i = 0; i < 5; i++) still(w, 'grunt', 100 + i * 60, 200);
+            w.spawnTimer = 0;
+            w.step(DT, NONE);
+            expect(regulars(w)).toHaveLength(6);
+            w.spawnTimer = 0;
+            w.step(DT, NONE);
+            expect(regulars(w)).toHaveLength(6);
+        });
+
+        it('is not counted toward the 6-rammer cap', () => {
+            const w = playingWorld();
+            spawnBoss(w);
+            for (let i = 0; i < 5; i++) {
+                const r = createEnemy('rammer', 3000 + i, () => 0.5, w.screen);
+                r.state = 'warn';
+                r.x = 100 + i * 60;
+                r.y = 200;
+                w.enemies.push(r);
+            }
+            w.rammerTimer = 0;
+            w.step(DT, NONE);
+            expect(w.enemies.filter((e) => e.kind === 'rammer')).toHaveLength(6);
+        });
+
+        it('leaves the spawn and rammer intervals of the current stage unchanged', () => {
+            const w = playingWorld();
+            spawnBoss(w); // at 45 s: the 30–60 s stage
+            w.spawnTimer = 0;
+            w.rammerTimer = 0;
+            w.step(DT, NONE);
+            expect(w.spawnTimer).toBeCloseTo(2.5 - DT);
+            expect(w.rammerTimer).toBeCloseTo(8 - DT);
+        });
+
+        it('is left out of the heavies\' ring posts', () => {
+            const boss = createEnemy('heavy', 1, () => 0.5, S);
+            boss.kind = 'boss';
+            boss.state = 'chase';
+            boss.x = 100;
+            boss.y = 100;
+            const heavy = createEnemy('heavy', 2, () => 0.5, S);
+            heavy.state = 'chase';
+            heavy.x = 900;
+            heavy.y = 600;
+            assignHeavySlots([boss, heavy], { x: 500, y: 600 });
+            // The lone heavy is the oldest one: its post points straight at itself (φ = 0°).
+            expect(heavy.slotAngle).toBeCloseTo(0);
+        });
+    });
+
+    describe('release bullets', () => {
+        it('are not aimed at the boss while its center is still above the screen', () => {
+            const w = playingWorld();
+            const boss = spawnBoss(w);
+            expect(boss.y).toBeLessThan(0);
+            w.stock = 3;
+            w.release();
+            expect(boss.incoming).toBe(0);
+            expect(w.releaseBullets.every((b) => b.target === null)).toBe(true);
+        });
+
+        it('pick up the boss in flight once it is on screen, but not while it is above the top', () => {
+            const w = playingWorld();
+            const boss = spawnBoss(w);
+            w.stock = 1;
+            w.release();
+            const b = w.releaseBullets[0];
+            expect(w.retarget(b)).toBeNull();
+            hold(boss, 512, 200);
+            expect(w.retarget(b)).toBe(boss);
+        });
+
+        it('take 1 HP per hit and leave a boss with HP to spare alive, unscored', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 300);
+            boss.hp = 5;
+            w.stock = 1;
+            w.release();
+            untilBulletsGone(w);
+            expect(boss.hp).toBe(4);
+            expect(w.boss).toBe(boss);
+            expect(w.score).toBe(0);
+        });
+
+        it('get the boss\'s remaining HP as its shortfall', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 200);
+            boss.hp = 30;
+            w.stock = 40;
+            w.release();
+            // 30 to cover its HP, then the 10 surplus round-robin to the only enemy.
+            expect(boss.incoming).toBe(40);
+            expect(shortfall(boss)).toBe(0);
+        });
+
+        it('count the boss as one kill for the multi-kill bonus', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 300);
+            boss.hp = 1;
+            still(w, 'grunt', 512, 500, 1);
+            w.stock = 2;
+            w.release();
+            untilBulletsGone(w);
+            expect(w.boss).toBeNull();
+            expect(w.score).toBe(15150); // (10000 + 100) × 1.5
+        });
+
+        it('schedule the next boss 60 s after the killing hit', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 400);
+            boss.hp = 1;
+            w.elapsed = 70;
+            w.stock = 1;
+            w.release();
+            let killedAt = -1;
+            for (let t = 0; t < 2 && killedAt < 0; t += DT) {
+                const before = w.elapsed;
+                w.step(DT, NONE);
+                if (!w.boss) killedAt = before;
+            }
+            expect(killedAt).toBeGreaterThan(70);
+            expect(w.nextBossAt).toBeCloseTo(killedAt + 60);
+        });
+    });
+
+    describe('contact', () => {
+        it('costs the player as usual but only damages the boss by 10', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            w.step(DT, NONE);
+            expect(w.player.lives).toBe(2);
+            expect(w.player.invulnerable).toBeCloseTo(1.5);
+            expect(w.stock).toBe(10);
+            expect(boss.hp).toBe(70);
+            expect(boss.removed).toBe(false);
+            expect(w.boss).toBe(boss);
+            expect(w.score).toBe(0);
+        });
+
+        it('kills a boss rammed down to 0 HP, scoring it straight away with no release bonus', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            boss.hp = 10;
+            w.step(DT, NONE);
+            expect(w.boss).toBeNull();
+            expect(w.enemies).not.toContain(boss);
+            expect(w.score).toBe(10000);
+            expect(w.openGroups).toHaveLength(0);
+        });
+
+        it('keeps a ram kill out of a release still in flight, so it gets no multi-kill bonus', () => {
+            const w = playingWorld();
+            const boss = spawnBoss(w); // still above the screen, so the release goes to the grunt
+            still(w, 'grunt', 512, 400, 1);
+            w.stock = 1;
+            w.release();
+            // Let the bullet get clear of the player (80 px) so it can't hit the boss placed there.
+            for (let i = 0; i < 8; i++) w.step(DT, NONE);
+            hold(boss, w.player.x, w.player.y);
+            boss.hp = 10;
+            w.step(DT, NONE); // rammed to death while the release is pending
+            expect(w.boss).toBeNull();
+            expect(w.openGroups).toHaveLength(1);
+            untilBulletsGone(w);
+            expect(w.score).toBe(10100); // 10000 + 100, not (10000 + 100) × 1.5
+        });
+
+        it('does not take the boss below 0 HP', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            boss.hp = 4;
+            w.step(DT, NONE);
+            expect(boss.hp).toBe(0);
+            expect(w.score).toBe(10000);
+        });
+
+        it('resolves against the boss first when another enemy overlaps too', () => {
+            const w = playingWorld();
+            const boss = spawnBoss(w);
+            const grunt = still(w, 'grunt', w.player.x, w.player.y);
+            // List the grunt before the boss, so "first overlap found" alone would pick it.
+            w.enemies.splice(w.enemies.indexOf(grunt), 1);
+            w.enemies.unshift(grunt);
+            hold(boss, w.player.x, w.player.y);
+            w.step(DT, NONE);
+            expect(boss.hp).toBe(70);
+            expect(grunt.removed).toBe(false);
+            expect(w.enemies).toContain(grunt);
+            expect(w.player.lives).toBe(2);
+        });
+
+        it('is ignored while invulnerable', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            w.player.invulnerable = 1;
+            w.step(DT, NONE);
+            expect(boss.hp).toBe(80);
+            expect(w.player.lives).toBe(3);
+        });
+    });
+
+    it('keeps moving but stops firing during ending', () => {
+        const w = playingWorld();
+        const boss = hold(spawnBoss(w), 512, 200);
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        boss.fireTimer = 0.01;
+        const x0 = boss.x;
+        steps(w, 0.5);
+        expect(w.enemyBullets).toHaveLength(0);
+        expect(boss.x).not.toBe(x0);
+    });
+
+    it('fires its volleys as enemy bullets at the current stage speed', () => {
+        const w = playingWorld();
+        const boss = hold(spawnBoss(w), 512, 200);
+        boss.fireTimer = 0.01;
+        w.step(DT, NONE);
+        expect(w.enemyBullets).toHaveLength(16);
+        // 45 s is in the 30–60 s stage: 200 px/s.
+        expect(Math.hypot(w.enemyBullets[0].vx, w.enemyBullets[0].vy)).toBeCloseTo(200);
     });
 });
