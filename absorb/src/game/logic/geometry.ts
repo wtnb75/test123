@@ -1,4 +1,4 @@
-import { GAME_HEIGHT, GAME_WIDTH } from './constants';
+import type { ScreenSize } from './screen';
 
 export interface Point {
     x: number;
@@ -38,13 +38,13 @@ export function turnToward(current: number, target: number, maxStep: number): nu
 }
 
 /** True while the point's center lies inside the visible screen. */
-export function isOnScreen(p: Point): boolean {
-    return p.x >= 0 && p.x <= GAME_WIDTH && p.y >= 0 && p.y <= GAME_HEIGHT;
+export function isOnScreen(p: Point, s: ScreenSize): boolean {
+    return p.x >= 0 && p.x <= s.width && p.y >= 0 && p.y <= s.height;
 }
 
 /** True once a circle of radius r has fully left the screen on any side. */
-export function isFullyOffScreen(p: Point, r: number): boolean {
-    return p.x < -r || p.x > GAME_WIDTH + r || p.y < -r || p.y > GAME_HEIGHT + r;
+export function isFullyOffScreen(p: Point, r: number, s: ScreenSize): boolean {
+    return p.x < -r || p.x > s.width + r || p.y < -r || p.y > s.height + r;
 }
 
 export function randomRange(rng: Rng, min: number, max: number): number {

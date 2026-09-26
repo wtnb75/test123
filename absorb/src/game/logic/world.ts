@@ -1,7 +1,7 @@
 import {
-    ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT, GAME_HEIGHT, GAME_WIDTH,
+    ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
-    PLAYER_START_X, PLAYER_START_Y, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
+    PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type EnemyKind
 } from './constants';
 import { getStage, pickEnemyKind } from './difficulty';
@@ -10,6 +10,7 @@ import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Rng
 } from './geometry';
 import { volleyAngles } from './patterns';
+import type { ScreenSize } from './screen';
 import { releaseScore } from './scoring';
 
 export type Phase = 'ready' | 'playing' | 'ending' | 'over';
@@ -18,7 +19,10 @@ export interface Input {
     /** -1, 0 or 1 on each axis. */
     moveX: number;
     moveY: number;
-    /** True only on the frame the release key went down. */
+    /** Touch drag distance this frame, in game pixels; applied 1:1 on top of the keys. */
+    dragX: number;
+    dragY: number;
+    /** True only on the frame the release key or button went down. */
     release: boolean;
 }
 
@@ -56,7 +60,6 @@ export interface ReleaseBullet {
 
 const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
-const isTargetable = (e: Enemy): boolean => !e.removed && isOnScreen(e);
 
 /** Bullets still needed to finish an enemy, after those already homing on it. */
 export function shortfall(e: Enemy): number {
@@ -76,7 +79,7 @@ export class World {
     phaseTime = 0;
     /** Seconds spent in the playing phase; drives the difficulty stage. */
     elapsed = 0;
-    player: Player = { x: PLAYER_START_X, y: PLAYER_START_Y, lives: PLAYER_LIVES, invulnerable: 0 };
+    player: Player;
     stock = 0;
     score = 0;
     enemies: Enemy[] = [];
@@ -88,8 +91,13 @@ export class World {
     private rammerTimer = FIRST_RAMMER_AT;
     private readonly ctx: EnemyContext;
 
-    constructor(private readonly rng: Rng = Math.random) {
-        this.ctx = { player: this.player, elapsed: 0, rng };
+    constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
+        this.player = { x: screen.width / 2, y: screen.height * PLAYER_START_Y_RATIO, lives: PLAYER_LIVES, invulnerable: 0 };
+        this.ctx = { player: this.player, elapsed: 0, rng, screen };
+    }
+
+    private isTargetable(e: Enemy): boolean {
+        return !e.removed && isOnScreen(e, this.screen);
     }
 
     step(dt: number, input: Input): void {
@@ -145,8 +153,11 @@ export class World {
             moveY *= Math.SQRT1_2;
         }
         const p = this.player;
-        p.x = Math.min(Math.max(p.x + moveX * PLAYER_SPEED * dt, PLAYER_RADIUS), GAME_WIDTH - PLAYER_RADIUS);
-        p.y = Math.min(Math.max(p.y + moveY * PLAYER_SPEED * dt, PLAYER_MIN_Y), GAME_HEIGHT - PLAYER_RADIUS);
+        const { width, height } = this.screen;
+        const x = p.x + moveX * PLAYER_SPEED * dt + input.dragX;
+        const y = p.y + moveY * PLAYER_SPEED * dt + input.dragY;
+        p.x = Math.min(Math.max(x, PLAYER_RADIUS), width - PLAYER_RADIUS);
+        p.y = Math.min(Math.max(y, PLAYER_MIN_Y), height - PLAYER_RADIUS);
     }
 
     /** Fires every stocked bullet as one release group. Does nothing with an empty stock. */
@@ -179,7 +190,7 @@ export class World {
     }
 
     private addEnemy(kind: EnemyKind): void {
-        this.enemies.push(createEnemy(kind, this.nextId++, this.rng));
+        this.enemies.push(createEnemy(kind, this.nextId++, this.rng, this.screen));
     }
 
     private spawn(dt: number): void {
@@ -217,7 +228,7 @@ export class World {
             if (canAbsorb && distanceSq(b.x, b.y, p.x, p.y) <= FIELD_RADIUS_SQ) {
                 b.removed = true;
                 this.absorb();
-            } else if (isFullyOffScreen(b, ENEMY_BULLET_RADIUS)) {
+            } else if (isFullyOffScreen(b, ENEMY_BULLET_RADIUS, this.screen)) {
                 b.removed = true;
             }
         }
@@ -237,7 +248,7 @@ export class World {
      */
     assignTargets(n: number): Enemy[] {
         const p = this.player;
-        const candidates = this.enemies.filter(isTargetable);
+        const candidates = this.enemies.filter((e) => this.isTargetable(e));
         candidates.sort((a, b) => distanceSq(a.x, a.y, p.x, p.y) - distanceSq(b.x, b.y, p.x, p.y));
         const targets: Enemy[] = [];
         for (const e of candidates) {
@@ -259,7 +270,7 @@ export class World {
         let bestD = Infinity;
         let bestShort = false;
         for (const e of this.enemies) {
-            if (!isTargetable(e)) continue;
+            if (!this.isTargetable(e)) continue;
             const short = shortfall(e) > 0;
             const d = distanceSq(e.x, e.y, b.x, b.y);
             if ((short && !bestShort) || (short === bestShort && d < bestD)) {
@@ -274,13 +285,13 @@ export class World {
     private updateReleaseBullets(dt: number, canHit: boolean): void {
         const maxTurn = RELEASE_TURN_RATE * dt;
         for (const b of this.releaseBullets) {
-            if (!b.target || !isTargetable(b.target)) setTarget(b, this.retarget(b));
+            if (!b.target || !this.isTargetable(b.target)) setTarget(b, this.retarget(b));
             if (b.target) b.heading = turnToward(b.heading, angleTo(b, b.target), maxTurn);
             b.x += Math.cos(b.heading) * RELEASE_SPEED * dt;
             b.y += Math.sin(b.heading) * RELEASE_SPEED * dt;
             b.age += dt;
             if (canHit) this.hitEnemy(b);
-            if (b.removed || b.age >= RELEASE_LIFETIME || isFullyOffScreen(b, RELEASE_RADIUS)) {
+            if (b.removed || b.age >= RELEASE_LIFETIME || isFullyOffScreen(b, RELEASE_RADIUS, this.screen)) {
                 b.removed = true;
                 setTarget(b, null);
                 this.settle(b.group);

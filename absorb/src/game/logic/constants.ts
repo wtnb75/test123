@@ -1,5 +1,3 @@
-export const GAME_WIDTH = 1024;
-export const GAME_HEIGHT = 768;
 /** Horizontal margin kept free at both screen edges for spawning and swaying. */
 export const EDGE_MARGIN = 40;
 
@@ -10,8 +8,8 @@ export const PLAYER_RADIUS = 10;
 export const PLAYER_SPEED = 320;
 export const PLAYER_LIVES = 3;
 export const PLAYER_INVULNERABLE = 1.5;
-export const PLAYER_START_X = GAME_WIDTH / 2;
-export const PLAYER_START_Y = GAME_HEIGHT * 0.85;
+/** Start position as a fraction of the screen height (horizontally centered). */
+export const PLAYER_START_Y_RATIO = 0.85;
 /** Height of the HUD band at the top of the screen, which the player cannot enter. */
 export const HUD_HEIGHT = 48;
 /** Smallest y the player's center may reach (just below the HUD band). */
@@ -39,8 +37,8 @@ export const ENTER_SPEED = 150;
 export const SWAY_RANGE = 120;
 export const SWAY_SPEED = 60;
 
-export const GRUNT_MIN_Y = GAME_HEIGHT * 0.15;
-export const GRUNT_MAX_Y = GAME_HEIGHT * 0.3;
+export const GRUNT_MIN_Y_RATIO = 0.15;
+export const GRUNT_MAX_Y_RATIO = 0.3;
 export const GRUNT_DIVE_MIN_INTERVAL = 5;
 export const GRUNT_DIVE_MAX_INTERVAL = 7;
 export const GRUNT_WARN = 0.5;
@@ -48,18 +46,18 @@ export const GRUNT_DIVE_SPEED = 320;
 export const GRUNT_WEAVE_AMPLITUDE = 40;
 export const GRUNT_WEAVE_PERIOD = 0.6;
 
-export const SHOOTER_Y = GAME_HEIGHT * 0.2;
+export const SHOOTER_Y_RATIO = 0.2;
 export const SHOOTER_BOB_AMPLITUDE = 30;
 export const SHOOTER_BOB_PERIOD = 2;
 export const SHOOTER_CROSS_INTERVAL = 8;
-export const SHOOTER_CROSS_Y = GAME_HEIGHT * 0.65;
+export const SHOOTER_CROSS_Y_RATIO = 0.65;
 export const SHOOTER_VERTICAL_SPEED = 200;
 export const SHOOTER_CROSS_SPEED = 180;
 
-export const HEAVY_Y = GAME_HEIGHT * 0.15;
+export const HEAVY_Y_RATIO = 0.15;
 export const HEAVY_DRIFT_SPEED = 25;
 
-export const RAMMER_Y = GAME_HEIGHT * 0.15;
+export const RAMMER_Y_RATIO = 0.15;
 export const RAMMER_WARN = 1;
 export const RAMMER_SPEED = 450;
 export const RAMMER_HOMING_FROM = 60;

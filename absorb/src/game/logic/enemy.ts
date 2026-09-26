@@ -1,14 +1,15 @@
 import {
-    EDGE_MARGIN, ENEMY_SPECS, ENTER_SPEED, GAME_HEIGHT, GAME_WIDTH,
-    GRUNT_DIVE_MAX_INTERVAL, GRUNT_DIVE_MIN_INTERVAL, GRUNT_DIVE_SPEED, GRUNT_MAX_Y, GRUNT_MIN_Y,
+    EDGE_MARGIN, ENEMY_SPECS, ENTER_SPEED,
+    GRUNT_DIVE_MAX_INTERVAL, GRUNT_DIVE_MIN_INTERVAL, GRUNT_DIVE_SPEED, GRUNT_MAX_Y_RATIO, GRUNT_MIN_Y_RATIO,
     GRUNT_WARN, GRUNT_WEAVE_AMPLITUDE, GRUNT_WEAVE_PERIOD,
-    HEAVY_DRIFT_SPEED, HEAVY_Y,
-    RAMMER_HOMING_DURATION, RAMMER_HOMING_FROM, RAMMER_SPEED, RAMMER_TURN_RATE, RAMMER_WARN, RAMMER_Y,
-    SHOOTER_BOB_AMPLITUDE, SHOOTER_BOB_PERIOD, SHOOTER_CROSS_INTERVAL, SHOOTER_CROSS_SPEED, SHOOTER_CROSS_Y,
-    SHOOTER_VERTICAL_SPEED, SHOOTER_Y, SWAY_RANGE, SWAY_SPEED,
+    HEAVY_DRIFT_SPEED, HEAVY_Y_RATIO,
+    RAMMER_HOMING_DURATION, RAMMER_HOMING_FROM, RAMMER_SPEED, RAMMER_TURN_RATE, RAMMER_WARN, RAMMER_Y_RATIO,
+    SHOOTER_BOB_AMPLITUDE, SHOOTER_BOB_PERIOD, SHOOTER_CROSS_INTERVAL, SHOOTER_CROSS_SPEED, SHOOTER_CROSS_Y_RATIO,
+    SHOOTER_VERTICAL_SPEED, SHOOTER_Y_RATIO, SWAY_RANGE, SWAY_SPEED,
     type EnemyKind
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
+import type { ScreenSize } from './screen';
 
 export type EnemyState =
     | 'enter'      // descending from above the screen to its station height
@@ -54,25 +55,26 @@ export interface EnemyContext {
     /** Seconds since the playing phase started. */
     elapsed: number;
     rng: Rng;
+    screen: ScreenSize;
 }
 
-function stationYFor(kind: EnemyKind, rng: Rng): number {
+function stationYFor(kind: EnemyKind, rng: Rng, height: number): number {
     switch (kind) {
-        case 'grunt': return randomRange(rng, GRUNT_MIN_Y, GRUNT_MAX_Y);
-        case 'shooter': return SHOOTER_Y;
-        case 'heavy': return HEAVY_Y;
-        default: return RAMMER_Y;
+        case 'grunt': return height * randomRange(rng, GRUNT_MIN_Y_RATIO, GRUNT_MAX_Y_RATIO);
+        case 'shooter': return height * SHOOTER_Y_RATIO;
+        case 'heavy': return height * HEAVY_Y_RATIO;
+        default: return height * RAMMER_Y_RATIO;
     }
 }
 
-function placeAboveScreen(e: Enemy, rng: Rng): void {
-    e.x = randomRange(rng, EDGE_MARGIN, GAME_WIDTH - EDGE_MARGIN);
+function placeAboveScreen(e: Enemy, rng: Rng, screen: ScreenSize): void {
+    e.x = randomRange(rng, EDGE_MARGIN, screen.width - EDGE_MARGIN);
     e.y = -e.radius;
-    e.stationY = stationYFor(e.kind, rng);
+    e.stationY = stationYFor(e.kind, rng, screen.height);
     setState(e, 'enter');
 }
 
-export function createEnemy(kind: EnemyKind, id: number, rng: Rng): Enemy {
+export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: ScreenSize): Enemy {
     const spec = ENEMY_SPECS[kind];
     const e: Enemy = {
         id, kind, x: 0, y: 0, hp: spec.hp, radius: spec.radius,
@@ -81,7 +83,7 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng): Enemy {
         heading: 0, homingLeft: 0, originX: 0, originY: 0,
         bobTime: 0, crossTargetX: 0, incoming: 0, removed: false
     };
-    placeAboveScreen(e, rng);
+    placeAboveScreen(e, rng, screen);
     return e;
 }
 
@@ -113,9 +115,9 @@ function arrive(e: Enemy, rng: Rng): void {
 }
 
 /** Moves back and forth within ±SWAY_RANGE of swayCenter, bouncing at the edge margins. */
-export function sway(e: Enemy, dt: number): void {
+export function sway(e: Enemy, dt: number, screenWidth: number): void {
     const lo = Math.max(e.swayCenter - SWAY_RANGE, EDGE_MARGIN);
-    const hi = Math.min(e.swayCenter + SWAY_RANGE, GAME_WIDTH - EDGE_MARGIN);
+    const hi = Math.min(e.swayCenter + SWAY_RANGE, screenWidth - EDGE_MARGIN);
     e.x += e.swayDir * SWAY_SPEED * dt;
     if (e.x >= hi) {
         e.x = hi;
@@ -129,7 +131,7 @@ export function sway(e: Enemy, dt: number): void {
 function updateGrunt(e: Enemy, dt: number, ctx: EnemyContext): void {
     switch (e.state) {
         case 'sway':
-            sway(e, dt);
+            sway(e, dt, ctx.screen.width);
             e.actionTimer -= dt;
             if (e.actionTimer <= 0) setState(e, 'warn');
             break;
@@ -148,16 +150,16 @@ function updateGrunt(e: Enemy, dt: number, ctx: EnemyContext): void {
             const sin = Math.sin(e.heading);
             e.x = e.originX + cos * travel - sin * weave;
             e.y = e.originY + sin * travel + cos * weave;
-            if (isFullyOffScreen(e, e.radius)) placeAboveScreen(e, ctx.rng);
+            if (isFullyOffScreen(e, e.radius, ctx.screen)) placeAboveScreen(e, ctx.rng, ctx.screen);
             break;
         }
     }
 }
 
-function updateShooter(e: Enemy, dt: number): void {
+function updateShooter(e: Enemy, dt: number, screen: ScreenSize): void {
     switch (e.state) {
         case 'sway':
-            sway(e, dt);
+            sway(e, dt, screen.width);
             e.bobTime += dt;
             e.y = e.stationY + SHOOTER_BOB_AMPLITUDE * Math.sin((Math.PI * 2 * e.bobTime) / SHOOTER_BOB_PERIOD);
             e.actionTimer -= dt;
@@ -165,9 +167,9 @@ function updateShooter(e: Enemy, dt: number): void {
             break;
         case 'cross-down':
             e.y += SHOOTER_VERTICAL_SPEED * dt;
-            if (e.y >= SHOOTER_CROSS_Y) {
-                e.y = SHOOTER_CROSS_Y;
-                e.crossTargetX = e.x < GAME_WIDTH / 2 ? GAME_WIDTH - EDGE_MARGIN : EDGE_MARGIN;
+            if (e.y >= screen.height * SHOOTER_CROSS_Y_RATIO) {
+                e.y = screen.height * SHOOTER_CROSS_Y_RATIO;
+                e.crossTargetX = e.x < screen.width / 2 ? screen.width - EDGE_MARGIN : EDGE_MARGIN;
                 setState(e, 'cross-side');
             }
             break;
@@ -195,10 +197,10 @@ function updateShooter(e: Enemy, dt: number): void {
     }
 }
 
-function updateHeavy(e: Enemy, dt: number): void {
-    sway(e, dt);
+function updateHeavy(e: Enemy, dt: number, screen: ScreenSize): void {
+    sway(e, dt, screen.width);
     e.y += HEAVY_DRIFT_SPEED * dt;
-    if (e.y - e.radius > GAME_HEIGHT) e.removed = true;
+    if (e.y - e.radius > screen.height) e.removed = true;
 }
 
 function updateRammer(e: Enemy, dt: number, ctx: EnemyContext): void {
@@ -216,11 +218,11 @@ function updateRammer(e: Enemy, dt: number, ctx: EnemyContext): void {
     }
     e.x += Math.cos(e.heading) * RAMMER_SPEED * dt;
     e.y += Math.sin(e.heading) * RAMMER_SPEED * dt;
-    if (isFullyOffScreen(e, e.radius)) e.removed = true;
+    if (isFullyOffScreen(e, e.radius, ctx.screen)) e.removed = true;
 }
 
-function canFire(e: Enemy): boolean {
-    if (ENEMY_SPECS[e.kind].fireInterval <= 0 || !isOnScreen(e)) return false;
+function canFire(e: Enemy, screen: ScreenSize): boolean {
+    if (ENEMY_SPECS[e.kind].fireInterval <= 0 || !isOnScreen(e, screen)) return false;
     switch (e.kind) {
         case 'grunt': return e.state === 'sway';
         case 'heavy': return e.state === 'drift';
@@ -238,11 +240,11 @@ export function updateEnemy(e: Enemy, dt: number, ctx: EnemyContext): boolean {
     }
     switch (e.kind) {
         case 'grunt': updateGrunt(e, dt, ctx); break;
-        case 'shooter': updateShooter(e, dt); break;
-        case 'heavy': updateHeavy(e, dt); break;
+        case 'shooter': updateShooter(e, dt, ctx.screen); break;
+        case 'heavy': updateHeavy(e, dt, ctx.screen); break;
         default: updateRammer(e, dt, ctx);
     }
-    if (e.removed || !canFire(e)) return false;
+    if (e.removed || !canFire(e, ctx.screen)) return false;
     e.fireTimer -= dt;
     if (e.fireTimer > 0) return false;
     e.fireTimer += ENEMY_SPECS[e.kind].fireInterval;
