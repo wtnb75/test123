@@ -2,13 +2,13 @@
 status_idea: done
 status_init: done
 status_spec: done
-status_impl: done
-status_test: done
-status_check: done
-status_qa: done
+status_impl: pending
+status_test: pending
+status_check: pending
+status_qa: pending
 status_balance: pending
 status_publish: pending
-status_codereview: done
+status_codereview: pending
 status_polish: pending
 ---
 
@@ -88,7 +88,7 @@ status_polish: pending
 - HUD は画面上端に配置する。左にスコア、中央にライフ、右にストックゲージ（残数／上限）。ボスがいる間は HUD の帯のすぐ下にボス HP バーを表示する（[ボス敵](spec/boss.md)）
 - 解放ボタンは画面右下（ボタンの中心が右端・下端からそれぞれ 90px）に半径 56px の円で描く。現在のストック数を中に表示する。タッチ操作が可能な端末でのみ表示し、PC（タッチ非対応）では表示しない
 - ゲームのページ上でのタッチ操作によってブラウザがスクロール・拡大しないようにする
-- 敵弾・解放弾・敵・自機はすべて同一のプレイ領域に描画する。HUD はプレイ領域と重なってよいが、最前面に描く
+- 敵弾・解放弾・敵・自機はすべて同一のプレイ領域に描画する。重なったときは、奥から順に「敵弾 → 敵（ボスを含む）→ 解放弾 → 自機（吸収フィールドを含む）」の順に描く（撃った直後の敵弾が敵本体の上に重ならないようにする）。HUD はプレイ領域と重なってよいが、最前面に描く
 
 ### Game Scene の状態遷移
 
