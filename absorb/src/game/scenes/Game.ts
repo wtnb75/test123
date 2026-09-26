@@ -111,6 +111,13 @@ export class Game extends Scene {
             up: K.UP, down: K.DOWN, left: K.LEFT, right: K.RIGHT,
             w: K.W, a: K.A, s: K.S, d: K.D, x: K.X, enter: K.ENTER
         }) as Keys;
+        // Queue the release on the key's down event rather than polling JustDown in update():
+        // a tap shorter than one frame is released before update() runs, and Phaser clears the
+        // just-down flag on key up, so polling would drop it.
+        const queueRelease = () => { this.releaseQueued = true; };
+        this.keys.x.on('down', queueRelease);
+        this.keys.enter.on('down', queueRelease);
+        // Destroying the keys also removes their listeners.
         this.events.once('shutdown', () => this.input.keyboard?.removeAllKeys(true));
     }
 
@@ -171,10 +178,7 @@ export class Game extends Scene {
         const i = this.input_;
         i.moveX = (k.right.isDown || k.d.isDown ? 1 : 0) - (k.left.isDown || k.a.isDown ? 1 : 0);
         i.moveY = (k.down.isDown || k.s.isDown ? 1 : 0) - (k.up.isDown || k.w.isDown ? 1 : 0);
-        // Evaluate both so neither key keeps a stale JustDown flag for a later frame.
-        const x = Input.Keyboard.JustDown(k.x);
-        const enter = Input.Keyboard.JustDown(k.enter);
-        i.release = x || enter || this.releaseQueued;
+        i.release = this.releaseQueued;
         this.releaseQueued = false;
     }
 
