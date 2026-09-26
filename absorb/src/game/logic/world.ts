@@ -49,11 +49,27 @@ export interface ReleaseBullet {
     heading: number;
     age: number;
     group: ReleaseGroup;
+    /** The enemy this bullet homes on; always counted in that enemy's `incoming`. */
+    target: Enemy | null;
     removed: boolean;
 }
 
 const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
+const isTargetable = (e: Enemy): boolean => !e.removed && isOnScreen(e);
+
+/** Bullets still needed to finish an enemy, after those already homing on it. */
+export function shortfall(e: Enemy): number {
+    return Math.max(0, e.hp - e.incoming);
+}
+
+/** Points a bullet at a new target, keeping both enemies' `incoming` counts in sync. */
+function setTarget(b: ReleaseBullet, e: Enemy | null): void {
+    if (b.target === e) return;
+    if (b.target) b.target.incoming--;
+    b.target = e;
+    if (e) e.incoming++;
+}
 
 export class World {
     phase: Phase = 'ready';
@@ -140,15 +156,19 @@ export class World {
         this.stock = 0;
         const group: ReleaseGroup = { pending: n, kills: [] };
         this.openGroups.push(group);
+        const targets = this.assignTargets(n);
         for (let i = 0; i < n; i++) {
-            this.releaseBullets.push({
+            const b: ReleaseBullet = {
                 x: this.player.x,
                 y: this.player.y,
                 heading: -Math.PI / 2 + randomRange(this.rng, -RELEASE_SPREAD, RELEASE_SPREAD),
                 age: 0,
                 group,
+                target: null,
                 removed: false
-            });
+            };
+            setTarget(b, targets[i] ?? null);
+            this.releaseBullets.push(b);
         }
     }
 
@@ -210,53 +230,77 @@ export class World {
         if (this.stock >= STOCK_MAX) this.release();
     }
 
-    /** The on-screen living enemy closest to the player, or null when none. */
-    findTarget(): Enemy | null {
+    /**
+     * Targets for n newly released bullets: on-screen enemies nearest the player first, each given
+     * just enough bullets to finish it, then any surplus handed out round-robin in the same order.
+     * Returns an empty list when no enemy is on screen.
+     */
+    assignTargets(n: number): Enemy[] {
         const p = this.player;
+        const candidates = this.enemies.filter(isTargetable);
+        candidates.sort((a, b) => distanceSq(a.x, a.y, p.x, p.y) - distanceSq(b.x, b.y, p.x, p.y));
+        const targets: Enemy[] = [];
+        for (const e of candidates) {
+            const take = Math.min(shortfall(e), n - targets.length);
+            for (let i = 0; i < take; i++) targets.push(e);
+        }
+        for (let i = 0; candidates.length > 0 && targets.length < n; i++) {
+            targets.push(candidates[i % candidates.length]);
+        }
+        return targets;
+    }
+
+    /**
+     * New target for a bullet in flight: the nearest enemy still short of bullets, otherwise the
+     * nearest on-screen enemy, otherwise null.
+     */
+    retarget(b: ReleaseBullet): Enemy | null {
         let best: Enemy | null = null;
         let bestD = Infinity;
+        let bestShort = false;
         for (const e of this.enemies) {
-            if (e.removed || !isOnScreen(e)) continue;
-            const d = distanceSq(e.x, e.y, p.x, p.y);
-            if (d < bestD) {
-                bestD = d;
+            if (!isTargetable(e)) continue;
+            const short = shortfall(e) > 0;
+            const d = distanceSq(e.x, e.y, b.x, b.y);
+            if ((short && !bestShort) || (short === bestShort && d < bestD)) {
                 best = e;
+                bestD = d;
+                bestShort = short;
             }
         }
         return best;
     }
 
     private updateReleaseBullets(dt: number, canHit: boolean): void {
-        let target = this.findTarget();
         const maxTurn = RELEASE_TURN_RATE * dt;
         for (const b of this.releaseBullets) {
-            if (target) b.heading = turnToward(b.heading, angleTo(b, target), maxTurn);
+            if (!b.target || !isTargetable(b.target)) setTarget(b, this.retarget(b));
+            if (b.target) b.heading = turnToward(b.heading, angleTo(b, b.target), maxTurn);
             b.x += Math.cos(b.heading) * RELEASE_SPEED * dt;
             b.y += Math.sin(b.heading) * RELEASE_SPEED * dt;
             b.age += dt;
-            if (canHit && this.hitEnemy(b)) {
-                target = this.findTarget();
-            }
+            if (canHit) this.hitEnemy(b);
             if (b.removed || b.age >= RELEASE_LIFETIME || isFullyOffScreen(b, RELEASE_RADIUS)) {
                 b.removed = true;
+                setTarget(b, null);
                 this.settle(b.group);
             }
         }
         removeWhere(this.releaseBullets, isRemoved);
     }
 
-    /** Applies one bullet's damage to the first enemy it touches. Returns true if that enemy died. */
-    private hitEnemy(b: ReleaseBullet): boolean {
+    /** Applies one bullet's damage to the first enemy it touches. */
+    private hitEnemy(b: ReleaseBullet): void {
         for (const e of this.enemies) {
             if (e.removed || !circlesOverlap(b, RELEASE_RADIUS, e, e.radius)) continue;
             b.removed = true;
             e.hp--;
-            if (e.hp > 0) return false;
-            e.removed = true;
-            b.group.kills.push(ENEMY_SPECS[e.kind].score);
-            return true;
+            if (e.hp <= 0) {
+                e.removed = true;
+                b.group.kills.push(ENEMY_SPECS[e.kind].score);
+            }
+            return;
         }
-        return false;
     }
 
     private settle(group: ReleaseGroup): void {

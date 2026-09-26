@@ -44,6 +44,8 @@ export interface Enemy {
     originY: number;
     bobTime: number;
     crossTargetX: number;
+    /** Number of release bullets currently targeting this enemy. */
+    incoming: number;
     removed: boolean;
 }
 
@@ -77,7 +79,7 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng): Enemy {
         state: 'enter', stateTime: 0, stationY: 0,
         swayCenter: 0, swayDir: 1, fireTimer: 0, actionTimer: 0,
         heading: 0, homingLeft: 0, originX: 0, originY: 0,
-        bobTime: 0, crossTargetX: 0, removed: false
+        bobTime: 0, crossTargetX: 0, incoming: 0, removed: false
     };
     placeAboveScreen(e, rng);
     return e;

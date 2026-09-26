@@ -12,8 +12,10 @@ export const PLAYER_LIVES = 3;
 export const PLAYER_INVULNERABLE = 1.5;
 export const PLAYER_START_X = GAME_WIDTH / 2;
 export const PLAYER_START_Y = GAME_HEIGHT * 0.85;
-/** The player may not move above this y (top of the lower half). */
-export const PLAYER_MIN_Y = GAME_HEIGHT * 0.5;
+/** Height of the HUD band at the top of the screen, which the player cannot enter. */
+export const HUD_HEIGHT = 48;
+/** Smallest y the player's center may reach (just below the HUD band). */
+export const PLAYER_MIN_Y = HUD_HEIGHT + PLAYER_RADIUS;
 
 export const FIELD_RADIUS = 60;
 export const STOCK_MAX = 50;
