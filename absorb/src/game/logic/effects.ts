@@ -26,9 +26,12 @@ export function effectProgress(t: number, duration: number): number {
     return t >= 0 && t < duration ? t / duration : -1;
 }
 
-/** Opacity of the "BOSS" announcement with `left` seconds of it remaining. */
-export function announceAlpha(left: number): number {
-    if (left <= 0) return 0;
+/**
+ * Opacity of the "BOSS" announcement with `left` seconds of it remaining. It vanishes at once when
+ * the run is ending, so it never sits over the player's explosion.
+ */
+export function announceAlpha(left: number, ending: boolean): number {
+    if (ending || left <= 0) return 0;
     return Math.min(1, left / BOSS_ANNOUNCE_FADE);
 }
 

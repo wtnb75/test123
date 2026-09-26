@@ -377,7 +377,8 @@ export class Game extends Scene {
         g.fillStyle(blinking ? COLORS.warn : COLORS.bossCore, 1);
         g.fillCircle(e.x, e.y, r * 0.45);
         if (hitFlashVisible(this.hitFlashAge)) {
-            g.lineStyle(BOSS_HIT_FLASH_WIDTH, COLORS.warn, 1);
+            // On a white warning frame a white ring would vanish, so use the dark core color there.
+            g.lineStyle(BOSS_HIT_FLASH_WIDTH, blinking ? COLORS.bossCore : COLORS.warn, 1);
             g.strokeCircle(e.x, e.y, r);
         }
     }
@@ -423,7 +424,7 @@ export class Game extends Scene {
         if (this.centerText.text !== center) {
             this.centerText.setText(center).setColor(countdown ? TEXT_CSS_COLOR : BOSS_CSS_COLOR);
         }
-        this.centerText.setAlpha(countdown ? 1 : announceAlpha(w.bossAnnounce));
+        this.centerText.setAlpha(countdown ? 1 : announceAlpha(w.bossAnnounce, w.phase === 'ending' || w.phase === 'over'));
     }
 
     private redrawGaugeAndButton() {

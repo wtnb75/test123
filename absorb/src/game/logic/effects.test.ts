@@ -31,19 +31,24 @@ describe('the shared time convention', () => {
 
 describe('boss announcement', () => {
     it('stays fully opaque until its last 0.5 s', () => {
-        expect(announceAlpha(1.5)).toBe(1);
-        expect(announceAlpha(0.8)).toBe(1);
-        expect(announceAlpha(0.5)).toBe(1);
+        expect(announceAlpha(1.5, false)).toBe(1);
+        expect(announceAlpha(0.8, false)).toBe(1);
+        expect(announceAlpha(0.5, false)).toBe(1);
     });
 
     it('fades linearly over its last 0.5 s: half opaque with 0.25 s left', () => {
-        expect(announceAlpha(0.25)).toBeCloseTo(0.5);
-        expect(announceAlpha(0.1)).toBeCloseTo(0.2);
+        expect(announceAlpha(0.25, false)).toBeCloseTo(0.5);
+        expect(announceAlpha(0.1, false)).toBeCloseTo(0.2);
     });
 
     it('is gone once no time is left', () => {
-        expect(announceAlpha(0)).toBe(0);
-        expect(announceAlpha(-0.1)).toBe(0);
+        expect(announceAlpha(0, false)).toBe(0);
+        expect(announceAlpha(-0.1, false)).toBe(0);
+    });
+
+    it('vanishes at once when the run is ending, however much time is left', () => {
+        expect(announceAlpha(1.5, true)).toBe(0);
+        expect(announceAlpha(0.25, true)).toBe(0);
     });
 });
 
