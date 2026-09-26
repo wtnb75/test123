@@ -1,4 +1,5 @@
 packages:
+  - 'mazetd'
   - 'absorb'
   - 'fukuwarai'
   - 'calc1'
