@@ -12,8 +12,8 @@ the only step that looks at real pixels.
 ## Inputs
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
-- Requires `status_check: done` for this game — if not, send the user back
-  to `game-check` first.
+- Requires `status_codereview: done` for this game — if not, send the user
+  back to `game-codereview` (or `game-check` before it) first.
 
 ## Procedure — full detail in `AGENTS.md` section 9, summary here
 
@@ -57,4 +57,4 @@ fails rather than just noting it.
 
 1. Screenshots confirm the game renders and behaves as the spec describes.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=done`
-3. Tell the user the next step is `game-balance`.
+3. Tell the user the next step is `game-polish`.

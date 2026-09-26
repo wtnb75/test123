@@ -45,6 +45,11 @@ never call `pnpm create @phaserjs/game@latest` directly.
    - Edit `<game-dir>/package.json` `description` to match the game concept
      from `game-idea`.
    - Run `pnpm install` to update the lockfile.
+   - Run `task game:favicon PACKAGE=<game-dir>` to replace the Phaser
+     template's stock `public/favicon.png` with an identicon generated
+     from the game name (jdenticon via `pnpm dlx`, so it needs network
+     access). If it fails, tell the user and carry on — `game-publish`
+     checks it again.
    - Leave the `GAMES` line commented out — it gets uncommented only by
      `game-publish`, once the game is ready to be listed on the top page.
 5. Create `<game-dir>/docs/spec.md` with **only** this frontmatter block —
@@ -60,7 +65,9 @@ never call `pnpm create @phaserjs/game@latest` directly.
    status_impl: pending
    status_test: pending
    status_check: pending
+   status_codereview: pending
    status_qa: pending
+   status_polish: pending
    status_balance: pending
    status_publish: pending
    ---
