@@ -17,14 +17,34 @@ spec change must be made here first, with implementation/tests following.
 ## Required content (AGENTS.md 2.4 — all of these, no placeholders)
 
 ゲーム名 / コンセプト（1-3行） / ターゲットプレイヤー / コアループ / 操作仕様
-/ 画面・Scene構成 / ルール（勝利・失敗・スコア条件） / MVP範囲 / 非MVP範囲 /
-技術要件（Phaser/Vite/ESLint/Vitest） / テスト観点 / 完了条件
+/ 画面・Scene構成 / ルール（勝利・失敗・スコア条件） / パラメータ表 / MVP範囲 /
+非MVP範囲 / 技術要件（Phaser/Vite/ESLint/Vitest） / テスト観点 / 完了条件 /
+実装裁量
 
 Pull concept/core-loop/target-player/scope from the `game-idea` conversation
 if this is a first write. For a revision (e.g. coming out of
 `game-balance`), only change the sections that actually changed and note
 what changed in the conversation with the user — don't silently rewrite
-unrelated sections.
+unrelated sections. Exception: if an older spec lacks a required section
+that was added to AGENTS.md later (e.g. パラメータ表 / 実装裁量), add it as
+part of the revision.
+
+Write for a reader who wasn't in the conversation: `game-impl` (and the
+`game-review` subagent) will see only this file. Anything agreed in the
+conversation but not written here is lost.
+
+### パラメータ表 and 実装裁量
+
+- **パラメータ表**: a table of every number with gameplay weight — canvas
+  size, object sizes, speeds, timers, counts, probabilities, limits,
+  scoring coefficients — with an initial value and one-line meaning. The
+  initial value only has to be reasonable; `game-balance` tunes it later.
+  Prose elsewhere should refer to these names instead of repeating numbers.
+- **実装裁量**: an explicit list of things `game-impl` may decide on its
+  own (e.g. exact colors, easing curves, internal module structure,
+  animation lengths under 0.3s). This separates "deliberately delegated"
+  from "forgot to specify". Anything player-visible that is in neither the
+  spec nor this list will be treated as a gap by `game-review`.
 
 ### 画面・Scene構成 needs more than a Scene table
 
@@ -111,34 +131,28 @@ affects" is exactly the kind of judgment call that's easy to get wrong.
 looks different from what the caller expects, that's fine: `game-next`
 will route back to wherever the pipeline actually is next.)
 
-## Self-review (before showing the user)
+## Review (before showing the user)
 
-Check the draft against these before presenting it, and fix anything that
-fails inline rather than asking the user to catch it:
+Run `game-review STAGE=spec PACKAGE=<game-dir>` on the draft. It launches
+a fresh subagent that reads only `docs/spec.md` and does an "implementer
+dry run" — listing everything `game-impl` would have to invent. Handle its
+findings as `game-review` describes (fix what's already agreed, ask the
+user the remaining questions in one batch, at most 2 rounds).
 
-- **Placeholder scan**: no "TBD", "未定", empty sections, or vague
-  one-liners standing in for a real answer.
-- **Completeness**: all 12 required items from AGENTS.md 2.4 are present
-  (see the list above) — go down the list and check each one off.
-- **Internal consistency**: does MVP範囲 actually match what's described in
-  コアループ/ルール (nothing described as core play that's simultaneously
-  listed as non-MVP)? Does 操作仕様 agree with 画面・Scene構成 (e.g. a
-  control that has no scene it's used in)?
-- **Ambiguity**: could ルール（勝利・失敗・スコア条件） or 完了条件 be read
-  two different ways by whoever implements them? If so, pick one meaning
-  and make it explicit rather than leaving it open. Same for any Scene's
-  internal state transitions (see 画面・Scene構成 above) — is every
-  transition's trigger named, with no "and then it moves on somehow" gaps?
-- For a revision: did you actually run the six downstream resets above,
-  not just remember that they exist?
-- For a revision: did you check `status_publish`'s value *before* resetting
-  it, and branch accordingly (new branch only if it was `done`)?
+Also check the process yourself, for a revision:
+
+- Did you check `status_publish`'s value *before* resetting it, and branch
+  accordingly (new branch only if it was `done`)?
+- Did you actually run the six downstream resets above, not just remember
+  that they exist?
 
 ## Completion
 
-1. Draft the content below the existing frontmatter, self-review it, show
-   it to the user, and get explicit approval — this is a design document
-   other steps depend on, not a formality.
+1. Draft the content below the existing frontmatter, run the review
+   above, then show the user the draft together with the review result
+   (blockers fixed, questions answered, remaining should/nit) and get
+   explicit approval — this is a design document other steps depend on,
+   not a formality.
 2. Once approved and the file is written:
    `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`
 3. Tell the user the next step is `game-impl`.

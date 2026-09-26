@@ -58,17 +58,11 @@ for a first publish, "add one game" with one line on what it is and a link
 to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed and
 why.
 
-## Self-review (before completion)
+## Review (before completion)
 
-- Does `README.md` actually let a stranger understand the goal, rules, and
-  controls, or does it just restate the game's name?
-- Is `status_balance` genuinely `done` (user signed off), not just
-  `status_qa` — don't publish a game that was never balance-checked.
-- Is the `Taskfile.yml` `GAMES:` line actually uncommented for this game,
-  not just edited nearby?
-- Is the branch actually not `main`, and does `git show --stat` on the
-  commit touch only files that belong to this change — nothing from
-  unrelated in-flight work?
+Run `game-review STAGE=publish PACKAGE=<game-dir>` — a self-review against
+its `STAGE=publish` checklist — before marking this stage done. Fix anything that
+fails rather than just noting it.
 
 ## Completion
 

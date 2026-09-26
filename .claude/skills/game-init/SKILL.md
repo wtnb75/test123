@@ -66,21 +66,11 @@ never call `pnpm create @phaserjs/game@latest` directly.
    ---
    ```
 
-## Self-review (before handoff)
+## Review (before handoff)
 
-- Is the current branch actually `feat/<game-dir>` (or the next free
-  `-2`/`-3`/... variant if that name was taken), branched from `main` (not
-  still on `main`, and not branched from some other in-progress branch)?
-- Did `task newgame` actually finish — is `<game-dir>/package.json` the
-  merged version (has `catalog:` deps from `base.json`), not the raw
-  template's?
-- Is `<game-dir>` really registered in both `pnpm-workspace.yaml` and the
-  commented-out `Taskfile.yml` `GAMES` line (not left un-registered, and
-  not accidentally uncommented)?
-- Does `<game-dir>/docs/spec.md` have all 9 `status_*` keys, with `idea`
-  and `init` set to `done` and everything else `pending`?
-- Did `pnpm install` actually run (check `<game-dir>/node_modules` exists
-  and `pnpm-lock.yaml` changed)?
+Run `game-review STAGE=init PACKAGE=<game-dir>` — a self-review against
+its `STAGE=init` checklist — before handing off. Fix anything that
+fails rather than just noting it.
 
 ## Handoff
 

@@ -23,14 +23,9 @@ status to update.
    a single core loop before moving on.
 3. Suggest a tentative `<game-dir>` name (English, kebab/lowercase, matches
    existing conventions like `cjump`, `kogodrop`, `dutchcalc`).
-4. Before summarizing, self-review the concept against these points and fix
-   anything that fails, silently, rather than handing the gaps to the user:
-   - Does the concept fit in 1-3 lines, or is it actually several ideas
-     stitched together?
-   - Is the MVP a single core loop, not multiple independent systems?
-   - Do target player and input spec agree (e.g. don't assume
-     keyboard-only for a "phone, spare time" audience)?
-   - Does the suggested `<game-dir>` name collide with an existing game?
+4. Before summarizing, run `game-review STAGE=idea` (a self-review
+   against its checklist) and fix anything that fails, silently, rather
+   than handing the gaps to the user.
 5. Summarize the agreed concept in a few sentences and get explicit
    confirmation from the user before proceeding.
 

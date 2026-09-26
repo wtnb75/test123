@@ -42,13 +42,11 @@ one-off screenshot.
 Only the user decides the game is fun enough to ship — don't declare this
 stage done on your own judgment. Ask explicitly.
 
-## Self-review (before completion)
+## Review (before completion)
 
-- Is every proposed parameter change stated with a specific number and a
-  reason ("spawn interval 1.2s → 0.9s, the 3s gap before the first
-  obstacle felt dead"), not a vague "made it more fun"?
-- Does `docs/spec.md` reflect the *reason* for the tuning change, not just
-  the new numbers, so a future balance pass has context?
+Run `game-review STAGE=balance PACKAGE=<game-dir>` — a self-review against
+its `STAGE=balance` checklist — before marking this stage done. Fix anything that
+fails rather than just noting it.
 
 ## Completion
 

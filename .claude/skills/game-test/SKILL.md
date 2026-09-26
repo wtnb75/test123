@@ -100,28 +100,13 @@ worth it, a trivial helper is not.
   If the code documents itself as a heuristic, whether to make it exact is
   the user's decision — report the size of the gap and propose a fix.
 
-## Self-review (before completion)
+## Review (before completion)
 
-Go through the new/changed tests and fix anything that fails these, rather
-than leaving it for `game-check`'s coverage number to (not) catch:
-
-- Does each test name actually describe a behavior and condition, not just
-  "test1" or the function name repeated?
-- Is any test tautological — reimplementing the same logic in the test as
-  in the code, so it can't fail when the logic is wrong? Assert against
-  known expected values, not against "whatever the function currently
-  returns."
-- Are boundary values, error paths, and previously-seen regressions
-  actually covered, or does coverage come mostly from the happy path?
-- Is anything nondeterministic (time, `Math.random()`, external state) used
-  directly in an assertion instead of injected/mocked?
-- For logic-heavy modules: is there at least one check whose expected value
-  comes from somewhere other than the implementation (oracle, hand-derived
-  value), and did a mutation spot-check show the tests can fail?
-- Does every random or exhaustive loop prove it exercised what it claims (a
-  non-zero count of the interesting outcome)?
-- Does each rejection/boundary test fail *only* if the check it is named
-  after is broken?
+Once coverage passes, run `game-review STAGE=test PACKAGE=<game-dir>`. A
+fresh subagent checks that every テスト観点 / rule boundary in
+`docs/spec.md` has a test, that expected values don't come from the
+implementation itself, that nothing nondeterministic is asserted directly,
+and the logic-heavy-module checks above. Fix blockers before completion.
 
 ## Completion
 
@@ -131,5 +116,6 @@ than leaving it for `game-check`'s coverage number to (not) catch:
    without explaining why and what's next).
 2. If oracle tests or mutation checks were used, say in the PR/summary what
    the oracle was, which mutants were caught, and which survived and why.
-3. `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`
-4. Tell the user the next step is `game-check`.
+3. `game-review STAGE=test` has no remaining blockers.
+4. `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`
+5. Tell the user the next step is `game-check`.
