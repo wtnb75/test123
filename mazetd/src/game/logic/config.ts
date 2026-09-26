@@ -45,3 +45,16 @@ export const SCORE_PER_LIFE = 50;
 
 // Tolerance for comparing accumulated float seconds against interval boundaries.
 export const TIME_EPS = 1e-9;
+
+// Presentation timings and sizes (spec: 演出・UI).
+export const FADE_TIME = 0.3;
+export const RANGE_PULSE = 0.8;
+export const KILL_FX = 0.25;
+export const POPUP_TIME = 0.6;
+export const POPUP_RISE = 30;
+export const POPUP_MAX = 12;
+export const LEAK_FLASH = 0.3;
+export const LIFE_FLASH = 0.4;
+export const BANNER_TIME = 1.0;
+export const BANNER_FADE = 0.3;
+export const BUTTON_FLASH = 0.1;

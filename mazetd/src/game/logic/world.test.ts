@@ -11,7 +11,8 @@ import {
     selectTool,
     startWave,
     tapCell,
-    update
+    update,
+    ageShotLines
 } from './world';
 
 // Hand-derived geometry: board left 18, top 96, 56px cells; S centre (270,124); straight path 11 cells = 616px.
@@ -67,9 +68,9 @@ describe('initial state', () => {
         expect(s.path).toHaveLength(12);
     });
 
-    it('shows the build prompt as the message', () => {
+    it('shows the placement hint while the board is empty', () => {
         const s = createGame();
-        expect(messageText(s)).toBe('ウェーブ 1 の準備（開始を押す）');
+        expect(messageText(s)).toBe('マスをタップして壁や砲台を置こう（置いたら開始）');
     });
 });
 
@@ -642,6 +643,7 @@ describe('turrets', () => {
 describe('wave end and results', () => {
     it('returns to build with +10 coins and the next wave once every enemy is spawned and gone', () => {
         const s = manualWave();
+        setCell(s.board, 0, 0, 'wall'); // a non-empty board shows the wave prompt rather than the hint
         const e = addEnemy(s, 168, 1);
         s.turrets.push({ x: 382, y: 292, charge: 0.5, flash: 0, targetX: 0, targetY: 0 });
         expect(e.hp).toBe(1);
@@ -737,5 +739,99 @@ describe('wave end and results', () => {
         const s = manualWave([], 10);
         update(s, 0);
         expect(update(s, 0.1)).toBe('cleared');
+    });
+});
+
+describe('build hint', () => {
+    const HINT = 'マスをタップして壁や砲台を置こう（置いたら開始）';
+
+    it('switches to the wave prompt after one placement and back to the hint when everything is sold', () => {
+        const s = createGame();
+        tapCell(s, 0, 0);
+        expect(messageText(s)).toBe('ウェーブ 1 の準備（開始を押す）');
+        selectTool(s, 'sell');
+        tapCell(s, 0, 0);
+        expect(messageText(s)).toBe(HINT);
+    });
+
+    it('applies the same rule in later waves', () => {
+        const s = createGame();
+        s.wave = 2;
+        expect(messageText(s)).toBe(HINT);
+        setCell(s.board, 0, 0, 'turret');
+        expect(messageText(s)).toBe('ウェーブ 2 の準備（開始を押す）');
+    });
+
+    it('lets a failure message take priority over the hint', () => {
+        const s = createGame();
+        tapCell(s, 4, 0);
+        expect(messageText(s)).toBe(MSG_START_GOAL);
+    });
+
+    it('shows the plain wave label during a wave even on an empty board', () => {
+        const s = createGame();
+        startWave(s);
+        expect(messageText(s)).toBe('ウェーブ 1');
+    });
+});
+
+describe('frame events for effects', () => {
+    it('reports the position of each enemy killed this frame', () => {
+        // Turrets (5,3) at (326,292) and (5,4) at (326,348); enemies on the straight path at x=270.
+        const s = manualWave([
+            [5, 3],
+            [5, 4]
+        ]);
+        addEnemy(s, 0, 100); // keeps the wave running
+        addEnemy(s, 168, 1);
+        addEnemy(s, 224, 1);
+        update(s, 0);
+        expect(s.events.killX).toEqual([270, 270]);
+        expect(s.events.killY).toEqual([292, 348]);
+        expect(s.events.leaks).toBe(0);
+    });
+
+    it('reports how many enemies reached G, and none of them as kills', () => {
+        const s = manualWave([[5, 11]]);
+        addEnemy(s, 0, 100);
+        addEnemy(s, STRAIGHT_PATH_PX - 1, 1);
+        addEnemy(s, STRAIGHT_PATH_PX - 2, 1);
+        update(s, 0.1);
+        expect(s.events.leaks).toBe(2);
+        expect(s.events.killX).toEqual([]);
+    });
+
+    it('clears last frame events on the next update, even outside a wave', () => {
+        const s = manualWave([[5, 3]]);
+        addEnemy(s, 168, 1);
+        expect(update(s, 0)).toBe('build');
+        expect(s.events.killX).toHaveLength(1);
+        update(s, 0.1);
+        expect(s.events.killX).toHaveLength(0);
+        expect(s.events.killY).toHaveLength(0);
+    });
+
+    it('clears last frame leak count on the next update', () => {
+        const s = manualWave();
+        addEnemy(s, 0, 100); // keeps the wave running
+        addEnemy(s, STRAIGHT_PATH_PX - 1, 1);
+        update(s, 0.1);
+        expect(s.events.leaks).toBe(1);
+        update(s, 0.1);
+        expect(s.events.leaks).toBe(0);
+    });
+
+    it('ages shot lines without advancing anything else (used while fading out)', () => {
+        const s = manualWave([[5, 3]]);
+        addEnemy(s, 0, 100);
+        const e = addEnemy(s, 168, 100);
+        update(s, 0);
+        const traveled = e.traveled;
+        ageShotLines(s, 0.05);
+        expect(s.turrets[0].flash).toBeCloseTo(0.03);
+        ageShotLines(s, 0.05);
+        expect(s.turrets[0].flash).toBe(0);
+        expect(e.traveled).toBe(traveled);
+        expect(e.hp).toBe(99);
     });
 });

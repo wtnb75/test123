@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BG_COLOR, CANVAS_H, CANVAS_W, RESULT_INPUT_DELAY, WAVE_MAX } from '../logic/config';
+import { BG_COLOR, CANVAS_H, CANVAS_W, FADE_TIME, RESULT_INPUT_DELAY, WAVE_MAX } from '../logic/config';
 import { computeScore } from '../logic/wave';
 import type { ResultData } from './Game';
 
@@ -16,6 +16,7 @@ export class Result extends Scene {
         const score = computeScore(data.kills, data.lives, data.cleared);
 
         this.cameras.main.setBackgroundColor(BG_COLOR);
+        this.cameras.main.fadeIn(FADE_TIME * 1000, 0, 0, 0);
         this.add
             .text(cx, cy - 160, data.cleared ? 'クリア！' : 'ゲームオーバー', {
                 fontFamily: FONT,

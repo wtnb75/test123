@@ -62,6 +62,13 @@ export interface Turret {
     targetY: number;
 }
 
+/** What happened during the last update, for the Scene's effects. Arrays are reused between frames. */
+export interface FrameEvents {
+    killX: number[];
+    killY: number[];
+    leaks: number;
+}
+
 export interface GameState {
     phase: Phase;
     wave: number;
@@ -81,6 +88,7 @@ export interface GameState {
     spawnClock: number;
     spawned: number;
     nextEnemyId: number;
+    events: FrameEvents;
 }
 
 export type TapResult = 'placed' | 'sold' | 'failed' | 'ignored';
@@ -107,7 +115,8 @@ export function createGame(): GameState {
         turrets: [],
         spawnClock: 0,
         spawned: 0,
-        nextEnemyId: 0
+        nextEnemyId: 0,
+        events: { killX: [], killY: [], leaks: 0 }
     };
     refreshPath(state);
     return state;
@@ -120,8 +129,12 @@ function refreshPath(state: GameState): void {
     state.pathY = state.path.map((p) => cellCenterY(p.row));
 }
 
+export const MSG_BUILD_HINT = 'マスをタップして壁や砲台を置こう（置いたら開始）';
+
 export function phaseText(state: GameState): string {
-    return state.phase === 'build' ? `ウェーブ ${state.wave} の準備（開始を押す）` : `ウェーブ ${state.wave}`;
+    if (state.phase !== 'build') return `ウェーブ ${state.wave}`;
+    const empty = state.board.cells.every((c) => c === 'empty');
+    return empty ? MSG_BUILD_HINT : `ウェーブ ${state.wave} の準備（開始を押す）`;
 }
 
 export function messageText(state: GameState): string {
@@ -234,6 +247,7 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
             e.traveled += ENEMY_SPEED * dt;
             if (e.traveled >= goalAt) {
                 state.lives = Math.max(0, state.lives - 1);
+                state.events.leaks++;
                 continue;
             }
             placeOnPath(state, e);
@@ -245,9 +259,9 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
 
 function fireTurrets(state: GameState, dt: number): void {
     const range2 = TURRET_RANGE * TURRET_RANGE;
+    ageShotLines(state, dt);
     for (const t of state.turrets) {
         t.charge += dt;
-        t.flash = Math.max(0, t.flash - dt);
         if (t.charge + TIME_EPS < TURRET_INTERVAL) continue;
         let target: Enemy | null = null;
         for (const e of state.enemies) {
@@ -278,6 +292,8 @@ function removeDead(state: GameState): void {
     for (const e of enemies) {
         if (e.hp <= 0) {
             state.kills++;
+            state.events.killX.push(e.x);
+            state.events.killY.push(e.y);
             state.coins += KILL_REWARD;
             continue;
         }
@@ -286,8 +302,17 @@ function removeDead(state: GameState): void {
     enemies.length = w;
 }
 
+/** Ages the shot lines only; used each wave frame and while the Scene fades out after the game has ended. */
+export function ageShotLines(state: GameState, dt: number): void {
+    for (const t of state.turrets) t.flash = Math.max(0, t.flash - dt);
+}
+
 /** Advances one frame of the wave phase in the order the spec prescribes. */
 export function update(state: GameState, rawDt: number): Phase {
+    // Events describe only this frame, even when nothing runs.
+    state.events.killX.length = 0;
+    state.events.killY.length = 0;
+    state.events.leaks = 0;
     if (state.phase !== 'wave') return state.phase;
     const dt = Math.min(rawDt, DT_MAX);
     const total = enemyCount(state.wave);
