@@ -113,13 +113,13 @@ describe('spotting boss hits and its defeat between frames', () => {
 
     it('reports a hit when the same boss has less HP than last frame', () => {
         const boss = createBoss(1, 1, S);
-        boss.hp = 70;
-        expect(bossEvent(boss, 80, boss)).toBe('hit');
+        boss.hp = 50;
+        expect(bossEvent(boss, 60, boss)).toBe('hit');
     });
 
     it('reports nothing while the boss keeps its HP', () => {
         const boss = createBoss(1, 1, S);
-        expect(bossEvent(boss, 80, boss)).toBe('none');
+        expect(bossEvent(boss, 60, boss)).toBe('none');
     });
 
     it('reports only the defeat, not a hit, when the boss is gone after a killing blow', () => {

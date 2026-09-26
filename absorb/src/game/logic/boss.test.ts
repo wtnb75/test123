@@ -7,8 +7,11 @@ const S = { width: 1024, height: 768 };
 /** A power of two, so timers land exactly on the spec's boundaries without float drift. */
 const DT = 1 / 16;
 const DEG = Math.PI / 180;
-/** Station height 768 × 18%, and the sway range 40 + 48 .. 1024 − 40 − 48. */
-const STATION_Y = 138.24;
+/**
+ * Station height 768 × 30% = 230.4, and the sway range 40 + 48 .. 1024 − 40 − 48. Kept as the
+ * product because 768 * 0.3 is 230.39999999999998 in floating point, so a literal 230.4 would miss.
+ */
+const STATION_Y = 768 * 0.3;
 const LO = 88;
 const HI = 936;
 
@@ -42,21 +45,21 @@ function swaying(c: EnemyContext = ctx()): Enemy {
 }
 
 describe('boss HP and score', () => {
-    it('gives the n-th boss 80 + 40 × (n − 1) HP', () => {
-        expect(bossMaxHp(1)).toBe(80);
-        expect(bossMaxHp(2)).toBe(120);
-        expect(bossMaxHp(3)).toBe(160);
+    it('gives the n-th boss 60 + 30 × (n − 1) HP', () => {
+        expect(bossMaxHp(1)).toBe(60);
+        expect(bossMaxHp(2)).toBe(90);
+        expect(bossMaxHp(3)).toBe(120);
     });
 
-    it('scores 125 per max HP: 10000 for the first boss and 15000 for the second', () => {
-        expect(bossScore(createBoss(1, 1, S))).toBe(10000);
-        expect(bossScore(createBoss(2, 1, S))).toBe(15000);
+    it('scores 125 per max HP: 7500 for the first boss and 11250 for the second', () => {
+        expect(bossScore(createBoss(1, 1, S))).toBe(7500);
+        expect(bossScore(createBoss(2, 1, S))).toBe(11250);
     });
 
     it('bases the score on max HP, not on the HP left', () => {
         const e = createBoss(1, 1, S);
         e.hp = 3;
-        expect(bossScore(e)).toBe(10000);
+        expect(bossScore(e)).toBe(7500);
     });
 
     it('fires every 0.8 s, unlike the regular enemy intervals', () => {
@@ -68,7 +71,7 @@ describe('boss HP and score', () => {
 describe('boss entry', () => {
     it('spawns at full HP, hidden just above the top edge at the horizontal center', () => {
         const e = createBoss(2, 7, S);
-        expect(e).toMatchObject({ kind: 'boss', id: 7, x: 512, y: -48, hp: 120, maxHp: 120, radius: 48, state: 'enter' });
+        expect(e).toMatchObject({ kind: 'boss', id: 7, x: 512, y: -48, hp: 90, maxHp: 90, radius: 48, state: 'enter' });
     });
 
     it('descends straight down at 100 px/s without firing', () => {
@@ -78,10 +81,10 @@ describe('boss entry', () => {
         expect(e.y).toBeCloseTo(52);
     });
 
-    it('starts swaying the moment it reaches 18% of the screen height', () => {
+    it('starts swaying the moment it reaches 30% of the screen height', () => {
         const e = createBoss(1, 1, S);
-        // 186.24 px at 6.25 px per frame: still entering after 29 frames, swaying on the 30th.
-        run(e, 29);
+        // 278.4 px at 6.25 px per frame: still entering after 44 frames, swaying on the 45th.
+        run(e, 44);
         expect(e.state).toBe('enter');
         run(e, 1);
         expect(e.state).toBe('sway');
@@ -92,7 +95,7 @@ describe('boss entry', () => {
         const tall = { width: 768, height: 1536 };
         const e = createBoss(1, 1, tall);
         runUntil(e, 'sway', ctx({ screen: tall }));
-        expect(e.y).toBeCloseTo(1536 * 0.18);
+        expect(e.y).toBeCloseTo(1536 * 0.3);
         expect(e.x).toBe(384);
     });
 

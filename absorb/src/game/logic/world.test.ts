@@ -702,7 +702,7 @@ describe('boss', () => {
             w.step(DT, NONE);
             expect(w.boss).not.toBeNull();
             expect(w.enemies).toContain(w.boss);
-            expect(w.boss).toMatchObject({ kind: 'boss', hp: 80, maxHp: 80 });
+            expect(w.boss).toMatchObject({ kind: 'boss', hp: 60, maxHp: 60 });
         });
 
         it('announces itself for 1.5 s', () => {
@@ -740,7 +740,7 @@ describe('boss', () => {
             expect(w.boss).toBeNull();
         });
 
-        it('comes back 60 s after a defeat with 40 more HP', () => {
+        it('comes back 60 s after a defeat with 30 more HP', () => {
             const w = playingWorld();
             const boss = hold(spawnBoss(w), w.player.x, w.player.y);
             boss.hp = 10;
@@ -753,7 +753,7 @@ describe('boss', () => {
             expect(w.boss).toBeNull();
             w.elapsed = 160;
             w.step(DT, NONE);
-            expect(w.boss).toMatchObject({ hp: 120, maxHp: 120 });
+            expect(w.boss).toMatchObject({ hp: 90, maxHp: 90 });
             expect(w.bossCount).toBe(2);
         });
     });
@@ -868,7 +868,7 @@ describe('boss', () => {
             w.release();
             untilBulletsGone(w);
             expect(w.boss).toBeNull();
-            expect(w.score).toBe(15150); // (10000 + 100) × 1.5
+            expect(w.score).toBe(11400); // (7500 + 100) × 1.5
         });
 
         it('schedule the next boss 60 s after the killing hit', () => {
@@ -897,7 +897,7 @@ describe('boss', () => {
             expect(w.player.lives).toBe(2);
             expect(w.player.invulnerable).toBeCloseTo(1.5);
             expect(w.stock).toBe(10);
-            expect(boss.hp).toBe(70);
+            expect(boss.hp).toBe(50);
             expect(boss.removed).toBe(false);
             expect(w.boss).toBe(boss);
             expect(w.score).toBe(0);
@@ -910,7 +910,7 @@ describe('boss', () => {
             w.step(DT, NONE);
             expect(w.boss).toBeNull();
             expect(w.enemies).not.toContain(boss);
-            expect(w.score).toBe(10000);
+            expect(w.score).toBe(7500);
             expect(w.openGroups).toHaveLength(0);
         });
 
@@ -928,7 +928,7 @@ describe('boss', () => {
             expect(w.boss).toBeNull();
             expect(w.openGroups).toHaveLength(1);
             untilBulletsGone(w);
-            expect(w.score).toBe(10100); // 10000 + 100, not (10000 + 100) × 1.5
+            expect(w.score).toBe(7600); // 7500 + 100, not (7500 + 100) × 1.5
         });
 
         it('does not take the boss below 0 HP', () => {
@@ -937,7 +937,7 @@ describe('boss', () => {
             boss.hp = 4;
             w.step(DT, NONE);
             expect(boss.hp).toBe(0);
-            expect(w.score).toBe(10000);
+            expect(w.score).toBe(7500);
         });
 
         it('resolves against the boss first when another enemy overlaps too', () => {
@@ -949,7 +949,7 @@ describe('boss', () => {
             w.enemies.unshift(grunt);
             hold(boss, w.player.x, w.player.y);
             w.step(DT, NONE);
-            expect(boss.hp).toBe(70);
+            expect(boss.hp).toBe(50);
             expect(grunt.removed).toBe(false);
             expect(w.enemies).toContain(grunt);
             expect(w.player.lives).toBe(2);
@@ -960,7 +960,7 @@ describe('boss', () => {
             const boss = hold(spawnBoss(w), w.player.x, w.player.y);
             w.player.invulnerable = 1;
             w.step(DT, NONE);
-            expect(boss.hp).toBe(80);
+            expect(boss.hp).toBe(60);
             expect(w.player.lives).toBe(3);
         });
     });

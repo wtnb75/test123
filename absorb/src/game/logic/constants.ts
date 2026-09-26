@@ -109,11 +109,11 @@ export type ActorKind = EnemyKind | 'boss';
 
 export const BOSS_FIRST_AT = 45;
 export const BOSS_RESPAWN_DELAY = 60;
-export const BOSS_HP_BASE = 80;
-export const BOSS_HP_STEP = 40;
+export const BOSS_HP_BASE = 60;
+export const BOSS_HP_STEP = 30;
 export const BOSS_SCORE_PER_HP = 125;
 export const BOSS_RADIUS = 48;
-export const BOSS_Y_RATIO = 0.18;
+export const BOSS_Y_RATIO = 0.3;
 export const BOSS_ENTER_SPEED = 100;
 export const BOSS_SWAY_SPEED = 80;
 export const BOSS_FIRE_INTERVAL = 0.8;
