@@ -7,7 +7,7 @@ status_test: done
 status_check: done
 status_qa: done
 status_balance: done
-status_publish: pending
+status_publish: done
 ---
 
 # absorb ゲーム仕様

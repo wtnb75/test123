@@ -15,7 +15,7 @@ vars:
     #- dutchcalc
     #- cjump
     - fukuwarai
-    #- absorb
+    - absorb
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 
