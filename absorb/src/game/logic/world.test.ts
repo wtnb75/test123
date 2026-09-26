@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignHeavySlots, createEnemy, type Enemy } from './enemy';
+import { createEnemy, type Enemy } from './enemy';
 import type { ScreenSize } from './screen';
 import { shortfall, World, type Input } from './world';
 
@@ -799,17 +799,17 @@ describe('boss', () => {
         });
 
         it('is left out of the heavies\' ring posts', () => {
-            const boss = createEnemy('heavy', 1, () => 0.5, S);
-            boss.kind = 'boss';
-            boss.state = 'chase';
-            boss.x = 100;
-            boss.y = 100;
-            const heavy = createEnemy('heavy', 2, () => 0.5, S);
+            const w = playingWorld();
+            hold(spawnBoss(w), 100, 300); // on screen and older than the heavy
+            const heavy = createEnemy('heavy', 2000, () => 0.5, w.screen);
             heavy.state = 'chase';
+            heavy.fireTimer = Infinity;
             heavy.x = 900;
-            heavy.y = 600;
-            assignHeavySlots([boss, heavy], { x: 500, y: 600 });
-            // The lone heavy is the oldest one: its post points straight at itself (φ = 0°).
+            heavy.y = w.player.y;
+            w.enemies.push(heavy);
+            w.step(DT, NONE);
+            // Alone on the ring, the heavy is the oldest one: its post points straight at it (φ = 0°),
+            // one post of one, not the far side of a two-post ring anchored on the boss.
             expect(heavy.slotAngle).toBeCloseTo(0);
         });
     });

@@ -106,7 +106,7 @@ export class Game extends Scene {
             : null;
         this.bossGfx = this.add.graphics().setDepth(10);
         this.bossLabel = this.add.text(this.bossBarX() - 8, HUD_HEIGHT + BOSS_BAR_HEIGHT / 2, 'BOSS', {
-            fontFamily: 'monospace', fontSize: 14, color: '#ffd54f'
+            fontFamily: 'monospace', fontSize: 14, color: `#${COLORS.boss.toString(16).padStart(6, '0')}`
         }).setOrigin(1, 0.5).setDepth(10).setVisible(false);
     }
 
@@ -293,8 +293,10 @@ export class Game extends Scene {
         const blinking = e.state === 'warn' && Math.floor(e.stateTime * 10) % 2 === 0;
         g.fillStyle(blinking ? COLORS.warn : COLORS.boss, 1);
         const spikes = 10;
+        // Scene time keeps the spin going through ending, when the world's playing clock stops.
+        const spin = (this.time.now / 1000) * 0.5;
         for (let i = 0; i < spikes; i++) {
-            const a = (Math.PI * 2 * i) / spikes + this.world.elapsed * 0.5;
+            const a = (Math.PI * 2 * i) / spikes + spin;
             const b = Math.PI / spikes;
             g.fillTriangle(
                 e.x + Math.cos(a) * r * 1.25, e.y + Math.sin(a) * r * 1.25,

@@ -322,7 +322,9 @@ describe('boss volleys', () => {
         let volleys = 0;
         for (let i = 0; i < 127; i++) if (updateBoss(e, DT, c)) volleys++;
         for (let i = 0; i < volleys; i++) bossVolley(e, c.player);
-        runUntil(e, 'sway', c); // through warn, charge, pause and return
+        expect(volleys).toBe(9);
+        runUntil(e, 'warn', c);
+        runUntil(e, 'sway', c); // through charge, pause and return
         // Nine volleys so far (ring first), so the next one is a fan.
         expect(bossVolley(e, c.player)).toHaveLength(5);
     });
