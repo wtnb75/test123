@@ -33,6 +33,22 @@ Write for a reader who wasn't in the conversation: `game-impl` (and the
 `game-review` subagent) will see only this file. Anything agreed in the
 conversation but not written here is lost.
 
+### Revisions coming from `game-extend`
+
+`game-extend` hands over one agreed extension of a published game: what
+is added and why, what must not change, where it goes (a split file or
+the body — see "Spec layout" below), and a branch slug. When writing it:
+
+- Put it where `game-extend` decided. For a split file, also add its line
+  to `## 拡張` in `docs/spec.md`.
+- Write each "must not change" item as a regression condition in 完了条件
+  and a matching case in テスト観点 — in the split file when there is one,
+  otherwise in `docs/spec.md`. Don't add a separate section for them.
+- Remove the item from 非MVP範囲 if it was listed there.
+- Don't record history in the spec ("added in v2", changelogs). The spec
+  always describes the current game; the why lives in the PR description
+  and git history.
+
 ### パラメータ表 and 実装裁量
 
 - **パラメータ表**: a table of every number with gameplay weight — canvas
@@ -69,6 +85,46 @@ apply to this game — skip what genuinely doesn't apply, don't pad:
   and sizes go into the パラメータ表; cosmetic details (easing, tint) can
   be delegated in 実装裁量.
 
+## Spec layout: `docs/spec.md` plus linked files
+
+A game's spec is `docs/spec.md` **and every `docs/spec/*.md` it links
+to**. Anything that reads, hands over or reviews "the spec" (`game-impl`,
+`game-test`, `game-review`, `game-qa`) uses all of them.
+
+- `docs/spec.md` is the body and the index. It alone carries the
+  `status_*` frontmatter and every AGENTS.md 2.4 required item for the base
+  game. When at least one split file exists, it has a `## 拡張` section
+  listing each one as a relative link with a one-line description:
+
+  ```markdown
+  ## 拡張
+
+  - [タイムアタックモード](spec/time-attack.md) — 制限時間内のスコアを競う別モード
+  ```
+
+- Where a change goes:
+
+  | Change | Where |
+  |---|---|
+  | An element with its own rules, parameters and screens (a new mode, a set of stages, a self-contained system, a new Scene) | a new `docs/spec/<slug>.md` |
+  | A change to an existing element, or a small addition (changing an existing parameter, adding a button to an existing Scene) | edit the relevant section of `docs/spec.md` in place |
+  | An extension that changes an existing rule (in `docs/spec.md` or another split file) | edit the file that owns that rule |
+
+  Every file always describes the *current* spec. Never stack changes as
+  diffs ("v2: speed is now 300").
+
+- A split file has no frontmatter and has these sections, in this order,
+  each filled in (write 「なし」 for one that genuinely doesn't apply —
+  don't omit it): 概要（1-3行: 何を足し、コアループにどう効くか） /
+  操作仕様（追加・変更分） / 画面・Scene構成（追加・変更分。レイアウト方針・
+  状態遷移・演出・UI を含む） / ルール / パラメータ表 / テスト観点 / 完了条件 /
+  実装裁量. The rules above for パラメータ表, 実装裁量 and 画面・Scene構成
+  apply to split files too.
+- Moving existing text out of `docs/spec.md` into split files is a
+  docs-only change with no behavior change: do it in its own cycle (its
+  own branch and PR), moving text verbatim without rewriting it.
+  `game-extend` offers this when `docs/spec.md` is over 600 lines.
+
 ## Progress frontmatter
 
 `game-init` already created `docs/spec.md` with the frontmatter block
@@ -104,7 +160,9 @@ before the downstream reset below overwrites it:
   `git checkout main && git checkout -b <type>/<game-dir>-<slug>`. Pick
   `<type>` from context if it's obvious (a bug found in `game-qa`/
   `game-check` → `fix`; a `game-balance` tuning pass → `balance`; a new
-  mechanic/stage/feature request → `feat`), but confirm it with the user
+  mechanic/stage/feature request, including anything coming from
+  `game-extend` → `feat`, using the slug `game-extend` proposed), but
+  confirm it with the user
   rather than assuming — don't hardcode a fixed list, this varies by game.
   If that branch name already exists, don't reuse or overwrite it silently
   (same reasoning as `game-init`) — pick a different slug or append `-2`,
