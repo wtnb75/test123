@@ -19,7 +19,7 @@ export interface Input {
     /** -1, 0 or 1 on each axis. */
     moveX: number;
     moveY: number;
-    /** Touch drag distance this frame, in game pixels; applied 1:1 on top of the keys. */
+    /** Touch drag distance this frame, in game pixels; shifts the drag target point. */
     dragX: number;
     dragY: number;
     /** True only on the frame the release key or button went down. */
@@ -89,6 +89,10 @@ export class World {
     private nextId = 1;
     private spawnTimer = 0;
     private rammerTimer = FIRST_RAMMER_AT;
+    /** Where a touch drag wants the player to be; only meaningful while hasDragTarget. */
+    dragTargetX = 0;
+    dragTargetY = 0;
+    hasDragTarget = false;
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -146,18 +150,51 @@ export class World {
         }
     }
 
+    /**
+     * Keys move the player directly and cancel any drag. A touch drag instead shifts a target
+     * point, which the player chases at the same top speed as the keys.
+     */
     movePlayer(dt: number, input: Input): void {
-        let { moveX, moveY } = input;
-        if (moveX !== 0 && moveY !== 0) {
-            moveX *= Math.SQRT1_2;
-            moveY *= Math.SQRT1_2;
-        }
         const p = this.player;
-        const { width, height } = this.screen;
-        const x = p.x + moveX * PLAYER_SPEED * dt + input.dragX;
-        const y = p.y + moveY * PLAYER_SPEED * dt + input.dragY;
-        p.x = Math.min(Math.max(x, PLAYER_RADIUS), width - PLAYER_RADIUS);
-        p.y = Math.min(Math.max(y, PLAYER_MIN_Y), height - PLAYER_RADIUS);
+        let { moveX, moveY } = input;
+        if (moveX !== 0 || moveY !== 0) {
+            this.hasDragTarget = false;
+            if (moveX !== 0 && moveY !== 0) {
+                moveX *= Math.SQRT1_2;
+                moveY *= Math.SQRT1_2;
+            }
+            p.x = this.clampX(p.x + moveX * PLAYER_SPEED * dt);
+            p.y = this.clampY(p.y + moveY * PLAYER_SPEED * dt);
+            return;
+        }
+        if (input.dragX !== 0 || input.dragY !== 0) {
+            const baseX = this.hasDragTarget ? this.dragTargetX : p.x;
+            const baseY = this.hasDragTarget ? this.dragTargetY : p.y;
+            this.dragTargetX = this.clampX(baseX + input.dragX);
+            this.dragTargetY = this.clampY(baseY + input.dragY);
+            this.hasDragTarget = true;
+        }
+        if (!this.hasDragTarget) return;
+        const dx = this.dragTargetX - p.x;
+        const dy = this.dragTargetY - p.y;
+        const dist = Math.hypot(dx, dy);
+        const step = PLAYER_SPEED * dt;
+        if (dist <= step) {
+            p.x = this.dragTargetX;
+            p.y = this.dragTargetY;
+            this.hasDragTarget = false;
+        } else {
+            p.x += (dx / dist) * step;
+            p.y += (dy / dist) * step;
+        }
+    }
+
+    private clampX(x: number): number {
+        return Math.min(Math.max(x, PLAYER_RADIUS), this.screen.width - PLAYER_RADIUS);
+    }
+
+    private clampY(y: number): number {
+        return Math.min(Math.max(y, PLAYER_MIN_Y), this.screen.height - PLAYER_RADIUS);
     }
 
     /** Fires every stocked bullet as one release group. Does nothing with an empty stock. */
