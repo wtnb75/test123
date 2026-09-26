@@ -35,7 +35,7 @@ const GAUGE_Y = 22;
 const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
-type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'x' | 'enter', Input.Keyboard.Key>;
+type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'x' | 'enter' | 'space', Input.Keyboard.Key>;
 
 export class Game extends Scene {
     private world: World;
@@ -109,7 +109,7 @@ export class Game extends Scene {
         const K = Input.Keyboard.KeyCodes;
         this.keys = this.input.keyboard!.addKeys({
             up: K.UP, down: K.DOWN, left: K.LEFT, right: K.RIGHT,
-            w: K.W, a: K.A, s: K.S, d: K.D, x: K.X, enter: K.ENTER
+            w: K.W, a: K.A, s: K.S, d: K.D, x: K.X, enter: K.ENTER, space: K.SPACE
         }) as Keys;
         // Queue the release on the key's down event rather than polling JustDown in update():
         // a tap shorter than one frame is released before update() runs, and Phaser clears the
@@ -117,6 +117,7 @@ export class Game extends Scene {
         const queueRelease = () => { this.releaseQueued = true; };
         this.keys.x.on('down', queueRelease);
         this.keys.enter.on('down', queueRelease);
+        this.keys.space.on('down', queueRelease);
         // Destroying the keys also removes their listeners.
         this.events.once('shutdown', () => this.input.keyboard?.removeAllKeys(true));
     }
