@@ -1,5 +1,5 @@
 import {
-    ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT,
+    ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type EnemyKind
@@ -369,8 +369,12 @@ export class World {
         if (p.invulnerable > 0) return;
         for (const e of this.enemies) {
             if (e.removed || !circlesOverlap(p, PLAYER_RADIUS, e, e.radius)) continue;
+            // The rammed enemy breaks without scoring; bullets homing on it retarget next frame.
+            e.removed = true;
             p.lives--;
             p.invulnerable = PLAYER_INVULNERABLE;
+            // Consolation stock, absorbed one bullet at a time so the cap still auto-releases.
+            for (let i = 0; i < HIT_STOCK_BONUS; i++) this.absorb();
             if (p.lives <= 0) this.setPhase('ending');
             return;
         }

@@ -8,6 +8,8 @@ export const PLAYER_RADIUS = 10;
 export const PLAYER_SPEED = 320;
 export const PLAYER_LIVES = 3;
 export const PLAYER_INVULNERABLE = 1.5;
+/** Stock granted when an enemy rams the player. */
+export const HIT_STOCK_BONUS = 10;
 /** Start position as a fraction of the screen height (horizontally centered). */
 export const PLAYER_START_Y_RATIO = 0.85;
 /** Height of the HUD band at the top of the screen, which the player cannot enter. */
