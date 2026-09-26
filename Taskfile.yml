@@ -236,15 +236,19 @@ tasks:
     desc: register PACKAGE= into pnpm-workspace.yaml and Taskfile.yml GAMES
     preconditions:
       - "test -d {{ .PACKAGE }}"
+      - sh: "command -v sd"
+        msg: "sd is required (sed -i differs between GNU and BSD)"
     cmds:
-      - sed -i "/^packages:$/a\\  - '{{ .PACKAGE }}'" pnpm-workspace.yaml
-      - 'sed -i "/^  ALL_GAMES:$/i\\    #- {{ .PACKAGE }}" Taskfile.yml'
+      - 'sd ''^packages:$'' "packages:\n  - ''{{ .PACKAGE }}''" pnpm-workspace.yaml'
+      - 'sd ''^  ALL_GAMES:$'' "    #- {{ .PACKAGE }}\n  ALL_GAMES:" Taskfile.yml'
 
   newgame:
     desc: create new project template PACKAGE= (from scaffold/base-template, no network/interactive wizard)
     preconditions:
       - "test ! -e {{ .PACKAGE }}"
       - "test -d scaffold/base-template"
+      - sh: "command -v sd"
+        msg: "sd is required (sed -i differs between GNU and BSD)"
     cmds:
       - cp -r scaffold/base-template {{ .PACKAGE }}
       - task: pkgmod
