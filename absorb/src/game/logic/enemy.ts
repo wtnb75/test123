@@ -9,7 +9,8 @@ import {
     SHOOTER_SWEEP_SPEED, SHOOTER_SWEEP_WARN, SHOOTER_Y_RATIO,
     SIDE_STATION_MAX_RATIO, SIDE_STATION_MIN_RATIO, SIDE_Y_MAX_RATIO, SIDE_Y_MIN_RATIO,
     SWAY_RANGE, SWAY_SPEED,
-    type EnemyKind, type SpawnEdge
+    BOSS_FIRE_INTERVAL,
+    type ActorKind, type EnemyKind, type SpawnEdge
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
 import type { ScreenSize } from './screen';
@@ -24,14 +25,19 @@ export type EnemyState =
     | 'sweep'        // shooter: charging across to the opposite edge
     | 'sweep-return' // shooter: moving vertically back to the station height
     | 'chase'        // heavy: surrounding and charging the player
-    | 'dash';        // rammer: charging
+    | 'dash'         // rammer: charging
+    | 'charge'       // boss: charging the locked point
+    | 'pause'        // boss: resting after a charge
+    | 'return';      // boss: moving vertically back to the station height
 
 export interface Enemy {
     id: number;
-    kind: EnemyKind;
+    kind: ActorKind;
     x: number;
     y: number;
     hp: number;
+    /** HP at spawn; the boss's kill score and HP bar are based on it. */
+    maxHp: number;
     radius: number;
     state: EnemyState;
     stateTime: number;
@@ -56,6 +62,10 @@ export interface Enemy {
     sweepTargetX: number;
     /** Heavy: its post on the ring around the player, as an angle seen from the player. */
     slotAngle: number;
+    /** Boss: the point a charge heads for, and how many volleys it has fired so far. */
+    chargeX: number;
+    chargeY: number;
+    volleys: number;
     /** Number of release bullets currently targeting this enemy. */
     incoming: number;
     removed: boolean;
@@ -82,7 +92,7 @@ export function pickSpawnEdge(rng: Rng, screen: ScreenSize): SpawnEdge {
     return 'top';
 }
 
-function topStationY(kind: EnemyKind, rng: Rng, height: number): number {
+function topStationY(kind: ActorKind, rng: Rng, height: number): number {
     switch (kind) {
         case 'grunt': return height * randomRange(rng, GRUNT_MIN_Y_RATIO, GRUNT_MAX_Y_RATIO);
         case 'shooter': return height * SHOOTER_Y_RATIO;
@@ -110,26 +120,37 @@ function placeAtEdge(e: Enemy, rng: Rng, screen: ScreenSize): void {
     setState(e, 'enter');
 }
 
-export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: ScreenSize): Enemy {
-    const spec = ENEMY_SPECS[kind];
-    const e: Enemy = {
-        id, kind, x: 0, y: 0, hp: spec.hp, radius: spec.radius,
+/** A fresh enemy record parked at the origin; callers place it and set its state. */
+export function blankEnemy(kind: ActorKind, id: number, hp: number, radius: number): Enemy {
+    return {
+        id, kind, x: 0, y: 0, hp, maxHp: hp, radius,
         state: 'enter', stateTime: 0, entry: 'top', stationX: 0, stationY: 0,
         swayCenter: 0, swayDir: 1, fireTimer: 0, actionTimer: 0,
         heading: 0, homingLeft: 0, originX: 0, originY: 0,
-        bobTime: 0, sweepY: 0, sweepTargetX: 0, slotAngle: 0, incoming: 0, removed: false
+        bobTime: 0, sweepY: 0, sweepTargetX: 0, slotAngle: 0,
+        chargeX: 0, chargeY: 0, volleys: 0, incoming: 0, removed: false
     };
+}
+
+export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: ScreenSize): Enemy {
+    const spec = ENEMY_SPECS[kind];
+    const e = blankEnemy(kind, id, spec.hp, spec.radius);
     placeAtEdge(e, rng, screen);
     return e;
 }
 
-function setState(e: Enemy, state: EnemyState): void {
+/** Seconds between an actor's volleys; 0 means it never fires. */
+export function fireIntervalOf(kind: ActorKind): number {
+    return kind === 'boss' ? BOSS_FIRE_INTERVAL : ENEMY_SPECS[kind].fireInterval;
+}
+
+export function setState(e: Enemy, state: EnemyState): void {
     e.state = state;
     e.stateTime = 0;
 }
 
 /** Moves `from` toward `to` by at most `step`; returns the new value. */
-function approach(from: number, to: number, step: number): number {
+export function approach(from: number, to: number, step: number): number {
     if (Math.abs(to - from) <= step) return to;
     return from + Math.sign(to - from) * step;
 }
@@ -143,7 +164,7 @@ function enter(e: Enemy, dt: number, rng: Rng): void {
 
 function arrive(e: Enemy, rng: Rng): void {
     e.swayCenter = e.x;
-    e.fireTimer = ENEMY_SPECS[e.kind].fireInterval / 2;
+    e.fireTimer = fireIntervalOf(e.kind) / 2;
     switch (e.kind) {
         case 'grunt':
             e.actionTimer = randomRange(rng, GRUNT_DIVE_MIN_INTERVAL, GRUNT_DIVE_MAX_INTERVAL);
@@ -275,7 +296,7 @@ export function assignHeavySlots(enemies: readonly Enemy[], player: Point): void
 }
 
 /** Moves toward (tx, ty) by at most `step`, stopping on it. */
-function moveToward(e: Enemy, tx: number, ty: number, step: number): void {
+export function moveToward(e: Enemy, tx: number, ty: number, step: number): void {
     const dx = tx - e.x;
     const dy = ty - e.y;
     const dist = Math.hypot(dx, dy);
@@ -319,7 +340,7 @@ function updateRammer(e: Enemy, dt: number, ctx: EnemyContext): void {
 }
 
 function canFire(e: Enemy, screen: ScreenSize): boolean {
-    if (ENEMY_SPECS[e.kind].fireInterval <= 0 || !isOnScreen(e, screen)) return false;
+    if (fireIntervalOf(e.kind) <= 0 || !isOnScreen(e, screen)) return false;
     switch (e.kind) {
         case 'grunt': return e.state === 'sway';
         case 'heavy': return e.state === 'chase';
@@ -343,6 +364,6 @@ export function updateEnemy(e: Enemy, dt: number, ctx: EnemyContext): boolean {
     if (e.removed || !canFire(e, ctx.screen)) return false;
     e.fireTimer -= dt;
     if (e.fireTimer > 0) return false;
-    e.fireTimer += ENEMY_SPECS[e.kind].fireInterval;
+    e.fireTimer += fireIntervalOf(e.kind);
     return true;
 }

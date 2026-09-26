@@ -1,7 +1,7 @@
 import { GameObjects, Input, Scene } from 'phaser';
 import {
-    ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, PLAYER_RADIUS, READY_DURATION,
-    RELEASE_RADIUS, STOCK_MAX
+    BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN,
+    HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
 } from '../logic/constants';
 import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
@@ -17,6 +17,8 @@ const COLORS = {
     shooter: 0xffa726,
     heavy: 0xab47bc,
     rammer: 0xef5350,
+    boss: 0xffd54f,
+    bossCore: 0x5d4037,
     warn: 0xffffff,
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
@@ -47,9 +49,12 @@ export class Game extends Scene {
     private stockText: GameObjects.Text;
     private centerText: GameObjects.Text;
     private buttonText: GameObjects.Text | null;
+    private bossGfx: GameObjects.Graphics;
+    private bossLabel: GameObjects.Text;
     private shownScore = -1;
     private shownLives = -1;
     private shownStock = -1;
+    private shownBossHp = -1;
     private finished = false;
     private touchUi = false;
     private buttonX = 0;
@@ -73,7 +78,7 @@ export class Game extends Scene {
 
         this.world = new World(size);
         this.finished = false;
-        this.shownScore = this.shownLives = this.shownStock = -1;
+        this.shownScore = this.shownLives = this.shownStock = this.shownBossHp = -1;
         this.dragPointerId = -1;
         this.releaseQueued = false;
         this.touchUi = this.sys.game.device.input.touch;
@@ -99,6 +104,14 @@ export class Game extends Scene {
             ? this.add.text(this.buttonX, this.buttonY, '', { fontFamily: 'monospace', fontSize: 28, color: '#ffffff' })
                 .setOrigin(0.5).setDepth(11)
             : null;
+        this.bossGfx = this.add.graphics().setDepth(10);
+        this.bossLabel = this.add.text(this.bossBarX() - 8, HUD_HEIGHT + BOSS_BAR_HEIGHT / 2, 'BOSS', {
+            fontFamily: 'monospace', fontSize: 14, color: '#ffd54f'
+        }).setOrigin(1, 0.5).setDepth(10).setVisible(false);
+    }
+
+    private bossBarX(): number {
+        return (this.world.screen.width * (1 - BOSS_BAR_WIDTH_RATIO)) / 2;
     }
 
     private gaugeX(): number {
@@ -250,6 +263,10 @@ export class Game extends Scene {
                 g.strokeCircle(e.x, e.y, r * 0.6);
                 break;
             }
+            case 'boss':
+                // The boss shows its HP on the HUD bar instead of pips.
+                this.drawBoss(e);
+                return;
             default: {
                 const blinking = e.state === 'warn' && Math.floor(e.stateTime * 10) % 2 === 0;
                 g.fillStyle(blinking ? COLORS.warn : COLORS.rammer, 1);
@@ -269,6 +286,45 @@ export class Game extends Scene {
         for (let i = 0; i < e.hp; i++) g.fillRect(e.x - e.hp * 3 + i * 6, e.y + r + 4, 4, 3);
     }
 
+    /** A spiked gold disc with a dark core; flashes white while telegraphing a charge. */
+    private drawBoss(e: Enemy) {
+        const g = this.gfx;
+        const r = e.radius;
+        const blinking = e.state === 'warn' && Math.floor(e.stateTime * 10) % 2 === 0;
+        g.fillStyle(blinking ? COLORS.warn : COLORS.boss, 1);
+        const spikes = 10;
+        for (let i = 0; i < spikes; i++) {
+            const a = (Math.PI * 2 * i) / spikes + this.world.elapsed * 0.5;
+            const b = Math.PI / spikes;
+            g.fillTriangle(
+                e.x + Math.cos(a) * r * 1.25, e.y + Math.sin(a) * r * 1.25,
+                e.x + Math.cos(a - b) * r * 0.8, e.y + Math.sin(a - b) * r * 0.8,
+                e.x + Math.cos(a + b) * r * 0.8, e.y + Math.sin(a + b) * r * 0.8
+            );
+        }
+        g.fillCircle(e.x, e.y, r);
+        g.fillStyle(COLORS.bossCore, 1);
+        g.fillCircle(e.x, e.y, r * 0.45);
+    }
+
+    /** The HP bar under the HUD band, shown only while a boss is on the field. */
+    private drawBossBar() {
+        const boss = this.world.boss;
+        const hp = boss ? boss.hp : -1;
+        if (hp === this.shownBossHp) return;
+        this.shownBossHp = hp;
+        const g = this.bossGfx;
+        g.clear();
+        this.bossLabel.setVisible(boss !== null);
+        if (!boss) return;
+        const x = this.bossBarX();
+        const width = this.world.screen.width * BOSS_BAR_WIDTH_RATIO;
+        g.fillStyle(COLORS.gaugeBack, 1);
+        g.fillRect(x, HUD_HEIGHT, width, BOSS_BAR_HEIGHT);
+        g.fillStyle(COLORS.boss, 1);
+        g.fillRect(x, HUD_HEIGHT, width * (boss.hp / boss.maxHp), BOSS_BAR_HEIGHT);
+    }
+
     private drawHud() {
         const w = this.world;
         if (w.score !== this.shownScore) {
@@ -284,8 +340,11 @@ export class Game extends Scene {
             this.stockText.setText(`${w.stock}/${STOCK_MAX}`);
             this.redrawGaugeAndButton();
         }
-        const countdown = w.phase === 'ready' ? String(Math.max(1, Math.ceil(READY_DURATION - w.phaseTime))) : '';
-        if (this.centerText.text !== countdown) this.centerText.setText(countdown);
+        this.drawBossBar();
+        const center = w.phase === 'ready'
+            ? String(Math.max(1, Math.ceil(READY_DURATION - w.phaseTime)))
+            : w.bossAnnounce > 0 ? 'BOSS' : '';
+        if (this.centerText.text !== center) this.centerText.setText(center);
     }
 
     private redrawGaugeAndButton() {
