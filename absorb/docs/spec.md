@@ -4,7 +4,7 @@ status_init: done
 status_spec: done
 status_impl: done
 status_test: done
-status_check: pending
+status_check: done
 status_qa: pending
 status_balance: pending
 status_publish: pending
