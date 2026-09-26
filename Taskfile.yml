@@ -16,7 +16,7 @@ vars:
     #- cjump
     - fukuwarai
     - absorb
-    #- mazetd
+    - mazetd
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 

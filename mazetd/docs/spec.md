@@ -9,7 +9,7 @@ status_codereview: done
 status_qa: done
 status_polish: done
 status_balance: done
-status_publish: pending
+status_publish: done
 ---
 
 # mazetd ゲーム仕様
