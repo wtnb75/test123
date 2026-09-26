@@ -1,6 +1,6 @@
 ---
 name: game-publish
-description: Use for the final step of adding a finished game to this monorepo's public listing — uncommenting it in Taskfile.yml's GAMES list and opening a "add one game" PR (AGENTS.md section 2.2).
+description: Use for the final step of adding a finished game to this monorepo's public listing — uncommenting it in Taskfile.yml's GAMES list and opening a "add one game" PR (AGENTS.md section 2.2) — or, for a post-publish revision (fix/balance/extension), checking README and opening that revision's PR.
 ---
 
 # game-publish
@@ -25,9 +25,14 @@ by the user.
    succeeding means it's still the template's stock icon — run
    `task game:favicon PACKAGE=<game-dir>` and include the result in this
    change.
-3. This is a user-visible change (it adds a link on the public top page) —
-   confirm with the user before touching `Taskfile.yml`.
-4. Uncomment the `<game-dir>` line under `GAMES:` in `Taskfile.yml`.
+3. **First publish**: this is a user-visible change (it adds a link on the
+   public top page) — confirm with the user before touching
+   `Taskfile.yml`, then uncomment the `<game-dir>` line under `GAMES:` in
+   `Taskfile.yml`.
+4. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
+   `GAMES` line is already uncommented — leave `Taskfile.yml` alone.
+   Instead check that `README.md` reflects the changed rules and controls,
+   and update it in this change if it doesn't.
 
 `task build` / `output/index.html` verification is CI's job, not this
 skill's — don't run it here (confirmed with the user: this repo's CI
@@ -71,8 +76,10 @@ fails rather than just noting it.
 
 ## Completion
 
-1. `Taskfile.yml` change is correct, the user has confirmed the listing,
-   and the PR is open with a link to show them.
+1. For a first publish, the `Taskfile.yml` change is correct and the user
+   has confirmed the listing; for a post-publish revision, `README.md` is
+   current and `Taskfile.yml` is untouched. Either way, the PR is open with
+   a link to show them.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
 3. Tell the user this game's workflow is complete —
    `task game:dashboard` will now show it as `next=complete`.

@@ -37,7 +37,14 @@ the only step that looks at real pixels.
 5. Take `page.screenshot()` shots at the states that matter for this game
    (title, mid-play, clear, game-over) and `docker cp` them out for visual
    inspection — judge on speed feel, hit-detection feel, and whether
-   transitions match the spec, not just "it didn't crash".
+   transitions match the spec, not just "it didn't crash". The spec is
+   `docs/spec.md` plus its linked `docs/spec/*.md` files.
+
+   For a revision (this game passed QA before — e.g. after `game-extend`),
+   also re-shoot every existing Scene/state listed above, not only the
+   changed parts, and check them against the regression conditions in
+   完了条件: the change must not have altered what it was meant to leave
+   alone.
 6. Clean up: `docker rm -f <qa-container>` and stop the dev server. Always,
    even if QA failed.
 

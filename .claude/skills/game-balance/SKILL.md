@@ -26,7 +26,10 @@ one-off screenshot.
    several playthroughs) focused on feel, not correctness: is the
    difficulty curve fair, is there a dead spot where nothing interesting
    happens, does an early failure feel like a "wait, again?" or like
-   information the player can act on next time?
+   information the player can act on next time? After an extension
+   (`game-extend`), also judge the existing flow with the new element in
+   play: did it flatten or spike the existing difficulty curve, or change
+   pacing that the regression conditions said to keep?
 2. Discuss findings with the user — this is a subjective call, don't decide
    alone what "fun" means for their game. Propose specific parameter
    changes (speed, spawn rate, hit-box size, timing windows, etc.) with
