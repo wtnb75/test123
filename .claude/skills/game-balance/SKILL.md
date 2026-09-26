@@ -34,7 +34,8 @@ one-off screenshot.
    alone what "fun" means for their game. Propose specific parameter
    changes (speed, spawn rate, hit-box size, timing windows, etc.) with
    reasoning, not vague "make it more fun" edits.
-3. On agreement, invoke `game-spec` to update `docs/spec.md` first (AGENTS.md
+3. On agreement, invoke `game-spec` to update the file that owns the
+   element (`docs/spec.md` or its `docs/spec/<slug>.md`) first (AGENTS.md
    2.4: 仕様変更時は docs/spec.md を先に更新), documenting the tuning
    change and why. `game-spec` resets every downstream stage back to
    `pending` on its own as part of any revision — this skill doesn't need

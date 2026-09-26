@@ -15,13 +15,23 @@ stages, and the normal impl → … → publish chain runs again.
 
 ## Inputs
 
-- `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm
-  with the user.
+- `PACKAGE=<game-dir>`. If not given, run `task game:dashboard`, list the
+  games with `next=complete`, and ask the user to pick one
+  (`task game:detect` doesn't return completed games).
 - Requires `status_publish: done`
-  (`task game:status PACKAGE=<game-dir> STAGE=publish`). If the game
-  hasn't been published yet, don't extend it: tell the user to ship the
-  MVP first (adding to it now widens the MVP, which `game-idea` works to
-  keep small) and point them back to `game-next`.
+  (`task game:status PACKAGE=<game-dir> STAGE=publish`):
+  - `done` → proceed.
+  - `absent` (no progress frontmatter — a game from before tracking) →
+    this game is out of scope for this workflow, same as `game-next`;
+    tell the user it predates progress tracking and they can handle the
+    extension manually.
+  - `pending`/`in_progress` → check whether the spec already went
+    through a post-publish revision (a `<type>/<game-dir>-<slug>` branch
+    exists, or `status_spec` shows a revision). If so, there's an
+    unfinished revision: finish it via `game-next` first. Otherwise the
+    game hasn't shipped yet: tell the user to ship the MVP first (adding
+    to it now widens the MVP, which `game-idea` works to keep small) and
+    point them back to `game-next`.
 
 ## Process
 
@@ -53,8 +63,8 @@ Ask one question at a time.
    stage set plus new UI at once), cut it down to the smallest step, as
    `game-idea` does for an MVP. If existing code has to be restructured to
    fit it, say so and get agreement. If `docs/spec.md` is over 600 lines,
-   offer to split the existing spec first in its own docs-only cycle (see
-   `game-spec` "Spec layout").
+   offer to split it first; if the user agrees, stop here and run that
+   split via `game-spec` ("Splitting an existing spec"), then come back.
 6. **Decide where it goes in the spec**, by the `game-spec` "Spec layout"
    rule: an element with its own rules, parameters and screens → a new
    `docs/spec/<slug>.md`; a change to an existing element or a small
@@ -63,8 +73,9 @@ Ask one question at a time.
    kebab-case). Check it doesn't collide with an existing local or remote
    branch (`git branch -a --list '*<game-dir>-<slug>*'`).
 8. Run `game-review STAGE=extend PACKAGE=<game-dir>` (a self-review
-   against its checklist) and fix anything that fails, silently, rather
-   than handing the gaps to the user.
+   against its checklist) and fix what you can from what's already
+   agreed; gaps that need the user's answer (e.g. the must-not-change
+   list) are asked together in one batch.
 9. Summarize the agreement in one block — what is added and why, core
    loop effect, controls, what must not change, where it goes in the spec,
    branch slug — and get explicit approval.

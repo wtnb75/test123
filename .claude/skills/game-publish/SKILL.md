@@ -7,7 +7,9 @@ description: Use for the final step of adding a finished game to this monorepo's
 
 Add `<game-dir>` to the public top-page listing and open a PR for it. This
 is the last workflow stage — only run it once balance has been signed off
-by the user.
+by the user. For a post-publish revision, the listing is already done —
+the "one thing" this stage scopes to is that revision (fix/balance/
+extension), not the original add.
 
 ## Inputs
 
@@ -41,9 +43,10 @@ builds and verifies the top-page output on its own).
 ### Opening the PR
 
 The finished PR's content should be scoped to exactly one thing: adding
-`<game-dir>`. Confirm with the user before pushing anything or opening the
-PR — pushing and PR creation are both visible, and this skill has no
-standing authorization to do them silently.
+`<game-dir>` (first publish), or that one revision (post-publish). Confirm
+with the user before pushing anything or opening the PR — pushing and PR
+creation are both visible, and this skill has no standing authorization to
+do them silently.
 
 By this point you should already be on a dedicated branch for this game
 (`feat/<game-dir>` from `game-init` for a first publish, or a
@@ -82,4 +85,6 @@ fails rather than just noting it.
    a link to show them.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
 3. Tell the user this game's workflow is complete —
-   `task game:dashboard` will now show it as `next=complete`.
+   `task game:dashboard` will now show it as `next=complete` — and that
+   the next options are `game-extend` (add a feature) or `game-balance`
+   (another tuning pass), same as `game-next` offers.

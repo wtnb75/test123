@@ -18,9 +18,10 @@ user back to `game-spec` first.
 
 `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=in_progress`
 
-Re-read the spec fully (`<game-dir>/docs/spec.md` and its linked files) — it is the source of truth for
-scope. If what's being asked diverges from the spec, stop and route back to
-`game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新).
+Re-read the spec fully (`<game-dir>/docs/spec.md` and its linked files) —
+it is the source of truth for scope. If what's being asked diverges from
+the spec, stop and route back to `game-spec` first (AGENTS.md: 仕様変更時は
+spec.md を先に更新).
 
 ### When the spec is silent
 
@@ -83,11 +84,11 @@ known position) in `fukuwarai`, not by guessing from symptoms.
 ## Review (before completion)
 
 After `npm run build` succeeds, run `game-review STAGE=impl
-PACKAGE=<game-dir>`. A fresh subagent checks the change against
-`docs/spec.md` (every rule/parameter implemented, nothing invented,
-parameters in one place, logic testable without Phaser) and the Phaser
-rules above. Fix blockers; a finding that turns out to be a spec gap goes
-to `game-spec` as described in "When the spec is silent".
+PACKAGE=<game-dir>`. A fresh subagent checks the change against the spec
+(`docs/spec.md` and its linked files — every rule/parameter implemented,
+nothing invented, parameters in one place, logic testable without Phaser)
+and the Phaser rules above. Fix blockers; a finding that turns out to be
+a spec gap goes to `game-spec` as described in "When the spec is silent".
 
 ## Before declaring done: does this need a human look first?
 

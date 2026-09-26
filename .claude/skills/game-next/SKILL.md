@@ -25,10 +25,14 @@ edits files itself — it only detects state and dispatches.
    - Otherwise run `task game:detect`. This prefers a game with uncommitted
      git changes; failing that, any game with an incomplete stage.
    - If it returns `none`, there is no game with progress-tracking
-     frontmatter yet (existing pre-tracking games are out of scope by
-     design). Ask the user: start a brand-new game (→ `game-idea`), or did
-     they mean an existing untracked game (out of scope for this skill —
-     handle it manually)?
+     frontmatter needing work (existing pre-tracking games are out of
+     scope by design). Run `task game:dashboard`; if any game shows
+     `next=complete`, offer those too ("continue a published game —
+     extend or rebalance") alongside starting a brand-new game
+     (→ `game-idea`) or an existing untracked game (out of scope for
+     this skill — handle it manually). If the user picks a
+     `next=complete` game, skip straight to the `complete` section below
+     for it.
 2. Before dispatching, make sure you're on the right branch. Games get a
    dedicated branch (`game-init` creates `feat/<game-dir>`; a post-publish
    revision creates its own differently-named branch — see `game-spec`).

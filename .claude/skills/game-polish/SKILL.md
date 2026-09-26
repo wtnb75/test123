@@ -105,8 +105,9 @@ its `STAGE=polish` checklist — before marking this stage done.
 
 ## Completion
 
-1. Agreed changes are in `docs/spec.md`, implemented, and QA has passed on
-   the polished version.
+1. Agreed changes are in the file that owns the element (`docs/spec.md`
+   or its `docs/spec/<slug>.md`), implemented, and QA has passed on the
+   polished version.
 2. The user confirmed the look and flow.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done`
 4. Tell the user the next step is `game-balance`.

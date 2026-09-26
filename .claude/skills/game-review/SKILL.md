@@ -58,7 +58,7 @@ and, when there are none, say `no findings` explicitly.
 ### Severity
 
 - **blocker** — the next stage would have to invent a player-visible
-  behavior or value, the output contradicts `docs/spec.md` / AGENTS.md, or
+  behavior or value, the output contradicts the spec / AGENTS.md, or
   something is plainly broken. Blocks completion.
 - **should** — worth fixing, but the next stage can proceed without it.
 - **nit** — wording, style, taste.
@@ -99,13 +99,15 @@ Before summarizing the concept to the user:
 
 Before summarizing the agreed extension to the user:
 
-- Is `status_publish` `done` for this game?
+- Is `status_publish` `done`? If not, did the user get the right reason
+  (untracked / unfinished revision / not yet shipped)?
 - Is it exactly one extension? Were the others split off and named as
   later cycles?
 - Is the reason a concrete problem with the current game (what feels
   missing or dull), not just "more content"?
 - Is its effect on the core loop stated (deepens it / widens it)?
 - Are added or changed controls stated, or explicitly "none"?
+- Is the direction for looks and initial numbers stated?
 - Is there an explicit "must not change" list (controls feel, rules,
   scoring, difficulty), and is every intended change to existing behavior
   agreed as such?
@@ -210,7 +212,8 @@ check.
 ### Checklist
 
 - **Spec conformance**: for each rule, state transition and parameter in
-  spec.md, point to where it is implemented. Anything missing is a blocker;
+  the spec (spec.md and its linked files), point to where it is
+  implemented. Anything missing is a blocker;
   anything implemented that the spec doesn't ask for is a blocker unless
   it's an implementation detail with no player-visible effect.
 - **Invented behavior**: any player-visible behavior decided in code that
@@ -303,8 +306,9 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - For a revision: besides the changed parts, was every existing Scene/state
   re-shot and checked against the regression conditions in 完了条件?
 - For each screenshot, can you say which spec rule/Scene it confirms?
-- Is each 完了条件 in spec.md checked by either a screenshot or an earlier
-  stage (test/check)? List any that nothing checked.
+- Is each 完了条件 in the spec (spec.md and its linked files, including
+  split files' regression conditions) checked by either a screenshot or
+  an earlier stage (test/check)? List any that nothing checked.
 - Was feel (speed, hit detection, transition timing) judged against the
   spec, not just "it rendered"?
 - Were the QA container and dev server actually cleaned up?
@@ -313,8 +317,9 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
 - Was every Scene/state looked at on both a desktop and a phone-sized
   viewport, with bursts of frames for effects and transitions?
-- Is each implemented change one the user picked, recorded in spec.md
-  (演出・UI / パラメータ表 / 実装裁量) before it was implemented?
+- Is each implemented change one the user picked, recorded in the file
+  that owns it (演出・UI / パラメータ表 / 実装裁量) before it was
+  implemented?
 - Did anything with gameplay weight (speed, hit box, timing window,
   scoring) sneak in? That belongs to `game-balance` — back it out.
 - Do effects leave input responsive, and are emitters/tweens/texts created
@@ -329,8 +334,8 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
 - Is every proposed change a specific number with a reason ("spawn interval
   1.2s → 0.9s, the 3s gap before the first obstacle felt dead")?
-- Does spec.md record the reason, not just the new number, and is the
-  パラメータ表 updated?
+- Does the file that owns the element record the reason, not just the
+  new number, and is the パラメータ表 updated?
 - After an extension: was the existing difficulty curve and pacing judged
   with the new element in play, not only the new element on its own?
 - Did the user explicitly say the current feel is good enough to ship?

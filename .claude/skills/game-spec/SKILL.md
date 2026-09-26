@@ -30,8 +30,9 @@ that was added to AGENTS.md later (e.g. パラメータ表 / 実装裁量), add 
 part of the revision.
 
 Write for a reader who wasn't in the conversation: `game-impl` (and the
-`game-review` subagent) will see only this file. Anything agreed in the
-conversation but not written here is lost.
+`game-review` subagent) will see only the spec (this file and any
+`docs/spec/*.md` it links to). Anything agreed in the conversation but
+not written here is lost.
 
 ### Revisions coming from `game-extend`
 
@@ -121,9 +122,26 @@ to**. Anything that reads, hands over or reviews "the spec" (`game-impl`,
   実装裁量. The rules above for パラメータ表, 実装裁量 and 画面・Scene構成
   apply to split files too.
 - Moving existing text out of `docs/spec.md` into split files is a
-  docs-only change with no behavior change: do it in its own cycle (its
-  own branch and PR), moving text verbatim without rewriting it.
-  `game-extend` offers this when `docs/spec.md` is over 600 lines.
+  docs-only change with no behavior change, run as its own cycle — see
+  "Splitting an existing spec" below. `game-extend` offers this when
+  `docs/spec.md` is over 600 lines.
+
+### Splitting an existing spec
+
+Run this as a `game-spec` revision, on its own branch:
+
+- Branch from `main`: `docs/<game-dir>-split-spec` (next free `-2`, `-3`,
+  ... if taken).
+- Move only descriptions of self-contained elements (modes, stage sets,
+  systems, Scenes) into `docs/spec/<slug>.md`. The AGENTS.md 2.4 required
+  items for the base game stay in `docs/spec.md`. Move text verbatim —
+  don't rewrite it.
+- Because behavior doesn't change, this is the one revision that does
+  **not** run the eight downstream resets below. Instead, run
+  `game-review STAGE=spec` to confirm nothing was lost or duplicated and
+  every link resolves, then commit and open a docs-only PR (confirm with
+  the user before pushing/opening it).
+- Once it merges, restart `game-extend`.
 
 ## Progress frontmatter
 
@@ -170,6 +188,8 @@ before the downstream reset below overwrites it:
 
 ### Any revision resets downstream stages — this skill's job, not the caller's
 
+(Except a verbatim split — see "Splitting an existing spec" above.)
+
 A revision to an already-`done` spec means everything downstream is now
 potentially stale, no matter who asked for the revision — `game-balance`
 tuning a number, `game-impl` finding mid-implementation that a mechanic in
@@ -199,10 +219,11 @@ will route back to wherever the pipeline actually is next.)
 ## Review (before showing the user)
 
 Run `game-review STAGE=spec PACKAGE=<game-dir>` on the draft. It launches
-a fresh subagent that reads only `docs/spec.md` and does an "implementer
-dry run" — listing everything `game-impl` would have to invent. Handle its
-findings as `game-review` describes (fix what's already agreed, ask the
-user the remaining questions in one batch, at most 2 rounds).
+a fresh subagent that reads only the spec (`docs/spec.md` plus linked
+`docs/spec/*.md`) and does an "implementer dry run" — listing everything
+`game-impl` would have to invent. Handle its findings as `game-review`
+describes (fix what's already agreed, ask the user the remaining
+questions in one batch, at most 2 rounds).
 
 Also check the process yourself, for a revision:
 
