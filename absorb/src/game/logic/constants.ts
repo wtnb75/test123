@@ -103,3 +103,40 @@ export const ENEMY_SPECS: Record<EnemyKind, EnemySpec> = {
     heavy: { hp: 8, score: 1600, radius: 28, fireInterval: 2.0 },
     rammer: { hp: 3, score: 300, radius: 14, fireInterval: 0 }
 };
+
+/** The boss is kept out of EnemyKind so the regular spawn tables and ENEMY_SPECS stay unchanged. */
+export type ActorKind = EnemyKind | 'boss';
+
+export const BOSS_FIRST_AT = 45;
+export const BOSS_RESPAWN_DELAY = 60;
+export const BOSS_HP_BASE = 60;
+export const BOSS_HP_STEP = 30;
+export const BOSS_SCORE_PER_HP = 125;
+export const BOSS_RADIUS = 48;
+export const BOSS_Y_RATIO = 0.3;
+export const BOSS_ENTER_SPEED = 100;
+export const BOSS_SWAY_SPEED = 80;
+export const BOSS_FIRE_INTERVAL = 0.8;
+export const BOSS_RADIAL_COUNT = 16;
+export const BOSS_FAN_COUNT = 5;
+export const BOSS_FAN_STEP = Math.PI / 15;
+export const BOSS_CHARGE_INTERVAL = 8;
+export const BOSS_CHARGE_WARN = 1;
+export const BOSS_CHARGE_SPEED = 380;
+export const BOSS_CHARGE_PAUSE = 0.5;
+export const BOSS_RETURN_SPEED = 200;
+export const BOSS_CONTACT_DAMAGE = 10;
+export const BOSS_ANNOUNCE_DURATION = 1.5;
+export const BOSS_BAR_WIDTH_RATIO = 0.5;
+export const BOSS_BAR_HEIGHT = 16;
+export const BOSS_LABEL_SIZE = 22;
+/** The announcement fades out over its last BOSS_ANNOUNCE_FADE seconds. */
+export const BOSS_ANNOUNCE_FADE = 0.5;
+export const BOSS_HIT_FLASH = 0.06;
+export const BOSS_HIT_FLASH_WIDTH = 4;
+export const BOSS_DEFEAT_RING_DURATION = 0.6;
+/** The second defeat ring starts this long after the first. */
+export const BOSS_DEFEAT_RING_DELAY = 0.15;
+export const BOSS_DEFEAT_RING_MAX_RADIUS = 160;
+export const BOSS_SCORE_POPUP_DURATION = 1;
+export const BOSS_SCORE_POPUP_RISE = 40;

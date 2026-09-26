@@ -1,4 +1,6 @@
+import { bossScore, bossVolley, createBoss, updateBoss } from './boss';
 import {
+    BOSS_ANNOUNCE_DURATION, BOSS_CONTACT_DAMAGE, BOSS_FIRST_AT, BOSS_RESPAWN_DELAY,
     ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
@@ -61,6 +63,10 @@ export interface ReleaseBullet {
 const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
 
+function killScore(e: Enemy): number {
+    return e.kind === 'boss' ? bossScore(e) : ENEMY_SPECS[e.kind].score;
+}
+
 /** Bullets still needed to finish an enemy, after those already homing on it. */
 export function shortfall(e: Enemy): number {
     return Math.max(0, e.hp - e.incoming);
@@ -95,6 +101,14 @@ export class World {
     dragTargetX = 0;
     dragTargetY = 0;
     hasDragTarget = false;
+    /** The boss on the field (also listed in `enemies`), or null. */
+    boss: Enemy | null = null;
+    /** Bosses spawned so far; the next one is number bossCount + 1. */
+    bossCount = 0;
+    /** Playing time at which the next boss appears (only while no boss is on the field). */
+    nextBossAt = BOSS_FIRST_AT;
+    /** Seconds left on the "BOSS" announcement. */
+    bossAnnounce = 0;
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -108,6 +122,7 @@ export class World {
 
     step(dt: number, input: Input): void {
         this.phaseTime += dt;
+        if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
                 this.movePlayer(dt, input);
@@ -222,9 +237,10 @@ export class World {
         }
     }
 
+    /** Counts rammers, or the regular enemies capped by MAX_ENEMIES; the boss is in neither. */
     private countEnemies(rammers: boolean): number {
         let n = 0;
-        for (const e of this.enemies) if ((e.kind === 'rammer') === rammers) n++;
+        for (const e of this.enemies) if (e.kind !== 'boss' && (e.kind === 'rammer') === rammers) n++;
         return n;
     }
 
@@ -244,18 +260,36 @@ export class World {
             for (let i = 0; i < stage.rammerCount && this.countEnemies(true) < MAX_RAMMERS; i++) this.addEnemy('rammer');
             this.rammerTimer += stage.rammerInterval;
         }
+        if (!this.boss && this.elapsed >= this.nextBossAt) this.spawnBoss();
+    }
+
+    private spawnBoss(): void {
+        this.bossCount++;
+        this.boss = createBoss(this.bossCount, this.nextId++, this.screen);
+        this.enemies.push(this.boss);
+        this.bossAnnounce = BOSS_ANNOUNCE_DURATION;
+    }
+
+    /** Marks an enemy destroyed; a dead boss also schedules the next one. */
+    private destroy(e: Enemy): void {
+        e.removed = true;
+        if (e !== this.boss) return;
+        this.boss = null;
+        this.nextBossAt = this.elapsed + BOSS_RESPAWN_DELAY;
     }
 
     private updateEnemies(dt: number, canFire: boolean): void {
         assignHeavySlots(this.enemies, this.player);
         for (const e of this.enemies) {
-            if (updateEnemy(e, dt, this.ctx) && canFire) this.fireVolley(e);
+            const fired = e.kind === 'boss' ? updateBoss(e, dt, this.ctx) : updateEnemy(e, dt, this.ctx);
+            if (fired && canFire) this.fireVolley(e);
         }
     }
 
     private fireVolley(e: Enemy): void {
         const speed = getStage(this.elapsed).bulletSpeed;
-        for (const a of volleyAngles(e.kind, e, this.player)) {
+        const angles = e.kind === 'boss' ? bossVolley(e, this.player) : volleyAngles(e.kind, e, this.player);
+        for (const a of angles) {
             this.enemyBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, removed: false });
         }
     }
@@ -347,8 +381,8 @@ export class World {
             b.removed = true;
             e.hp--;
             if (e.hp <= 0) {
-                e.removed = true;
-                b.group.kills.push(ENEMY_SPECS[e.kind].score);
+                this.destroy(e);
+                b.group.kills.push(killScore(e));
             }
             return;
         }
@@ -367,20 +401,38 @@ export class World {
         this.openGroups.length = 0;
     }
 
+    private touchesPlayer(e: Enemy): boolean {
+        return !e.removed && circlesOverlap(this.player, PLAYER_RADIUS, e, e.radius);
+    }
+
+    /** The one enemy a contact this frame is resolved against: the boss first, then the first overlap. */
+    private findContact(): Enemy | null {
+        if (this.boss && this.touchesPlayer(this.boss)) return this.boss;
+        for (const e of this.enemies) if (this.touchesPlayer(e)) return e;
+        return null;
+    }
+
     private checkContact(): void {
         const p = this.player;
         if (p.invulnerable > 0) return;
-        for (const e of this.enemies) {
-            if (e.removed || !circlesOverlap(p, PLAYER_RADIUS, e, e.radius)) continue;
+        const e = this.findContact();
+        if (!e) return;
+        if (e === this.boss) {
+            // The boss survives a ram but loses HP; a ram that finishes it scores without a release bonus.
+            e.hp = Math.max(0, e.hp - BOSS_CONTACT_DAMAGE);
+            if (e.hp === 0) {
+                this.score += killScore(e);
+                this.destroy(e);
+            }
+        } else {
             // The rammed enemy breaks without scoring; bullets homing on it retarget next frame.
             e.removed = true;
-            p.lives--;
-            p.invulnerable = PLAYER_INVULNERABLE;
-            // Consolation stock, absorbed one bullet at a time so the cap still auto-releases.
-            for (let i = 0; i < HIT_STOCK_BONUS; i++) this.absorb();
-            if (p.lives <= 0) this.setPhase('ending');
-            return;
         }
+        p.lives--;
+        p.invulnerable = PLAYER_INVULNERABLE;
+        // Consolation stock, absorbed one bullet at a time so the cap still auto-releases.
+        for (let i = 0; i < HIT_STOCK_BONUS; i++) this.absorb();
+        if (p.lives <= 0) this.setPhase('ending');
     }
 }
 
