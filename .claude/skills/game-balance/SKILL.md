@@ -26,12 +26,16 @@ one-off screenshot.
    several playthroughs) focused on feel, not correctness: is the
    difficulty curve fair, is there a dead spot where nothing interesting
    happens, does an early failure feel like a "wait, again?" or like
-   information the player can act on next time?
+   information the player can act on next time? After an extension
+   (`game-extend`), also judge the existing flow with the new element in
+   play: did it flatten or spike the existing difficulty curve, or change
+   pacing that the regression conditions said to keep?
 2. Discuss findings with the user — this is a subjective call, don't decide
    alone what "fun" means for their game. Propose specific parameter
    changes (speed, spawn rate, hit-box size, timing windows, etc.) with
    reasoning, not vague "make it more fun" edits.
-3. On agreement, invoke `game-spec` to update `docs/spec.md` first (AGENTS.md
+3. On agreement, invoke `game-spec` to update the file that owns the
+   element (`docs/spec.md` or its `docs/spec/<slug>.md`) first (AGENTS.md
    2.4: 仕様変更時は docs/spec.md を先に更新), documenting the tuning
    change and why. `game-spec` resets every downstream stage back to
    `pending` on its own as part of any revision — this skill doesn't need

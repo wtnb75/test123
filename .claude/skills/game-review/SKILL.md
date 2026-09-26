@@ -1,6 +1,6 @@
 ---
 name: game-review
-description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
+description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/extend/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
 ---
 
 # game-review
@@ -13,7 +13,7 @@ passes.
 ## Inputs
 
 - `STAGE=<stage>` — the stage being completed.
-- `PACKAGE=<game-dir>` (not needed for `STAGE=idea`).
+- `PACKAGE=<game-dir>` (not needed for `STAGE=idea`; required for `STAGE=extend`).
 
 ## Principle: review for the next stage's needs
 
@@ -27,7 +27,7 @@ checklist asks "can someone implement this without inventing anything?").
 | STAGE | Reviewer | Why |
 |---|---|---|
 | `spec`, `impl`, `test` | **Fresh subagent** (see below) | The output is consumed by the next stage; the author fills gaps from conversation context without noticing |
-| `idea`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
+| `idea`, `extend`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
 
 ### Running a subagent review
 
@@ -58,7 +58,7 @@ and, when there are none, say `no findings` explicitly.
 ### Severity
 
 - **blocker** — the next stage would have to invent a player-visible
-  behavior or value, the output contradicts `docs/spec.md` / AGENTS.md, or
+  behavior or value, the output contradicts the spec / AGENTS.md, or
   something is plainly broken. Blocks completion.
 - **should** — worth fixing, but the next stage can proceed without it.
 - **nit** — wording, style, taste.
@@ -95,6 +95,29 @@ Before summarizing the concept to the user:
 - Is there enough to write a spec from: concept, target player, core loop,
   main input device, MVP / non-MVP scope?
 
+## STAGE=extend (self) — consumer: game-spec
+
+Before summarizing the agreed extension to the user:
+
+- Is `status_publish` `done`? If not, did the user get the right reason
+  (untracked / unfinished revision / not yet shipped)?
+- Is it exactly one extension? Were the others split off and named as
+  later cycles?
+- Is the reason a concrete problem with the current game (what feels
+  missing or dull), not just "more content"?
+- Is its effect on the core loop stated (deepens it / widens it)?
+- Are added or changed controls stated, or explicitly "none"?
+- Is the direction for looks and initial numbers stated?
+- Is there an explicit "must not change" list (controls feel, rules,
+  scoring, difficulty), and is every intended change to existing behavior
+  agreed as such?
+- Does it fit one PR? If code structure has to change, was the user told?
+- Is the spec location decided by the `game-spec` "Spec layout" rule
+  (a new `docs/spec/<slug>.md` vs. editing `docs/spec.md`)? If
+  `docs/spec.md` is over 600 lines, was the separate split cycle offered?
+- Is there a branch slug that doesn't collide with an existing
+  `feat/<game-dir>-<slug>` branch?
+
 ## STAGE=init (self)
 
 - Is the current branch `feat/<game-dir>` (or the next free `-2`/`-3`/...
@@ -114,8 +137,10 @@ Before summarizing the concept to the user:
 
 ## STAGE=spec (subagent) — consumer: game-impl
 
-Artifacts for the subagent: `<game-dir>/docs/spec.md`, `AGENTS.md`
-sections 2.4 and 4. For a revision, the change summary.
+Artifacts for the subagent: `<game-dir>/docs/spec.md` and every
+`<game-dir>/docs/spec/*.md` (the spec is all of them — see `game-spec`
+"Spec layout"), `AGENTS.md` sections 2.4 and 4. For a revision, the change
+summary — for an extension, including its "must not change" list.
 
 Run this **before** showing the draft to the user for approval, so the user
 approves a spec that has already been through review.
@@ -158,6 +183,13 @@ approves a spec that has already been through review.
   failure paths), not just "test the logic".
 - **Verifiable 完了条件**: each condition can be checked by a test, a
   command or a screenshot.
+- **Split files** (when `docs/spec/` exists): every link in `## 拡張`
+  resolves, every `docs/spec/*.md` is linked from `## 拡張`, only
+  `docs/spec.md` has frontmatter, and each split file has all its required
+  sections (概要 / 操作仕様 / 画面・Scene構成 / ルール / パラメータ表 /
+  テスト観点 / 完了条件 / 実装裁量, 「なし」 allowed).
+- **Regression conditions** (extension revision): every "must not change"
+  item in the change summary appears in 完了条件 and テスト観点.
 
 Don't flag:
 - anything the 実装裁量 section explicitly delegates;
@@ -169,7 +201,7 @@ Don't flag:
 
 ## STAGE=impl (subagent) — consumer: game-test
 
-Artifacts for the subagent: `<game-dir>/docs/spec.md`; the change set —
+Artifacts for the subagent: `<game-dir>/docs/spec.md` and every `docs/spec/*.md` it links to; the change set —
 `git diff main -- <game-dir>` plus untracked files from
 `git status --porcelain --untracked-files=all -- <game-dir>` (for a first
 implementation, simply all of `<game-dir>/src`); AGENTS.md section 4.
@@ -180,7 +212,8 @@ check.
 ### Checklist
 
 - **Spec conformance**: for each rule, state transition and parameter in
-  spec.md, point to where it is implemented. Anything missing is a blocker;
+  the spec (spec.md and its linked files), point to where it is
+  implemented. Anything missing is a blocker;
   anything implemented that the spec doesn't ask for is a blocker unless
   it's an implementation detail with no player-visible effect.
 - **Invented behavior**: any player-visible behavior decided in code that
@@ -207,9 +240,11 @@ Don't flag: test coverage (game-test), lint style (game-check), fun/tuning
 
 ## STAGE=test (subagent) — consumer: game-check
 
-Artifacts for the subagent: `<game-dir>/docs/spec.md` (especially テスト観点
-and ルール), the test files and the source they cover, and the latest
-`npm run test:coverage` summary.
+Artifacts for the subagent: `<game-dir>/docs/spec.md` and every
+`docs/spec/*.md` it links to (especially テスト観点, ルール and 完了条件),
+the test files and the source they cover, the latest
+`npm run test:coverage` summary, and for a revision
+`git diff main -- <game-dir>` limited to test files.
 
 ### Checklist
 
@@ -230,6 +265,10 @@ and ルール), the test files and the source they cover, and the latest
   rejection tests fail only for the check they are named after.
 - **Coverage**: ≥90% on all four metrics without lowered thresholds or new
   `coverage.exclude` entries for testable code.
+- **Existing tests kept** (revision): no existing test was deleted, or had
+  its assertion loosened or its expected value changed, to make the change
+  pass — unless the spec changed that behavior. Each regression condition
+  in 完了条件 has a test that would fail if that behavior changed.
 
 Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
@@ -262,10 +301,14 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 ## STAGE=qa (self) — consumer: game-polish
 
 - Is there a screenshot for every Scene and every state transition named in
-  spec.md (title, mid-play, clear, game-over, overlays)?
+  the spec — spec.md and its linked files (title, mid-play, clear,
+  game-over, overlays)?
+- For a revision: besides the changed parts, was every existing Scene/state
+  re-shot and checked against the regression conditions in 完了条件?
 - For each screenshot, can you say which spec rule/Scene it confirms?
-- Is each 完了条件 in spec.md checked by either a screenshot or an earlier
-  stage (test/check)? List any that nothing checked.
+- Is each 完了条件 in the spec (spec.md and its linked files, including
+  split files' regression conditions) checked by either a screenshot or
+  an earlier stage (test/check)? List any that nothing checked.
 - Was feel (speed, hit detection, transition timing) judged against the
   spec, not just "it rendered"?
 - Were the QA container and dev server actually cleaned up?
@@ -274,8 +317,9 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
 - Was every Scene/state looked at on both a desktop and a phone-sized
   viewport, with bursts of frames for effects and transitions?
-- Is each implemented change one the user picked, recorded in spec.md
-  (演出・UI / パラメータ表 / 実装裁量) before it was implemented?
+- Is each implemented change one the user picked, recorded in the file
+  that owns it (演出・UI / パラメータ表 / 実装裁量) before it was
+  implemented?
 - Did anything with gameplay weight (speed, hit box, timing window,
   scoring) sneak in? That belongs to `game-balance` — back it out.
 - Do effects leave input responsive, and are emitters/tweens/texts created
@@ -290,8 +334,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 
 - Is every proposed change a specific number with a reason ("spawn interval
   1.2s → 0.9s, the 3s gap before the first obstacle felt dead")?
-- Does spec.md record the reason, not just the new number, and is the
-  パラメータ表 updated?
+- Does the file that owns the element record the reason, not just the
+  new number, and is the パラメータ表 updated?
+- After an extension: was the existing difficulty curve and pacing judged
+  with the new element in play, not only the new element on its own?
 - Did the user explicitly say the current feel is good enough to ship?
 
 ## STAGE=publish (self) — consumer: the PR reviewer
@@ -299,6 +345,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - Does `README.md` let a stranger understand the goal, rules and controls?
 - Is `status_balance` genuinely `done` (user signed off)?
 - Is `public/favicon.png` this game's own, not the template's stock icon?
-- Is the `Taskfile.yml` `GAMES` line for this game actually uncommented?
+- First publish: is the `Taskfile.yml` `GAMES` line for this game actually
+  uncommented? Post-publish revision: it already was — does the diff leave
+  `Taskfile.yml` untouched?
+- Post-publish revision: does `README.md` reflect the changed rules and
+  controls, and does the PR body say what was added and why?
 - Is the branch not `main`, and does `git show --stat` touch only files
   that belong to this change?

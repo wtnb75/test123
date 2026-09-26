@@ -5,9 +5,10 @@ description: Use to implement or modify a game's Phaser.js code against its appr
 
 # game-impl
 
-Implement against the approved `<game-dir>/docs/spec.md`. Do not start this
-skill if `status_spec` isn't `done` — send the user back to `game-spec`
-first.
+Implement against the approved spec — `<game-dir>/docs/spec.md` plus every
+`docs/spec/*.md` linked from its `## 拡張` section (see `game-spec` "Spec
+layout"). Do not start this skill if `status_spec` isn't `done` — send the
+user back to `game-spec` first.
 
 ## Inputs
 
@@ -17,9 +18,10 @@ first.
 
 `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=in_progress`
 
-Re-read `<game-dir>/docs/spec.md` fully — it is the source of truth for
-scope. If what's being asked diverges from the spec, stop and route back to
-`game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新).
+Re-read the spec fully (`<game-dir>/docs/spec.md` and its linked files) —
+it is the source of truth for scope. If what's being asked diverges from
+the spec, stop and route back to `game-spec` first (AGENTS.md: 仕様変更時は
+spec.md を先に更新).
 
 ### When the spec is silent
 
@@ -46,7 +48,9 @@ the fastest way to know exactly what changed and why, faster than diffing
 prose by hand — and touch only the code that change affects. Rewriting
 unaffected parts "while you're in there" is exactly the unrelated-change
 problem the rules below warn about, just triggered by a spec revision
-instead of a new request.
+instead of a new request. Regression conditions in 完了条件 (added for an
+extension from `game-extend`) list what this change must leave alone —
+treat them as limits on the delta.
 
 ## Rules (AGENTS.md 3-4)
 
@@ -80,11 +84,11 @@ known position) in `fukuwarai`, not by guessing from symptoms.
 ## Review (before completion)
 
 After `npm run build` succeeds, run `game-review STAGE=impl
-PACKAGE=<game-dir>`. A fresh subagent checks the change against
-`docs/spec.md` (every rule/parameter implemented, nothing invented,
-parameters in one place, logic testable without Phaser) and the Phaser
-rules above. Fix blockers; a finding that turns out to be a spec gap goes
-to `game-spec` as described in "When the spec is silent".
+PACKAGE=<game-dir>`. A fresh subagent checks the change against the spec
+(`docs/spec.md` and its linked files — every rule/parameter implemented,
+nothing invented, parameters in one place, logic testable without Phaser)
+and the Phaser rules above. Fix blockers; a finding that turns out to be
+a spec gap goes to `game-spec` as described in "When the spec is silent".
 
 ## Before declaring done: does this need a human look first?
 

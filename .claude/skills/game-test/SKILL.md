@@ -32,6 +32,20 @@ check (that's `game-qa`).
   number pass, and don't add per-game `coverage.exclude` entries for code
   that can be unit tested.
 
+## Revisions: keep existing tests honest
+
+The spec is `docs/spec.md` plus every `docs/spec/*.md` linked from its
+`## 拡張` section — テスト観点 and 完了条件 in all of them count.
+
+When tests already exist (a revision, e.g. after `game-extend`):
+
+- Don't delete an existing test, loosen its assertion or change its
+  expected value to make the change pass — unless the spec changed that
+  behavior; then update the test to the new spec value and say so in the
+  summary.
+- Every regression condition in 完了条件 (what the change must leave
+  alone) gets a test that would fail if that behavior changed.
+
 ## Logic-heavy modules: check correctness, not just coverage
 
 The 90% gate only proves code was *executed*. A solver, generator, or rules
@@ -103,8 +117,9 @@ worth it, a trivial helper is not.
 ## Review (before completion)
 
 Once coverage passes, run `game-review STAGE=test PACKAGE=<game-dir>`. A
-fresh subagent checks that every テスト観点 / rule boundary in
-`docs/spec.md` has a test, that expected values don't come from the
+fresh subagent checks that every テスト観点 / rule boundary in the spec
+(`docs/spec.md` and its linked files) has a test, that existing tests
+weren't loosened, that expected values don't come from the
 implementation itself, that nothing nondeterministic is asserted directly,
 and the logic-heavy-module checks above. Fix blockers before completion.
 

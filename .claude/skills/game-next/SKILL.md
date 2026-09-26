@@ -1,6 +1,6 @@
 ---
 name: game-next
-description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish).
+description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend or another game-balance pass.
 ---
 
 # game-next
@@ -9,8 +9,9 @@ One command to keep going. Figures out which game is in progress and which
 of the `game-idea` → `game-init` → `game-spec` → `game-impl` → `game-test` →
 `game-check` → `game-codereview` → `game-qa` → `game-polish` →
 `game-balance` → `game-publish` stages is next,
-then hands off to that skill. This skill never edits files itself — it only
-detects state and dispatches.
+then hands off to that skill. Once a game is published and nothing is
+pending, it offers `game-extend` to start the next cycle. This skill never
+edits files itself — it only detects state and dispatches.
 
 ## Inputs
 
@@ -24,10 +25,14 @@ detects state and dispatches.
    - Otherwise run `task game:detect`. This prefers a game with uncommitted
      git changes; failing that, any game with an incomplete stage.
    - If it returns `none`, there is no game with progress-tracking
-     frontmatter yet (existing pre-tracking games are out of scope by
-     design). Ask the user: start a brand-new game (→ `game-idea`), or did
-     they mean an existing untracked game (out of scope for this skill —
-     handle it manually)?
+     frontmatter needing work (existing pre-tracking games are out of
+     scope by design). Run `task game:dashboard`; if any game shows
+     `next=complete`, offer those too ("continue a published game —
+     extend or rebalance") alongside starting a brand-new game
+     (→ `game-idea`) or an existing untracked game (out of scope for
+     this skill — handle it manually). If the user picks a
+     `next=complete` game, skip straight to the `complete` section below
+     for it.
 2. Before dispatching, make sure you're on the right branch. Games get a
    dedicated branch (`game-init` creates `feat/<game-dir>`; a post-publish
    revision creates its own differently-named branch — see `game-spec`).
@@ -70,7 +75,15 @@ detects state and dispatches.
 
 ## `complete`
 
-All tracked stages are `done`. Tell the user this game's workflow has
-nothing pending, and offer `task game:dashboard` if they want to see every
-tracked game's status, or ask if they want another `game-balance` pass on
-this one anyway.
+All tracked stages are `done` — the game is published. Tell the user this
+game's workflow has nothing pending, and offer the two ways to continue:
+
+- **`game-extend`** — add one new element or feature to the published
+  game. It agrees the scope in conversation, then hands off to
+  `game-spec`, which opens a new branch and restarts the chain from
+  `impl`.
+- **`game-balance`** — another tuning pass without new features.
+
+Also offer `task game:dashboard` to see every tracked game's status.
+`task game:next` never returns `extend`: `game-extend` records no status
+of its own, so it's reached only from here or when the user asks for it.

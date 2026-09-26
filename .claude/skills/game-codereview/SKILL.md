@@ -45,8 +45,9 @@ nothing gets changed or posted before the user has triaged.
 
 If `code-review` isn't available in this session, launch one fresh
 `general-purpose` agent (Agent tool) instead. Give it only: the game
-directory, the scope above, `<game-dir>/docs/spec.md`, AGENTS.md section 4,
-and the "Look for" list below. Tell it to stay read-only and to return
+directory, the scope above, `<game-dir>/docs/spec.md` and every
+`docs/spec/*.md` it links to, AGENTS.md section 4, and the "Look for"
+list below. Tell it to stay read-only and to return
 findings in this format, most severe first, or `no findings`:
 
 ```
@@ -65,7 +66,8 @@ Look for (Phaser-game-specific, on top of general correctness):
 - state not reset on restart (fields initialized in the constructor instead
   of `init`/`create`);
 - allocation or `new` inside `update`;
-- boundary behavior that contradicts `docs/spec.md` ルール / パラメータ表;
+- boundary behavior that contradicts the spec's (`docs/spec.md` or a
+  linked file's) ルール / パラメータ表;
 - magic numbers that should come from the parameter constants;
 - tests that pass for the wrong reason (tautological expectations).
 
