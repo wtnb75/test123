@@ -7,13 +7,15 @@ export interface Stage {
     spawnInterval: number;
     bulletSpeed: number;
     rammerInterval: number;
+    /** How many rammers appear together at each rammer spawn. */
+    rammerCount: number;
 }
 
 const STAGES: { from: number; stage: Stage }[] = [
-    { from: 120, stage: { weights: { grunt: 35, shooter: 30, heavy: 35 }, spawnInterval: 1.6, bulletSpeed: 260, rammerInterval: 4 } },
-    { from: 60, stage: { weights: { grunt: 50, shooter: 30, heavy: 20 }, spawnInterval: 2.0, bulletSpeed: 230, rammerInterval: 6 } },
-    { from: 30, stage: { weights: { grunt: 70, shooter: 30, heavy: 0 }, spawnInterval: 2.5, bulletSpeed: 200, rammerInterval: 8 } },
-    { from: 0, stage: { weights: { grunt: 100, shooter: 0, heavy: 0 }, spawnInterval: 3.0, bulletSpeed: 180, rammerInterval: 10 } }
+    { from: 120, stage: { weights: { grunt: 30, shooter: 30, heavy: 40 }, spawnInterval: 1.6, bulletSpeed: 260, rammerInterval: 4, rammerCount: 3 } },
+    { from: 60, stage: { weights: { grunt: 40, shooter: 30, heavy: 30 }, spawnInterval: 2.0, bulletSpeed: 230, rammerInterval: 6, rammerCount: 2 } },
+    { from: 30, stage: { weights: { grunt: 60, shooter: 25, heavy: 15 }, spawnInterval: 2.5, bulletSpeed: 200, rammerInterval: 8, rammerCount: 1 } },
+    { from: 0, stage: { weights: { grunt: 100, shooter: 0, heavy: 0 }, spawnInterval: 3.0, bulletSpeed: 180, rammerInterval: 10, rammerCount: 1 } }
 ];
 
 /** Returns the difficulty stage for the given playing time; each boundary belongs to the later stage. */

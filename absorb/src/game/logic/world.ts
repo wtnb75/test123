@@ -5,7 +5,7 @@ import {
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type EnemyKind
 } from './constants';
 import { getStage, pickEnemyKind } from './difficulty';
-import { createEnemy, updateEnemy, type Enemy, type EnemyContext } from './enemy';
+import { assignHeavySlots, createEnemy, updateEnemy, type Enemy, type EnemyContext } from './enemy';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Rng
 } from './geometry';
@@ -241,12 +241,13 @@ export class World {
         }
         this.rammerTimer -= dt;
         if (this.rammerTimer <= 0) {
-            if (this.countEnemies(true) < MAX_RAMMERS) this.addEnemy('rammer');
+            for (let i = 0; i < stage.rammerCount && this.countEnemies(true) < MAX_RAMMERS; i++) this.addEnemy('rammer');
             this.rammerTimer += stage.rammerInterval;
         }
     }
 
     private updateEnemies(dt: number, canFire: boolean): void {
+        assignHeavySlots(this.enemies, this.player);
         for (const e of this.enemies) {
             if (updateEnemy(e, dt, this.ctx) && canFire) this.fireVolley(e);
         }

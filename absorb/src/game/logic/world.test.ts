@@ -22,7 +22,7 @@ function playingWorld(screen: ScreenSize = S, rng: () => number = () => 0.5): Wo
 
 /**
  * Adds an enemy that holds still and never fires: a grunt or shooter put in 'dash', a state
- * those kinds never use, which their update ignores. (Heavies always sink, so they can't be used.)
+ * those kinds never use, which their update ignores. (Heavies always move, so they can't be used.)
  */
 function still(w: World, kind: 'grunt' | 'shooter', x: number, y: number, hp?: number): Enemy {
     const e = createEnemy(kind, 1000 + w.enemies.length, () => 0.5, w.screen);
@@ -135,12 +135,39 @@ describe('spawning', () => {
         expect(w.enemies.filter((e) => e.kind !== 'rammer')).toHaveLength(6);
     });
 
-    it('keeps at most 3 rammers at once', () => {
+    const rammers = (w: World) => w.enemies.filter((e) => e.kind === 'rammer').length;
+
+    it('sends rammers one at a time before 60 s', () => {
         const w = playingWorld();
-        for (let i = 0; i < 3; i++) w.enemies.push(createEnemy('rammer', 90 + i, () => 0.5, S));
+        w.elapsed = 59.9;
         w.rammerTimer = 0;
         w.step(DT, NONE);
-        expect(w.enemies.filter((e) => e.kind === 'rammer')).toHaveLength(3);
+        expect(rammers(w)).toBe(1);
+    });
+
+    it('sends two rammers at once from 60 s and three from 120 s', () => {
+        const w = playingWorld();
+        w.elapsed = 60;
+        w.rammerTimer = 0;
+        w.step(DT, NONE);
+        expect(rammers(w)).toBe(2);
+        expect(w.rammerTimer).toBeCloseTo(6 - DT);
+        w.elapsed = 120;
+        w.rammerTimer = 0;
+        w.step(DT, NONE);
+        expect(rammers(w)).toBe(5);
+    });
+
+    it('keeps at most 6 rammers at once, cutting a group short at the cap', () => {
+        const w = playingWorld();
+        for (let i = 0; i < 5; i++) w.enemies.push(createEnemy('rammer', 90 + i, () => 0.5, S));
+        w.elapsed = 120;
+        w.rammerTimer = 0;
+        w.step(DT, NONE);
+        expect(rammers(w)).toBe(6);
+        w.rammerTimer = 0;
+        w.step(DT, NONE);
+        expect(rammers(w)).toBe(6);
     });
 
     it('fires enemy bullets at the speed of the stage in effect when they are fired', () => {
@@ -169,17 +196,17 @@ describe('absorbing', () => {
         w.enemyBullets.push({ x: w.player.x + dx, y: w.player.y, vx: 0, vy: 0, removed: false });
     }
 
-    it('absorbs a bullet whose center is exactly 60 px away', () => {
+    it('absorbs a bullet whose center is exactly 90 px away', () => {
         const w = playingWorld();
-        bulletAt(w, 60);
+        bulletAt(w, 90);
         w.step(DT, NONE);
         expect(w.stock).toBe(1);
         expect(w.enemyBullets).toHaveLength(0);
     });
 
-    it('does not absorb a bullet just outside 60 px', () => {
+    it('does not absorb a bullet just outside 90 px', () => {
         const w = playingWorld();
-        bulletAt(w, 60.01);
+        bulletAt(w, 90.01);
         w.step(DT, NONE);
         expect(w.stock).toBe(0);
         expect(w.enemyBullets).toHaveLength(1);
@@ -475,6 +502,39 @@ describe('retargeting in flight', () => {
         const late = still(w, 'shooter', w.player.x + 200, w.player.y - 250, 8);
         untilBulletsGone(w);
         expect(late.hp).toBe(5);
+    });
+});
+
+describe('heavies working together', () => {
+    function chasingHeavy(w: World, x: number, y: number): Enemy {
+        const e = createEnemy('heavy', 2000 + w.enemies.length, () => 0.5, w.screen);
+        e.x = x;
+        e.y = y;
+        e.state = 'chase';
+        e.fireTimer = Infinity;
+        w.enemies.push(e);
+        return e;
+    }
+
+    it('spread out to opposite sides of the player, then charge in together', () => {
+        const w = playingWorld({ width: 1365, height: 768 });
+        w.player.x = 680;
+        w.player.y = 400;
+        // The oldest (a) is on the left, so b's post is on the right of the player.
+        const a = chasingHeavy(w, 420, 390);
+        const b = chasingHeavy(w, 950, 420);
+        // Hold the player still on its own; stay in the surround window (0–3 s of the cycle).
+        steps(w, 2.9);
+        const da = Math.hypot(a.x - 680, a.y - 400);
+        const db = Math.hypot(b.x - 680, b.y - 400);
+        expect(da).toBeCloseTo(180, 0);
+        expect(db).toBeCloseTo(180, 0);
+        // Opposite sides: the player sits between them.
+        expect(Math.sign(a.x - 680)).not.toBe(Math.sign(b.x - 680));
+        w.player.invulnerable = 99; // watch the charge without contact ending it
+        steps(w, 1.0); // into the charge window
+        expect(Math.hypot(a.x - 680, a.y - 400)).toBeLessThan(da - 50);
+        expect(Math.hypot(b.x - 680, b.y - 400)).toBeLessThan(db - 50);
     });
 });
 

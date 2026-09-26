@@ -3,7 +3,7 @@ import {
     ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, PLAYER_RADIUS, READY_DURATION,
     RELEASE_RADIUS, STOCK_MAX
 } from '../logic/constants';
-import type { Enemy } from '../logic/enemy';
+import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
 import { computeScreenSize } from '../logic/screen';
 import { World, type Input as WorldInput } from '../logic/world';
@@ -234,16 +234,22 @@ export class Game extends Scene {
                 g.fillTriangle(x - r, e.y - r * 0.7, x + r, e.y - r * 0.7, x, e.y + r);
                 break;
             }
-            case 'shooter':
-                g.fillStyle(COLORS.shooter, 1);
+            case 'shooter': {
+                const blinking = e.state === 'sweep-warn' && Math.floor(e.stateTime * 10) % 2 === 0;
+                g.fillStyle(blinking ? COLORS.warn : COLORS.shooter, 1);
                 g.fillRect(e.x - r, e.y - r, r * 2, r * 2);
                 break;
-            case 'heavy':
-                g.fillStyle(COLORS.heavy, 1);
+            }
+            case 'heavy': {
+                // All chasing heavies flash together from the warning until the charge ends.
+                const t = this.world.elapsed;
+                const blinking = e.state === 'chase' && heavyPhase(t) !== 'surround' && Math.floor(t * 10) % 2 === 0;
+                g.fillStyle(blinking ? COLORS.warn : COLORS.heavy, 1);
                 g.fillCircle(e.x, e.y, r);
                 g.lineStyle(3, 0xffffff, 0.6);
                 g.strokeCircle(e.x, e.y, r * 0.6);
                 break;
+            }
             default: {
                 const blinking = e.state === 'warn' && Math.floor(e.stateTime * 10) % 2 === 0;
                 g.fillStyle(blinking ? COLORS.warn : COLORS.rammer, 1);
