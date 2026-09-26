@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { createBoss } from './boss';
 import {
-    announceAlpha, defeatRingProgress, defeatRingRadius, effectProgress, fadeAlpha, hitFlashVisible,
+    announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, effectProgress, fadeAlpha, hitFlashVisible,
     scorePopupProgress, scorePopupRise
 } from './effects';
 
@@ -99,5 +100,37 @@ describe('boss score popup', () => {
         expect(scorePopupProgress(0.999)).toBeGreaterThan(0.99);
         expect(scorePopupProgress(1)).toBe(-1);
         expect(scorePopupProgress(Infinity)).toBe(-1);
+    });
+});
+
+describe('spotting boss hits and its defeat between frames', () => {
+    const S = { width: 1024, height: 768 };
+
+    it('reports a hit when the same boss has less HP than last frame', () => {
+        const boss = createBoss(1, 1, S);
+        boss.hp = 70;
+        expect(bossEvent(boss, 80, boss)).toBe('hit');
+    });
+
+    it('reports nothing while the boss keeps its HP', () => {
+        const boss = createBoss(1, 1, S);
+        expect(bossEvent(boss, 80, boss)).toBe('none');
+    });
+
+    it('reports only the defeat, not a hit, when the boss is gone after a killing blow', () => {
+        const boss = createBoss(1, 1, S);
+        boss.hp = 0;
+        expect(bossEvent(boss, 1, null)).toBe('defeat');
+    });
+
+    it('reports nothing when a boss appears or when there is no boss at all', () => {
+        const boss = createBoss(2, 5, S);
+        expect(bossEvent(null, 0, boss)).toBe('none');
+        expect(bossEvent(null, 0, null)).toBe('none');
+    });
+
+    it('does not mistake a new boss for a hit on stale HP from an earlier one', () => {
+        const boss = createBoss(2, 5, S);
+        expect(bossEvent(null, 999, boss)).toBe('none');
     });
 });

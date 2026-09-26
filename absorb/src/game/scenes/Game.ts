@@ -5,7 +5,7 @@ import {
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
 } from '../logic/constants';
 import {
-    announceAlpha, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
+    announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
     scorePopupRise
 } from '../logic/effects';
 import { heavyPhase, type Enemy } from '../logic/enemy';
@@ -15,6 +15,7 @@ import { World, type Input as WorldInput } from '../logic/world';
 
 const COLORS = {
     player: 0xffffff,
+    text: 0xffffff,
     field: 0x4dd0e1,
     enemyBullet: 0xff5252,
     releaseBullet: 0x80ffea,
@@ -42,7 +43,9 @@ const GAUGE_Y = 22;
 const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
-const BOSS_CSS_COLOR = `#${COLORS.boss.toString(16).padStart(6, '0')}`;
+const cssColor = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
+const TEXT_CSS_COLOR = cssColor(COLORS.text);
+const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
 const SCORE_POPUP_FONT_SIZE = 32;
 
@@ -102,7 +105,9 @@ export class Game extends Scene {
         this.dragPointerId = -1;
         this.releaseQueued = false;
         this.lastBoss = null;
+        this.lastBossHp = 0;
         this.hitFlashAge = this.defeatAge = Infinity;
+        this.defeatX = this.defeatY = 0;
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
@@ -115,15 +120,15 @@ export class Game extends Scene {
     private createHud(width: number, height: number) {
         this.gfx = this.add.graphics();
         this.hudGfx = this.add.graphics().setDepth(10);
-        const style = { fontFamily: 'monospace', fontSize: 22, color: '#ffffff' };
+        const style = { fontFamily: 'monospace', fontSize: 22, color: TEXT_CSS_COLOR };
         this.scoreText = this.add.text(20, 16, '', style).setDepth(10);
         this.livesText = this.add.text(width / 2, 16, '', style).setOrigin(0.5, 0).setDepth(10);
         this.stockText = this.add.text(this.gaugeX() - 10, 16, '', style).setOrigin(1, 0).setDepth(10);
         this.centerText = this.add.text(width / 2, height / 2, '', {
-            fontFamily: 'monospace', fontSize: 96, color: '#ffffff'
+            fontFamily: 'monospace', fontSize: 96, color: TEXT_CSS_COLOR
         }).setOrigin(0.5).setDepth(10);
         this.buttonText = this.touchUi
-            ? this.add.text(this.buttonX, this.buttonY, '', { fontFamily: 'monospace', fontSize: 28, color: '#ffffff' })
+            ? this.add.text(this.buttonX, this.buttonY, '', { fontFamily: 'monospace', fontSize: 28, color: TEXT_CSS_COLOR })
                 .setOrigin(0.5).setDepth(11)
             : null;
         this.bossGfx = this.add.graphics().setDepth(10);
@@ -224,21 +229,19 @@ export class Game extends Scene {
         this.releaseQueued = false;
     }
 
-    /**
-     * Starts the boss's hit flash when its HP drops and its defeat effect when it dies, by comparing
-     * with the previous frame. A killing hit shows only the defeat effect.
-     */
+    /** Starts the boss's hit flash or defeat effect for whatever happened to it this frame. */
     private trackBoss(dt: number) {
         this.hitFlashAge += dt;
         this.defeatAge += dt;
         const boss = this.world.boss;
         const last = this.lastBoss;
-        if (last && boss !== last) {
+        const event = bossEvent(last, this.lastBossHp, boss);
+        if (event === 'defeat' && last) {
             this.defeatAge = 0;
             this.defeatX = last.x;
             this.defeatY = last.y;
             this.popupText.setText(`+${bossScore(last)}`);
-        } else if (boss && boss.hp < this.lastBossHp) {
+        } else if (event === 'hit') {
             this.hitFlashAge = 0;
         }
         this.lastBoss = boss;
@@ -370,7 +373,8 @@ export class Game extends Scene {
             );
         }
         g.fillCircle(e.x, e.y, r);
-        g.fillStyle(COLORS.bossCore, 1);
+        // The warning flash turns the whole boss white, core included.
+        g.fillStyle(blinking ? COLORS.warn : COLORS.bossCore, 1);
         g.fillCircle(e.x, e.y, r * 0.45);
         if (hitFlashVisible(this.hitFlashAge)) {
             g.lineStyle(BOSS_HIT_FLASH_WIDTH, COLORS.warn, 1);
@@ -417,7 +421,7 @@ export class Game extends Scene {
             ? String(Math.max(1, Math.ceil(READY_DURATION - w.phaseTime)))
             : w.bossAnnounce > 0 ? 'BOSS' : '';
         if (this.centerText.text !== center) {
-            this.centerText.setText(center).setColor(countdown ? '#ffffff' : BOSS_CSS_COLOR);
+            this.centerText.setText(center).setColor(countdown ? TEXT_CSS_COLOR : BOSS_CSS_COLOR);
         }
         this.centerText.setAlpha(countdown ? 1 : announceAlpha(w.bossAnnounce));
     }

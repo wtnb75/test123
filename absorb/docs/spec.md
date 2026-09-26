@@ -8,7 +8,7 @@ status_check: done
 status_qa: pending
 status_balance: pending
 status_publish: pending
-status_codereview: pending
+status_codereview: in_progress
 status_polish: pending
 ---
 

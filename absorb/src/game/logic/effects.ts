@@ -3,6 +3,21 @@ import {
     BOSS_RADIUS, BOSS_SCORE_POPUP_DURATION, BOSS_SCORE_POPUP_RISE
 } from './constants';
 
+import type { Enemy } from './enemy';
+
+export type BossEvent = 'none' | 'hit' | 'defeat';
+
+/**
+ * What happened to the boss since the previous frame, given the boss and its HP then and the boss
+ * now. The boss only ever leaves the field by dying, so its disappearance is its defeat; a killing
+ * hit therefore reports only 'defeat', never 'hit'.
+ */
+export function bossEvent(last: Enemy | null, lastHp: number, boss: Enemy | null): BossEvent {
+    if (last && boss !== last) return 'defeat';
+    if (boss && boss === last && boss.hp < lastHp) return 'hit';
+    return 'none';
+}
+
 /**
  * How far an effect of the given length is after t seconds, from 0 to just under 1.
  * Returns -1 when it hasn't started (t < 0) or has already ended (t >= duration).
