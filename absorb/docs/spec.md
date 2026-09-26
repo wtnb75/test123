@@ -2,12 +2,14 @@
 status_idea: done
 status_init: done
 status_spec: done
-status_impl: done
-status_test: done
-status_check: done
-status_qa: done
-status_balance: done
-status_publish: done
+status_impl: pending
+status_test: pending
+status_check: pending
+status_qa: pending
+status_balance: pending
+status_publish: pending
+status_codereview: pending
+status_polish: pending
 ---
 
 # absorb ゲーム仕様
@@ -83,7 +85,7 @@ status_publish: done
 - 位置や範囲の値のうち「画面高さの ○%」「画面幅」など画面サイズを基準に書かれたものは、そのプレイのゲーム画面サイズを基準にする。px で書かれた値（速度・半径・余白など）はサイズによらず同じ
 - 敵は画面の上端・左端・右端の外から出現する。自機は HUD の帯（画面上端から 48px）を除く画面全体を上下左右に自由に移動できる（y は下向きに増える。自機の中心は上端 48px + 自機半径 から 下端 − 自機半径 の範囲、左右は 自機半径 から 画面幅 − 自機半径 の範囲）
 - 画面上部には敵がいるため、上へ行くほど敵本体に接触しやすくなる（上へ行くのは自由だが危険、というバランス）
-- HUD は画面上端に配置する。左にスコア、中央にライフ、右にストックゲージ（残数／上限）
+- HUD は画面上端に配置する。左にスコア、中央にライフ、右にストックゲージ（残数／上限）。ボスがいる間は HUD の帯のすぐ下にボス HP バーを表示する（[ボス敵](spec/boss.md)）
 - 解放ボタンは画面右下（ボタンの中心が右端・下端からそれぞれ 90px）に半径 56px の円で描く。現在のストック数を中に表示する。タッチ操作が可能な端末でのみ表示し、PC（タッチ非対応）では表示しない
 - ゲームのページ上でのタッチ操作によってブラウザがスクロール・拡大しないようにする
 - 敵弾・解放弾・敵・自機はすべて同一のプレイ領域に描画する。HUD はプレイ領域と重なってよいが、最前面に描く
@@ -144,6 +146,7 @@ status_publish: done
 
 - 設計意図: 強い敵ほど HP あたりのスコアが高い。弾を溜めて `heavy` をまとめて倒すのが最も稼げるようにする（満タン 50 発で `heavy` 6 体分の HP に届く。同時撃破ボーナスと組み合わせると、`heavy` 3 体の同時撃破で 4800 × 2.0 = 9600 点）
 - **被弾は敵本体との接触だけ**（全種共通）。敵弾はすべて吸収されるので自機には当たらない（吸収フィールドは自機を囲んでいるため、自機に届く敵弾は必ず先に吸われる）。したがって各敵の「動き」が脅威になる。**接触した敵は壊れて消える**（撃破スコアは入らず、同時撃破ボーナスの集計にも数えない）。1 回の接触判定で壊れるのは、自機に重なっている敵のうち 1 体だけ（最初に見つかった 1 体）。無敵中は接触判定そのものを行わないので、無敵中に重なった敵は壊れず、そのまま動きを続ける
+  - 例外: ボス（`boss`）は接触しても壊れず、HP が減る。ボスとほかの敵に同時に重なった場合はボスを優先する（詳細は [ボス敵](spec/boss.md) の「体当たり（接触）」）
 - 敵の当たり半径: `grunt` 14px、`shooter` 16px、`heavy` 28px、`rammer` 14px
 
 #### 敵ごとの動き
@@ -193,7 +196,7 @@ status_publish: done
   - 1 体出すたびに上限を確かめ、上限に達したらその回の残りは出さない
   - 設計意図（バランス調整）: 後半の脅威を増やすため。調査では、ゲームが進むほど `grunt` の比率が下がって難易度が伸び悩んでいた
 - 敵弾は円形（半径 5px）、速度 180px/秒（難易度により上昇）。画面外に出たら消える
-- 同時に画面内にいる敵（`rammer` を除く）は最大 6 体。出現は一定間隔で行い、上限に達している間は出現をスキップする
+- 同時に画面内にいる敵（`rammer` とボスを除く）は最大 6 体。出現は一定間隔で行い、上限に達している間は出現をスキップする
 - 最初の敵（`rammer` を除く）は `playing` に入った直後（0 秒）に 1 体出現し、以後は出現間隔ごと
 
 ### 難易度スケール
@@ -225,6 +228,65 @@ status_publish: done
 - 勝利条件はなし（エンドレス、スコアアタック）
 - 失敗条件: ライフが 0 になる
 
+## パラメータ表
+
+本文中の数値をまとめたもの。名前は `src/game/logic/constants.ts` の定数名に対応する。敵ごとの HP・スコア・当たり半径・発射間隔は「敵」の表、段階ごとの出現比率・出現間隔・敵弾速度・`rammer` の出現は「難易度スケール」の表を正とする。ボスのパラメータは [ボス敵](spec/boss.md) を参照。
+
+| 名前 | 初期値 | 意味 |
+|------|--------|------|
+| 画面の短辺 / 長辺の範囲 | 768 / 1024〜1536 | ゲーム画面サイズ（レイアウト方針の式） |
+| `HUD_HEIGHT` | 48px | 自機が入れない HUD の帯の高さ |
+| `EDGE_MARGIN` | 40px | 出現位置・往復の折り返しに使う左右の余白 |
+| `READY_DURATION` | 3 秒 | `ready` のカウントダウン |
+| `ENDING_DURATION` | 1 秒 | `ending` の爆発演出 |
+| `PLAYER_RADIUS` | 10px | 自機の当たり半径 |
+| `PLAYER_SPEED` | 320px/秒 | 自機の移動速度（キーボード・タッチ共通の最大速度） |
+| `PLAYER_LIVES` | 3 | 初期ライフ |
+| `PLAYER_INVULNERABLE` | 1.5 秒 | 被弾後の無敵時間 |
+| `HIT_STOCK_BONUS` | 10 | 被弾時の救済ストック |
+| `PLAYER_START_Y_RATIO` | 0.85 | 自機の初期 y（画面高さに対する割合。下端から 15%） |
+| `FIELD_RADIUS` | 90px | 吸収フィールドの半径 |
+| `STOCK_MAX` | 50 | ストック上限（到達で自動解放） |
+| `RELEASE_SPEED` | 600px/秒 | 解放弾の速度 |
+| `RELEASE_SPREAD` | ±30° | 解放弾の初期角度の散らばり |
+| `RELEASE_TURN_RATE` | 360°/秒 | 解放弾の最大旋回速度 |
+| `RELEASE_LIFETIME` | 2.5 秒 | 解放弾の寿命 |
+| `RELEASE_RADIUS` | 4px | 解放弾の当たり半径 |
+| `RELEASE_BONUS_STEP` | 0.5 | 同時撃破ボーナスの 1 体あたりの倍率増分 |
+| `ENEMY_BULLET_RADIUS` | 5px | 敵弾の半径 |
+| `THREE_WAY_SPREAD` | 15° | `shooter` の 3-way 弾の角度 |
+| `RADIAL_COUNT` | 8 | `heavy` の全方位弾の方向数 |
+| `MAX_ENEMIES` | 6 | 同時に画面内にいる敵の上限（`rammer`・ボスを除く） |
+| `MAX_RAMMERS` | 6 | `rammer` の同時存在上限 |
+| `FIRST_RAMMER_AT` | 10 秒 | `rammer` の初回出現 |
+| `ENTER_SPEED` | 150px/秒 | 敵の出現時の移動速度 |
+| 出現辺の比率（縦長 / 横長・正方形） | 50/25/25 / 70/15/15 | 上 / 左 / 右 |
+| `SIDE_Y_MIN_RATIO`〜`SIDE_Y_MAX_RATIO` | 0.15〜0.45 | 左右から出る敵の高さ |
+| `SIDE_STATION_MIN_RATIO`〜`SIDE_STATION_MAX_RATIO` | 0.2〜0.35 | 左右から出る敵の定位置（出てきた辺からの画面幅の割合） |
+| `SWAY_RANGE` / `SWAY_SPEED` | ±120px / 60px/秒 | 左右往復の範囲と速さ |
+| `GRUNT_MIN_Y_RATIO`〜`GRUNT_MAX_Y_RATIO` | 0.15〜0.3 | `grunt` の定位置の高さ |
+| `GRUNT_DIVE_MIN_INTERVAL`〜`GRUNT_DIVE_MAX_INTERVAL` | 5〜7 秒 | `grunt` の急降下の間隔 |
+| `GRUNT_WARN` | 0.5 秒 | `grunt` の急降下予告 |
+| `GRUNT_DIVE_SPEED` | 320px/秒 | `grunt` の急降下速度 |
+| `GRUNT_WEAVE_AMPLITUDE` / `GRUNT_WEAVE_PERIOD` | 40px / 0.6 秒 | `grunt` の蛇行 |
+| `SHOOTER_Y_RATIO` | 0.2 | `shooter` の定位置の高さ |
+| `SHOOTER_BOB_AMPLITUDE` / `SHOOTER_BOB_PERIOD` | ±30px / 2 秒 | `shooter` のジグザグの上下 |
+| `SHOOTER_SWEEP_INTERVAL` | 6 秒 | `shooter` の掃射突撃の間隔 |
+| `SHOOTER_SWEEP_WARN` | 0.6 秒 | `shooter` の掃射突撃の予告 |
+| `SHOOTER_ALIGN_SPEED` / `SHOOTER_SWEEP_SPEED` / `SHOOTER_RETURN_SPEED` | 300 / 360 / 200px/秒 | `shooter` の高さ合わせ・突撃・帰還の速さ |
+| `HEAVY_Y_RATIO` | 0.15 | `heavy` の定位置の高さ |
+| `HEAVY_RING_RADIUS` | 180px | `heavy` の包囲の半径 |
+| `HEAVY_SURROUND_SPEED` / `HEAVY_CHARGE_SPEED` | 70 / 150px/秒 | `heavy` の包囲・突撃の速さ |
+| `HEAVY_CYCLE` / `HEAVY_WARN_AT` / `HEAVY_CHARGE_AT` | 5 / 3.0 / 3.5 秒 | `heavy` の一斉突撃の周期・予告開始・突撃開始 |
+| `HEAVY_LATE_FROM` | 120 秒 | `heavy` が速くなる経過時間 |
+| `HEAVY_SURROUND_SPEED_LATE` / `HEAVY_CHARGE_SPEED_LATE` | 90 / 190px/秒 | 120 秒以降の `heavy` の速さ |
+| `RAMMER_Y_RATIO` | 0.15 | `rammer` の定位置の高さ |
+| `RAMMER_WARN` | 1.0 秒 | `rammer` の予告 |
+| `RAMMER_SPEED` | 450px/秒 | `rammer` の突進速度 |
+| `RAMMER_HOMING_FROM` / `RAMMER_HOMING_DURATION` | 60 秒 / 0.8 秒 | `rammer` が追尾し始める経過時間と追尾する長さ |
+| `RAMMER_TURN_RATE` | 60°/秒 | `rammer` の最大旋回速度 |
+| 解放ボタン | 半径 56px、中心は右端・下端から 90px | タッチ端末の解放ボタン |
+
 ## MVP 範囲（初版で作る範囲）
 
 - 自機の移動（矢印キー・WASD、タッチの相対ドラッグ）、タッチ端末での解放ボタン
@@ -243,8 +305,8 @@ status_publish: done
 
 - BGM・効果音
 - ハイスコアの永続保存
-- 敵・弾の種類の追加（吸収した弾の種類による解放弾の性能差など）
-- ボス、パワーアップアイテム
+- 敵の種類の追加（`boss` を除く）・弾の種類の追加（吸収した弾の種類による解放弾の性能差など）
+- パワーアップアイテム
 - 難易度設定、複数ステージ
 
 ## 技術要件
@@ -295,3 +357,15 @@ status_publish: done
 - `README.md` にゲームの目的・ルール・操作方法を記載している
 - ブラウザで起動し、次が動作すること: 自機の移動、吸収フィールドによる敵弾の吸収、満タン時の自動解放、解放による敵の撃破、敵の体当たりでのライフ減少、ゲームオーバーとリスタート
 - スマートフォンの縦画面相当（例: 390×844 のビューポート）で起動し、縦長の画面で表示され、ドラッグ移動・解放ボタン・タップでのリスタートが動作すること
+
+## 実装裁量
+
+- 見た目: 敵ごとの色・形（ただし敵 4 種とボスが色か形で見分けられること）、吸収フィールド（範囲が見えること）・解放弾・敵弾・自機の描き方、`grunt` の予告の震え・`shooter` / `heavy` / `rammer` の予告点滅の表現、被弾中の点滅、爆発演出
+- HUD のフォント・色・ゲージの形、`ready` のカウントダウン表示と `GameOver` 画面の文字の書体・配置
+- `shooter` のジグザグの上下の周期（現在 2 秒）
+- 内部のモジュール構成（`src/game/logic/` 配下に Phaser 非依存の純粋ロジックを置き、単体テスト可能にすることは必須）
+- 弾のプール・配列再利用の方式
+
+## 拡張
+
+- [ボス敵](spec/boss.md) — 定期的に現れ、倒すまで居座る大型の敵。弾幕で一気に溜まるストックを何回かに分けて撃ち込む山場
