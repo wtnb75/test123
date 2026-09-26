@@ -6,10 +6,10 @@ status_impl: done
 status_test: done
 status_check: done
 status_qa: done
-status_balance: pending
+status_balance: done
 status_publish: pending
 status_codereview: done
-status_polish: pending
+status_polish: done
 ---
 
 # absorb ゲーム仕様
