@@ -87,8 +87,10 @@ export class World {
     releaseBullets: ReleaseBullet[] = [];
     openGroups: ReleaseGroup[] = [];
     private nextId = 1;
-    private spawnTimer = 0;
-    private rammerTimer = FIRST_RAMMER_AT;
+    /** Seconds until the next grunt/shooter/heavy spawn (public so tests can pause spawning). */
+    spawnTimer = 0;
+    /** Seconds until the next rammer spawn. */
+    rammerTimer = FIRST_RAMMER_AT;
     /** Where a touch drag wants the player to be; only meaningful while hasDragTarget. */
     dragTargetX = 0;
     dragTargetY = 0;
