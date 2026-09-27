@@ -7,12 +7,15 @@ import {
     RAMMER_HOMING_DURATION, RAMMER_HOMING_FROM, RAMMER_SPEED, RAMMER_TURN_RATE, RAMMER_WARN, RAMMER_Y_RATIO,
     SHOOTER_ALIGN_SPEED, SHOOTER_BOB_AMPLITUDE, SHOOTER_BOB_PERIOD, SHOOTER_RETURN_SPEED, SHOOTER_SWEEP_INTERVAL,
     SHOOTER_SWEEP_SPEED, SHOOTER_SWEEP_WARN, SHOOTER_Y_RATIO,
+    SPLITTER_CHILD_COUNT, SPLITTER_CHILD_SPEC, SPLITTER_CHILD_SPEED, SPLITTER_DRIFT_SPEED, SPLITTER_SCATTER_DURATION,
+    SPLITTER_SCATTER_SPEED, SPLITTER_Y_RATIO,
     SIDE_STATION_MAX_RATIO, SIDE_STATION_MIN_RATIO, SIDE_Y_MAX_RATIO, SIDE_Y_MIN_RATIO,
     SWAY_RANGE, SWAY_SPEED,
     BOSS_FIRE_INTERVAL,
     type ActorKind, type EnemyKind, type SpawnEdge
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
+import { aimAt } from './patterns';
 import type { ScreenSize } from './screen';
 
 export type EnemyState =
@@ -25,7 +28,9 @@ export type EnemyState =
     | 'sweep'        // shooter: charging across to the opposite edge
     | 'sweep-return' // shooter: moving vertically back to the station height
     | 'chase'        // heavy: surrounding and charging the player
-    | 'dash'         // rammer: charging
+    | 'drift'        // splitter: drifting toward the player
+    | 'scatter'      // splitter child: spreading out before its dash
+    | 'dash'         // rammer / splitter child: charging
     | 'charge'       // boss: charging the locked point
     | 'pause'        // boss: resting after a charge
     | 'return';      // boss: moving vertically back to the station height
@@ -97,6 +102,7 @@ function topStationY(kind: ActorKind, rng: Rng, height: number): number {
         case 'grunt': return height * randomRange(rng, GRUNT_MIN_Y_RATIO, GRUNT_MAX_Y_RATIO);
         case 'shooter': return height * SHOOTER_Y_RATIO;
         case 'heavy': return height * HEAVY_Y_RATIO;
+        case 'splitter': return height * SPLITTER_Y_RATIO;
         default: return height * RAMMER_Y_RATIO;
     }
 }
@@ -141,7 +147,8 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: Scree
 
 /** Seconds between an actor's volleys; 0 means it never fires. */
 export function fireIntervalOf(kind: ActorKind): number {
-    return kind === 'boss' ? BOSS_FIRE_INTERVAL : ENEMY_SPECS[kind].fireInterval;
+    if (kind === 'boss') return BOSS_FIRE_INTERVAL;
+    return kind === 'splitterChild' ? SPLITTER_CHILD_SPEC.fireInterval : ENEMY_SPECS[kind].fireInterval;
 }
 
 export function setState(e: Enemy, state: EnemyState): void {
@@ -177,6 +184,9 @@ function arrive(e: Enemy, rng: Rng): void {
             break;
         case 'heavy':
             setState(e, 'chase');
+            break;
+        case 'splitter':
+            setState(e, 'drift');
             break;
         default:
             setState(e, 'warn');
@@ -339,6 +349,50 @@ function updateRammer(e: Enemy, dt: number, ctx: EnemyContext): void {
     if (isFullyOffScreen(e, e.radius, ctx.screen)) e.removed = true;
 }
 
+/**
+ * The children a splitter killed by a release bullet splits into, at its last position: child i
+ * scatters at heading + 90° + i·360°/SPLITTER_CHILD_COUNT, i.e. to both sides of the killing bullet.
+ */
+export function createSplitterChildren(parent: Point, heading: number, firstId: number, screen: ScreenSize): Enemy[] {
+    const children: Enemy[] = [];
+    for (let i = 0; i < SPLITTER_CHILD_COUNT; i++) {
+        const c = blankEnemy('splitterChild', firstId + i, SPLITTER_CHILD_SPEC.hp, SPLITTER_CHILD_SPEC.radius);
+        c.x = parent.x;
+        c.y = parent.y;
+        c.heading = heading + Math.PI / 2 + (i * Math.PI * 2) / SPLITTER_CHILD_COUNT;
+        clampInside(c, screen);
+        setState(c, 'scatter');
+        children.push(c);
+    }
+    return children;
+}
+
+/** Keeps the whole enemy on screen, so a scattering child stays a valid release target. */
+function clampInside(e: Enemy, screen: ScreenSize): void {
+    e.x = Math.min(Math.max(e.x, e.radius), screen.width - e.radius);
+    e.y = Math.min(Math.max(e.y, e.radius), screen.height - e.radius);
+}
+
+function updateSplitter(e: Enemy, dt: number, ctx: EnemyContext): void {
+    moveToward(e, ctx.player.x, ctx.player.y, SPLITTER_DRIFT_SPEED * dt);
+}
+
+function updateSplitterChild(e: Enemy, dt: number, ctx: EnemyContext): void {
+    if (e.state === 'scatter') {
+        e.x += Math.cos(e.heading) * SPLITTER_SCATTER_SPEED * dt;
+        e.y += Math.sin(e.heading) * SPLITTER_SCATTER_SPEED * dt;
+        clampInside(e, ctx.screen);
+        if (e.stateTime >= SPLITTER_SCATTER_DURATION) {
+            e.heading = aimAt(e, ctx.player);
+            setState(e, 'dash');
+        }
+        return;
+    }
+    e.x += Math.cos(e.heading) * SPLITTER_CHILD_SPEED * dt;
+    e.y += Math.sin(e.heading) * SPLITTER_CHILD_SPEED * dt;
+    if (!isOnScreen(e, ctx.screen)) e.removed = true;
+}
+
 function canFire(e: Enemy, screen: ScreenSize): boolean {
     if (fireIntervalOf(e.kind) <= 0 || !isOnScreen(e, screen)) return false;
     switch (e.kind) {
@@ -359,6 +413,8 @@ export function updateEnemy(e: Enemy, dt: number, ctx: EnemyContext): boolean {
         case 'grunt': updateGrunt(e, dt, ctx); break;
         case 'shooter': updateShooter(e, dt, ctx); break;
         case 'heavy': updateHeavy(e, dt, ctx); break;
+        case 'splitter': updateSplitter(e, dt, ctx); break;
+        case 'splitterChild': updateSplitterChild(e, dt, ctx); break;
         default: updateRammer(e, dt, ctx);
     }
     if (e.removed || !canFire(e, ctx.screen)) return false;

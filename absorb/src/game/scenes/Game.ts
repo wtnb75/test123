@@ -67,7 +67,8 @@ const DEBRIS_COLORS: Record<EnemyKind, number> = {
     grunt: debrisColor('grunt', COLORS.grunt),
     shooter: debrisColor('shooter', COLORS.shooter),
     heavy: debrisColor('heavy', COLORS.heavy),
-    rammer: debrisColor('rammer', COLORS.rammer)
+    rammer: debrisColor('rammer', COLORS.rammer),
+    splitter: debrisColor('splitter', COLORS.splitter)
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
@@ -601,6 +602,13 @@ export class Game extends Scene {
                 g.strokeCircle(e.x, e.y, r * 0.6);
                 break;
             }
+            case 'splitter':
+            case 'splitterChild':
+                // Parent and children share the same diamond, the children just smaller.
+                g.fillStyle(COLORS.splitter, 1);
+                g.fillTriangle(e.x, e.y - r * 1.2, e.x + r, e.y, e.x - r, e.y);
+                g.fillTriangle(e.x, e.y + r * 1.2, e.x + r, e.y, e.x - r, e.y);
+                break;
             case 'boss':
                 // The boss shows its HP on the HUD bar instead of pips.
                 this.drawBoss(e);

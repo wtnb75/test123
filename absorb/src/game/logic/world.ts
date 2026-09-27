@@ -4,11 +4,13 @@ import {
     ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
-    RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type EnemyKind
+    RELEASE_SPREAD, RELEASE_TURN_RATE, SPLITTER_CHILD_SPEC, STOCK_MAX, type ActorKind, type EnemyKind
 } from './constants';
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
-import { assignHeavySlots, createEnemy, updateEnemy, type Enemy, type EnemyContext } from './enemy';
+import {
+    assignHeavySlots, createEnemy, createSplitterChildren, updateEnemy, type Enemy, type EnemyContext
+} from './enemy';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
     type Rng
@@ -105,7 +107,13 @@ const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
 
 function killScore(e: Enemy): number {
-    return e.kind === 'boss' ? bossScore(e) : ENEMY_SPECS[e.kind].score;
+    if (e.kind === 'boss') return bossScore(e);
+    return e.kind === 'splitterChild' ? SPLITTER_CHILD_SPEC.score : ENEMY_SPECS[e.kind].score;
+}
+
+/** The kind a regular enemy is reported as (debris, breakdown): splitter children count as splitters. */
+function reportedKind(kind: Exclude<ActorKind, 'boss'>): EnemyKind {
+    return kind === 'splitterChild' ? 'splitter' : kind;
 }
 
 /** Bullets still needed to finish an enemy, after those already homing on it. */
@@ -165,6 +173,8 @@ export class World {
     /** Where the player lost a life during the latest step (for the hit effect). */
     private readonly hitsThisStep: Point[] = [];
     private nextGroupId = 1;
+    /** Splitters release bullets killed this step; their children join once the step's collisions are done. */
+    private readonly splitsThisStep: { x: number; y: number; heading: number }[] = [];
     /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
     private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
@@ -253,6 +263,7 @@ export class World {
         this.updateEnemyBullets(dt, true);
         this.updateReleaseBullets(dt, true);
         this.checkContact();
+        this.spawnSplitterChildren();
         removeWhere(this.enemies, isRemoved);
         this.elapsed += dt;
     }
@@ -339,11 +350,23 @@ export class World {
         }
     }
 
-    /** Counts rammers, or the regular enemies capped by MAX_ENEMIES; the boss is in neither. */
+    /** Counts rammers, or the regular enemies capped by MAX_ENEMIES; the boss and splitter children are in neither. */
     private countEnemies(rammers: boolean): number {
         let n = 0;
-        for (const e of this.enemies) if (e.kind !== 'boss' && (e.kind === 'rammer') === rammers) n++;
+        for (const e of this.enemies) {
+            if (e.kind !== 'boss' && e.kind !== 'splitterChild' && (e.kind === 'rammer') === rammers) n++;
+        }
         return n;
+    }
+
+    /** Adds the children of every splitter killed this step, after that step's hits and contact. */
+    private spawnSplitterChildren(): void {
+        for (const split of this.splitsThisStep) {
+            const children = createSplitterChildren(split, split.heading, this.nextId, this.screen);
+            this.nextId += children.length;
+            this.enemies.push(...children);
+        }
+        this.splitsThisStep.length = 0;
     }
 
     private addEnemy(kind: EnemyKind): void {
@@ -484,7 +507,8 @@ export class World {
             b.removed = true;
             e.hp--;
             if (e.hp <= 0) {
-                if (e.kind !== 'boss') this.defeatedEnemies.push({ x: e.x, y: e.y, kind: e.kind, heading: b.heading });
+                if (e.kind !== 'boss') this.defeatedEnemies.push({ x: e.x, y: e.y, kind: reportedKind(e.kind), heading: b.heading });
+                if (e.kind === 'splitter') this.splitsThisStep.push({ x: e.x, y: e.y, heading: b.heading });
                 this.destroy(e);
                 this.recordKill(b.group, e);
             }
@@ -496,7 +520,7 @@ export class World {
     private recordKill(group: ReleaseGroup, e: Enemy): void {
         const points = killScore(e);
         group.kills.push(points);
-        tallyKill(this.tally, e.kind, points);
+        tallyKill(this.tally, e.kind === 'boss' ? 'boss' : reportedKind(e.kind), points);
         group.lastX = e.x;
         group.lastY = e.y;
         group.lastIsBoss = e.kind === 'boss';

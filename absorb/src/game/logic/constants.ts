@@ -154,7 +154,23 @@ export const RAMMER_HOMING_FROM = 60;
 export const RAMMER_HOMING_DURATION = 0.8;
 export const RAMMER_TURN_RATE = Math.PI / 3;
 
-export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer';
+export const SPLITTER_HP = 4;
+export const SPLITTER_SCORE = 400;
+export const SPLITTER_RADIUS = 18;
+export const SPLITTER_FIRE_INTERVAL = 1.5;
+export const SPLITTER_Y_RATIO = 0.15;
+export const SPLITTER_DRIFT_SPEED = 40;
+/** A splitter killed by a release bullet splits into this many children... */
+export const SPLITTER_CHILD_COUNT = 2;
+export const SPLITTER_CHILD_HP = 1;
+export const SPLITTER_CHILD_SCORE = 100;
+export const SPLITTER_CHILD_RADIUS = 8;
+/** ...which scatter sideways for a moment, then dash straight at where the player was. */
+export const SPLITTER_SCATTER_SPEED = 120;
+export const SPLITTER_SCATTER_DURATION = 0.4;
+export const SPLITTER_CHILD_SPEED = 260;
+
+export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer' | 'splitter';
 
 export interface EnemySpec {
     hp: number;
@@ -168,11 +184,17 @@ export const ENEMY_SPECS: Record<EnemyKind, EnemySpec> = {
     grunt: { hp: 2, score: 100, radius: 14, fireInterval: 1.0 },
     shooter: { hp: 4, score: 400, radius: 16, fireInterval: 1.5 },
     heavy: { hp: 8, score: 1600, radius: 28, fireInterval: 2.0 },
-    rammer: { hp: 3, score: 300, radius: 14, fireInterval: 0 }
+    rammer: { hp: 3, score: 300, radius: 14, fireInterval: 0 },
+    splitter: { hp: SPLITTER_HP, score: SPLITTER_SCORE, radius: SPLITTER_RADIUS, fireInterval: SPLITTER_FIRE_INTERVAL }
 };
 
-/** The boss is kept out of EnemyKind so the regular spawn tables and ENEMY_SPECS stay unchanged. */
-export type ActorKind = EnemyKind | 'boss';
+/** A splitter's child: never spawned on its own, so kept out of EnemyKind and the spawn tables. */
+export const SPLITTER_CHILD_SPEC: EnemySpec = {
+    hp: SPLITTER_CHILD_HP, score: SPLITTER_CHILD_SCORE, radius: SPLITTER_CHILD_RADIUS, fireInterval: 0
+};
+
+/** The boss and splitter children are kept out of EnemyKind so the regular spawn tables and ENEMY_SPECS stay unchanged. */
+export type ActorKind = EnemyKind | 'splitterChild' | 'boss';
 
 export const BOSS_FIRST_AT = 45;
 export const BOSS_RESPAWN_DELAY = 60;
