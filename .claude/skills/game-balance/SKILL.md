@@ -45,6 +45,10 @@ one-off screenshot.
    (`game-codereview` and `game-polish` only look at what the tuning
    changed, so these passes are short).
 
+For a presentation-only revision whose polish confirmation already asked
+about the feel (`game-polish` "Presentation-only revisions"), that answer
+is the sign-off: mark this stage done without asking again.
+
 ## When to stop looping
 
 Only the user decides the game is fun enough to ship — don't declare this

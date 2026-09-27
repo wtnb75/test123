@@ -86,6 +86,24 @@ Out of scope — route elsewhere:
   the user (licensing, and it's a new dependency).
 - Keep flashes and shake mild (no full-screen strobing).
 
+## Presentation-only revisions
+
+When the current revision is presentation-only — `game-extend` classified
+it so, or it is itself a polish change — and QA has just passed on it,
+don't run polish, balance and the PR confirmation as three separate stops.
+Ask **once**, with the QA screenshots:
+
+1. does the look work (polish),
+2. is the feel unchanged / still good (balance — say that no rule or
+   gameplay number changed),
+3. may the PR be committed, pushed and opened (publish).
+
+If the user accepts all three, mark `polish` and `balance` done (their
+`game-review` self-checks still apply — the screenshots and the explicit
+answers are the evidence) and let `game-publish` run without asking its
+confirmation again. If they want changes to the look, stay here and loop as
+usual; if they want tuning, hand over to `game-balance`.
+
 ## Coming back after an unrelated revision
 
 A `game-balance` or bug-fix revision resets this stage too. If nothing

@@ -49,6 +49,11 @@ the body — see "Spec layout" below), and a branch slug. When writing it:
 - Don't record history in the spec ("added in v2", changelogs). The spec
   always describes the current game; the why lives in the PR description
   and git history.
+- Update `<game-dir>/docs/backlog.md` in the same branch (create it if
+  missing): remove the item this revision implements, and add the
+  candidates the summary lists as "left for later" that aren't there yet
+  (one line each: the idea and, if known, why it was left). The backlog is
+  not part of the spec — only a list for the next `game-extend`.
 
 ### パラメータ表 and 実装裁量
 
@@ -84,7 +89,33 @@ apply to this game — skip what genuinely doesn't apply, don't pad:
   and UI cues each Scene has — what triggers each one, what it looks like,
   and whether input is accepted while it plays. Player-relevant durations
   and sizes go into the パラメータ表; cosmetic details (easing, tint) can
-  be delegated in 実装裁量.
+  be delegated in 実装裁量. Settle every item of the checklist below in the
+  draft — they are the gaps the spec review kept finding in effect sections.
+
+#### 演出・UI checklist
+
+For each effect, write down (or delegate in 実装裁量, explicitly):
+
+- **Trigger**: the exact event, which variants count (manual/automatic,
+  every enemy kind, the boss…) and which don't; what happens when several
+  fire in the same frame (one effect each, or one restart).
+- **Time rule**: the shared "t = 0 on the trigger frame, gone at exactly
+  D" convention (or why this one differs, e.g. "stays at 1 after the
+  fade"), and whether a new trigger restarts or stacks.
+- **Same-frame edges**: the trigger landing in the frame the phase changes
+  (e.g. the last life lost → `ending`), and the order when two things in
+  one frame feed the effect (e.g. a kill and its settlement).
+- **Phase and restart**: does it play on through `ending` / result
+  screens, is it cut off, and is nothing left after a restart?
+- **Draw order**: which layer, relative to every other effect, the HUD and
+  persistent buttons (name them).
+- **Interplay**: other effects that can fire at the same time (a camera
+  shake moving it, another popup at the same spot) — what the player sees.
+- **Screen bounds**: text or shapes near the edges — clamp (by what size,
+  measured how) or allowed to overflow.
+- **Numbers in the パラメータ表** and **test points with hand-worked
+  boundary values** (start, midpoint, exactly D), plus the regression
+  conditions from the extension's "must not change" list.
 
 ## Spec layout: `docs/spec.md` plus linked files
 
@@ -124,7 +155,8 @@ to**. Anything that reads, hands over or reviews "the spec" (`game-impl`,
 - Moving existing text out of `docs/spec.md` into split files is a
   docs-only change with no behavior change, run as its own cycle — see
   "Splitting an existing spec" below. `game-extend` offers this when
-  `docs/spec.md` is over 600 lines.
+  `docs/spec.md` is over 400 lines. Accumulated 演出・UI sections are the
+  usual first candidates (e.g. one `docs/spec/effects.md` holding them all).
 
 ### Splitting an existing spec
 
@@ -188,7 +220,8 @@ before the downstream reset below overwrites it:
 
 ### Any revision resets downstream stages — this skill's job, not the caller's
 
-(Except a verbatim split — see "Splitting an existing spec" above.)
+(Except a verbatim split — see "Splitting an existing spec" above, and a
+clarification-only revision — see below.)
 
 A revision to an already-`done` spec means everything downstream is now
 potentially stale, no matter who asked for the revision — `game-balance`
@@ -209,12 +242,30 @@ task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=pending
 task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=pending
 ```
 
-Run all eight unconditionally — resetting a stage that's already `pending`
+For a normal revision, run all eight unconditionally (the only exceptions are
+the verbatim split and the clarification-only revision named above) — resetting a stage that's already `pending`
 is a harmless no-op, and trying to guess which stages the change "actually
 affects" is exactly the kind of judgment call that's easy to get wrong.
 (If the caller is itself mid-flight or the stage this settles it into
 looks different from what the caller expects, that's fine: `game-next`
 will route back to wherever the pipeline actually is next.)
+
+### Clarification-only revisions
+
+Sometimes a revision only writes down what the implementation already
+does and was never in doubt — typically a `game-codereview` finding
+classified **spec (clarify)**: a draw order the code already follows, a
+wording that was inaccurate about existing behavior, an edge case the code
+handles in the only sensible way. Such a revision:
+
+- changes no player-visible behavior and needs **no** code change — if the
+  code would have to change to match, it is a normal revision;
+- still goes through `game-review STAGE=spec` and the user's approval
+  (usually folded into the question that raised it);
+- resets only the stages after `codereview` —
+  `qa`, `polish`, `balance`, `publish` — because the implementation, tests
+  and gate are untouched; say in the conversation which finding it records
+  and why nothing earlier needs to run again.
 
 ## Review (before showing the user)
 
@@ -229,8 +280,10 @@ Also check the process yourself, for a revision:
 
 - Did you check `status_publish`'s value *before* resetting it, and branch
   accordingly (new branch only if it was `done`)?
-- Did you actually run the eight downstream resets above, not just remember
-  that they exist?
+- Did you actually run the eight downstream resets above (or, for a
+  clarification-only revision, the four after `codereview`), not just
+  remember that they exist?
+- For an effect section: is every item of the 演出・UI checklist settled?
 
 ## Completion
 

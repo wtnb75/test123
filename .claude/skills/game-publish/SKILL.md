@@ -36,6 +36,9 @@ extension), not the original add.
    Instead check that `README.md` reflects the changed rules and controls,
    and update it in this change if it doesn't.
 
+For a post-publish revision, also check `<game-dir>/docs/backlog.md` is in
+the change if `game-spec` updated it.
+
 `task build` / `output/index.html` verification is CI's job, not this
 skill's — don't run it here (confirmed with the user: this repo's CI
 builds and verifies the top-page output on its own).
@@ -44,7 +47,9 @@ builds and verifies the top-page output on its own).
 
 The finished PR's content should be scoped to exactly one thing: adding
 `<game-dir>` (first publish), or that one revision (post-publish). Confirm
-with the user before pushing anything or opening the PR — pushing and PR
+with the user before pushing anything or opening the PR (unless the
+user already agreed to it in `game-polish`'s combined confirmation for a
+presentation-only revision) — pushing and PR
 creation are both visible, and this skill has no standing authorization to
 do them silently.
 
