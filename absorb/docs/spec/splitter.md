@@ -48,7 +48,7 @@
 #### 突進予告（子）
 
 - **いつ**: 子が `scatter` の間で、`scatter` に入ってからの経過時間（子の状態の経過時間）s が `SPLITTER_SCATTER_DURATION` − `SPLITTER_DASH_WARN` 以上のとき（`SPLITTER_SCATTER_DURATION` = 0.4、`SPLITTER_DASH_WARN` = 0.15 なら 0.25 ≤ s）。`dash` に移ったら終わる（`dash` の間は本体色）
-- **見た目**: w = s − (`SPLITTER_SCATTER_DURATION` − `SPLITTER_DASH_WARN`) として、floor(w / `SPLITTER_DASH_WARN_BLINK`) が偶数のフレームは本体を白（#ffffff）で、奇数のフレームは本体色で描く（w = 0 から 0.05 未満は白、0.05 から 0.1 未満は本体色、0.1 から `dash` までは白）。s と w はフレームの経過時間を足した値なので、境界の比較には `scatter` から `dash` へ移る判定と同じ小さな許容値 ε（1e-6）を使い、境界より ε 以内だけ手前の値は境界に達したものとして扱う（予告の開始は s ≥ 開始 − ε、切り替えは floor((w + ε) / `SPLITTER_DASH_WARN_BLINK`)）。60fps なら `scatter` の 15〜17 フレーム目が白、18〜20 フレーム目が本体色、21〜23 フレーム目が白で、24 フレーム目に `dash` に移る輪郭は予告中も同じ白い輪郭のまま描く
+- **見た目**: w = s − (`SPLITTER_SCATTER_DURATION` − `SPLITTER_DASH_WARN`) として、floor(w / `SPLITTER_DASH_WARN_BLINK`) が偶数のフレームは本体を白（#ffffff）で、奇数のフレームは本体色で描く（w = 0 から 0.05 未満は白、0.05 から 0.1 未満は本体色、0.1 から `dash` までは白）。s と w はフレームの経過時間を足した値なので、境界の比較には `scatter` から `dash` へ移る判定と同じ小さな許容値 ε（1e-6）を使い、境界より ε 以内だけ手前の値は境界に達したものとして扱う（予告の開始は s ≥ 開始 − ε、切り替えは floor((w + ε) / `SPLITTER_DASH_WARN_BLINK`)）。60fps なら `scatter` の 15〜17 フレーム目が白、18〜20 フレーム目が本体色、21〜23 フレーム目が白で、24 フレーム目に `dash` に移る。輪郭は予告中も同じ白い輪郭のまま描く
 - 予告は子ごとの経過時間で決まるので、同時に分裂した 2 体はそろって点滅する。`ending` の間も子は動き続けるので、予告もそのまま出る。リスタートで子はいなくなる
 - 画面の端で押し戻されている間も、経過時間どおりに予告が出る（`scatter` の時間は押し戻しの間も進むため）
 

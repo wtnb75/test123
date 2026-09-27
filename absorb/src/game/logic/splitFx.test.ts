@@ -122,6 +122,7 @@ describe('splits listed by the world for the split ring', () => {
         expect(w.splits).toHaveLength(1);
         expect(w.splits[0].x).toBe(p.x);
         expect(w.splits[0].y).toBe(p.y);
+        expect(w.splits[0].x).toBeLessThan(8); // really outside the children's range, so clamping would show
         expect(w.enemies.every((e) => e.x >= 8)).toBe(true); // the children themselves were clamped
     });
 
@@ -137,8 +138,9 @@ describe('splits listed by the world for the split ring', () => {
 
     it('lists nothing for a hit that leaves the parent alive, a rammed parent or a killed child', () => {
         const w = playingWorld();
-        addParent(w, 300, 300, 2);
+        const damaged = addParent(w, 300, 300, 2);
         shotAt(w, 300, 300);
+        const shot = w.releaseBullets[w.releaseBullets.length - 1];
         addParent(w, w.player.x, w.player.y);
         const [k] = createSplitterChildren({ x: 700, y: 300 }, 0, 900, S);
         w.enemies.push(k);
@@ -147,6 +149,8 @@ describe('splits listed by the world for the split ring', () => {
             group: { id: 0, pending: 1, kills: [], lastX: 0, lastY: 0, lastIsBoss: false }, target: null, removed: false
         });
         w.step(DT, NONE);
+        expect(damaged.hp).toBe(1); // the shot really hit it
+        expect(w.releaseBullets).not.toContain(shot);
         expect(w.player.lives).toBe(2);
         expect(w.enemies).not.toContain(k);
         expect(w.splits).toHaveLength(0);

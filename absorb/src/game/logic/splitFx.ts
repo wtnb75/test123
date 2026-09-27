@@ -1,12 +1,9 @@
 import {
-    SPLIT_RING_DURATION, SPLIT_RING_MAX_RADIUS, SPLITTER_DASH_WARN, SPLITTER_DASH_WARN_BLINK, SPLITTER_RADIUS,
-    SPLITTER_SCATTER_DURATION
+    SPLIT_RING_DURATION, SPLIT_RING_MAX_RADIUS, SPLITTER_DASH_WARN, SPLITTER_DASH_WARN_BLINK, SPLITTER_RADIUS
 } from './constants';
 import { effectProgress } from './effects';
-import { TIMER_EPSILON, type Enemy } from './enemy';
+import { TIMER_EPSILON, scatterLeft, type Enemy } from './enemy';
 import { removeWhere, type Point } from './geometry';
-
-const WARN_FROM = SPLITTER_SCATTER_DURATION - SPLITTER_DASH_WARN;
 
 /**
  * Whether a splitter child is drawn white this frame: over the last SPLITTER_DASH_WARN seconds of its
@@ -14,8 +11,9 @@ const WARN_FROM = SPLITTER_SCATTER_DURATION - SPLITTER_DASH_WARN;
  * scatter-to-dash switch, so the blink lines up with it at 60 fps.
  */
 export function childFlashesWhite(child: Pick<Enemy, 'state' | 'stateTime'>): boolean {
-    if (child.state !== 'scatter' || child.stateTime < WARN_FROM - TIMER_EPSILON) return false;
-    const w = child.stateTime - WARN_FROM;
+    const left = scatterLeft(child);
+    if (child.state !== 'scatter' || left > SPLITTER_DASH_WARN + TIMER_EPSILON) return false;
+    const w = SPLITTER_DASH_WARN - left;
     return Math.floor((w + TIMER_EPSILON) / SPLITTER_DASH_WARN_BLINK) % 2 === 0;
 }
 

@@ -47,6 +47,7 @@ const COLORS = {
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
     explosion: 0xffcc80,
+    childOutline: 0xffffff,
     button: 0x4dd0e1
 };
 
@@ -624,14 +625,15 @@ export class Game extends Scene {
             case 'splitter':
             case 'splitterChild':
             {
-                // Parent and children share the same diamond, the children just smaller; it stays within the hit radius.
+                // Parent and children share the same diamond, the children just smaller. The fill stays within the
+                // hit radius; a child's outline is centred on the edge, so half its width pokes out.
                 const w = r * DIAMOND_WIDTH_RATIO;
                 // A child blinks white just before its dash, and keeps a white outline so it stays visible.
                 g.fillStyle(e.kind === 'splitterChild' && childFlashesWhite(e) ? COLORS.warn : COLORS.splitter, 1);
                 g.fillTriangle(e.x, e.y - r, e.x + w, e.y, e.x - w, e.y);
                 g.fillTriangle(e.x, e.y + r, e.x + w, e.y, e.x - w, e.y);
                 if (e.kind === 'splitterChild') {
-                    g.lineStyle(SPLITTER_CHILD_OUTLINE_WIDTH, 0xffffff, SPLITTER_CHILD_OUTLINE_ALPHA);
+                    g.lineStyle(SPLITTER_CHILD_OUTLINE_WIDTH, COLORS.childOutline, SPLITTER_CHILD_OUTLINE_ALPHA);
                     g.beginPath();
                     g.moveTo(e.x, e.y - r);
                     g.lineTo(e.x + w, e.y);

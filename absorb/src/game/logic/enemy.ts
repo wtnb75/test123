@@ -374,6 +374,11 @@ export function createSplitterChildren(parent: Point, heading: number, firstId: 
     return children;
 }
 
+/** Seconds a scattering child has left before its dash; the dash and its warning blink both read this. */
+export function scatterLeft(e: Pick<Enemy, 'stateTime'>): number {
+    return SPLITTER_SCATTER_DURATION - e.stateTime;
+}
+
 /** Keeps the whole enemy on screen, so a scattering child stays a valid release target. */
 function clampInside(e: Enemy, screen: ScreenSize): void {
     e.x = Math.min(Math.max(e.x, e.radius), screen.width - e.radius);
@@ -389,7 +394,7 @@ function updateSplitterChild(e: Enemy, dt: number, ctx: EnemyContext): void {
         e.x += Math.cos(e.heading) * SPLITTER_SCATTER_SPEED * dt;
         e.y += Math.sin(e.heading) * SPLITTER_SCATTER_SPEED * dt;
         clampInside(e, ctx.screen);
-        if (e.stateTime >= SPLITTER_SCATTER_DURATION - TIMER_EPSILON) {
+        if (scatterLeft(e) <= TIMER_EPSILON) {
             e.heading = aimAt(e, ctx.player);
             setState(e, 'dash');
         }
