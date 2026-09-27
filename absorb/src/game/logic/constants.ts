@@ -169,6 +169,16 @@ export const SPLITTER_CHILD_RADIUS = 8;
 export const SPLITTER_SCATTER_SPEED = 120;
 export const SPLITTER_SCATTER_DURATION = 0.4;
 export const SPLITTER_CHILD_SPEED = 260;
+/** A scattering child blinks white over its last SPLITTER_DASH_WARN seconds, toggling every blink step. */
+export const SPLITTER_DASH_WARN = 0.15;
+export const SPLITTER_DASH_WARN_BLINK = 0.05;
+/** White outline that keeps the small children visible; drawing only, the hit radius is unchanged. */
+export const SPLITTER_CHILD_OUTLINE_WIDTH = 1.5;
+export const SPLITTER_CHILD_OUTLINE_ALPHA = 0.7;
+/** Ring spreading from where a splitter split, from its body radius outward. */
+export const SPLIT_RING_DURATION = 0.2;
+export const SPLIT_RING_MAX_RADIUS = 40;
+export const SPLIT_RING_WIDTH = 3;
 
 export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer' | 'splitter';
 

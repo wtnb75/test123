@@ -156,7 +156,7 @@ export function fireIntervalOf(kind: ActorKind): number {
 }
 
 /** Slack for timers summed from frame deltas: 24 frames of 1/60 s add up to just under 0.4 s. */
-const TIMER_EPSILON = 1e-6;
+export const TIMER_EPSILON = 1e-6;
 
 export function setState(e: Enemy, state: EnemyState): void {
     e.state = state;

@@ -215,6 +215,11 @@ export class World {
         return this.tally;
     }
 
+    /** Where splitters split during the latest step (for the split ring): the parent's spot, before clamping. */
+    get splits(): readonly Point[] {
+        return this.splitsThisStep;
+    }
+
     /** Where the player lost a life during the latest step; contact while invulnerable adds nothing. */
     get hits(): readonly Point[] {
         return this.hitsThisStep;
