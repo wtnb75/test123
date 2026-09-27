@@ -30,6 +30,8 @@ import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
 import { computeScreenSize } from '../logic/screen';
 import { World, type Input as WorldInput } from '../logic/world';
+import { KIND_COLORS, cssColor } from './colors';
+import { normalizeBreakdown } from '../logic/breakdown';
 
 const COLORS = {
     player: 0xffffff,
@@ -37,11 +39,7 @@ const COLORS = {
     field: 0x4dd0e1,
     enemyBullet: 0xff5252,
     releaseBullet: 0x80ffea,
-    grunt: 0x66bb6a,
-    shooter: 0xffa726,
-    heavy: 0xab47bc,
-    rammer: 0xef5350,
-    boss: 0xffd54f,
+    ...KIND_COLORS,
     bossCore: 0x5d4037,
     warn: 0xffffff,
     gaugeBack: 0x263238,
@@ -72,7 +70,6 @@ const DEBRIS_COLORS: Record<EnemyKind, number> = {
     rammer: debrisColor('rammer', COLORS.rammer)
 };
 
-const cssColor = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
@@ -314,7 +311,8 @@ export class Game extends Scene {
         this.drawHud();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
-            this.scene.start('GameOver', { score: this.world.score });
+            // A copy, so the game-over screen never shares state with this run's world.
+            this.scene.start('GameOver', { score: this.world.score, breakdown: normalizeBreakdown(this.world.breakdown) });
         }
     }
 

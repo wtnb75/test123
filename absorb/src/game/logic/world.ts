@@ -6,6 +6,7 @@ import {
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type EnemyKind
 } from './constants';
+import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
 import { assignHeavySlots, createEnemy, updateEnemy, type Enemy, type EnemyContext } from './enemy';
 import {
@@ -164,6 +165,8 @@ export class World {
     /** Where the player lost a life during the latest step (for the hit effect). */
     private readonly hitsThisStep: Point[] = [];
     private nextGroupId = 1;
+    /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
+    private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -196,6 +199,11 @@ export class World {
     /** Releases that settled (all bullets gone, points added to the score) during the latest step. */
     get settlements(): readonly Settlement[] {
         return this.settlementsThisStep;
+    }
+
+    /** Kills and base points per kind so far, read-only; copy it (e.g. normalizeBreakdown) to keep it. */
+    get breakdown(): Readonly<Record<keyof ScoreBreakdown, Readonly<ScoreBreakdown[keyof ScoreBreakdown]>>> {
+        return this.tally;
     }
 
     /** Where the player lost a life during the latest step; contact while invulnerable adds nothing. */
@@ -486,7 +494,9 @@ export class World {
 
     /** Counts a kill toward its release and notes it for the multi-kill effect (one entry per release per step). */
     private recordKill(group: ReleaseGroup, e: Enemy): void {
-        group.kills.push(killScore(e));
+        const points = killScore(e);
+        group.kills.push(points);
+        tallyKill(this.tally, e.kind, points);
         group.lastX = e.x;
         group.lastY = e.y;
         group.lastIsBoss = e.kind === 'boss';
@@ -542,7 +552,9 @@ export class World {
             // The boss survives a ram but loses HP; a ram that finishes it scores without a release bonus.
             e.hp = Math.max(0, e.hp - BOSS_CONTACT_DAMAGE);
             if (e.hp === 0) {
-                this.score += killScore(e);
+                const points = killScore(e);
+                this.score += points;
+                tallyKill(this.tally, 'boss', points);
                 this.destroy(e);
             }
         } else {
