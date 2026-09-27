@@ -4,6 +4,8 @@ export const KIND_COLORS = {
     shooter: 0xffa726,
     heavy: 0xab47bc,
     rammer: 0xef5350,
+    // A deeper blue than the field and release cyan, so a splitter never reads as the player's own.
+    splitter: 0x42a5f5,
     boss: 0xffd54f
 } as const;
 

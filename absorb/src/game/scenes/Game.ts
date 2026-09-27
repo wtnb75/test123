@@ -8,9 +8,11 @@ import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
-    HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
+    HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
+    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX,
     type EnemyKind
 } from '../logic/constants';
+import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
@@ -45,6 +47,7 @@ const COLORS = {
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
     explosion: 0xffcc80,
+    childOutline: 0xffffff,
     button: 0x4dd0e1
 };
 
@@ -67,12 +70,15 @@ const DEBRIS_COLORS: Record<EnemyKind, number> = {
     grunt: debrisColor('grunt', COLORS.grunt),
     shooter: debrisColor('shooter', COLORS.shooter),
     heavy: debrisColor('heavy', COLORS.heavy),
-    rammer: debrisColor('rammer', COLORS.rammer)
+    rammer: debrisColor('rammer', COLORS.rammer),
+    splitter: debrisColor('splitter', COLORS.splitter)
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
+/** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
+const DIAMOND_WIDTH_RATIO = 0.8;
 const SCORE_POPUP_FONT_SIZE = 32;
 
 /** A counter's bound text, the kill count it shows and where it was last drawn. */
@@ -124,6 +130,7 @@ export class Game extends Scene {
     private readonly absorbFx = new AbsorbEffects();
     private readonly debrisFx = new DebrisEffects();
     private readonly releaseFx = new ReleaseEffects();
+    private readonly splitFx = new SplitEffects();
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     /** Red hit tint and edge band: over the whole play area, under the HUD. */
@@ -183,6 +190,7 @@ export class Game extends Scene {
         this.absorbFx.clear();
         this.debrisFx.clear();
         this.releaseFx.clear();
+        this.splitFx.clear();
         this.multiKillFx.clear();
         this.hitFx.clear();
         // The previous run's texts were destroyed with the scene.
@@ -298,6 +306,7 @@ export class Game extends Scene {
         this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
+        this.splitFx.update(dt, this.world.splits);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
         if (startsShake(this.world.releases)) {
@@ -370,6 +379,7 @@ export class Game extends Scene {
 
         for (const e of w.enemies) this.drawEnemy(e);
         this.drawDebris();
+        this.drawSplitRings();
 
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
@@ -422,6 +432,17 @@ export class Game extends Scene {
             const r = debrisRadius(p);
             g.fillStyle(DEBRIS_COLORS[b.kind], 1);
             for (let i = 0; i < DEBRIS_COUNT; i++) g.fillCircle(debrisPieceX(b, i, p), debrisPieceY(b, i, p), r);
+        }
+    }
+
+    /** Rings where splitters split: over the debris, under the release bullets. */
+    private drawSplitRings() {
+        const g = this.gfx;
+        // Finished rings are dropped in SplitEffects.update, so every ring here is showing.
+        for (const r of this.splitFx.rings) {
+            const p = splitRingProgress(r.age);
+            g.lineStyle(SPLIT_RING_WIDTH, COLORS.splitter, fadeAlpha(p));
+            g.strokeCircle(r.x, r.y, splitRingRadius(p));
         }
     }
 
@@ -599,6 +620,28 @@ export class Game extends Scene {
                 g.fillCircle(e.x, e.y, r);
                 g.lineStyle(3, 0xffffff, 0.6);
                 g.strokeCircle(e.x, e.y, r * 0.6);
+                break;
+            }
+            case 'splitter':
+            case 'splitterChild':
+            {
+                // Parent and children share the same diamond, the children just smaller. The fill stays within the
+                // hit radius; a child's outline is centred on the edge, so half its width pokes out.
+                const w = r * DIAMOND_WIDTH_RATIO;
+                // A child blinks white just before its dash, and keeps a white outline so it stays visible.
+                g.fillStyle(e.kind === 'splitterChild' && childFlashesWhite(e) ? COLORS.warn : COLORS.splitter, 1);
+                g.fillTriangle(e.x, e.y - r, e.x + w, e.y, e.x - w, e.y);
+                g.fillTriangle(e.x, e.y + r, e.x + w, e.y, e.x - w, e.y);
+                if (e.kind === 'splitterChild') {
+                    g.lineStyle(SPLITTER_CHILD_OUTLINE_WIDTH, COLORS.childOutline, SPLITTER_CHILD_OUTLINE_ALPHA);
+                    g.beginPath();
+                    g.moveTo(e.x, e.y - r);
+                    g.lineTo(e.x + w, e.y);
+                    g.lineTo(e.x, e.y + r);
+                    g.lineTo(e.x - w, e.y);
+                    g.closePath();
+                    g.strokePath();
+                }
                 break;
             }
             case 'boss':

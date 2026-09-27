@@ -24,10 +24,10 @@ describe('getStage', () => {
     });
 
     it('uses the spec weights for each stage', () => {
-        expect(getStage(0).weights).toEqual({ grunt: 100, shooter: 0, heavy: 0 });
-        expect(getStage(30).weights).toEqual({ grunt: 60, shooter: 25, heavy: 15 });
-        expect(getStage(60).weights).toEqual({ grunt: 40, shooter: 30, heavy: 30 });
-        expect(getStage(120).weights).toEqual({ grunt: 30, shooter: 30, heavy: 40 });
+        expect(getStage(0).weights).toEqual({ grunt: 100, shooter: 0, heavy: 0, splitter: 0 });
+        expect(getStage(30).weights).toEqual({ grunt: 50, shooter: 25, heavy: 15, splitter: 10 });
+        expect(getStage(60).weights).toEqual({ grunt: 30, shooter: 30, heavy: 25, splitter: 15 });
+        expect(getStage(120).weights).toEqual({ grunt: 20, shooter: 30, heavy: 35, splitter: 15 });
     });
 });
 
@@ -36,25 +36,36 @@ describe('pickEnemyKind', () => {
         for (const r of [0, 0.5, 0.9999]) expect(pickEnemyKind(10, () => r)).toBe('grunt');
     });
 
-    it('splits 30–60 s at 60 / 25 / 15', () => {
-        expect(pickEnemyKind(30, () => 0.5999)).toBe('grunt');
-        expect(pickEnemyKind(30, () => 0.6)).toBe('shooter');
-        expect(pickEnemyKind(30, () => 0.8499)).toBe('shooter');
-        expect(pickEnemyKind(30, () => 0.85)).toBe('heavy');
+    it('splits 30–60 s at 50 / 25 / 15 / 10', () => {
+        expect(pickEnemyKind(30, () => 0.4999)).toBe('grunt');
+        expect(pickEnemyKind(30, () => 0.5)).toBe('shooter');
+        expect(pickEnemyKind(30, () => 0.7499)).toBe('shooter');
+        expect(pickEnemyKind(30, () => 0.75)).toBe('heavy');
+        expect(pickEnemyKind(30, () => 0.8999)).toBe('heavy');
+        expect(pickEnemyKind(30, () => 0.9)).toBe('splitter');
+        expect(pickEnemyKind(30, () => 0.9999)).toBe('splitter');
     });
 
-    it('splits 60–120 s at 40 / 30 / 30', () => {
-        expect(pickEnemyKind(60, () => 0.3999)).toBe('grunt');
-        expect(pickEnemyKind(60, () => 0.4)).toBe('shooter');
-        expect(pickEnemyKind(60, () => 0.6999)).toBe('shooter');
-        expect(pickEnemyKind(60, () => 0.7)).toBe('heavy');
+    it('splits 60–120 s at 30 / 30 / 25 / 15', () => {
+        expect(pickEnemyKind(60, () => 0.2999)).toBe('grunt');
+        expect(pickEnemyKind(60, () => 0.3)).toBe('shooter');
+        expect(pickEnemyKind(60, () => 0.5999)).toBe('shooter');
+        expect(pickEnemyKind(60, () => 0.6)).toBe('heavy');
+        expect(pickEnemyKind(60, () => 0.8499)).toBe('heavy');
+        expect(pickEnemyKind(60, () => 0.85)).toBe('splitter');
     });
 
-    it('splits 120 s and later at 30 / 30 / 40', () => {
-        expect(pickEnemyKind(200, () => 0.2999)).toBe('grunt');
-        expect(pickEnemyKind(200, () => 0.3)).toBe('shooter');
-        expect(pickEnemyKind(200, () => 0.5999)).toBe('shooter');
-        expect(pickEnemyKind(200, () => 0.6)).toBe('heavy');
+    it('splits 120 s and later at 20 / 30 / 35 / 15', () => {
+        expect(pickEnemyKind(200, () => 0.1999)).toBe('grunt');
+        expect(pickEnemyKind(200, () => 0.2)).toBe('shooter');
+        expect(pickEnemyKind(200, () => 0.4999)).toBe('shooter');
+        expect(pickEnemyKind(200, () => 0.5)).toBe('heavy');
+        expect(pickEnemyKind(200, () => 0.8499)).toBe('heavy');
+        expect(pickEnemyKind(200, () => 0.85)).toBe('splitter');
+    });
+
+    it('never picks a splitter in the first 30 seconds, even at the top of the roll', () => {
+        expect(pickEnemyKind(29.999, () => 0.9999)).toBe('grunt');
     });
 
     it('falls back to a grunt if the rng returns exactly 1', () => {
@@ -64,11 +75,12 @@ describe('pickEnemyKind', () => {
     it('matches the stage weights over many seeded draws', () => {
         let seed = 12345;
         const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-        const counts = { grunt: 0, shooter: 0, heavy: 0 };
+        const counts = { grunt: 0, shooter: 0, heavy: 0, splitter: 0 };
         const n = 20000;
         for (let i = 0; i < n; i++) counts[pickEnemyKind(60, rng)]++;
-        expect(counts.grunt / n).toBeCloseTo(0.4, 1);
+        expect(counts.grunt / n).toBeCloseTo(0.3, 1);
         expect(counts.shooter / n).toBeCloseTo(0.3, 1);
-        expect(counts.heavy / n).toBeCloseTo(0.3, 1);
+        expect(counts.heavy / n).toBeCloseTo(0.25, 1);
+        expect(counts.splitter / n).toBeCloseTo(0.15, 1);
     });
 });
