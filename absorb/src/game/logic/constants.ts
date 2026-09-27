@@ -19,6 +19,22 @@ export const PLAYER_MIN_Y = HUD_HEIGHT + PLAYER_RADIUS;
 
 export const FIELD_RADIUS = 90;
 export const STOCK_MAX = 50;
+/** Resting outline of the field. */
+export const FIELD_EDGE_WIDTH = 2;
+export const FIELD_EDGE_ALPHA = 0.7;
+/** An absorbed bullet is drawn being pulled into the player over this many seconds. */
+export const ABSORB_SUCK_DURATION = 0.25;
+export const ABSORB_TRAIL_COUNT = 3;
+/** Each afterimage shows the pulled bullet this many seconds earlier than the one before. */
+export const ABSORB_TRAIL_INTERVAL = 0.03;
+/** Afterimage k is drawn at opacity 1 - k * ABSORB_TRAIL_ALPHA_STEP. */
+export const ABSORB_TRAIL_ALPHA_STEP = 0.25;
+export const ABSORB_PULSE_DURATION = 0.15;
+/** Field outline width at the start of a pulse, easing back to FIELD_EDGE_WIDTH. */
+export const ABSORB_PULSE_WIDTH = 5;
+export const ABSORB_RING_DURATION = 0.25;
+export const ABSORB_RING_MAX_RADIUS = 120;
+export const ABSORB_RING_WIDTH = 3;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

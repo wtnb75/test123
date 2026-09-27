@@ -1,7 +1,12 @@
 import { GameObjects, Input, Scene } from 'phaser';
+import {
+    AbsorbEffects, absorbRingProgress, absorbRingRadius, edgeAlpha, edgeWidth, lerpColor, suckCoord, suckProgress,
+    suckRadius, trailAlpha, trailProgress, type Suck
+} from '../logic/absorbFx';
 import { bossScore } from '../logic/boss';
 import {
-    BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE, ENDING_DURATION,
+    ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
+    ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
 } from '../logic/constants';
 import {
@@ -69,6 +74,7 @@ export class Game extends Scene {
     /** The boss and its HP as of the previous frame, to spot hits and the kill. */
     private lastBoss: Enemy | null = null;
     private lastBossHp = 0;
+    private readonly absorbFx = new AbsorbEffects();
     /** Seconds since the last boss hit / kill; Infinity when nothing is playing. */
     private hitFlashAge = Infinity;
     private defeatAge = Infinity;
@@ -108,6 +114,7 @@ export class Game extends Scene {
         this.lastBossHp = 0;
         this.hitFlashAge = this.defeatAge = Infinity;
         this.defeatX = this.defeatY = 0;
+        this.absorbFx.clear();
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
@@ -211,6 +218,7 @@ export class Game extends Scene {
         this.input_.dragX = 0;
         this.input_.dragY = 0;
         this.trackBoss(dt);
+        this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
         this.draw();
         this.drawBossEffects();
         this.drawHud();
@@ -294,14 +302,37 @@ export class Game extends Scene {
             // The field glows brighter as the stock fills up.
             g.fillStyle(COLORS.field, 0.06 + 0.2 * (w.stock / STOCK_MAX));
             g.fillCircle(p.x, p.y, FIELD_RADIUS);
-            g.lineStyle(2, COLORS.field, 0.7);
+            const fx = this.absorbFx;
+            g.lineStyle(edgeWidth(fx.pulseAge), COLORS.field, edgeAlpha(fx.pulseAge));
             g.strokeCircle(p.x, p.y, FIELD_RADIUS);
+            const ring = absorbRingProgress(fx.ringAge);
+            if (ring >= 0) {
+                g.lineStyle(ABSORB_RING_WIDTH, COLORS.field, fadeAlpha(ring));
+                g.strokeCircle(p.x, p.y, absorbRingRadius(ring));
+            }
+            this.drawSucks();
         }
         const blinkOff = p.invulnerable > 0 && Math.floor(p.invulnerable * 10) % 2 === 0;
         if (!blinkOff) {
             g.fillStyle(COLORS.player, 1);
             g.fillCircle(p.x, p.y, PLAYER_RADIUS);
         }
+    }
+
+    /** Absorbed bullets being pulled into the player: every afterimage first, then the bullets in front. */
+    private drawSucks() {
+        const sucks = this.absorbFx.sucks;
+        for (let k = ABSORB_TRAIL_COUNT; k >= 1; k--) {
+            for (const s of sucks) this.drawSuckAt(s, trailProgress(s.age, k), trailAlpha(k));
+        }
+        for (const s of sucks) this.drawSuckAt(s, suckProgress(s.age), 1);
+    }
+
+    private drawSuckAt(s: Suck, progress: number, alpha: number) {
+        if (progress < 0) return;
+        const p = this.world.player;
+        this.gfx.fillStyle(lerpColor(COLORS.enemyBullet, COLORS.field, progress), alpha);
+        this.gfx.fillCircle(suckCoord(s.x, p.x, progress), suckCoord(s.y, p.y, progress), suckRadius(progress));
     }
 
     private drawEnemy(e: Enemy) {

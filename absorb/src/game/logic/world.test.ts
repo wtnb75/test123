@@ -240,6 +240,86 @@ describe('absorbing', () => {
     });
 });
 
+describe('absorbed positions for the absorb effect', () => {
+    function bullet(w: World, dx: number, vx = 0): void {
+        w.enemyBullets.push({ x: w.player.x + dx, y: w.player.y, vx, vy: 0, removed: false });
+    }
+
+    it('lists each absorbed bullet at its position after this frame\'s move', () => {
+        const w = playingWorld();
+        bullet(w, 30, 60); // moves 1 px this frame
+        bullet(w, -40);
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(2);
+        expect(w.absorbed[0].x).toBeCloseTo(w.player.x + 31);
+        expect(w.absorbed[0].y).toBe(w.player.y);
+        expect(w.absorbed[1]).toEqual({ x: w.player.x - 40, y: w.player.y });
+    });
+
+    it('does not list bullets left outside the field', () => {
+        const w = playingWorld();
+        bullet(w, 90.01);
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(0);
+    });
+
+    it('forgets the previous frame\'s bullets on the next step', () => {
+        const w = playingWorld();
+        bullet(w, 10);
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(1);
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(0);
+    });
+
+    it('lists nothing for the +10 consolation stock from a ram', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.stock).toBe(10);
+        expect(w.absorbed).toHaveLength(0);
+    });
+
+    it('lists every bullet absorbed in a frame that auto-releases', () => {
+        const w = playingWorld();
+        w.stock = 49;
+        bullet(w, 0);
+        bullet(w, 10);
+        bullet(w, 20);
+        w.step(DT, NONE);
+        expect(w.stock).toBe(2);
+        expect(w.absorbed).toHaveLength(3);
+    });
+
+    it('stays empty during ready, since nothing is absorbed then', () => {
+        const w = new World(S, () => 0.5);
+        w.enemyBullets.push({ x: w.player.x, y: w.player.y, vx: 0, vy: 0, removed: false });
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(0);
+    });
+
+    it('stays empty during ending, since nothing is absorbed then', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        bullet(w, 10);
+        w.step(DT, NONE);
+        expect(w.absorbed).toHaveLength(0);
+    });
+
+    it('still lists a bullet absorbed in the frame a ram ends the run', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        bullet(w, 10);
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        expect(w.absorbed).toHaveLength(1);
+    });
+});
+
 describe('releasing', () => {
     it('does nothing with an empty stock', () => {
         const w = playingWorld();
