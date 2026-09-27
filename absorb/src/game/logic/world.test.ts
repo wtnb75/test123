@@ -3,6 +3,7 @@ import { RELEASE_SPEED, STOCK_MAX } from './constants';
 import { createEnemy, type Enemy } from './enemy';
 import type { ScreenSize } from './screen';
 import { shortfall, World, type Input, type ReleaseGroup } from './world';
+import { emptyBreakdown, multiKillBonus } from './breakdown';
 
 const S: ScreenSize = { width: 1024, height: 768 };
 const DT = 1 / 60;
@@ -758,6 +759,61 @@ describe('hits for the hit effect', () => {
     });
 });
 
+describe('score breakdown for the game-over screen', () => {
+    function releaseAt(w: World, n: number): void {
+        w.stock = n;
+        w.step(DT, input({ release: true }));
+    }
+
+    it('counts release kills per kind at base points; the multiplier is the bonus (2 grunts: 200 + 100 = 300)', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        still(w, 'grunt', w.player.x + 5, w.player.y - 60, 1);
+        releaseAt(w, 2);
+        untilBulletsGone(w);
+        expect(w.breakdown.grunt).toEqual({ count: 2, points: 200 });
+        expect(w.score).toBe(300);
+        expect(multiKillBonus(w.score, w.breakdown)).toBe(100);
+    });
+
+    it('does not count a regular enemy broken by ramming the player', () => {
+        const w = playingWorld();
+        still(w, 'shooter', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.player.lives).toBe(2);
+        expect(w.breakdown).toEqual(emptyBreakdown());
+    });
+
+    it('counts kills in releases still open when the run ends, so rows + bonus equal the final score', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        still(w, 'grunt', w.player.x + 5, w.player.y - 60, 1);
+        releaseAt(w, 3);
+        // Let the first two bullets finish both grunts; the third flies on.
+        for (let i = 0; i < 30 && w.breakdown.grunt.count < 2; i++) w.step(DT, NONE);
+        expect(w.breakdown.grunt.count).toBe(2);
+        // Then a ram ends the run while that third bullet is still in the air.
+        still(w, 'shooter', w.player.x, w.player.y, 8);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        let bulletsBeforeOver = 0;
+        let scoreBeforeOver = -1;
+        for (let i = 0; i < 200 && w.phase !== 'over'; i++) {
+            bulletsBeforeOver = w.releaseBullets.length;
+            scoreBeforeOver = w.score;
+            w.step(DT, NONE);
+        }
+        expect(w.phase).toBe('over');
+        // The release was still open until the end-of-ending flush added its 300 points.
+        expect(bulletsBeforeOver).toBe(1);
+        expect(scoreBeforeOver).toBe(0);
+        expect(w.breakdown.grunt).toEqual({ count: 2, points: 200 });
+        expect(w.score).toBe(300);
+        expect(multiKillBonus(w.score, w.breakdown)).toBe(100);
+    });
+});
+
 describe('releasing', () => {
     it('does nothing with an empty stock', () => {
         const w = playingWorld();
@@ -1414,6 +1470,45 @@ describe('boss', () => {
                 if (w2.settlements.length > 0) settlement = w2.settlements[0];
             }
             expect(settlement).toMatchObject({ kills: 2, lastIsBoss: false });
+        });
+
+        it('count a boss killed by release bullets at its full score in the breakdown', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 300);
+            boss.hp = 1;
+            w.stock = 1;
+            w.release();
+            untilBulletsGone(w);
+            expect(w.breakdown.boss).toEqual({ count: 1, points: 7500 });
+            expect(multiKillBonus(w.score, w.breakdown)).toBe(0);
+        });
+
+        it('count a boss finished by ramming, with no bonus', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            boss.hp = 10; // one ram's worth
+            w.step(DT, NONE);
+            expect(w.boss).toBeNull();
+            expect(w.breakdown.boss).toEqual({ count: 1, points: 7500 });
+            expect(w.score).toBe(7500);
+            expect(multiKillBonus(w.score, w.breakdown)).toBe(0);
+        });
+
+        it('sum each boss at its own score: the second boss is worth more than the first', () => {
+            const w = playingWorld();
+            const first = hold(spawnBoss(w), 512, 300);
+            first.hp = 1;
+            w.stock = 1;
+            w.release();
+            untilBulletsGone(w);
+            const second = hold(spawnBoss(w), 512, 300);
+            expect(second.maxHp).toBeGreaterThan(first.maxHp);
+            second.hp = 1;
+            w.stock = 1;
+            w.release();
+            untilBulletsGone(w);
+            expect(w.breakdown.boss).toEqual({ count: 2, points: 18750 }); // (60 + 90) × 125
+            expect(w.breakdown.boss.points).toBe(w.score);
         });
 
         it('record a hit when the boss rams the player, like any other enemy', () => {
