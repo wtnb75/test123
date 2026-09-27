@@ -9,8 +9,9 @@ One command to keep going. Figures out which game is in progress and which
 of the `game-idea` → `game-init` → `game-spec` → `game-impl` → `game-test` →
 `game-check` → `game-codereview` → `game-qa` → `game-polish` →
 `game-balance` → `game-publish` stages is next,
-then hands off to that skill. Once a game is published and nothing is
-pending, it offers `game-extend` to start the next cycle. This skill never
+then hands off to that skill — and keeps handing off stage after stage
+until a stage needs the user (see "Continuous mode"). Once a game is
+published and nothing is pending, it offers `game-extend` to start the next cycle. This skill never
 edits files itself — it only detects state and dispatches.
 
 ## Inputs
@@ -66,12 +67,44 @@ edits files itself — it only detects state and dispatches.
 
 5. Announce which game/stage/skill you're dispatching to in one line, then
    invoke that skill immediately via the Skill tool, passing
-   `PACKAGE=<game-dir>` — no confirmation prompt here. This one command
-   advances exactly one stage; run it again (or let the invoked skill's own
-   completion message point back to it) to keep going. The invoked skill
+   `PACKAGE=<game-dir>` — no confirmation prompt here. The invoked skill
    still applies its own judgment about when to pause for user input (e.g.
-   `game-spec` getting content approved, `game-publish` confirming a
-   user-visible change) — this skill isn't a license to skip those.
+   `game-spec` getting content approved, `game-codereview` triage,
+   `game-publish` confirming a user-visible change) — this skill isn't a
+   license to skip those.
+6. Keep going (see "Continuous mode" below): the invoked skill's
+   completion step re-invokes this skill with the same `PACKAGE`, which
+   picks up at step 2 and dispatches the next stage. Only that re-entry
+   dispatches — don't also loop back here yourself, or a stage runs twice.
+   If a skill finished its stage without re-invoking this one, re-invoke
+   it yourself once.
+
+## Continuous mode
+
+A stage that needs nothing from the user (e.g. `impl` → `test` → `check`)
+shouldn't make the user type `game-next` again. Every stage skill's
+completion step hands back here instead of just telling the user the next
+step, and this skill keeps dispatching until something genuinely needs a
+human. The approval points stay inside the stage skills; this loop only
+removes the pauses *between* stages.
+
+Stop, and tell the user where things stand, when:
+
+- **The stage skill is waiting for the user** — it asked a question or
+  needs approval (spec draft, codereview triage, polish/balance choices,
+  publish confirmation, a spec gap from `game-impl`, an optional feel
+  check the user wants to do). End the turn there. Once the user answers,
+  that skill finishes its stage and its completion step re-enters this
+  skill, so the chain resumes on its own.
+- **The stage didn't reach `done`** — a gate that still fails, a QA
+  failure routed back to `game-impl`, a coverage shortfall with a written
+  plan. `task game:next` returning the same stage that was just dispatched,
+  with its status not `done`, means this; don't dispatch it again in a
+  loop — report what's blocking it.
+- **`task game:next` returns `complete`** — go to the section below.
+
+Announce each stage transition in one line (`<game-dir>: impl done → test`)
+so the user can follow the progress.
 
 ## `complete`
 

@@ -133,4 +133,6 @@ and the logic-heavy-module checks above. Fix blockers before completion.
    the oracle was, which mutants were caught, and which survived and why.
 3. `game-review STAGE=test` has no remaining blockers.
 4. `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`
-5. Tell the user the next step is `game-check`.
+5. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-check` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").

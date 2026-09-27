@@ -110,4 +110,6 @@ its `STAGE=polish` checklist — before marking this stage done.
    polished version.
 2. The user confirmed the look and flow.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done`
-4. Tell the user the next step is `game-balance`.
+4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-balance` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").

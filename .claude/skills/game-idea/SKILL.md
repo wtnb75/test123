@@ -26,11 +26,15 @@ status to update.
 4. Before summarizing, run `game-review STAGE=idea` (a self-review
    against its checklist) and fix anything that fails, silently, rather
    than handing the gaps to the user.
-5. Summarize the agreed concept in a few sentences and get explicit
+5. Summarize the agreed concept in a few sentences — including the
+   `<game-dir>` name, since approving the summary approves it — and get explicit
    confirmation from the user before proceeding.
 
 ## Handoff
 
-Once the user approves the concept, tell them the next step is
-`game-init` (directory scaffolding via `task newgame`), and offer to run it.
-Do not run `task newgame` from this skill — that is `game-init`'s job.
+Once the user approves the concept (including the `<game-dir>` name in
+the summary), invoke `game-init` with `PACKAGE=<game-dir>` right away —
+the approval covers it, so don't ask a second time. `game-init` then
+hands off to `game-next`, which keeps the chain going (see its
+"Continuous mode"). Do not run `task newgame` from this skill — that is
+`game-init`'s job.

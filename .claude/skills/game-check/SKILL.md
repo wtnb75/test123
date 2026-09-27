@@ -61,4 +61,6 @@ fails rather than just noting it.
 1. All five steps done — scaffold cleanup applied, and the four commands
    pass.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`
-3. Tell the user the next step is `game-codereview`.
+3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-codereview` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").

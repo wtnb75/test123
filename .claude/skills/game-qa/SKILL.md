@@ -64,4 +64,6 @@ fails rather than just noting it.
 
 1. Screenshots confirm the game renders and behaves as the spec describes.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=done`
-3. Tell the user the next step is `game-polish`.
+3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-polish` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").
