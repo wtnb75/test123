@@ -65,6 +65,10 @@ treat them as limits on the delta.
   shutdown.
 - Assume static-site distribution only — no Node-server-only APIs, and
   asset paths must survive `vite build`.
+- Prefer what Phaser (or another library already in use) provides over
+  hand-rolling the same behavior — camera shake, tweens, timers, text
+  metrics. Keep only the game's own decisions (when, how much) in pure,
+  tested logic.
 
 ### Known Phaser gotcha: Container custom hit-area coordinates
 

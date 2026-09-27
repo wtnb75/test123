@@ -79,9 +79,16 @@ so they aren't raised again.
 Before showing anything, check each finding yourself. The reviewer can be
 wrong: read the code path, and where cheap, reproduce the problem with a
 failing test. Give each finding a recommendation: **accept** (real and
-worth fixing now), **reject** (wrong, or not worth it here — say why), or
+worth fixing now), **reject** (wrong, or not worth it here — say why),
 **spec** (fixing it changes player-visible behavior the spec defines or
-leaves open).
+leaves open), or **spec (clarify)** (the code is already right; only the
+spec's wording is missing or inaccurate about it).
+
+When a finding says a library already provides what the code hand-rolls
+(e.g. Phaser `camera.shake`, tweens), lean towards **accept**: keep only
+the decision logic ("when to shake") pure and tested, and let the library
+do the rest. That the hand-rolled version is easier to unit-test is not by
+itself a reason to reject.
 
 Then show the user one numbered table (番号 / 場所 / 指摘 / 推奨 / 理由) and
 ask **once** which ones to accept — "推奨どおり" is a valid answer. Don't
@@ -96,6 +103,9 @@ ask per finding.
   revision (it resets downstream stages, so `game-impl` onward runs again
   and this stage comes back later). Findings that don't depend on the spec
   change can still be fixed in this round first.
+- **spec (clarify)** → hand it to `game-spec` as a clarification-only
+  revision (see its "Clarification-only revisions"): it only resets the
+  stages after this one, so this loop carries on where it was.
 - **reject** → remember the reason; report it at completion.
 
 After the last fix of the round, run the `game-check` gate (lint, test,

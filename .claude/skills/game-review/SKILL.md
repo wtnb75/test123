@@ -114,9 +114,12 @@ Before summarizing the agreed extension to the user:
 - Does it fit one PR? If code structure has to change, was the user told?
 - Is the spec location decided by the `game-spec` "Spec layout" rule
   (a new `docs/spec/<slug>.md` vs. editing `docs/spec.md`)? If
-  `docs/spec.md` is over 600 lines, was the separate split cycle offered?
+  `docs/spec.md` is over 400 lines, was the separate split cycle offered?
 - Is there a branch slug that doesn't collide with an existing
   `feat/<game-dir>-<slug>` branch?
+- Is it classified presentation-only or gameplay?
+- Were candidates offered from `docs/backlog.md` (if it exists), and are the
+  ones left for later listed in the summary for `game-spec` to record?
 
 ## STAGE=init (self)
 
@@ -171,6 +174,10 @@ approves a spec that has already been through review.
     unavailable;
   - presentation: drawing policy (Phaser Graphics vs. image assets), text
     language, rough layout of each Scene's regions.
+- **Effects** (演出・UI sections): every item of `game-spec`'s 演出・UI
+  checklist is settled — trigger and same-frame cases, time rule, phase
+  changes and restart, draw order, interplay with other effects, screen
+  bounds, parameters and boundary test points.
 - **State transitions**: every Scene's internal phases are named, and each
   transition's trigger is explicit (player action vs. timer vs. game-logic
   condition). No "and then it moves on".
@@ -329,6 +336,9 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - Are `<title>` and `favicon.png` this game's own?
 - Did QA pass again on the polished version, and did the user confirm the
   look with before/after screenshots?
+- Presentation-only revision settled in one confirmation: did that
+  question cover the look, the unchanged feel and the PR, and did the user
+  answer all three?
 
 ## STAGE=balance (self) — consumer: game-spec (revision) / game-publish
 
@@ -338,7 +348,9 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
   new number, and is the パラメータ表 updated?
 - After an extension: was the existing difficulty curve and pacing judged
   with the new element in play, not only the new element on its own?
-- Did the user explicitly say the current feel is good enough to ship?
+- Did the user explicitly say the current feel is good enough to ship
+  (for a presentation-only revision, in `game-polish`'s combined
+  confirmation)?
 
 ## STAGE=publish (self) — consumer: the PR reviewer
 

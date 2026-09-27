@@ -192,7 +192,7 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | 見た目・UI調整 | `game-polish` | エフェクト、入力へのフィードバック、動線・操作の分かりやすさを改善する。spec→impl→test→check→codereview→qa をループする（ゲームバランスに関わる数値は扱わない） |
 | バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→codereview→qa→polish をループする |
 | 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
-| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
+| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` からも出し、見送った候補は `game-spec` が同じファイルに記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
 
 - 迷ったら `game-next` を実行するだけでよい。現在どのゲームのどの段階が未完了
   かを自動判定し（`task game:detect` / `task game:next`）、該当スキルへ自動で
@@ -205,6 +205,12 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 - 複数ゲームを並行して進めている場合、`game-next` はカレントブランチ名
   （`feat/<game-dir>` など。2.2節）を最優先の手がかりに対象ゲームを判定する
 - 全ゲームの進捗一覧は `task game:dashboard` で確認できる
+- 見た目だけの拡張（演出・UI・結果画面。ルールやゲーム性の数値を変えない）
+  では、QA 後の polish・balance・PR 作成の確認を 1 回の質問にまとめてよい
+  （`game-polish`「Presentation-only revisions」）
+- 既存の挙動を文章にするだけの spec 改訂（codereview の「spec (clarify)」
+  など、コードの変更が要らないもの）は、QA 以降の段階だけを戻す
+  （`game-spec`「Clarification-only revisions」）
 - 後から追加された段階（`codereview` / `polish`）のキーを持たない既存ゲームは、
   その段階をスキップ扱いにする。次に `game-spec` で改訂したときにキーが
   追加され、以降はその段階も通る

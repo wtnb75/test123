@@ -93,7 +93,9 @@ Stop, and tell the user where things stand, when:
 - **The stage skill is waiting for the user** — it asked a question or
   needs approval (spec draft, codereview triage, polish/balance choices,
   publish confirmation, a spec gap from `game-impl`, an optional feel
-  check the user wants to do). End the turn there. Once the user answers,
+  check the user wants to do). For a presentation-only revision, the
+  polish, balance and publish questions come as one combined question in
+  `game-polish`. End the turn there. Once the user answers,
   that skill finishes its stage and its completion step re-enters this
   skill, so the chain resumes on its own.
 - **The stage didn't reach `done`** — a gate that still fails, a QA
