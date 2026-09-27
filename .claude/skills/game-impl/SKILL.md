@@ -123,7 +123,11 @@ settles risks wasting that work on a mechanic that's still moving.
 1. `npm run build` succeeds (static output).
 2. `game-review STAGE=impl` has no remaining blockers.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=done`
-4. Tell the user the next step is `game-test`.
+4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-test` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode"). If you offered a manual feel
+   check (above), wait for the user's answer first — continue once they
+   decline it or the check settles.
 
 Don't run lint/full test/coverage here — that's `game-check`'s job. This
 skill's job is working code against the spec, not the quality gate.

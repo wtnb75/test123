@@ -120,4 +120,6 @@ against its `STAGE=codereview` checklist — before marking this stage done.
 2. Report in one short block: rounds run, fixes made (with their regression
    tests), findings rejected and why, anything sent to `game-spec`.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=done`
-4. Tell the user the next step is `game-qa`.
+4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-qa` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").

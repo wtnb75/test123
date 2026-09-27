@@ -15,8 +15,11 @@ never call `pnpm create @phaserjs/game@latest` directly.
 
 ## Steps
 
-1. Confirm with the user this is the directory name they want (it becomes
-   the public URL path). Renaming later is possible but costs a rerun.
+1. Make sure the directory name is one the user agreed to (it becomes the
+   public URL path; renaming later is possible but costs a rerun). If the
+   user already approved this exact name — in the `game-idea` summary or
+   by passing `PACKAGE=` themselves — don't ask again. Confirm only when
+   the name is new to them (e.g. you had to pick or adjust it here).
 2. Create and check out a dedicated branch for this game before touching
    any files: `feat/<game-dir>`, branched from the current `main`. This is
    what lets `game-publish` later open a PR scoped to exactly this game,
@@ -81,5 +84,7 @@ fails rather than just noting it.
 
 ## Handoff
 
-Tell the user the directory is ready and the next step is `game-spec`
-(or just `game-next`, which will now find it on its own).
+Tell the user in one line that the directory is ready, then continue
+without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+dispatches `game-spec`, which drafts the spec and stops for the user's
+approval (see `game-next` "Continuous mode").

@@ -241,4 +241,7 @@ Also check the process yourself, for a revision:
    not a formality.
 2. Once approved and the file is written:
    `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`
-3. Tell the user the next step is `game-impl`.
+3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-impl` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode"). Not for a verbatim split
+   ("Splitting an existing spec") — that cycle ends at its docs-only PR.

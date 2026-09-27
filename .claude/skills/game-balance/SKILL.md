@@ -62,4 +62,6 @@ Once the user confirms the current feel is good and QA has passed again on
 the tuned version:
 
 1. `task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=done`
-2. Tell the user the next step is `game-publish`.
+2. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+   dispatches `game-publish` and keeps going until a stage needs the user
+   (see `game-next` "Continuous mode").

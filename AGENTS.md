@@ -198,6 +198,10 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
   かを自動判定し（`task game:detect` / `task game:next`）、該当スキルへ自動で
   進む。全段階が完了した（公開済みの）ゲームでは、`game-extend`（拡張）か
   `game-balance`（再調整）を案内する
+- 段階の間では止まらない。各スキルは完了時に `game-next` へ戻り、ユーザーの
+  承認・判断が要る箇所（spec の承認、codereview の採否、polish/balance の
+  選択、publish の確認など）か、段階が失敗して `done` にならなかったときだけ
+  止まる。承認に答えれば続きから自動で再開する
 - 複数ゲームを並行して進めている場合、`game-next` はカレントブランチ名
   （`feat/<game-dir>` など。2.2節）を最優先の手がかりに対象ゲームを判定する
 - 全ゲームの進捗一覧は `task game:dashboard` で確認できる
