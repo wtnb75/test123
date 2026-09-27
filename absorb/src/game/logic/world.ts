@@ -9,7 +9,8 @@ import {
 import { getStage, pickEnemyKind } from './difficulty';
 import { assignHeavySlots, createEnemy, updateEnemy, type Enemy, type EnemyContext } from './enemy';
 import {
-    angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Rng
+    angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
+    type Rng
 } from './geometry';
 import { volleyAngles } from './patterns';
 import type { ScreenSize } from './screen';
@@ -109,11 +110,20 @@ export class World {
     nextBossAt = BOSS_FIRST_AT;
     /** Seconds left on the "BOSS" announcement. */
     bossAnnounce = 0;
+    /**
+     * Where the field swallowed enemy bullets during the latest step, one entry per bullet (for the
+     * absorb effect). Consolation stock from being rammed adds nothing here.
+     */
+    private readonly absorbedPoints: Point[] = [];
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
         this.player = { x: screen.width / 2, y: screen.height * PLAYER_START_Y_RATIO, lives: PLAYER_LIVES, invulnerable: 0 };
         this.ctx = { player: this.player, elapsed: 0, rng, screen };
+    }
+
+    get absorbed(): readonly Point[] {
+        return this.absorbedPoints;
     }
 
     private isTargetable(e: Enemy): boolean {
@@ -122,6 +132,7 @@ export class World {
 
     step(dt: number, input: Input): void {
         this.phaseTime += dt;
+        this.absorbedPoints.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -301,6 +312,7 @@ export class World {
             b.y += b.vy * dt;
             if (canAbsorb && distanceSq(b.x, b.y, p.x, p.y) <= FIELD_RADIUS_SQ) {
                 b.removed = true;
+                this.absorbedPoints.push({ x: b.x, y: b.y });
                 this.absorb();
             } else if (isFullyOffScreen(b, ENEMY_BULLET_RADIUS, this.screen)) {
                 b.removed = true;
