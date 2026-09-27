@@ -12,7 +12,7 @@ import {
     SIDE_STATION_MAX_RATIO, SIDE_STATION_MIN_RATIO, SIDE_Y_MAX_RATIO, SIDE_Y_MIN_RATIO,
     SWAY_RANGE, SWAY_SPEED,
     BOSS_FIRE_INTERVAL,
-    type ActorKind, type EnemyKind, type SpawnEdge
+    type ActorKind, type EnemyKind, type EnemySpec, type SpawnEdge
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
 import { aimAt } from './patterns';
@@ -145,11 +145,18 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: Scree
     return e;
 }
 
+/** HP, score, radius and fire interval of every actor but the boss (whose stats depend on its number). */
+export function specOf(kind: Exclude<ActorKind, 'boss'>): EnemySpec {
+    return kind === 'splitterChild' ? SPLITTER_CHILD_SPEC : ENEMY_SPECS[kind];
+}
+
 /** Seconds between an actor's volleys; 0 means it never fires. */
 export function fireIntervalOf(kind: ActorKind): number {
-    if (kind === 'boss') return BOSS_FIRE_INTERVAL;
-    return kind === 'splitterChild' ? SPLITTER_CHILD_SPEC.fireInterval : ENEMY_SPECS[kind].fireInterval;
+    return kind === 'boss' ? BOSS_FIRE_INTERVAL : specOf(kind).fireInterval;
 }
+
+/** Slack for timers summed from frame deltas: 24 frames of 1/60 s add up to just under 0.4 s. */
+const TIMER_EPSILON = 1e-6;
 
 export function setState(e: Enemy, state: EnemyState): void {
     e.state = state;
@@ -382,7 +389,7 @@ function updateSplitterChild(e: Enemy, dt: number, ctx: EnemyContext): void {
         e.x += Math.cos(e.heading) * SPLITTER_SCATTER_SPEED * dt;
         e.y += Math.sin(e.heading) * SPLITTER_SCATTER_SPEED * dt;
         clampInside(e, ctx.screen);
-        if (e.stateTime >= SPLITTER_SCATTER_DURATION) {
+        if (e.stateTime >= SPLITTER_SCATTER_DURATION - TIMER_EPSILON) {
             e.heading = aimAt(e, ctx.player);
             setState(e, 'dash');
         }

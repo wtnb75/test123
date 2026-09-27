@@ -1,15 +1,15 @@
 import { bossScore, bossVolley, createBoss, updateBoss } from './boss';
 import {
     BOSS_ANNOUNCE_DURATION, BOSS_CONTACT_DAMAGE, BOSS_FIRST_AT, BOSS_RESPAWN_DELAY,
-    ENDING_DURATION, ENEMY_BULLET_RADIUS, ENEMY_SPECS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
+    ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
-    RELEASE_SPREAD, RELEASE_TURN_RATE, SPLITTER_CHILD_SPEC, STOCK_MAX, type ActorKind, type EnemyKind
+    RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type ActorKind, type EnemyKind
 } from './constants';
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
 import {
-    assignHeavySlots, createEnemy, createSplitterChildren, updateEnemy, type Enemy, type EnemyContext
+    assignHeavySlots, createEnemy, createSplitterChildren, specOf, updateEnemy, type Enemy, type EnemyContext
 } from './enemy';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
@@ -107,8 +107,7 @@ const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
 
 function killScore(e: Enemy): number {
-    if (e.kind === 'boss') return bossScore(e);
-    return e.kind === 'splitterChild' ? SPLITTER_CHILD_SPEC.score : ENEMY_SPECS[e.kind].score;
+    return e.kind === 'boss' ? bossScore(e) : specOf(e.kind).score;
 }
 
 /** The kind a regular enemy is reported as (debris, breakdown): splitter children count as splitters. */
@@ -233,6 +232,7 @@ export class World {
         this.multiKillUpdates.length = 0;
         this.settlementsThisStep.length = 0;
         this.hitsThisStep.length = 0;
+        this.splitsThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -366,7 +366,6 @@ export class World {
             this.nextId += children.length;
             this.enemies.push(...children);
         }
-        this.splitsThisStep.length = 0;
     }
 
     private addEnemy(kind: EnemyKind): void {

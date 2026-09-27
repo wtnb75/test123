@@ -74,6 +74,8 @@ const DEBRIS_COLORS: Record<EnemyKind, number> = {
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
+/** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
+const DIAMOND_WIDTH_RATIO = 0.8;
 const SCORE_POPUP_FONT_SIZE = 32;
 
 /** A counter's bound text, the kill count it shows and where it was last drawn. */
@@ -604,11 +606,14 @@ export class Game extends Scene {
             }
             case 'splitter':
             case 'splitterChild':
-                // Parent and children share the same diamond, the children just smaller.
+            {
+                // Parent and children share the same diamond, the children just smaller; it stays within the hit radius.
+                const w = r * DIAMOND_WIDTH_RATIO;
                 g.fillStyle(COLORS.splitter, 1);
-                g.fillTriangle(e.x, e.y - r * 1.2, e.x + r, e.y, e.x - r, e.y);
-                g.fillTriangle(e.x, e.y + r * 1.2, e.x + r, e.y, e.x - r, e.y);
+                g.fillTriangle(e.x, e.y - r, e.x + w, e.y, e.x - w, e.y);
+                g.fillTriangle(e.x, e.y + r, e.x + w, e.y, e.x - w, e.y);
                 break;
+            }
             case 'boss':
                 // The boss shows its HP on the HUD bar instead of pips.
                 this.drawBoss(e);

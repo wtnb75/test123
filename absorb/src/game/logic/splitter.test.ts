@@ -73,8 +73,21 @@ describe('splitter parent: entering and drifting', () => {
     it('comes in from a side to the shared side station', () => {
         const e = createEnemy('splitter', 1, () => 0.8, S); // 0.8 picks the left edge on a landscape screen
         expect(e.entry).toBe('left');
-        expect(e.stationY).toBe(e.y);
-        expect(e.stationX).toBeCloseTo(1024 * (0.2 + 0.15 * 0.8));
+        const y0 = e.y;
+        // rng 0.8: height 15% + 30% × 0.8 = 39% of 768, station 20% + 15% × 0.8 = 32% of 1024 in from the left.
+        expect(y0).toBeCloseTo(768 * 0.39);
+        const c = ctx({ player: { x: 512, y: 700 } });
+        let fired = 0;
+        let t = 0;
+        while (e.state === 'enter') {
+            if (updateEnemy(e, DT, c)) fired++;
+            t += DT;
+            if (t > 5) expect.fail('never arrived');
+        }
+        expect(fired).toBe(0);
+        expect(e.state).toBe('drift');
+        expect(e.x).toBeCloseTo(1024 * 0.32);
+        expect(e.y).toBe(y0);
     });
 
     it('drifts 40 px per second straight at the player', () => {
@@ -155,16 +168,24 @@ describe('splitter children', () => {
         const k = scatteringChild(1010, 300, 0);
         run(k, 0.3);
         expect(k.x).toBe(1024 - 8);
-        run(k, 0.1 + DT);
+        run(k, 0.1);
+        expect(k.state).toBe('dash');
+    });
+
+    it('switch to the dash on the 24th 60 fps frame, though 24 × 1/60 sums to just under 0.4', () => {
+        const k = scatteringChild(500, 300, 0);
+        run(k, 23 * DT);
+        expect(k.state).toBe('scatter');
+        run(k, DT);
         expect(k.state).toBe('dash');
     });
 
     it('lock on to the player exactly when 0.4 s of scattering is up', () => {
         const k = scatteringChild(500, 300, 0);
         const c = ctx({ player: { x: 500, y: 650 } });
-        updateEnemy(k, 0.4 - 1e-9, c);
+        updateEnemy(k, 0.399, c);
         expect(k.state).toBe('scatter');
-        updateEnemy(k, 1e-9, c);
+        updateEnemy(k, 0.001, c);
         expect(k.state).toBe('dash');
         expect(k.heading).toBeCloseTo(Math.atan2(650 - k.y, 500 - k.x));
     });
@@ -207,8 +228,10 @@ describe('splitter children', () => {
         expect(run(k, 0.35)).toBe(0);
     });
 
-    it('leave debris in the plain body color, not lightened like rammers', () => {
-        expect(debrisColor('splitter', 0x42a5f5)).toBe(0x42a5f5);
+    it('leave debris in the plain body color, where a rammer of the same body color is lightened', () => {
+        const body = 0x406080;
+        expect(debrisColor('rammer', body)).toBe(0xa0b0c0); // each channel halfway to 255
+        expect(debrisColor('splitter', body)).toBe(body);
     });
 });
 
