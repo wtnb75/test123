@@ -161,6 +161,8 @@ export class World {
     /** Releases whose kill count grew / that settled during the latest step (for the multi-kill effect). */
     private readonly multiKillUpdates: MultiKillUpdate[] = [];
     private readonly settlementsThisStep: Settlement[] = [];
+    /** Where the player lost a life during the latest step (for the hit effect). */
+    private readonly hitsThisStep: Point[] = [];
     private nextGroupId = 1;
     private readonly ctx: EnemyContext;
 
@@ -196,6 +198,11 @@ export class World {
         return this.settlementsThisStep;
     }
 
+    /** Where the player lost a life during the latest step; contact while invulnerable adds nothing. */
+    get hits(): readonly Point[] {
+        return this.hitsThisStep;
+    }
+
     private isTargetable(e: Enemy): boolean {
         return !e.removed && isOnScreen(e, this.screen);
     }
@@ -207,6 +214,7 @@ export class World {
         this.releasesThisStep.length = 0;
         this.multiKillUpdates.length = 0;
         this.settlementsThisStep.length = 0;
+        this.hitsThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -543,6 +551,7 @@ export class World {
         }
         p.lives--;
         p.invulnerable = PLAYER_INVULNERABLE;
+        this.hitsThisStep.push({ x: p.x, y: p.y });
         // Consolation stock, absorbed one bullet at a time so the cap still auto-releases.
         for (let i = 0; i < HIT_STOCK_BONUS; i++) this.absorb();
         if (p.lives <= 0) this.setPhase('ending');

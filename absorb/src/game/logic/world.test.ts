@@ -690,6 +690,74 @@ describe('kill counts and settlements for the multi-kill effect', () => {
     });
 });
 
+describe('hits for the hit effect', () => {
+    it('lists a hit at the player\'s position after this frame\'s move', () => {
+        const w = playingWorld();
+        const x0 = w.player.x;
+        still(w, 'grunt', x0 + 5, w.player.y);
+        w.step(DT, input({ moveX: 1 }));
+        expect(w.player.lives).toBe(2);
+        expect(w.player.x).toBeGreaterThan(x0);
+        expect(w.hits).toEqual([{ x: w.player.x, y: w.player.y }]);
+    });
+
+    it('lists nothing for contact while invulnerable', () => {
+        const w = playingWorld();
+        w.player.invulnerable = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.player.lives).toBe(3);
+        expect(w.hits).toHaveLength(0);
+    });
+
+    it('lists the hit that costs the last life, in the frame the run starts ending', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        expect(w.hits).toHaveLength(1);
+    });
+
+    it('lists both the hit and the release when the rescue stock fills up (45 -> release -> 5)', () => {
+        const w = playingWorld();
+        w.stock = 45;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.hits).toHaveLength(1);
+        expect(w.releases.map((r) => r.count)).toEqual([STOCK_MAX]);
+        expect(w.stock).toBe(5);
+    });
+
+    it('forgets the previous frame\'s hit on the next step', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.hits).toHaveLength(1);
+        w.step(DT, NONE);
+        expect(w.hits).toHaveLength(0);
+    });
+
+    it('stays empty during ready and ending, where there is no contact', () => {
+        const ready = new World(S, () => 0.5);
+        still(ready, 'grunt', ready.player.x, ready.player.y);
+        ready.step(DT, NONE);
+        expect(ready.phase).toBe('ready');
+        expect(ready.hits).toHaveLength(0);
+
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        // Drop the fresh invulnerability, so only the ending phase itself can keep contact out.
+        w.player.invulnerable = 0;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.hits).toHaveLength(0);
+    });
+});
+
 describe('releasing', () => {
     it('does nothing with an empty stock', () => {
         const w = playingWorld();
@@ -1346,6 +1414,15 @@ describe('boss', () => {
                 if (w2.settlements.length > 0) settlement = w2.settlements[0];
             }
             expect(settlement).toMatchObject({ kills: 2, lastIsBoss: false });
+        });
+
+        it('record a hit when the boss rams the player, like any other enemy', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y);
+            boss.hp = 50;
+            w.step(DT, NONE);
+            expect(w.player.lives).toBe(2);
+            expect(w.hits).toEqual([{ x: w.player.x, y: w.player.y }]);
         });
 
         it('are never listed among the defeated enemies that get regular debris', () => {

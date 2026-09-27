@@ -72,6 +72,17 @@ export const MULTIKILL_RESULT_DURATION = 1;
 export const MULTIKILL_RESULT_RISE = 40;
 /** Extra lift for the result when the release's last kill was the boss, clearing the boss's own popup. */
 export const MULTIKILL_BOSS_OFFSET_Y = 50;
+/** Full-screen red tint when the player loses a life. */
+export const HIT_TINT_ALPHA = 0.25;
+export const HIT_TINT_DURATION = 0.2;
+/** Red band along the four screen edges on a hit, strongest at the edge and fading inward. */
+export const HIT_EDGE_WIDTH = 64;
+export const HIT_EDGE_ALPHA = 0.7;
+export const HIT_EDGE_DURATION = 0.4;
+/** Red ring spreading from where the player was hit. */
+export const HIT_RING_MAX_RADIUS = 140;
+export const HIT_RING_WIDTH = 8;
+export const HIT_RING_DURATION = 0.35;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

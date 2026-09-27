@@ -8,7 +8,7 @@ import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
-    MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
+    HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
     type EnemyKind
 } from '../logic/constants';
 import {
@@ -21,6 +21,7 @@ import {
     MultiKillEffects, counterCenter, counterFontSize, counterLabel, multiKillColor, popScale, resultFontSize, resultLabel,
     resultProgress, resultRise, resultStart, reusesCounterSpot, topLimit, type KillCounter, type KillResult
 } from '../logic/multikillFx';
+import { HitEffects, edgeFrames, hitEdgeFade, hitRingAlpha, hitRingProgress, hitRingRadius, hitTintAlpha } from '../logic/hitFx';
 import {
     announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
     scorePopupRise
@@ -51,6 +52,9 @@ const COLORS = {
 
 /** Longest frame step fed to the simulation, so a tab switch doesn't teleport everything. */
 const MAX_DT = 0.05;
+
+/** Hit tint / edge band sit over every play-area layer (popups at 5) and under the HUD and release button (10, 11). */
+const HIT_LAYER_DEPTH = 8;
 
 const GAUGE_WIDTH = 160;
 const GAUGE_HEIGHT = 14;
@@ -124,6 +128,10 @@ export class Game extends Scene {
     private readonly debrisFx = new DebrisEffects();
     private readonly releaseFx = new ReleaseEffects();
     private readonly multiKillFx = new MultiKillEffects();
+    private readonly hitFx = new HitEffects();
+    /** Red hit tint and edge band: over the whole play area, under the HUD. */
+    private hitTintGfx: GameObjects.Graphics;
+    private hitEdgeGfx: GameObjects.Graphics;
     /**
      * Multi-kill texts, each bound to one counter (by release id) or one result for as long as it shows,
      * so a text is only restyled when its own counter's kill count changes. Freed texts wait in `spareTexts`.
@@ -179,6 +187,7 @@ export class Game extends Scene {
         this.debrisFx.clear();
         this.releaseFx.clear();
         this.multiKillFx.clear();
+        this.hitFx.clear();
         // The previous run's texts were destroyed with the scene.
         this.counterViews.clear();
         this.resultViews.clear();
@@ -213,6 +222,7 @@ export class Game extends Scene {
             fontFamily: 'monospace', fontSize: BOSS_LABEL_SIZE, color: BOSS_CSS_COLOR
         }).setOrigin(1, 0.5).setDepth(10).setVisible(false);
         this.fxGfx = this.add.graphics().setDepth(5);
+        this.createHitLayers(width, height);
         this.popupText = this.add.text(0, 0, '', {
             fontFamily: 'monospace', fontSize: SCORE_POPUP_FONT_SIZE, color: BOSS_CSS_COLOR
         }).setOrigin(0.5).setDepth(5).setVisible(false);
@@ -292,6 +302,7 @@ export class Game extends Scene {
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
+        this.hitFx.update(dt, this.world.hits);
         if (startsShake(this.world.releases)) {
             // force: a new full release restarts the shake instead of being ignored.
             this.cameras.main.shake(RELEASE_SHAKE_DURATION * 1000, this.shakeIntensity, true);
@@ -299,6 +310,7 @@ export class Game extends Scene {
         this.draw();
         this.drawBossEffects();
         this.drawMultiKills();
+        this.drawHitFlash();
         this.drawHud();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
@@ -366,6 +378,41 @@ export class Game extends Scene {
         this.drawReleaseRings();
 
         this.drawPlayer();
+        this.drawHitRing();
+    }
+
+    /** Red ring where the player was hit: right after the player (or its explosion). */
+    private drawHitRing() {
+        const fx = this.hitFx;
+        const p = hitRingProgress(fx.age);
+        if (p < 0) return;
+        this.gfx.lineStyle(HIT_RING_WIDTH, COLORS.enemyBullet, hitRingAlpha(p));
+        this.gfx.strokeCircle(fx.x, fx.y, hitRingRadius(p));
+    }
+
+    /**
+     * Red tint and edge band: both drawn once when the run starts (see createHitLayers) and faded as a
+     * whole here, so a hit costs no redrawing.
+     */
+    private drawHitFlash() {
+        const age = this.hitFx.age;
+        const tint = hitTintAlpha(age);
+        this.hitTintGfx.setAlpha(tint).setVisible(tint > 0);
+        const edge = hitEdgeFade(age);
+        this.hitEdgeGfx.setAlpha(edge).setVisible(edge > 0);
+    }
+
+    /** Paints the hit tint (full strength, faded by layer alpha) and the edge band for this run's screen size. */
+    private createHitLayers(width: number, height: number) {
+        const pad = RELEASE_SHAKE_AMPLITUDE;
+        this.hitTintGfx = this.add.graphics().setDepth(HIT_LAYER_DEPTH).setVisible(false);
+        this.hitTintGfx.fillStyle(COLORS.enemyBullet, 1);
+        this.hitTintGfx.fillRect(-pad, -pad, width + pad * 2, height + pad * 2);
+        this.hitEdgeGfx = this.add.graphics().setDepth(HIT_LAYER_DEPTH).setVisible(false);
+        for (const r of edgeFrames(width, height, pad)) {
+            this.hitEdgeGfx.fillStyle(COLORS.enemyBullet, r.alpha);
+            this.hitEdgeGfx.fillRect(r.x, r.y, r.w, r.h);
+        }
     }
 
     /** Debris of enemies release bullets killed: over the enemies, under the release bullets. */
