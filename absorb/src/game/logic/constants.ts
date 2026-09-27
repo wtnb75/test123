@@ -44,6 +44,15 @@ export const DEBRIS_DURATION = 0.4;
 export const DEBRIS_RADIUS = 4;
 /** How far rammer debris is pushed toward white (0 = body color, 1 = white), so it isn't mistaken for enemy bullets. */
 export const DEBRIS_RAMMER_WHITEN = 0.5;
+/** Shockwave ring drawn at each release, growing from the player's size to a radius set by the bullet count. */
+export const RELEASE_RING_DURATION = 0.35;
+export const RELEASE_RING_MIN_RADIUS = 100;
+export const RELEASE_RING_MAX_RADIUS = 220;
+export const RELEASE_RING_MIN_WIDTH = 2;
+export const RELEASE_RING_MAX_WIDTH = 8;
+/** Camera shake, only for a full-stock release. */
+export const RELEASE_SHAKE_DURATION = 0.2;
+export const RELEASE_SHAKE_AMPLITUDE = 6;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

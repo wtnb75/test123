@@ -50,6 +50,13 @@ export interface ReleaseGroup {
     kills: number[];
 }
 
+/** One release: where the player was when it fired, and how many bullets it sent out. */
+export interface Release {
+    x: number;
+    y: number;
+    count: number;
+}
+
 /** A regular enemy a release bullet killed, and the heading of the bullet that finished it. */
 export interface Defeat {
     x: number;
@@ -125,6 +132,8 @@ export class World {
     private readonly absorbedPoints: Point[] = [];
     /** Regular enemies killed by release bullets during the latest step (for the defeat effect). */
     private readonly defeatedEnemies: Defeat[] = [];
+    /** Releases fired during the latest step, manual or automatic (for the release effect). */
+    private readonly releasesThisStep: Release[] = [];
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -144,6 +153,11 @@ export class World {
         return this.defeatedEnemies;
     }
 
+    /** Releases fired during the latest step, manual or automatic; an empty-stock press adds nothing. */
+    get releases(): readonly Release[] {
+        return this.releasesThisStep;
+    }
+
     private isTargetable(e: Enemy): boolean {
         return !e.removed && isOnScreen(e, this.screen);
     }
@@ -152,6 +166,7 @@ export class World {
         this.phaseTime += dt;
         this.absorbedPoints.length = 0;
         this.defeatedEnemies.length = 0;
+        this.releasesThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -249,6 +264,7 @@ export class World {
         const n = this.stock;
         if (n <= 0) return;
         this.stock = 0;
+        this.releasesThisStep.push({ x: this.player.x, y: this.player.y, count: n });
         const group: ReleaseGroup = { pending: n, kills: [] };
         this.openGroups.push(group);
         const targets = this.assignTargets(n);
