@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RELEASE_SPEED, STOCK_MAX } from './constants';
 import { createEnemy, type Enemy } from './enemy';
 import type { ScreenSize } from './screen';
 import { shortfall, World, type Input } from './world';
@@ -462,6 +463,102 @@ describe('defeated enemies for the defeat effect', () => {
         expect(w.enemyBullets).toContain(bullet);
         expect(w.score).toBe(100); // the grunt alone, at single-kill value
         expect(w.player.lives).toBe(3);
+    });
+});
+
+describe('releases for the release effect', () => {
+    it('lists a manual release at the player\'s position with the stock it fired', () => {
+        const w = playingWorld();
+        w.stock = 12;
+        w.step(DT, input({ release: true }));
+        expect(w.releases).toEqual([{ x: w.player.x, y: w.player.y, count: 12 }]);
+        // The bullets fired from that point and have already flown one frame.
+        const b = w.releaseBullets[0];
+        expect(Math.hypot(b.x - w.releases[0].x, b.y - w.releases[0].y)).toBeCloseTo(RELEASE_SPEED * DT);
+    });
+
+    it('records where the player is after this frame\'s move, where the bullets fire from', () => {
+        const w = playingWorld();
+        w.stock = 5;
+        const x0 = w.player.x;
+        w.step(DT, input({ moveX: 1, release: true }));
+        expect(w.player.x).toBeGreaterThan(x0);
+        expect(w.releases[0].x).toBe(w.player.x);
+        const b = w.releaseBullets[0];
+        expect(Math.hypot(b.x - w.releases[0].x, b.y - w.releases[0].y)).toBeCloseTo(RELEASE_SPEED * DT);
+    });
+
+    it('lists each release when a manual release and a full-stock auto-release share a frame', () => {
+        const w = playingWorld();
+        w.stock = 3;
+        for (let i = 0; i < STOCK_MAX; i++) {
+            w.enemyBullets.push({ x: w.player.x, y: w.player.y, vx: 0, vy: 0, removed: false });
+        }
+        w.step(DT, input({ release: true }));
+        expect(w.releases.map((r) => r.count)).toEqual([3, STOCK_MAX]);
+        expect(w.stock).toBe(0);
+    });
+
+    it('lists nothing for a release press with an empty stock', () => {
+        const w = playingWorld();
+        w.step(DT, input({ release: true }));
+        expect(w.releases).toHaveLength(0);
+    });
+
+    it('lists the automatic release when absorbing fills the stock', () => {
+        const w = playingWorld();
+        w.stock = 49;
+        w.enemyBullets.push({ x: w.player.x, y: w.player.y, vx: 0, vy: 0, removed: false });
+        w.step(DT, NONE);
+        expect(w.releases).toEqual([{ x: w.player.x, y: w.player.y, count: 50 }]);
+    });
+
+    it('lists the automatic release the ram consolation stock triggers (45 -> release -> 5)', () => {
+        const w = playingWorld();
+        w.stock = 45;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.stock).toBe(5);
+        expect(w.releases).toEqual([{ x: w.player.x, y: w.player.y, count: 50 }]);
+    });
+
+    it('forgets the previous frame\'s releases on the next step', () => {
+        const w = playingWorld();
+        w.stock = 3;
+        w.step(DT, input({ release: true }));
+        expect(w.releases).toHaveLength(1);
+        w.step(DT, NONE);
+        expect(w.releases).toHaveLength(0);
+    });
+
+    it('stays empty during ready, where a release press does nothing', () => {
+        const w = new World(S, () => 0.5);
+        w.stock = 5;
+        w.step(DT, input({ release: true }));
+        expect(w.phase).toBe('ready');
+        expect(w.releases).toHaveLength(0);
+    });
+
+    it('stays empty during ending, where a release press does nothing', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        w.stock = 5;
+        w.step(DT, input({ release: true }));
+        expect(w.releases).toHaveLength(0);
+    });
+
+    it('still lists a release made in the frame a ram ends the run', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        w.stock = 7;
+        // A shooter with 8 HP survives the 7 bullets, so it still rams the player this frame.
+        still(w, 'shooter', w.player.x, w.player.y, 8);
+        w.step(DT, input({ release: true }));
+        expect(w.phase).toBe('ending');
+        expect(w.releases.map((r) => r.count)).toEqual([7]);
     });
 });
 

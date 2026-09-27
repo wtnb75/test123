@@ -1,4 +1,4 @@
-import { GameObjects, Input, Scene } from 'phaser';
+import { GameObjects, Input, Math as PhaserMath, Scene } from 'phaser';
 import {
     AbsorbEffects, absorbRingProgress, absorbRingRadius, edgeAlpha, edgeWidth, lerpColor, suckCoord, suckProgress,
     suckRadius, trailAlpha, trailProgress, type Suck
@@ -7,12 +7,16 @@ import { bossScore } from '../logic/boss';
 import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
-    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX,
+    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
+    RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
     type EnemyKind
 } from '../logic/constants';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
+import {
+    ReleaseEffects, releaseRingProgress, releaseRingRadius, releaseRingWidth, startsShake
+} from '../logic/releaseFx';
 import {
     announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
     scorePopupRise
@@ -88,6 +92,9 @@ export class Game extends Scene {
     private lastBossHp = 0;
     private readonly absorbFx = new AbsorbEffects();
     private readonly debrisFx = new DebrisEffects();
+    private readonly releaseFx = new ReleaseEffects();
+    /** Camera shake strength as fractions of the view, so both axes move RELEASE_SHAKE_AMPLITUDE px. */
+    private readonly shakeIntensity = new PhaserMath.Vector2();
     /** Seconds since the last boss hit / kill; Infinity when nothing is playing. */
     private hitFlashAge = Infinity;
     private defeatAge = Infinity;
@@ -129,6 +136,8 @@ export class Game extends Scene {
         this.defeatX = this.defeatY = 0;
         this.absorbFx.clear();
         this.debrisFx.clear();
+        this.releaseFx.clear();
+        this.shakeIntensity.set(RELEASE_SHAKE_AMPLITUDE / size.width, RELEASE_SHAKE_AMPLITUDE / size.height);
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
@@ -234,6 +243,11 @@ export class Game extends Scene {
         this.trackBoss(dt);
         this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
         this.debrisFx.update(dt, this.world.defeated);
+        this.releaseFx.update(dt, this.world.releases);
+        if (startsShake(this.world.releases)) {
+            // force: a new full release restarts the shake instead of being ignored.
+            this.cameras.main.shake(RELEASE_SHAKE_DURATION * 1000, this.shakeIntensity, true);
+        }
         this.draw();
         this.drawBossEffects();
         this.drawHud();
@@ -300,6 +314,7 @@ export class Game extends Scene {
 
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
+        this.drawReleaseRings();
 
         this.drawPlayer();
     }
@@ -313,6 +328,17 @@ export class Game extends Scene {
             const r = debrisRadius(p);
             g.fillStyle(DEBRIS_COLORS[b.kind], 1);
             for (let i = 0; i < DEBRIS_COUNT; i++) g.fillCircle(debrisPieceX(b, i, p), debrisPieceY(b, i, p), r);
+        }
+    }
+
+    /** Shockwave rings where releases fired: over the release bullets, under the player. */
+    private drawReleaseRings() {
+        const g = this.gfx;
+        // Finished rings are dropped in ReleaseEffects.update, so every ring here is showing.
+        for (const r of this.releaseFx.rings) {
+            const p = releaseRingProgress(r.age);
+            g.lineStyle(releaseRingWidth(r.count), COLORS.releaseBullet, fadeAlpha(p));
+            g.strokeCircle(r.x, r.y, releaseRingRadius(r.count, p));
         }
     }
 
