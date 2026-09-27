@@ -12,7 +12,8 @@ import {
     SIDE_STATION_MAX_RATIO, SIDE_STATION_MIN_RATIO, SIDE_Y_MAX_RATIO, SIDE_Y_MIN_RATIO,
     SWAY_RANGE, SWAY_SPEED,
     BOSS_FIRE_INTERVAL,
-    type ActorKind, type EnemyKind, type EnemySpec, type SpawnEdge
+    CARRIER_DROP_INTERVAL, CARRIER_FIRST_DROP, CARRIER_SPEC, CARRIER_SPEED, CARRIER_Y_RATIO,
+    type ActorKind, type CargoKind, type EnemyKind, type EnemySpec, type SpawnEdge
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
 import { aimAt } from './patterns';
@@ -31,6 +32,7 @@ export type EnemyState =
     | 'drift'        // splitter: drifting toward the player
     | 'scatter'      // splitter child: spreading out before its dash
     | 'dash'         // rammer / splitter child: charging
+    | 'cross'        // carrier: crossing the top of the screen
     | 'charge'       // boss: charging the locked point
     | 'pause'        // boss: resting after a charge
     | 'return';      // boss: moving vertically back to the station height
@@ -52,6 +54,7 @@ export interface Enemy {
     stationX: number;
     stationY: number;
     swayCenter: number;
+    /** Sway direction; a carrier reuses it as its crossing direction (+1 right, -1 left). */
     swayDir: number;
     fireTimer: number;
     /** Countdown to the next dive (grunt) or sweep (shooter). */
@@ -71,6 +74,9 @@ export interface Enemy {
     chargeX: number;
     chargeY: number;
     volleys: number;
+    /** Carrier: the kind it drops, and seconds to its next drop (negative until its centre first comes on screen). */
+    cargo: CargoKind;
+    dropTimer: number;
     /** Number of release bullets currently targeting this enemy. */
     incoming: number;
     removed: boolean;
@@ -134,7 +140,7 @@ export function blankEnemy(kind: ActorKind, id: number, hp: number, radius: numb
         swayCenter: 0, swayDir: 1, fireTimer: 0, actionTimer: 0,
         heading: 0, homingLeft: 0, originX: 0, originY: 0,
         bobTime: 0, sweepY: 0, sweepTargetX: 0, slotAngle: 0,
-        chargeX: 0, chargeY: 0, volleys: 0, incoming: 0, removed: false
+        chargeX: 0, chargeY: 0, volleys: 0, cargo: 'grunt', dropTimer: -1, incoming: 0, removed: false
     };
 }
 
@@ -147,6 +153,7 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: Scree
 
 /** HP, score, radius and fire interval of every actor but the boss (whose stats depend on its number). */
 export function specOf(kind: Exclude<ActorKind, 'boss'>): EnemySpec {
+    if (kind === 'carrier') return CARRIER_SPEC;
     return kind === 'splitterChild' ? SPLITTER_CHILD_SPEC : ENEMY_SPECS[kind];
 }
 
@@ -414,9 +421,60 @@ function canFire(e: Enemy, screen: ScreenSize): boolean {
     }
 }
 
-/** Advances one enemy by dt seconds. Returns true when it fires a volley this frame. */
+/** A carrier just off the left (rng below 0.5) or right edge, crossing toward the other side with `cargo`. */
+export function createCarrier(id: number, cargo: CargoKind, rng: Rng, screen: ScreenSize): Enemy {
+    const e = blankEnemy('carrier', id, CARRIER_SPEC.hp, CARRIER_SPEC.radius);
+    e.cargo = cargo;
+    e.entry = rng() < 0.5 ? 'left' : 'right';
+    e.swayDir = e.entry === 'left' ? 1 : -1;
+    e.x = e.entry === 'left' ? -e.radius : screen.width + e.radius;
+    e.y = screen.height * CARRIER_Y_RATIO;
+    setState(e, 'cross');
+    return e;
+}
+
+/**
+ * Moves a carrier across; returns true when it drops an enemy this frame. The drop clock starts (without
+ * this frame's dt) on the first frame its centre is on screen, keeps any overshoot between drops, and stops
+ * once the centre leaves. The carrier vanishes when its centre passes the far edge.
+ */
+function updateCarrier(e: Enemy, dt: number, screen: ScreenSize): boolean {
+    e.x += e.swayDir * CARRIER_SPEED * dt;
+    if (e.swayDir > 0 ? e.x > screen.width : e.x < 0) {
+        e.removed = true;
+        return false;
+    }
+    if (!isOnScreen(e, screen)) return false;
+    if (e.dropTimer < 0) {
+        e.dropTimer = CARRIER_FIRST_DROP;
+        return false;
+    }
+    e.dropTimer -= dt;
+    if (e.dropTimer > TIMER_EPSILON) return false;
+    e.dropTimer += CARRIER_DROP_INTERVAL;
+    return true;
+}
+
+/**
+ * An enemy a carrier drops at `from`: it enters like a top entry at that x (kept within the edge margins),
+ * dropping straight down to its kind's station height.
+ */
+export function createDroppedEnemy(kind: CargoKind, id: number, from: Point, rng: Rng, screen: ScreenSize): Enemy {
+    const spec = ENEMY_SPECS[kind];
+    const e = blankEnemy(kind, id, spec.hp, spec.radius);
+    e.entry = 'top';
+    e.x = Math.min(Math.max(from.x, EDGE_MARGIN), screen.width - EDGE_MARGIN);
+    e.y = from.y;
+    e.stationX = e.x;
+    e.stationY = topStationY(kind, rng, screen.height);
+    setState(e, 'enter');
+    return e;
+}
+
+/** Advances one enemy by dt seconds. Returns true when it fires a volley (a carrier: drops an enemy) this frame. */
 export function updateEnemy(e: Enemy, dt: number, ctx: EnemyContext): boolean {
     e.stateTime += dt;
+    if (e.kind === 'carrier') return updateCarrier(e, dt, ctx.screen);
     if (e.state === 'enter') {
         enter(e, dt, ctx.rng);
         return false;

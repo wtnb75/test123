@@ -25,7 +25,7 @@ interface GameOverData {
 export class GameOver extends Scene {
     /** Seconds since the screen opened, driving the staggered fade-in. */
     private elapsed = 0;
-    /** The texts of each staggered line (six kinds, the bonus, the total), faded together. */
+    /** The texts of each staggered line (seven kinds, the bonus, the total), faded together. */
     private lines: GameObjects.Text[][] = [];
 
     constructor() {

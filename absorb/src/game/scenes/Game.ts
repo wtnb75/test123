@@ -9,8 +9,7 @@ import {
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX,
-    type EnemyKind
+    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX
 } from '../logic/constants';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import {
@@ -31,7 +30,7 @@ import {
 import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
 import { computeScreenSize } from '../logic/screen';
-import { World, type Input as WorldInput } from '../logic/world';
+import { World, type DefeatKind, type Input as WorldInput } from '../logic/world';
 import { KIND_COLORS, cssColor } from './colors';
 import { normalizeBreakdown } from '../logic/breakdown';
 
@@ -66,17 +65,21 @@ const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
 /** Debris colors per enemy kind, worked out once. */
-const DEBRIS_COLORS: Record<EnemyKind, number> = {
+const DEBRIS_COLORS: Record<DefeatKind, number> = {
     grunt: debrisColor('grunt', COLORS.grunt),
     shooter: debrisColor('shooter', COLORS.shooter),
     heavy: debrisColor('heavy', COLORS.heavy),
     rammer: debrisColor('rammer', COLORS.rammer),
-    splitter: debrisColor('splitter', COLORS.splitter)
+    splitter: debrisColor('splitter', COLORS.splitter),
+    carrier: debrisColor('carrier', COLORS.carrier)
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
+/** Carrier hexagon: half-height relative to its half-width (the hit radius), and the cargo mark's radius within it. */
+const CARRIER_HEIGHT_RATIO = 0.55;
+const CARRIER_MARK_RATIO = 0.6;
 /** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
 const DIAMOND_WIDTH_RATIO = 0.8;
 const SCORE_POPUP_FONT_SIZE = 32;
@@ -642,6 +645,17 @@ export class Game extends Scene {
                     g.closePath();
                     g.strokePath();
                 }
+                break;
+            }
+            case 'carrier': {
+                // A wide grey hexagon with a mark in the colour of the kind it drops.
+                const h = r * CARRIER_HEIGHT_RATIO;
+                g.fillStyle(COLORS.carrier, 1);
+                g.fillRect(e.x - r / 2, e.y - h, r, h * 2);
+                g.fillTriangle(e.x - r, e.y, e.x - r / 2, e.y - h, e.x - r / 2, e.y + h);
+                g.fillTriangle(e.x + r, e.y, e.x + r / 2, e.y - h, e.x + r / 2, e.y + h);
+                g.fillStyle(COLORS[e.cargo], 1);
+                g.fillCircle(e.x, e.y, h * CARRIER_MARK_RATIO);
                 break;
             }
             case 'boss':

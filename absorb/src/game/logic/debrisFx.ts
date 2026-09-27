@@ -1,9 +1,9 @@
 import {
-    DEBRIS_COUNT, DEBRIS_DURATION, DEBRIS_RADIUS, DEBRIS_RAMMER_WHITEN, DEBRIS_SPEED, type EnemyKind
+    DEBRIS_COUNT, DEBRIS_DURATION, DEBRIS_RADIUS, DEBRIS_RAMMER_WHITEN, DEBRIS_SPEED
 } from './constants';
 import { effectProgress } from './effects';
 import { removeWhere } from './geometry';
-import type { Defeat } from './world';
+import type { Defeat, DefeatKind } from './world';
 
 /** One killed enemy's debris burst, from where it died; piece 0 flies along the killing bullet's heading. */
 export interface DebrisBurst extends Defeat {
@@ -66,7 +66,7 @@ export function whiten(color: number, amount: number): number {
 }
 
 /** Debris color for a kind with the given body color: lightened by `amount` for rammers only; other kinds ignore it. */
-export function debrisColor(kind: EnemyKind, body: number, amount = DEBRIS_RAMMER_WHITEN): number {
+export function debrisColor(kind: DefeatKind, body: number, amount = DEBRIS_RAMMER_WHITEN): number {
     return kind === 'rammer' ? whiten(body, amount) : body;
 }
 

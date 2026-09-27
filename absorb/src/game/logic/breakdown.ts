@@ -1,8 +1,8 @@
 import { GAMEOVER_ROW_FADE, GAMEOVER_ROW_INTERVAL, type EnemyKind } from './constants';
 
 /** The kinds the game-over breakdown lists, in display order. */
-export type BreakdownKind = EnemyKind | 'boss';
-export const BREAKDOWN_KINDS: readonly BreakdownKind[] = ['grunt', 'shooter', 'heavy', 'rammer', 'splitter', 'boss'];
+export type BreakdownKind = EnemyKind | 'carrier' | 'boss';
+export const BREAKDOWN_KINDS: readonly BreakdownKind[] = ['grunt', 'shooter', 'heavy', 'rammer', 'splitter', 'carrier', 'boss'];
 
 /** Kills of one kind and their base points (before the multi-kill multiplier). */
 export interface KindTally {
@@ -19,6 +19,7 @@ export function emptyBreakdown(): ScoreBreakdown {
         heavy: { count: 0, points: 0 },
         rammer: { count: 0, points: 0 },
         splitter: { count: 0, points: 0 },
+        carrier: { count: 0, points: 0 },
         boss: { count: 0, points: 0 }
     };
 }
@@ -75,7 +76,7 @@ export function totalLabel(score: number): string {
 
 const FADE_EPSILON = 1e-9;
 
-/** Number of staggered lines: the six kinds, the bonus, then the total. */
+/** Number of staggered lines: the seven kinds, the bonus, then the total. */
 export const BREAKDOWN_LINES = BREAKDOWN_KINDS.length + 2;
 
 /** Seconds into the game-over screen by which every line has fully faded in. */

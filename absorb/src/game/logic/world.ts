@@ -1,6 +1,6 @@
 import { bossScore, bossVolley, createBoss, updateBoss } from './boss';
 import {
-    BOSS_ANNOUNCE_DURATION, BOSS_CONTACT_DAMAGE, BOSS_FIRST_AT, BOSS_RESPAWN_DELAY,
+    BOSS_ANNOUNCE_DURATION, BOSS_CONTACT_DAMAGE, BOSS_FIRST_AT, BOSS_RESPAWN_DELAY, CARRIER_FIRST_AT, CARRIER_INTERVAL,
     ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
@@ -9,7 +9,8 @@ import {
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
 import {
-    assignHeavySlots, createEnemy, createSplitterChildren, specOf, updateEnemy, type Enemy, type EnemyContext
+    assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createSplitterChildren, specOf, updateEnemy,
+    type Enemy, type EnemyContext
 } from './enemy';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
@@ -88,7 +89,7 @@ export interface Release {
 export interface Defeat {
     x: number;
     y: number;
-    kind: EnemyKind;
+    kind: DefeatKind;
     heading: number;
 }
 
@@ -110,8 +111,11 @@ function killScore(e: Enemy): number {
     return e.kind === 'boss' ? bossScore(e) : specOf(e.kind).score;
 }
 
+/** How a killed regular enemy is reported (debris, breakdown). */
+export type DefeatKind = EnemyKind | 'carrier';
+
 /** The kind a regular enemy is reported as (debris, breakdown): splitter children count as splitters. */
-function reportedKind(kind: Exclude<ActorKind, 'boss'>): EnemyKind {
+function reportedKind(kind: Exclude<ActorKind, 'boss'>): DefeatKind {
     return kind === 'splitterChild' ? 'splitter' : kind;
 }
 
@@ -155,6 +159,10 @@ export class World {
     bossCount = 0;
     /** Playing time at which the next boss appears (only while no boss is on the field). */
     nextBossAt = BOSS_FIRST_AT;
+    /** The carrier on the field (also listed in `enemies`), or null. */
+    carrier: Enemy | null = null;
+    /** Playing time at which the next carrier is due (it waits while a boss or a carrier is on the field). */
+    nextCarrierAt = CARRIER_FIRST_AT;
     /** Seconds left on the "BOSS" announcement. */
     bossAnnounce = 0;
     /**
@@ -174,6 +182,8 @@ export class World {
     private nextGroupId = 1;
     /** Splitters release bullets killed this step; their children join once the step's collisions are done. */
     private readonly splitsThisStep: { x: number; y: number; heading: number }[] = [];
+    /** Enemies carriers dropped this step; like split children they join once the step's collisions are done. */
+    private readonly dropsThisStep: Enemy[] = [];
     /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
     private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
@@ -238,6 +248,7 @@ export class World {
         this.settlementsThisStep.length = 0;
         this.hitsThisStep.length = 0;
         this.splitsThisStep.length = 0;
+        this.dropsThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -269,7 +280,8 @@ export class World {
         this.updateReleaseBullets(dt, true);
         this.checkContact();
         this.spawnSplitterChildren();
-        removeWhere(this.enemies, isRemoved);
+        this.enemies.push(...this.dropsThisStep);
+        this.removeGone();
         this.elapsed += dt;
     }
 
@@ -277,7 +289,7 @@ export class World {
         this.updateEnemies(dt, false);
         this.updateEnemyBullets(dt, false);
         this.updateReleaseBullets(dt, false);
-        removeWhere(this.enemies, isRemoved);
+        this.removeGone();
         if (this.phaseTime >= ENDING_DURATION) {
             this.flushGroups();
             this.setPhase('over');
@@ -355,11 +367,21 @@ export class World {
         }
     }
 
-    /** Counts rammers, or the regular enemies capped by MAX_ENEMIES; the boss and splitter children are in neither. */
+    /** Drops removed enemies, forgetting the carrier once it is gone (destroyed, rammed or flown off). */
+    private removeGone(): void {
+        removeWhere(this.enemies, isRemoved);
+        if (this.carrier?.removed) this.carrier = null;
+    }
+
+    /**
+     * Counts rammers, or the regular enemies capped by MAX_ENEMIES (carrier drops included); the boss,
+     * splitter children and the carrier itself are in neither.
+     */
     private countEnemies(rammers: boolean): number {
         let n = 0;
         for (const e of this.enemies) {
-            if (e.kind !== 'boss' && e.kind !== 'splitterChild' && (e.kind === 'rammer') === rammers) n++;
+            if (e.kind === 'boss' || e.kind === 'splitterChild' || e.kind === 'carrier') continue;
+            if ((e.kind === 'rammer') === rammers) n++;
         }
         return n;
     }
@@ -390,6 +412,15 @@ export class World {
             this.rammerTimer += stage.rammerInterval;
         }
         if (!this.boss && this.elapsed >= this.nextBossAt) this.spawnBoss();
+        // After the boss check, so a boss due in the same frame comes first and the carrier waits.
+        if (!this.boss && !this.carrier && this.elapsed >= this.nextCarrierAt) this.spawnCarrier();
+    }
+
+    private spawnCarrier(): void {
+        const cargo = pickEnemyKind(this.elapsed, this.rng);
+        this.carrier = createCarrier(this.nextId++, cargo, this.rng, this.screen);
+        this.enemies.push(this.carrier);
+        this.nextCarrierAt = this.elapsed + CARRIER_INTERVAL;
     }
 
     private spawnBoss(): void {
@@ -411,7 +442,9 @@ export class World {
         assignHeavySlots(this.enemies, this.player);
         for (const e of this.enemies) {
             const fired = e.kind === 'boss' ? updateBoss(e, dt, this.ctx) : updateEnemy(e, dt, this.ctx);
-            if (fired && canFire) this.fireVolley(e);
+            if (!fired || !canFire) continue;
+            if (e.kind === 'carrier') this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
+            else this.fireVolley(e);
         }
     }
 
