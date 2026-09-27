@@ -35,6 +35,15 @@ export const ABSORB_PULSE_WIDTH = 5;
 export const ABSORB_RING_DURATION = 0.25;
 export const ABSORB_RING_MAX_RADIUS = 120;
 export const ABSORB_RING_WIDTH = 3;
+/** Debris thrown out by each regular enemy a release bullet kills. */
+export const DEBRIS_COUNT = 8;
+/** Initial debris speed, easing linearly to a stop over DEBRIS_DURATION. */
+export const DEBRIS_SPEED = 240;
+export const DEBRIS_DURATION = 0.4;
+/** Debris radius at the start, shrinking to 0. */
+export const DEBRIS_RADIUS = 4;
+/** How far rammer debris is pushed toward white (0 = body color, 1 = white), so it isn't mistaken for enemy bullets. */
+export const DEBRIS_RAMMER_WHITEN = 0.5;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;
