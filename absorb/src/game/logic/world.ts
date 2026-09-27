@@ -46,8 +46,32 @@ export interface EnemyBullet {
 
 /** One release: its bullets and the base scores of the enemies they finished off. */
 export interface ReleaseGroup {
+    /** Distinct per release, so the multi-kill effect can tell overlapping releases apart. */
+    id: number;
     pending: number;
     kills: number[];
+    /** Where the release's latest kill happened, and whether that kill was the boss. */
+    lastX: number;
+    lastY: number;
+    lastIsBoss: boolean;
+}
+
+/** A release whose kill count grew this step: its count now and where the latest kill happened. */
+export interface MultiKillUpdate {
+    id: number;
+    kills: number;
+    x: number;
+    y: number;
+}
+
+/** A release that settled this step: its kill count, the points it scored and its latest kill. */
+export interface Settlement {
+    id: number;
+    kills: number;
+    score: number;
+    x: number;
+    y: number;
+    lastIsBoss: boolean;
 }
 
 /** One release: where the player was when it fired, and how many bullets it sent out. */
@@ -134,6 +158,10 @@ export class World {
     private readonly defeatedEnemies: Defeat[] = [];
     /** Releases fired during the latest step, manual or automatic (for the release effect). */
     private readonly releasesThisStep: Release[] = [];
+    /** Releases whose kill count grew / that settled during the latest step (for the multi-kill effect). */
+    private readonly multiKillUpdates: MultiKillUpdate[] = [];
+    private readonly settlementsThisStep: Settlement[] = [];
+    private nextGroupId = 1;
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -158,6 +186,16 @@ export class World {
         return this.releasesThisStep;
     }
 
+    /** Releases whose kill count grew during the latest step, one entry per release. */
+    get killUpdates(): readonly MultiKillUpdate[] {
+        return this.multiKillUpdates;
+    }
+
+    /** Releases that settled (all bullets gone, points added to the score) during the latest step. */
+    get settlements(): readonly Settlement[] {
+        return this.settlementsThisStep;
+    }
+
     private isTargetable(e: Enemy): boolean {
         return !e.removed && isOnScreen(e, this.screen);
     }
@@ -167,6 +205,8 @@ export class World {
         this.absorbedPoints.length = 0;
         this.defeatedEnemies.length = 0;
         this.releasesThisStep.length = 0;
+        this.multiKillUpdates.length = 0;
+        this.settlementsThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -265,7 +305,7 @@ export class World {
         if (n <= 0) return;
         this.stock = 0;
         this.releasesThisStep.push({ x: this.player.x, y: this.player.y, count: n });
-        const group: ReleaseGroup = { pending: n, kills: [] };
+        const group: ReleaseGroup = { id: this.nextGroupId++, pending: n, kills: [], lastX: 0, lastY: 0, lastIsBoss: false };
         this.openGroups.push(group);
         const targets = this.assignTargets(n);
         for (let i = 0; i < n; i++) {
@@ -430,22 +470,47 @@ export class World {
             if (e.hp <= 0) {
                 if (e.kind !== 'boss') this.defeatedEnemies.push({ x: e.x, y: e.y, kind: e.kind, heading: b.heading });
                 this.destroy(e);
-                b.group.kills.push(killScore(e));
+                this.recordKill(b.group, e);
             }
             return;
+        }
+    }
+
+    /** Counts a kill toward its release and notes it for the multi-kill effect (one entry per release per step). */
+    private recordKill(group: ReleaseGroup, e: Enemy): void {
+        group.kills.push(killScore(e));
+        group.lastX = e.x;
+        group.lastY = e.y;
+        group.lastIsBoss = e.kind === 'boss';
+        const update = this.multiKillUpdates.find((u) => u.id === group.id);
+        if (update) {
+            update.kills = group.kills.length;
+            update.x = e.x;
+            update.y = e.y;
+        } else {
+            this.multiKillUpdates.push({ id: group.id, kills: group.kills.length, x: e.x, y: e.y });
         }
     }
 
     private settle(group: ReleaseGroup): void {
         group.pending--;
         if (group.pending > 0) return;
-        this.score += releaseScore(group.kills);
+        this.addGroupScore(group);
         removeWhere(this.openGroups, (g) => g === group);
+    }
+
+    /** Adds a finished release's points to the score and reports it for the multi-kill effect. */
+    private addGroupScore(group: ReleaseGroup): void {
+        const score = releaseScore(group.kills);
+        this.score += score;
+        this.settlementsThisStep.push({
+            id: group.id, kills: group.kills.length, score, x: group.lastX, y: group.lastY, lastIsBoss: group.lastIsBoss
+        });
     }
 
     /** Scores every release that still has bullets in flight (used when the run ends). */
     private flushGroups(): void {
-        for (const g of this.openGroups) this.score += releaseScore(g.kills);
+        for (const g of this.openGroups) this.addGroupScore(g);
         this.openGroups.length = 0;
     }
 

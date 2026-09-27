@@ -1,4 +1,4 @@
-import { GameObjects, Input, Math as PhaserMath, Scene } from 'phaser';
+import { GameObjects, Input, Math as PhaserMath, Scene, type Types } from 'phaser';
 import {
     AbsorbEffects, absorbRingProgress, absorbRingRadius, edgeAlpha, edgeWidth, lerpColor, suckCoord, suckProgress,
     suckRadius, trailAlpha, trailProgress, type Suck
@@ -8,7 +8,7 @@ import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
-    RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
+    MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, STOCK_MAX,
     type EnemyKind
 } from '../logic/constants';
 import {
@@ -17,6 +17,10 @@ import {
 import {
     ReleaseEffects, releaseRingProgress, releaseRingRadius, releaseRingWidth, startsShake
 } from '../logic/releaseFx';
+import {
+    MultiKillEffects, counterCenter, counterFontSize, counterLabel, multiKillColor, popScale, resultFontSize, resultLabel,
+    resultProgress, resultRise, resultStart, reusesCounterSpot, topLimit, type KillCounter, type KillResult
+} from '../logic/multikillFx';
 import {
     announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
     scorePopupRise
@@ -70,6 +74,32 @@ const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
 const SCORE_POPUP_FONT_SIZE = 32;
 
+/** A counter's bound text, the kill count it shows and where it was last drawn. */
+interface CounterView {
+    text: GameObjects.Text;
+    kills: number;
+    x: number;
+    y: number;
+}
+
+/** A result's bound text and its start centre. */
+interface ResultView {
+    text: GameObjects.Text;
+    x: number;
+    y: number;
+}
+
+interface TextLook {
+    text: string;
+    fontSize: number;
+    color: number;
+}
+
+function hasCounter(counters: readonly KillCounter[], id: number): boolean {
+    for (const c of counters) if (c.id === id) return true;
+    return false;
+}
+
 type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'x' | 'enter' | 'space', Input.Keyboard.Key>;
 
 export class Game extends Scene {
@@ -93,6 +123,17 @@ export class Game extends Scene {
     private readonly absorbFx = new AbsorbEffects();
     private readonly debrisFx = new DebrisEffects();
     private readonly releaseFx = new ReleaseEffects();
+    private readonly multiKillFx = new MultiKillEffects();
+    /**
+     * Multi-kill texts, each bound to one counter (by release id) or one result for as long as it shows,
+     * so a text is only restyled when its own counter's kill count changes. Freed texts wait in `spareTexts`.
+     */
+    private readonly counterViews = new Map<number, CounterView>();
+    private readonly resultViews = new Map<KillResult, ResultView>();
+    private spareTexts: GameObjects.Text[] = [];
+    private readonly textLooks = new Map<GameObjects.Text, TextLook>();
+    /** Measured metrics per font size, so restyling to a known size needs no canvas scan. */
+    private readonly fontMetrics = new Map<number, Types.GameObjects.Text.TextMetrics>();
     /** Camera shake strength as fractions of the view, so both axes move RELEASE_SHAKE_AMPLITUDE px. */
     private readonly shakeIntensity = new PhaserMath.Vector2();
     /** Seconds since the last boss hit / kill; Infinity when nothing is playing. */
@@ -137,6 +178,12 @@ export class Game extends Scene {
         this.absorbFx.clear();
         this.debrisFx.clear();
         this.releaseFx.clear();
+        this.multiKillFx.clear();
+        // The previous run's texts were destroyed with the scene.
+        this.counterViews.clear();
+        this.resultViews.clear();
+        this.spareTexts = [];
+        this.textLooks.clear();
         this.shakeIntensity.set(RELEASE_SHAKE_AMPLITUDE / size.width, RELEASE_SHAKE_AMPLITUDE / size.height);
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
@@ -244,12 +291,14 @@ export class Game extends Scene {
         this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
+        this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         if (startsShake(this.world.releases)) {
             // force: a new full release restarts the shake instead of being ignored.
             this.cameras.main.shake(RELEASE_SHAKE_DURATION * 1000, this.shakeIntensity, true);
         }
         this.draw();
         this.drawBossEffects();
+        this.drawMultiKills();
         this.drawHud();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
@@ -339,6 +388,97 @@ export class Game extends Scene {
             const p = releaseRingProgress(r.age);
             g.lineStyle(releaseRingWidth(r.count), COLORS.releaseBullet, fadeAlpha(p));
             g.strokeCircle(r.x, r.y, releaseRingRadius(r.count, p));
+        }
+    }
+
+    /** Multi-kill counters and "+points" results: over the player, under the HUD (the boss popup's layer). */
+    private drawMultiKills() {
+        const fx = this.multiKillFx;
+        const top = topLimit(this.world.boss !== null);
+        // New results start where their counter was last drawn, so place them before dropping those counters.
+        for (const r of fx.results) if (!this.resultViews.has(r)) this.resultViews.set(r, this.startResult(r, top));
+        for (const [id, view] of this.counterViews) {
+            if (!hasCounter(fx.counters, id)) this.freeText(view.text, () => this.counterViews.delete(id));
+        }
+        for (const [r, view] of this.resultViews) {
+            if (!fx.results.includes(r)) this.freeText(view.text, () => this.resultViews.delete(r));
+        }
+        for (const c of fx.counters) this.drawCounter(c, top);
+        for (const r of fx.results) {
+            const view = this.resultViews.get(r);
+            if (!view) continue;
+            const p = resultProgress(r.age);
+            view.text.setPosition(view.x, view.y - resultRise(p)).setAlpha(fadeAlpha(p)).setVisible(true);
+        }
+    }
+
+    private drawCounter(c: KillCounter, top: number) {
+        let view = this.counterViews.get(c.id);
+        if (!view) {
+            view = { text: this.takeText(), kills: 0, x: 0, y: 0 };
+            this.counterViews.set(c.id, view);
+        }
+        const t = view.text;
+        if (view.kills !== c.kills) {
+            view.kills = c.kills;
+            this.setLook(t, counterLabel(c.kills), counterFontSize(c.kills), multiKillColor(c.kills));
+        }
+        counterCenter(c.x, c.y, t.width, t.height, this.world.screen, top, view);
+        t.setPosition(view.x, view.y).setScale(popScale(c.age)).setAlpha(1).setVisible(true);
+    }
+
+    /** A result's view: its counter's last drawn spot (measured now if the counter never showed), fitted to the result. */
+    private startResult(r: KillResult, top: number): ResultView {
+        const size = this.world.screen;
+        const counter = this.counterViews.get(r.id);
+        const t = this.takeText();
+        let at: { x: number; y: number };
+        if (counter && reusesCounterSpot(counter.kills, r.kills)) {
+            at = { x: counter.x, y: counter.y };
+        } else {
+            this.setLook(t, counterLabel(r.kills), counterFontSize(r.kills), multiKillColor(r.kills));
+            at = counterCenter(r.x, r.y, t.width, t.height, size, top);
+        }
+        this.setLook(t, resultLabel(r.score), resultFontSize(r.kills), multiKillColor(r.kills));
+        t.setScale(1);
+        const start = resultStart(at, r.lastIsBoss, t.width, t.height, size, top);
+        return { text: t, x: start.x, y: start.y };
+    }
+
+    private takeText(): GameObjects.Text {
+        return this.spareTexts.pop() ?? this.add.text(0, 0, '', {
+            fontFamily: 'monospace', fontSize: MULTIKILL_FONT_BASE, color: TEXT_CSS_COLOR, stroke: '#000000', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(5).setVisible(false);
+    }
+
+    private freeText(t: GameObjects.Text, unbind: () => void) {
+        t.setVisible(false);
+        this.spareTexts.push(t);
+        unbind();
+    }
+
+    /**
+     * Restyles a text only when its content, size or colour changes. Sizes already measured reuse their
+     * metrics, so a change costs a single re-render (setText); a size seen for the first time measures once.
+     */
+    private setLook(t: GameObjects.Text, text: string, fontSize: number, color: number) {
+        const look = this.textLooks.get(t);
+        if (look && look.text === text && look.fontSize === fontSize && look.color === color) return;
+        const metrics = this.fontMetrics.get(fontSize);
+        const style = t.style;
+        style.setStyle({ fontSize: `${fontSize}px`, color: cssColor(color), ...(metrics ? { metrics } : {}) }, false);
+        if (!metrics) {
+            style.update(true);
+            this.fontMetrics.set(fontSize, style.getTextMetrics());
+        }
+        if (t.text !== text) t.setText(text);
+        else if (metrics) t.updateText();
+        if (look) {
+            look.text = text;
+            look.fontSize = fontSize;
+            look.color = color;
+        } else {
+            this.textLooks.set(t, { text, fontSize, color });
         }
     }
 

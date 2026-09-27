@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { RELEASE_SPEED, STOCK_MAX } from './constants';
 import { createEnemy, type Enemy } from './enemy';
 import type { ScreenSize } from './screen';
-import { shortfall, World, type Input } from './world';
+import { shortfall, World, type Input, type ReleaseGroup } from './world';
 
 const S: ScreenSize = { width: 1024, height: 768 };
 const DT = 1 / 60;
 const NONE: Input = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
+
+/** A one-bullet release group for bullets a test places by hand. */
+function newGroup(): ReleaseGroup {
+    return { id: 0, pending: 1, kills: [], lastX: 0, lastY: 0, lastIsBoss: false };
+}
 
 function input(overrides: Partial<Input>): Input {
     return { ...NONE, ...overrides };
@@ -89,7 +94,7 @@ describe('phases', () => {
         const stock = w.stock;
         w.enemyBullets.push({ x: w.player.x + 20, y: w.player.y, vx: 0, vy: 0, removed: false });
         const target = still(w, 'shooter', w.player.x, w.player.y - 30, 8);
-        w.releaseBullets.push({ x: target.x, y: target.y, heading: 0, age: 0, group: { pending: 1, kills: [] }, target: null, removed: false });
+        w.releaseBullets.push({ x: target.x, y: target.y, heading: 0, age: 0, group: newGroup(), target: null, removed: false });
         w.spawnTimer = 0;
         w.step(DT, NONE);
         expect(w.stock).toBe(stock);
@@ -326,7 +331,7 @@ describe('defeated enemies for the defeat effect', () => {
     function shotAt(w: World, x: number, y: number, heading: number): void {
         w.releaseBullets.push({
             x: x - Math.cos(heading) * 5, y: y - Math.sin(heading) * 5, heading, age: 0,
-            group: { pending: 1, kills: [] }, target: null, removed: false
+            group: newGroup(), target: null, removed: false
         });
     }
 
@@ -354,7 +359,7 @@ describe('defeated enemies for the defeat effect', () => {
         e.incoming = 1;
         // Aimed 30° below the grunt; one frame turns it back by at most 360°/s × 1/60 s = 6°.
         w.releaseBullets.push({
-            x: 393, y: 300, heading: Math.PI / 6, age: 0, group: { pending: 1, kills: [] }, target: e, removed: false
+            x: 393, y: 300, heading: Math.PI / 6, age: 0, group: newGroup(), target: e, removed: false
         });
         w.step(DT, NONE);
         expect(w.defeated).toHaveLength(1);
@@ -562,6 +567,129 @@ describe('releases for the release effect', () => {
     });
 });
 
+describe('kill counts and settlements for the multi-kill effect', () => {
+    // With the rng fixed at 0.5 every release bullet leaves straight up along the same path.
+    function releaseAt(w: World, n: number): void {
+        w.stock = n;
+        w.step(DT, input({ release: true }));
+    }
+
+    function stepUntilSettled(w: World): { updates: { id: number; kills: number; x: number; y: number }[][]; settledAt: number } {
+        const updates: { id: number; kills: number; x: number; y: number }[][] = [];
+        for (let i = 0; i < 400; i++) {
+            if (w.killUpdates.length > 0) updates.push(w.killUpdates.map((u) => ({ ...u })));
+            if (w.settlements.length > 0) return { updates, settledAt: i };
+            w.step(DT, NONE);
+        }
+        return expect.fail('the release never settled');
+    }
+
+    it('reports each kill in its own frame, at that enemy, with the running count', () => {
+        const w = playingWorld();
+        const near = still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        const far = still(w, 'grunt', w.player.x, w.player.y - 200, 1);
+        releaseAt(w, 2);
+        const { updates } = stepUntilSettled(w);
+        expect(updates.map((frame) => frame.map((u) => u.kills))).toEqual([[1], [2]]);
+        expect(updates[0][0]).toMatchObject({ x: near.x, y: near.y });
+        expect(updates[1][0]).toMatchObject({ x: far.x, y: far.y });
+    });
+
+    it('reports two kills in one frame as a single update with the later enemy\'s position', () => {
+        const w = playingWorld();
+        // Same size, 5 px apart: the two bullets flying together finish both in one frame.
+        still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        const second = still(w, 'grunt', w.player.x + 5, w.player.y - 60, 1);
+        releaseAt(w, 2);
+        const { updates } = stepUntilSettled(w);
+        expect(updates).toHaveLength(1);
+        expect(updates[0]).toHaveLength(1);
+        expect(updates[0][0]).toMatchObject({ kills: 2, x: second.x, y: second.y });
+    });
+
+    it('settles once all bullets are gone, with the points it adds to the score (2 kills = sum × 1.5)', () => {
+        const w = playingWorld();
+        // Two grunts 5 px apart, finished in one frame: the second one listed is the last kill.
+        const x = w.player.x + 5;
+        const y = w.player.y - 60;
+        still(w, 'grunt', w.player.x, y, 1);
+        still(w, 'grunt', x, y, 1);
+        releaseAt(w, 2);
+        const id = w.releaseBullets[0].group.id;
+        let before = w.score;
+        for (let i = 0; i < 400 && w.settlements.length === 0; i++) {
+            before = w.score;
+            w.step(DT, NONE);
+        }
+        expect(w.settlements).toHaveLength(1);
+        const s = w.settlements[0];
+        expect(s.kills).toBe(2);
+        expect(s.score).toBe(300); // (100 + 100) × 1.5
+        expect(w.score - before).toBe(300);
+        expect(s.lastIsBoss).toBe(false);
+        expect(s).toMatchObject({ id, x, y });
+    });
+
+    it('settles a release that killed nothing too, with 0 kills and 0 points', () => {
+        const w = playingWorld();
+        releaseAt(w, 1);
+        const { settledAt } = stepUntilSettled(w);
+        expect(settledAt).toBeGreaterThan(0);
+        expect(w.settlements[0]).toMatchObject({ kills: 0, score: 0 });
+    });
+
+    it('reports overlapping releases under distinct ids, each kill and settlement under its own release', () => {
+        const w = playingWorld();
+        // Both single-bullet releases fly the same path; the first takes the near grunt, the second the far one.
+        still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        still(w, 'grunt', w.player.x, w.player.y - 300, 1);
+        releaseAt(w, 1);
+        releaseAt(w, 1);
+        const updates: number[] = [];
+        const settled: number[] = [];
+        for (let i = 0; i < 400 && settled.length < 2; i++) {
+            w.step(DT, NONE);
+            for (const u of w.killUpdates) updates.push(u.id);
+            for (const s of w.settlements) settled.push(s.id);
+        }
+        expect(updates).toHaveLength(2);
+        expect(updates[0]).not.toBe(updates[1]);
+        expect(settled).toEqual(updates);
+    });
+
+    it('forgets the previous frame\'s updates and settlements on the next step', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x, w.player.y - 60, 1);
+        releaseAt(w, 1);
+        stepUntilSettled(w);
+        // The kill and the settlement land in the same frame here: that frame's lists are not empty.
+        expect(w.killUpdates.length + w.settlements.length).toBeGreaterThan(0);
+        w.step(DT, NONE);
+        expect(w.killUpdates).toHaveLength(0);
+        expect(w.settlements).toHaveLength(0);
+    });
+
+    it('reports the releases still open when the run ends as settled at the end of ending', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        // Just below the player: it rams this frame, while the bullets fly up without touching it.
+        still(w, 'shooter', w.player.x, w.player.y + 20, 8);
+        releaseAt(w, 3);
+        expect(w.phase).toBe('ending');
+        let settled = 0;
+        let bulletsBeforeOver = 0;
+        for (let i = 0; i < 200 && w.phase !== 'over'; i++) {
+            bulletsBeforeOver = w.releaseBullets.length;
+            w.step(DT, NONE);
+            settled += w.settlements.length;
+        }
+        expect(w.phase).toBe('over');
+        // Still in flight when the run ended, so this settlement comes from the end-of-ending flush.
+        expect(bulletsBeforeOver).toBe(3);
+        expect(settled).toBe(1);
+    });
+});
+
 describe('releasing', () => {
     it('does nothing with an empty stock', () => {
         const w = playingWorld();
@@ -596,7 +724,7 @@ describe('releasing', () => {
         const w = playingWorld();
         const a = still(w, 'shooter', 500, 300, 8);
         const b = still(w, 'shooter', 500, 300, 8);
-        w.releaseBullets.push({ x: 500, y: 300, heading: 0, age: 0, group: { pending: 1, kills: [] }, target: null, removed: false });
+        w.releaseBullets.push({ x: 500, y: 300, heading: 0, age: 0, group: newGroup(), target: null, removed: false });
         w.step(DT, NONE);
         expect(a.hp + b.hp).toBe(15);
     });
@@ -644,7 +772,7 @@ describe('releasing', () => {
         // On a 1536 px tall screen a bullet flying straight up from the bottom needs 2.55 s to leave,
         // so only the lifetime can end it at 2.5 s.
         const w = playingWorld({ width: 768, height: 1536 });
-        w.releaseBullets.push({ x: 384, y: 1530, heading: -Math.PI / 2, age: 0, group: { pending: 1, kills: [] }, target: null, removed: false });
+        w.releaseBullets.push({ x: 384, y: 1530, heading: -Math.PI / 2, age: 0, group: newGroup(), target: null, removed: false });
         steps(w, 2.45);
         expect(w.releaseBullets).toHaveLength(1);
         steps(w, 0.1);
@@ -775,7 +903,7 @@ describe('target assignment', () => {
 
 describe('retargeting in flight', () => {
     function bullet(w: World, x: number, y: number) {
-        const b = { x, y, heading: 0, age: 0, group: { pending: 1, kills: [] }, target: null, removed: false };
+        const b = { x, y, heading: 0, age: 0, group: newGroup(), target: null, removed: false };
         w.releaseBullets.push(b);
         return b;
     }
@@ -1191,6 +1319,33 @@ describe('boss', () => {
             untilBulletsGone(w);
             expect(w.boss).toBeNull();
             expect(w.score).toBe(11400); // (7500 + 100) × 1.5
+        });
+
+        it('mark a release whose last kill was the boss, but not one that killed a grunt after it', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), w.player.x, w.player.y - 120);
+            boss.hp = 1;
+            w.stock = 1;
+            w.release();
+            let lastIsBoss: boolean | null = null;
+            for (let i = 0; i < 400 && lastIsBoss === null; i++) {
+                w.step(DT, NONE);
+                if (w.settlements.length > 0) lastIsBoss = w.settlements[0].lastIsBoss;
+            }
+            expect(lastIsBoss).toBe(true);
+
+            const w2 = playingWorld();
+            const boss2 = hold(spawnBoss(w2), w2.player.x, w2.player.y - 120);
+            boss2.hp = 1;
+            still(w2, 'grunt', w2.player.x, w2.player.y - 300, 1);
+            w2.stock = 2;
+            w2.release();
+            let settlement = null;
+            for (let i = 0; i < 400 && !settlement; i++) {
+                w2.step(DT, NONE);
+                if (w2.settlements.length > 0) settlement = w2.settlements[0];
+            }
+            expect(settlement).toMatchObject({ kills: 2, lastIsBoss: false });
         });
 
         it('are never listed among the defeated enemies that get regular debris', () => {
