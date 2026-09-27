@@ -53,6 +53,25 @@ export const RELEASE_RING_MAX_WIDTH = 8;
 /** Camera shake, only for a full-stock release. */
 export const RELEASE_SHAKE_DURATION = 0.2;
 export const RELEASE_SHAKE_AMPLITUDE = 6;
+/** "k HIT ×multiplier" counter shown from a release's second kill; its text size grows with k. */
+export const MULTIKILL_FONT_BASE = 24;
+export const MULTIKILL_FONT_STEP = 4;
+export const MULTIKILL_FONT_MAX = 48;
+/** Kill counts at which the counter turns yellow, then orange. */
+export const MULTIKILL_TIER_YELLOW = 3;
+export const MULTIKILL_TIER_ORANGE = 5;
+/** The counter sits this far above the last enemy the release killed. */
+export const MULTIKILL_OFFSET_Y = 30;
+/** Minimum gap between the counter / result text and the left or right screen edge. */
+export const MULTIKILL_EDGE_MARGIN = 16;
+export const MULTIKILL_POP_SCALE = 1.4;
+export const MULTIKILL_POP_DURATION = 0.15;
+/** The "+points" result is this much larger than the counter it replaces. */
+export const MULTIKILL_RESULT_SCALE = 1.5;
+export const MULTIKILL_RESULT_DURATION = 1;
+export const MULTIKILL_RESULT_RISE = 40;
+/** Extra lift for the result when the release's last kill was the boss, clearing the boss's own popup. */
+export const MULTIKILL_BOSS_OFFSET_Y = 50;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;
