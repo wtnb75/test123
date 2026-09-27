@@ -320,6 +320,151 @@ describe('absorbed positions for the absorb effect', () => {
     });
 });
 
+describe('defeated enemies for the defeat effect', () => {
+    /** A release bullet 5 px from (x, y) along `heading`, flying at it; it hits on the next step. */
+    function shotAt(w: World, x: number, y: number, heading: number): void {
+        w.releaseBullets.push({
+            x: x - Math.cos(heading) * 5, y: y - Math.sin(heading) * 5, heading, age: 0,
+            group: { pending: 1, kills: [] }, target: null, removed: false
+        });
+    }
+
+    it('lists a regular enemy a release bullet kills, with its position, kind and the bullet heading', () => {
+        const w = playingWorld();
+        still(w, 'shooter', 400, 300, 1);
+        shotAt(w, 400, 300, -Math.PI / 2);
+        w.step(DT, NONE);
+        expect(w.defeated).toEqual([{ x: 400, y: 300, kind: 'shooter', heading: -Math.PI / 2 }]);
+    });
+
+    it('lists every enemy killed in the same frame', () => {
+        const w = playingWorld();
+        still(w, 'grunt', 300, 300, 1);
+        still(w, 'shooter', 600, 300, 1);
+        shotAt(w, 300, 300, 0);
+        shotAt(w, 600, 300, Math.PI);
+        w.step(DT, NONE);
+        expect(w.defeated.map((d) => d.kind)).toEqual(['grunt', 'shooter']);
+    });
+
+    it('records the heading after this frame\'s homing turn, not the heading it had before', () => {
+        const w = playingWorld();
+        const e = still(w, 'grunt', 400, 300, 1);
+        e.incoming = 1;
+        // Aimed 30° below the grunt; one frame turns it back by at most 360°/s × 1/60 s = 6°.
+        w.releaseBullets.push({
+            x: 393, y: 300, heading: Math.PI / 6, age: 0, group: { pending: 1, kills: [] }, target: e, removed: false
+        });
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(1);
+        expect(w.defeated[0].heading).toBeCloseTo(Math.PI / 6 - Math.PI / 30);
+    });
+
+    it('records where the enemy is after this frame\'s move', () => {
+        const w = playingWorld();
+        const e = createEnemy('heavy', 998, () => 0.5, w.screen);
+        e.x = 300;
+        e.y = 300;
+        e.hp = 1;
+        w.enemies.push(e);
+        shotAt(w, 300, 300, 0);
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(1);
+        expect(e.x !== 300 || e.y !== 300).toBe(true); // the heavy did move this frame
+        expect(w.defeated[0].x).toBe(e.x);
+        expect(w.defeated[0].y).toBe(e.y);
+    });
+
+    it('does not list a hit that leaves the enemy alive', () => {
+        const w = playingWorld();
+        const e = still(w, 'shooter', 400, 300, 2);
+        shotAt(w, 400, 300, 0);
+        w.step(DT, NONE);
+        expect(e.hp).toBe(1);
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('forgets the previous frame\'s kills on the next step', () => {
+        const w = playingWorld();
+        still(w, 'grunt', 400, 300, 1);
+        shotAt(w, 400, 300, 0);
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(1);
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('does not list an enemy broken by ramming the player', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.player.lives).toBe(2);
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('does not list a rammer that dashes off the screen', () => {
+        const w = playingWorld();
+        const r = createEnemy('rammer', 999, () => 0.5, w.screen);
+        r.state = 'dash';
+        r.heading = 0;
+        r.homingLeft = 0;
+        r.x = S.width + r.radius - 1;
+        r.y = 300;
+        w.enemies.push(r);
+        w.step(DT, NONE);
+        expect(w.enemies).not.toContain(r);
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('still lists a kill made in the frame a ram ends the run', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'shooter', 400, 300, 1);
+        shotAt(w, 400, 300, 0);
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        expect(w.defeated).toHaveLength(1);
+    });
+
+    it('stays empty during ready, since nothing is hit then', () => {
+        const w = new World(S, () => 0.5);
+        still(w, 'grunt', 400, 300, 1);
+        shotAt(w, 400, 300, 0);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ready');
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('stays empty during ending, since release bullets no longer hit then', () => {
+        const w = playingWorld();
+        w.player.lives = 1;
+        still(w, 'grunt', w.player.x, w.player.y);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        still(w, 'shooter', 400, 300, 1);
+        shotAt(w, 400, 300, 0);
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(0);
+    });
+
+    it('leaves the rules alone right after a kill: bullets and enemies nearby behave as before', () => {
+        const w = playingWorld();
+        still(w, 'grunt', 400, 300, 1);
+        const neighbour = still(w, 'shooter', 420, 300, 8);
+        shotAt(w, 400, 300, 0);
+        const bullet = { x: 405, y: 300, vx: 0, vy: 0, removed: false };
+        w.enemyBullets.push(bullet);
+        w.step(DT, NONE);
+        expect(w.defeated).toHaveLength(1);
+        w.step(DT, NONE);
+        expect(neighbour.hp).toBe(8);
+        expect(w.enemyBullets).toContain(bullet);
+        expect(w.score).toBe(100); // the grunt alone, at single-kill value
+        expect(w.player.lives).toBe(3);
+    });
+});
+
 describe('releasing', () => {
     it('does nothing with an empty stock', () => {
         const w = playingWorld();
@@ -949,6 +1094,23 @@ describe('boss', () => {
             untilBulletsGone(w);
             expect(w.boss).toBeNull();
             expect(w.score).toBe(11400); // (7500 + 100) × 1.5
+        });
+
+        it('are never listed among the defeated enemies that get regular debris', () => {
+            const w = playingWorld();
+            const boss = hold(spawnBoss(w), 512, 300);
+            boss.hp = 1;
+            w.stock = 1;
+            w.release();
+            for (let t = 0; w.releaseBullets.length > 0; t += DT) {
+                if (t > 5) expect.fail('release bullets still flying');
+                w.step(DT, NONE);
+                if (w.defeated.length > 0) expect.fail('the boss was listed as a regular defeat');
+            }
+            // Killed by the release bullet, not by ramming the player.
+            expect(w.boss).toBeNull();
+            expect(w.score).toBe(7500);
+            expect(w.player.lives).toBe(3);
         });
 
         it('schedule the next boss 60 s after the killing hit', () => {

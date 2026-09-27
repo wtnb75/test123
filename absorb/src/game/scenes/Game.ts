@@ -6,9 +6,13 @@ import {
 import { bossScore } from '../logic/boss';
 import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
-    ENDING_DURATION,
-    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX
+    DEBRIS_COUNT, ENDING_DURATION,
+    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS, STOCK_MAX,
+    type EnemyKind
 } from '../logic/constants';
+import {
+    DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
+} from '../logic/debrisFx';
 import {
     announceAlpha, bossEvent, defeatRingProgress, defeatRingRadius, fadeAlpha, hitFlashVisible, scorePopupProgress,
     scorePopupRise
@@ -48,6 +52,14 @@ const GAUGE_Y = 22;
 const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
+/** Debris colors per enemy kind, worked out once. */
+const DEBRIS_COLORS: Record<EnemyKind, number> = {
+    grunt: debrisColor('grunt', COLORS.grunt),
+    shooter: debrisColor('shooter', COLORS.shooter),
+    heavy: debrisColor('heavy', COLORS.heavy),
+    rammer: debrisColor('rammer', COLORS.rammer)
+};
+
 const cssColor = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
@@ -75,6 +87,7 @@ export class Game extends Scene {
     private lastBoss: Enemy | null = null;
     private lastBossHp = 0;
     private readonly absorbFx = new AbsorbEffects();
+    private readonly debrisFx = new DebrisEffects();
     /** Seconds since the last boss hit / kill; Infinity when nothing is playing. */
     private hitFlashAge = Infinity;
     private defeatAge = Infinity;
@@ -115,6 +128,7 @@ export class Game extends Scene {
         this.hitFlashAge = this.defeatAge = Infinity;
         this.defeatX = this.defeatY = 0;
         this.absorbFx.clear();
+        this.debrisFx.clear();
         this.touchUi = this.sys.game.device.input.touch;
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
@@ -219,6 +233,7 @@ export class Game extends Scene {
         this.input_.dragY = 0;
         this.trackBoss(dt);
         this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
+        this.debrisFx.update(dt, this.world.defeated);
         this.draw();
         this.drawBossEffects();
         this.drawHud();
@@ -281,11 +296,24 @@ export class Game extends Scene {
         for (const b of w.enemyBullets) g.fillCircle(b.x, b.y, ENEMY_BULLET_RADIUS);
 
         for (const e of w.enemies) this.drawEnemy(e);
+        this.drawDebris();
 
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
 
         this.drawPlayer();
+    }
+
+    /** Debris of enemies release bullets killed: over the enemies, under the release bullets. */
+    private drawDebris() {
+        const g = this.gfx;
+        // Finished bursts are dropped in DebrisEffects.update, so every burst here is showing.
+        for (const b of this.debrisFx.bursts) {
+            const p = debrisProgress(b.age);
+            const r = debrisRadius(p);
+            g.fillStyle(DEBRIS_COLORS[b.kind], 1);
+            for (let i = 0; i < DEBRIS_COUNT; i++) g.fillCircle(debrisPieceX(b, i, p), debrisPieceY(b, i, p), r);
+        }
     }
 
     private drawPlayer() {

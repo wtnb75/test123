@@ -50,6 +50,14 @@ export interface ReleaseGroup {
     kills: number[];
 }
 
+/** A regular enemy a release bullet killed, and the heading of the bullet that finished it. */
+export interface Defeat {
+    x: number;
+    y: number;
+    kind: EnemyKind;
+    heading: number;
+}
+
 export interface ReleaseBullet {
     x: number;
     y: number;
@@ -115,6 +123,8 @@ export class World {
      * absorb effect). Consolation stock from being rammed adds nothing here.
      */
     private readonly absorbedPoints: Point[] = [];
+    /** Regular enemies killed by release bullets during the latest step (for the defeat effect). */
+    private readonly defeatedEnemies: Defeat[] = [];
     private readonly ctx: EnemyContext;
 
     constructor(readonly screen: ScreenSize, private readonly rng: Rng = Math.random) {
@@ -126,6 +136,14 @@ export class World {
         return this.absorbedPoints;
     }
 
+    /**
+     * Regular enemies release bullets killed during the latest step. Rammed enemies, rammers that
+     * left the screen and the boss (which has its own effect) are never listed.
+     */
+    get defeated(): readonly Defeat[] {
+        return this.defeatedEnemies;
+    }
+
     private isTargetable(e: Enemy): boolean {
         return !e.removed && isOnScreen(e, this.screen);
     }
@@ -133,6 +151,7 @@ export class World {
     step(dt: number, input: Input): void {
         this.phaseTime += dt;
         this.absorbedPoints.length = 0;
+        this.defeatedEnemies.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -393,6 +412,7 @@ export class World {
             b.removed = true;
             e.hp--;
             if (e.hp <= 0) {
+                if (e.kind !== 'boss') this.defeatedEnemies.push({ x: e.x, y: e.y, kind: e.kind, heading: b.heading });
                 this.destroy(e);
                 b.group.kills.push(killScore(e));
             }
