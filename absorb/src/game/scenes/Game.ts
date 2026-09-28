@@ -12,6 +12,7 @@ import {
     SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
+import { DropFlashes } from '../logic/carrierFx';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
@@ -139,6 +140,7 @@ export class Game extends Scene {
     private readonly debrisFx = new DebrisEffects();
     private readonly releaseFx = new ReleaseEffects();
     private readonly splitFx = new SplitEffects();
+    private readonly dropFlashes = new DropFlashes();
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     /** Red hit tint and edge band: over the whole play area, under the HUD. */
@@ -199,6 +201,7 @@ export class Game extends Scene {
         this.debrisFx.clear();
         this.releaseFx.clear();
         this.splitFx.clear();
+        this.dropFlashes.clear();
         this.multiKillFx.clear();
         this.hitFx.clear();
         // The previous run's texts were destroyed with the scene.
@@ -315,6 +318,7 @@ export class Game extends Scene {
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
         this.splitFx.update(dt, this.world.splits);
+        this.dropFlashes.update(dt, this.world.carrierDrops);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
         if (startsShake(this.world.releases)) {
@@ -385,7 +389,9 @@ export class Game extends Scene {
         g.fillStyle(COLORS.enemyBullet, 1);
         for (const b of w.enemyBullets) g.fillCircle(b.x, b.y, ENEMY_BULLET_RADIUS);
 
-        for (const e of w.enemies) this.drawEnemy(e);
+        // Carriers go over every other enemy: their drops start at the hull centre and would hide the mark.
+        for (const e of w.enemies) if (e.kind !== 'carrier') this.drawEnemy(e);
+        for (const e of w.enemies) if (e.kind === 'carrier') this.drawEnemy(e);
         this.drawDebris();
         this.drawSplitRings();
 
@@ -660,7 +666,7 @@ export class Game extends Scene {
                 g.fillRect(e.x - top, e.y - h, top * 2, h * 2);
                 g.fillTriangle(e.x - r, e.y, e.x - top, e.y - h, e.x - top, e.y + h);
                 g.fillTriangle(e.x + r, e.y, e.x + top, e.y - h, e.x + top, e.y + h);
-                g.fillStyle(COLORS[e.cargo], 1);
+                g.fillStyle(this.dropFlashes.isFlashing(e) ? COLORS.warn : COLORS[e.cargo], 1);
                 g.fillCircle(e.x, e.y, h * CARRIER_MARK_RATIO);
                 break;
             }

@@ -192,6 +192,8 @@ export const CARRIER_INTERVAL = 35;
 /** It drops its first enemy this long after its centre comes on screen, then one every drop interval. */
 export const CARRIER_FIRST_DROP = 1.5;
 export const CARRIER_DROP_INTERVAL = 3;
+/** A dropping carrier's centre mark flashes white for this long. */
+export const CARRIER_DROP_FLASH = 0.15;
 
 export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer' | 'splitter';
 

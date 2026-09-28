@@ -181,6 +181,8 @@ export class World {
     private readonly splitsThisStep: { x: number; y: number; heading: number }[] = [];
     /** Enemies carriers dropped this step; like split children they join once the step's collisions are done. */
     private readonly dropsThisStep: Enemy[] = [];
+    /** Carriers that dropped an enemy during the latest step (for the drop flash). */
+    private readonly droppersThisStep: Enemy[] = [];
     /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
     private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
@@ -222,6 +224,11 @@ export class World {
         return this.tally;
     }
 
+    /** Carriers that dropped an enemy during the latest step, even one destroyed later in that step. */
+    get carrierDrops(): readonly Enemy[] {
+        return this.droppersThisStep;
+    }
+
     /** Where splitters split during the latest step (for the split ring): the parent's spot, before clamping. */
     get splits(): readonly Point[] {
         return this.splitsThisStep;
@@ -246,6 +253,7 @@ export class World {
         this.hitsThisStep.length = 0;
         this.splitsThisStep.length = 0;
         this.dropsThisStep.length = 0;
+        this.droppersThisStep.length = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -441,7 +449,10 @@ export class World {
             if (e.kind === 'carrier') {
                 // Dropping is spawning, so like other spawns it stops once the run is ending.
                 const drops = updateCarrier(e, dt, this.screen);
-                if (drops && canFire) this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
+                if (drops && canFire) {
+                    this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
+                    this.droppersThisStep.push(e);
+                }
                 continue;
             }
             const fired = e.kind === 'boss' ? updateBoss(e, dt, this.ctx) : updateEnemy(e, dt, this.ctx);
