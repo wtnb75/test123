@@ -24,7 +24,7 @@ export class DropFlashes {
         for (const carrier of droppers) {
             // A carrier destroyed in the frame it dropped is no longer drawn, so it gets no flash.
             if (carrier.removed) continue;
-            const current = this.flashes.find((f) => f.carrier === carrier);
+            const current = this.flashOf(carrier);
             if (current) current.age = 0;
             else this.flashes.push({ carrier, age: 0 });
         }
@@ -32,7 +32,13 @@ export class DropFlashes {
 
     /** Whether this carrier's centre mark is drawn white this frame. */
     isFlashing(carrier: Enemy): boolean {
-        return this.flashes.some((f) => f.carrier === carrier);
+        return this.flashOf(carrier) !== null;
+    }
+
+    /** A plain loop rather than find/some: this runs every frame while drawing, so no closures. */
+    private flashOf(carrier: Enemy): DropFlash | null {
+        for (const f of this.flashes) if (f.carrier === carrier) return f;
+        return null;
     }
 
     clear(): void {

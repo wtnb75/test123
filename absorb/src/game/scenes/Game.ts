@@ -391,7 +391,7 @@ export class Game extends Scene {
 
         // Carriers go over every other enemy: their drops start at the hull centre and would hide the mark.
         for (const e of w.enemies) if (e.kind !== 'carrier') this.drawEnemy(e);
-        for (const e of w.enemies) if (e.kind === 'carrier') this.drawEnemy(e);
+        if (w.carrier) this.drawEnemy(w.carrier);
         this.drawDebris();
         this.drawSplitRings();
 
