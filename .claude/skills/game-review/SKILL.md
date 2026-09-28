@@ -1,6 +1,6 @@
 ---
 name: game-review
-description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/extend/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
+description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/backlog/extend/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
 ---
 
 # game-review
@@ -27,7 +27,7 @@ checklist asks "can someone implement this without inventing anything?").
 | STAGE | Reviewer | Why |
 |---|---|---|
 | `spec`, `impl`, `test` | **Fresh subagent** (see below) | The output is consumed by the next stage; the author fills gaps from conversation context without noticing |
-| `idea`, `extend`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
+| `idea`, `backlog`, `extend`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
 
 ### Running a subagent review
 
@@ -95,6 +95,23 @@ Before summarizing the concept to the user:
 - Is there enough to write a spec from: concept, target player, core loop,
   main input device, MVP / non-MVP scope?
 
+## STAGE=backlog (self) — consumer: game-extend
+
+Before committing `docs/backlog.md`:
+
+- Does every card have all its fields (狙い with 根拠, 何を足すか, コアループへの
+  効き方, 種別, 規模, 出どころ)? One-line leftovers converted?
+- Does each 狙い name a concrete problem with the current game, and does its
+  根拠 point to something checkable (a spec section, automated-play numbers
+  with their conditions, or the user's words)? "More content" is not one.
+- If automated play was run, are the numbers medians over stated conditions,
+  and is what a simple bot can't show said plainly?
+- Is the order the one the user agreed to (top = next up)?
+- Were stale cards updated and solved ones dropped (with the reason in the
+  PR body, not the file)?
+- Is the change docs-only on a `docs/<game-dir>-backlog` branch from
+  `origin/main`, with the throwaway harness removed?
+
 ## STAGE=extend (self) — consumer: game-spec
 
 Before summarizing the agreed extension to the user:
@@ -118,8 +135,8 @@ Before summarizing the agreed extension to the user:
 - Is there a branch slug that doesn't collide with an existing
   `feat/<game-dir>-<slug>` branch?
 - Is it classified presentation-only or gameplay?
-- Were candidates offered from `docs/backlog.md` (if it exists), and are the
-  ones left for later listed in the summary for `game-spec` to record?
+- Were candidates offered from `docs/backlog.md` top-down (if it exists), and
+  are the ones left for later listed in the summary for `game-spec` to record?
 
 ## STAGE=init (self)
 

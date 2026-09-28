@@ -43,12 +43,16 @@ Ask one question at a time.
    非MVP範囲 and the パラメータ表, plus `README.md`. Optionally play it
    once with `game-qa`'s Docker+Playwright setup and look at the
    screenshots; skip this if the user has played it recently.
-2. **Pick exactly one.** List candidates from the user's ideas,
-   `<game-dir>/docs/backlog.md` (if present — ideas left over from earlier
-   cycles) and the spec's 非MVP範囲, and have the user choose **one**. If they want
-   several, split them and say which ones are left for later cycles
-   (AGENTS.md: one change, one purpose; one PR per game change).
-3. **Pin it down**, one question at a time:
+2. **Pick exactly one.** Offer the cards of `<game-dir>/docs/backlog.md`
+   (on `origin/main`) in their order — top card first, it's the user's
+   agreed next-up — plus any idea the user brings, and have the user choose
+   **one**. If there is no backlog, or it is empty, or the user wants fresh
+   ideas, run `game-backlog` first and come back. If they want several,
+   split them and say which ones are left for later cycles (AGENTS.md: one
+   change, one purpose; one PR per game change).
+3. **Pin it down**, one question at a time. A backlog card's 狙い,
+   コアループへの効き方, 種別 and 規模 are the starting draft — confirm or
+   revise them rather than asking from scratch:
    - what is added, concretely;
    - why — what feels missing or dull in the current game (a concrete
      problem, not "more content");

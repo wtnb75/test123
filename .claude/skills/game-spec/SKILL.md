@@ -50,10 +50,12 @@ the body — see "Spec layout" below), and a branch slug. When writing it:
   always describes the current game; the why lives in the PR description
   and git history.
 - Update `<game-dir>/docs/backlog.md` in the same branch (create it if
-  missing): remove the item this revision implements, and add the
-  candidates the summary lists as "left for later" that aren't there yet
-  (one line each: the idea and, if known, why it was left). The backlog is
-  not part of the spec — only a list for the next `game-extend`.
+  missing): remove the card this revision implements, and add the
+  candidates the summary lists as "left for later" that aren't there yet,
+  as cards in the `game-backlog` "Card format" (put why it was left in
+  メモ), at the bottom unless the user ranked them. Keep the other cards'
+  order. The backlog is not part of the spec — only the ranked list
+  `game-extend` picks from (`game-backlog` maintains it).
 
 ### パラメータ表 and 実装裁量
 

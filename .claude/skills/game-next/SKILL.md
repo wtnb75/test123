@@ -1,6 +1,6 @@
 ---
 name: game-next
-description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend or another game-balance pass.
+description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend (from the backlog), game-backlog (new ideas, ranking) or another game-balance pass.
 ---
 
 # game-next
@@ -111,12 +111,15 @@ so the user can follow the progress.
 ## `complete`
 
 All tracked stages are `done` — the game is published. Tell the user this
-game's workflow has nothing pending, and offer the two ways to continue:
+game's workflow has nothing pending, and offer the ways to continue:
 
 - **`game-extend`** — add one new element or feature to the published
-  game. It agrees the scope in conversation, then hands off to
-  `game-spec`, which opens a new branch and restarts the chain from
-  `impl`.
+  game, starting from the top card of `docs/backlog.md` (name it). It
+  agrees the scope in conversation, then hands off to `game-spec`, which
+  opens a new branch and restarts the chain from `impl`.
+- **`game-backlog`** — find new ideas (spec analysis, automated play, the
+  user's own), and rank or prune the backlog. Lead with this one when the
+  backlog is missing or empty.
 - **`game-balance`** — another tuning pass without new features.
 
 Also offer `task game:dashboard` to see every tracked game's status.

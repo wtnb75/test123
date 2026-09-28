@@ -192,12 +192,14 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | 見た目・UI調整 | `game-polish` | エフェクト、入力へのフィードバック、動線・操作の分かりやすさを改善する。spec→impl→test→check→codereview→qa をループする（ゲームバランスに関わる数値は扱わない） |
 | バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→codereview→qa→polish をループする |
 | 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
-| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` からも出し、見送った候補は `game-spec` が同じファイルに記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
+| 拡張候補 | `game-backlog` | 公開済みゲームの拡張アイデアを、spec の分析・自動プレイの数字・ユーザーの思いつきから出し、`docs/backlog.md` に狙い・コアループへの効き方・種別・規模・根拠つきのカードとして並べる。順番はユーザーが決める（上が次の候補）。docs だけのブランチ・PR で更新する |
+| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` の上から順に出し（無ければ先に `game-backlog`）、見送った候補は `game-spec` が同じファイルにカードとして記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
 
 - 迷ったら `game-next` を実行するだけでよい。現在どのゲームのどの段階が未完了
   かを自動判定し（`task game:detect` / `task game:next`）、該当スキルへ自動で
-  進む。全段階が完了した（公開済みの）ゲームでは、`game-extend`（拡張）か
-  `game-balance`（再調整）を案内する
+  進む。全段階が完了した（公開済みの）ゲームでは、`game-extend`（backlog の
+  先頭から拡張）、`game-backlog`（アイデア出し・並べ替え）、`game-balance`
+  （再調整）を案内する
 - 段階の間では止まらない。各スキルは完了時に `game-next` へ戻り、ユーザーの
   承認・判断が要る箇所（spec の承認、codereview の採否、polish/balance の
   選択、publish の確認など）か、段階が失敗して `done` にならなかったときだけ
