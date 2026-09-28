@@ -88,6 +88,10 @@ export const GAMEOVER_ROW_INTERVAL = 0.12;
 export const GAMEOVER_ROW_FADE = 0.2;
 /** The retry hint fades in over this once retry input is accepted. */
 export const GAMEOVER_HINT_FADE = 0.2;
+/** Longest frame step fed to the simulation, so a tab switch doesn't teleport everything. */
+export const MAX_DT = 0.05;
+/** Opacity of the black veil over the game while it is auto-paused. */
+export const PAUSE_DIM_ALPHA = 0.6;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

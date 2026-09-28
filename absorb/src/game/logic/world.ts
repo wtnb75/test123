@@ -301,6 +301,11 @@ export class World {
         }
     }
 
+    /** Forgets the touch drag target, so the player stays put until the next move (used on pause). */
+    dropDragTarget(): void {
+        this.hasDragTarget = false;
+    }
+
     /**
      * Keys move the player directly and cancel any drag. A touch drag instead shifts a target
      * point, which the player chases at the same top speed as the keys.

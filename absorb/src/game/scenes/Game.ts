@@ -1,4 +1,4 @@
-import { GameObjects, Input, Math as PhaserMath, Scene, type Types } from 'phaser';
+import { Core, GameObjects, Input, Math as PhaserMath, Scene, type Types } from 'phaser';
 import {
     AbsorbEffects, absorbRingProgress, absorbRingRadius, edgeAlpha, edgeWidth, lerpColor, suckCoord, suckProgress,
     suckRadius, trailAlpha, trailProgress, type Suck
@@ -8,9 +8,10 @@ import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
-    HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
+    HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
     SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
+import { PauseState } from '../logic/pause';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import { DropFlashes } from '../logic/carrierFx';
 import {
@@ -51,11 +52,17 @@ const COLORS = {
     button: 0x4dd0e1
 };
 
-/** Longest frame step fed to the simulation, so a tab switch doesn't teleport everything. */
-const MAX_DT = 0.05;
-
 /** Hit tint / edge band sit over every play-area layer (popups at 5) and under the HUD and release button (10, 11). */
 const HIT_LAYER_DEPTH = 8;
+/** The pause veil and texts sit over everything, the HUD and release button (10, 11) included. */
+const PAUSE_LAYER_DEPTH = 20;
+const PAUSE_TITLE_CSS_COLOR = '#ffffff';
+const PAUSE_HINT_CSS_COLOR = '#aaaaaa';
+/** Pause texts: sizes as on the game-over screen, centred just around the middle of the screen. */
+const PAUSE_TITLE_SIZE = 56;
+const PAUSE_HINT_SIZE = 22;
+const PAUSE_TITLE_OFFSET_Y = -20;
+const PAUSE_HINT_OFFSET_Y = 40;
 
 const GAUGE_WIDTH = 160;
 const GAUGE_HEIGHT = 14;
@@ -176,6 +183,11 @@ export class Game extends Scene {
     private dragLastY = 0;
     private releaseQueued = false;
     private readonly input_: WorldInput = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
+    private pause = new PauseState();
+    /** Seconds of unpaused play in this run, driving the boss spin. */
+    private spinClock = 0;
+    /** Veil and texts shown over everything while auto-paused. */
+    private pauseLayer: GameObjects.Container;
 
     constructor() {
         super('Game');
@@ -214,9 +226,37 @@ export class Game extends Scene {
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
 
+        this.pause = new PauseState();
+        this.spinClock = 0;
+
         this.createHud(size.width, size.height);
+        this.createPauseLayer(size.width, size.height);
         this.setupKeyboard();
         this.setupPointer();
+        this.setupPauseTriggers();
+    }
+
+    private createPauseLayer(width: number, height: number) {
+        const veil = this.add.graphics().fillStyle(0x000000, PAUSE_DIM_ALPHA).fillRect(0, 0, width, height);
+        const title = this.add.text(width / 2, height / 2 + PAUSE_TITLE_OFFSET_Y, 'PAUSED', {
+            fontFamily: 'monospace', fontSize: PAUSE_TITLE_SIZE, color: PAUSE_TITLE_CSS_COLOR
+        }).setOrigin(0.5);
+        const hint = this.add.text(width / 2, height / 2 + PAUSE_HINT_OFFSET_Y, 'Tap or press SPACE to resume', {
+            fontFamily: 'monospace', fontSize: PAUSE_HINT_SIZE, color: PAUSE_HINT_CSS_COLOR
+        }).setOrigin(0.5);
+        this.pauseLayer = this.add.container(0, 0, [veil, title, hint]).setDepth(PAUSE_LAYER_DEPTH).setVisible(false);
+    }
+
+    /** The page going hidden or the window losing focus pauses the run until the player resumes it. */
+    private setupPauseTriggers() {
+        const events = this.game.events;
+        const trigger = () => this.pause.trigger();
+        events.on(Core.Events.HIDDEN, trigger);
+        events.on(Core.Events.BLUR, trigger);
+        this.events.once('shutdown', () => {
+            events.off(Core.Events.HIDDEN, trigger);
+            events.off(Core.Events.BLUR, trigger);
+        });
     }
 
     private createHud(width: number, height: number) {
@@ -261,7 +301,11 @@ export class Game extends Scene {
         // Queue the release on the key's down event rather than polling JustDown in update():
         // a tap shorter than one frame is released before update() runs, and Phaser clears the
         // just-down flag on key up, so polling would drop it.
-        const queueRelease = () => { this.releaseQueued = true; };
+        // The pause decides: a key taken to resume, or auto-repeat, never releases. (Repeats also reach a new
+        // run from a key held on the game-over screen; they arrive during ready, which ignores release anyway.)
+        const queueRelease = (_key: Input.Keyboard.Key, event: KeyboardEvent) => {
+            if (this.pause.releaseKeyDown(event.keyCode, event.repeat)) this.releaseQueued = true;
+        };
         this.keys.x.on('down', queueRelease);
         this.keys.enter.on('down', queueRelease);
         this.keys.space.on('down', queueRelease);
@@ -285,6 +329,7 @@ export class Game extends Scene {
     }
 
     private onPointerDown(p: Input.Pointer) {
+        if (this.pause.pointerDown()) return; // a resume tap neither releases nor drags
         if (this.touchUi && distanceSq(p.x, p.y, this.buttonX, this.buttonY) <= BUTTON_RADIUS * BUTTON_RADIUS) {
             this.releaseQueued = true;
             return;
@@ -308,7 +353,10 @@ export class Game extends Scene {
     }
 
     update(_time: number, delta: number) {
-        const dt = Math.min(delta / 1000, MAX_DT);
+        const dt = this.pause.frame(delta);
+        this.syncPauseLayer();
+        if (this.pause.isPaused) return; // time stands still; the last frame stays on screen
+        this.spinClock += dt;
         this.readKeys();
         this.world.step(dt, this.input_);
         this.input_.dragX = 0;
@@ -335,6 +383,21 @@ export class Game extends Scene {
             // A copy, so the game-over screen never shares state with this run's world.
             this.scene.start('GameOver', { score: this.world.score, breakdown: normalizeBreakdown(this.world.breakdown) });
         }
+    }
+
+    /** Shows the pause layer while paused; when the pause begins, drops the input in flight. */
+    private syncPauseLayer() {
+        this.pauseLayer.setVisible(this.pause.isPaused);
+        // The countdown / boss announcement sits where "PAUSED" goes; hide it until play resumes.
+        this.centerText.setVisible(!this.pause.isPaused);
+        if (!this.pause.pausedThisFrame) return;
+        this.dragPointerId = -1;
+        this.world.dropDragTarget();
+        this.releaseQueued = false;
+        this.input_.dragX = this.input_.dragY = 0;
+        this.input.keyboard?.resetKeys();
+        // Cut a running release shake so the veil doesn't sit on a shifted view.
+        this.cameras.main.shakeEffect.reset();
     }
 
     private readKeys() {
@@ -703,8 +766,9 @@ export class Game extends Scene {
         const blinking = e.state === 'warn' && Math.floor(e.stateTime * 10) % 2 === 0;
         g.fillStyle(blinking ? COLORS.warn : COLORS.boss, 1);
         const spikes = 10;
-        // Scene time keeps the spin going through ending, when the world's playing clock stops.
-        const spin = (this.time.now / 1000) * 0.5;
+        // The scene's own clock keeps the spin going through ending (the world's playing clock stops there)
+        // and holds it still while paused.
+        const spin = this.spinClock * 0.5;
         for (let i = 0; i < spikes; i++) {
             const a = (Math.PI * 2 * i) / spikes + spin;
             const b = Math.PI / spikes;

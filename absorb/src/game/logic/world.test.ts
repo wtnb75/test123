@@ -1226,6 +1226,16 @@ describe('movement', () => {
         expect(w.dragTargetX).toBe(x0 + 200);
     });
 
+    it('keeps the player where it is after the drag target is dropped on pause', () => {
+        const w = playingWorld();
+        w.step(DT, input({ dragX: 300, dragY: -200 }));
+        const { x, y } = w.player;
+        w.dropDragTarget();
+        expect(w.hasDragTarget).toBe(false);
+        steps(w, 0.5);
+        expect([w.player.x, w.player.y]).toEqual([x, y]);
+    });
+
     it('clamps the drag target to the movement area so reversing responds at once', () => {
         const w = playingWorld();
         w.step(DT, input({ dragX: 5000, dragY: -5000 }));
