@@ -86,6 +86,8 @@ export const HIT_RING_DURATION = 0.35;
 /** Game-over breakdown lines appear one after another, each fading in. */
 export const GAMEOVER_ROW_INTERVAL = 0.12;
 export const GAMEOVER_ROW_FADE = 0.2;
+/** The retry hint fades in over this once retry input is accepted. */
+export const GAMEOVER_HINT_FADE = 0.2;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

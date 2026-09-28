@@ -1,8 +1,10 @@
-import { GameObjects, Input, Scene } from 'phaser';
+import { GameObjects, Scene } from 'phaser';
 import {
-    BONUS_LABEL, BREAKDOWN_SHOWN_AT, bonusValue, kindRows, lineAlpha, multiKillBonus, normalizeBreakdown, totalLabel,
+    BONUS_LABEL, bonusValue, kindRows, lineAlpha, multiKillBonus, normalizeBreakdown, totalLabel,
     type BreakdownKind, type KindTally
 } from '../logic/breakdown';
+import { GAMEOVER_HINT_FADE } from '../logic/constants';
+import { GAMEOVER_INPUT_LOCK, RetryInput, hintAlpha } from '../logic/retry';
 import { KIND_COLORS, cssColor } from './colors';
 
 const WHITE = '#ffffff';
@@ -16,6 +18,8 @@ const ROW_SPACING = 38;
 const NAME_X = -230;
 const COUNT_X = -10;
 const POINTS_X = 230;
+/** Seconds after which the breakdown lines and the retry hint no longer change. */
+const FADES_DONE_AT = GAMEOVER_INPUT_LOCK + GAMEOVER_HINT_FADE;
 
 interface GameOverData {
     score?: number;
@@ -27,6 +31,8 @@ export class GameOver extends Scene {
     private elapsed = 0;
     /** The texts of each staggered line (seven kinds, the bonus, the total), faded together. */
     private lines: GameObjects.Text[][] = [];
+    private hint!: GameObjects.Text;
+    private retry = new RetryInput();
 
     constructor() {
         super('GameOver');
@@ -39,6 +45,7 @@ export class GameOver extends Scene {
         const cy = this.scale.height / 2;
         this.elapsed = 0;
         this.lines = [];
+        this.retry = new RetryInput();
 
         this.add.text(cx, cy - 250, 'GAME OVER', { fontFamily: FONT, fontSize: 56, color: TITLE_COLOR }).setOrigin(0.5);
 
@@ -60,20 +67,34 @@ export class GameOver extends Scene {
         this.lines.push([
             this.add.text(cx, y, totalLabel(score), { fontFamily: FONT, fontSize: TOTAL_FONT_SIZE, color: WHITE }).setOrigin(0.5)
         ]);
+        this.hint = this.add.text(cx, y + 80, 'Press SPACE or tap to retry', { fontFamily: FONT, fontSize: 22, color: HINT_COLOR })
+            .setOrigin(0.5);
         this.applyFade();
 
-        this.add.text(cx, y + 80, 'Press R or tap to retry', { fontFamily: FONT, fontSize: 22, color: HINT_COLOR }).setOrigin(0.5);
-
-        const restart = () => this.scene.start('Game');
-        this.input.keyboard!.addKey(Input.Keyboard.KeyCodes.R).once('down', restart);
-        this.input.once('pointerdown', restart);
-        this.events.once('shutdown', () => this.input.keyboard?.removeAllKeys(true));
+        const keyboard = this.input.keyboard!;
+        keyboard.on('keydown', this.onKeyDown, this);
+        this.input.on('pointerdown', this.onPointerDown, this);
+        this.events.once('shutdown', () => {
+            keyboard.off('keydown', this.onKeyDown, this);
+            this.input.off('pointerdown', this.onPointerDown, this);
+        });
     }
 
     update(_time: number, delta: number) {
-        if (this.elapsed >= BREAKDOWN_SHOWN_AT) return; // every line is fully shown
-        this.elapsed += delta / 1000;
-        this.applyFade();
+        // Once every line and the hint are fully shown the fade stops; elapsed then stays past the lock.
+        if (this.elapsed < FADES_DONE_AT) {
+            this.elapsed += delta / 1000;
+            this.applyFade();
+        }
+        if (this.retry.resolve(this.elapsed)) this.scene.start('Game');
+    }
+
+    private onKeyDown(event: KeyboardEvent) {
+        this.retry.keyDown(event.keyCode, event.repeat);
+    }
+
+    private onPointerDown() {
+        this.retry.pointerDown();
     }
 
     private applyFade() {
@@ -81,5 +102,6 @@ export class GameOver extends Scene {
             const alpha = lineAlpha(this.elapsed, i);
             for (const t of texts) t.setAlpha(alpha);
         });
+        this.hint.setAlpha(hintAlpha(this.elapsed));
     }
 }
