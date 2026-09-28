@@ -1,9 +1,9 @@
 import {
-    DEBRIS_COUNT, DEBRIS_DURATION, DEBRIS_RADIUS, DEBRIS_RAMMER_WHITEN, DEBRIS_SPEED
+    DEBRIS_COUNT, DEBRIS_DURATION, DEBRIS_RADIUS, DEBRIS_RAMMER_WHITEN, DEBRIS_SPEED, type DefeatKind
 } from './constants';
 import { effectProgress } from './effects';
 import { removeWhere } from './geometry';
-import type { Defeat, DefeatKind } from './world';
+import type { Defeat } from './world';
 
 /** One killed enemy's debris burst, from where it died; piece 0 flies along the killing bullet's heading. */
 export interface DebrisBurst extends Defeat {

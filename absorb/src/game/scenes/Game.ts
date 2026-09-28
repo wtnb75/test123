@@ -9,7 +9,7 @@ import {
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX
+    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import {
@@ -30,7 +30,7 @@ import {
 import { heavyPhase, type Enemy } from '../logic/enemy';
 import { distanceSq } from '../logic/geometry';
 import { computeScreenSize } from '../logic/screen';
-import { World, type DefeatKind, type Input as WorldInput } from '../logic/world';
+import { World, type Input as WorldInput } from '../logic/world';
 import { KIND_COLORS, cssColor } from './colors';
 import { normalizeBreakdown } from '../logic/breakdown';
 
@@ -79,6 +79,11 @@ const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
 /** Carrier hexagon: half-height relative to its half-width (the hit radius), and the cargo mark's radius within it. */
 const CARRIER_HEIGHT_RATIO = 0.55;
+/** HP pip spacing; the carrier's 12 pips are packed a little tighter to stay within its hull width. */
+const PIP_PITCH = 6;
+const CARRIER_PIP_PITCH = 5;
+/** Half-width of the carrier's flat top and bottom edges relative to its half-width. */
+const CARRIER_TOP_RATIO = 0.5;
 const CARRIER_MARK_RATIO = 0.6;
 /** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
 const DIAMOND_WIDTH_RATIO = 0.8;
@@ -651,9 +656,10 @@ export class Game extends Scene {
                 // A wide grey hexagon with a mark in the colour of the kind it drops.
                 const h = r * CARRIER_HEIGHT_RATIO;
                 g.fillStyle(COLORS.carrier, 1);
-                g.fillRect(e.x - r / 2, e.y - h, r, h * 2);
-                g.fillTriangle(e.x - r, e.y, e.x - r / 2, e.y - h, e.x - r / 2, e.y + h);
-                g.fillTriangle(e.x + r, e.y, e.x + r / 2, e.y - h, e.x + r / 2, e.y + h);
+                const top = r * CARRIER_TOP_RATIO;
+                g.fillRect(e.x - top, e.y - h, top * 2, h * 2);
+                g.fillTriangle(e.x - r, e.y, e.x - top, e.y - h, e.x - top, e.y + h);
+                g.fillTriangle(e.x + r, e.y, e.x + top, e.y - h, e.x + top, e.y + h);
                 g.fillStyle(COLORS[e.cargo], 1);
                 g.fillCircle(e.x, e.y, h * CARRIER_MARK_RATIO);
                 break;
@@ -676,9 +682,12 @@ export class Game extends Scene {
                 );
             }
         }
-        // Remaining HP as small pips under each enemy.
+        // Remaining HP as small pips under each enemy; the flat carrier hull keeps them snug and hull-wide.
+        const carrier = e.kind === 'carrier';
+        const below = carrier ? r * CARRIER_HEIGHT_RATIO : r;
+        const pitch = carrier ? CARRIER_PIP_PITCH : PIP_PITCH;
         g.fillStyle(0xffffff, 0.8);
-        for (let i = 0; i < e.hp; i++) g.fillRect(e.x - e.hp * 3 + i * 6, e.y + r + 4, 4, 3);
+        for (let i = 0; i < e.hp; i++) g.fillRect(e.x - (e.hp * pitch) / 2 + i * pitch, e.y + below + 4, 4, 3);
     }
 
     /** A spiked gold disc with a dark core; flashes white while telegraphing a charge. */

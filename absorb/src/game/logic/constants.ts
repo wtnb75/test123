@@ -222,6 +222,9 @@ export type ActorKind = EnemyKind | 'splitterChild' | 'carrier' | 'boss';
 /** The carrier: scheduled like the boss, so kept out of EnemyKind and the spawn tables too. */
 export const CARRIER_SPEC: EnemySpec = { hp: CARRIER_HP, score: CARRIER_SCORE, radius: CARRIER_RADIUS, fireInterval: 0 };
 
+/** How a killed regular enemy is reported (debris, breakdown): splitter children count as splitters. */
+export type DefeatKind = EnemyKind | 'carrier';
+
 /** The kinds a carrier can carry: the ones the regular spawn picks from. */
 export type CargoKind = Exclude<EnemyKind, 'rammer'>;
 

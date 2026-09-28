@@ -1,7 +1,7 @@
-import { GAMEOVER_ROW_FADE, GAMEOVER_ROW_INTERVAL, type EnemyKind } from './constants';
+import { GAMEOVER_ROW_FADE, GAMEOVER_ROW_INTERVAL, type DefeatKind } from './constants';
 
 /** The kinds the game-over breakdown lists, in display order. */
-export type BreakdownKind = EnemyKind | 'carrier' | 'boss';
+export type BreakdownKind = DefeatKind | 'boss';
 export const BREAKDOWN_KINDS: readonly BreakdownKind[] = ['grunt', 'shooter', 'heavy', 'rammer', 'splitter', 'carrier', 'boss'];
 
 /** Kills of one kind and their base points (before the multi-kill multiplier). */

@@ -3,7 +3,7 @@ import { emptyBreakdown } from './breakdown';
 import { MAX_ENEMIES } from './constants';
 import { debrisColor } from './debrisFx';
 import {
-    createCarrier, createDroppedEnemy, createEnemy, fireIntervalOf, setState, updateEnemy, type Enemy, type EnemyContext
+    createCarrier, createDroppedEnemy, createEnemy, setState, updateCarrier, updateEnemy, type Enemy, type EnemyContext
 } from './enemy';
 import type { ScreenSize } from './screen';
 import { World, type Input, type ReleaseBullet } from './world';
@@ -23,14 +23,14 @@ function ctx(overrides: Partial<EnemyContext> = {}): EnemyContext {
 /** Frames (counting the first update as frame 1) on which the carrier dropped, until it vanishes or `limit`. */
 function dropFrames(e: Enemy, limit = 2000): number[] {
     const frames: number[] = [];
-    for (let f = 1; f <= limit && !e.removed; f++) if (updateEnemy(e, DT, ctx())) frames.push(f);
+    for (let f = 1; f <= limit && !e.removed; f++) if (updateCarrier(e, DT, S)) frames.push(f);
     return frames;
 }
 
 describe('carrier: entering and crossing', () => {
     it('comes in from the left, fully off screen, at 10% of the height, when the rng is below 0.5', () => {
         const e = createCarrier(1, 'heavy', () => 0.49, S);
-        expect(e).toMatchObject({ kind: 'carrier', hp: 12, radius: 30, x: -30, state: 'cross', cargo: 'heavy', swayDir: 1 });
+        expect(e).toMatchObject({ kind: 'carrier', hp: 12, radius: 30, x: -30, state: 'cross', cargo: 'heavy', entry: 'left' });
         expect(e.y).toBeCloseTo(76.8);
     });
 
@@ -38,31 +38,36 @@ describe('carrier: entering and crossing', () => {
         const e = createCarrier(1, 'grunt', () => 0.5, S);
         expect(e.x).toBe(1054);
         expect(e.y).toBeCloseTo(76.8);
-        expect(e.swayDir).toBe(-1);
+        expect(e.entry).toBe('right');
     });
 
-    it('crosses at 60 px/s without changing height, and never fires', () => {
+    it('crosses at 60 px/s without changing height', () => {
         const e = createCarrier(1, 'grunt', () => 0.1, S);
         const y = e.y;
-        for (let f = 0; f < 60; f++) updateEnemy(e, DT, ctx());
+        for (let f = 0; f < 60; f++) updateCarrier(e, DT, S);
         expect(e.x).toBeCloseTo(30);
         expect(e.y).toBe(y);
-        expect(fireIntervalOf('carrier')).toBe(0);
+    });
+
+    it('moves left at 60 px/s when it enters from the right', () => {
+        const e = createCarrier(1, 'grunt', () => 0.9, S);
+        updateCarrier(e, 1, S);
+        expect(e.x).toBeCloseTo(1054 - 60);
     });
 
     it('does not vanish while still coming in off screen, only once its centre passes the far edge', () => {
         const e = createCarrier(1, 'grunt', () => 0.1, S);
-        updateEnemy(e, DT, ctx());
+        updateCarrier(e, DT, S);
         expect(e.removed).toBe(false); // x = −29, still off screen on the near side
         e.x = 1023.5;
-        updateEnemy(e, DT, ctx());
+        updateCarrier(e, DT, S);
         expect(e.removed).toBe(true); // 1024.5 > 1024
     });
 
     it('moving left, vanishes once its centre goes below 0', () => {
         const e = createCarrier(1, 'grunt', () => 0.9, S);
         e.x = 0.5;
-        updateEnemy(e, DT, ctx());
+        updateCarrier(e, DT, S);
         expect(e.removed).toBe(true);
     });
 });
@@ -83,17 +88,17 @@ describe('carrier: drop clock', () => {
     it('keeps the overshoot between drops instead of restarting the clock', () => {
         const e = createCarrier(1, 'grunt', () => 0.1, S);
         e.x = 100;
-        updateEnemy(e, DT, ctx()); // first on-screen frame: clock set to 1.5 s, this frame's dt not counted
-        expect(updateEnemy(e, 1.6, ctx())).toBe(true); // 0.1 s late
-        expect(updateEnemy(e, 2.85, ctx())).toBe(false); // 2.9 s of the 3 s would be 0.05 s early
-        expect(updateEnemy(e, 0.05, ctx())).toBe(true);
+        updateCarrier(e, DT, S); // first on-screen frame: clock set to 1.5 s, this frame's dt not counted
+        expect(updateCarrier(e, 1.6, S)).toBe(true); // 0.1 s late
+        expect(updateCarrier(e, 2.85, S)).toBe(false); // 2.9 s of the 3 s would be 0.05 s early
+        expect(updateCarrier(e, 0.05, S)).toBe(true);
     });
 
     it('drops at most once per frame even after a long frame', () => {
         const e = createCarrier(1, 'grunt', () => 0.1, S);
         e.x = 100;
-        updateEnemy(e, DT, ctx());
-        expect(updateEnemy(e, 9, ctx())).toBe(true);
+        updateCarrier(e, DT, S);
+        expect(updateCarrier(e, 9, S)).toBe(true);
     });
 });
 
@@ -123,8 +128,10 @@ describe('dropped enemies', () => {
         expect(createDroppedEnemy('grunt', 1, { x: 40, y: 76.8 }, () => 0.5, S).x).toBe(40);
     });
 
-    it('leave debris in the plain hull colour', () => {
-        expect(debrisColor('carrier', 0x90a4ae)).toBe(0x90a4ae);
+    it('leave the carrier\'s debris in its plain body colour, where a rammer of the same colour is lightened', () => {
+        const body = 0x406080;
+        expect(debrisColor('rammer', body)).toBe(0xa0b0c0);
+        expect(debrisColor('carrier', body)).toBe(body);
     });
 });
 
@@ -391,6 +398,29 @@ describe('carrier drops in the world', () => {
 });
 
 describe('carrier scoring, targeting and contact', () => {
+    it('never fires while crossing the whole screen', () => {
+        const w = quietWorld(() => 0.1);
+        w.nextCarrierAt = 0;
+        w.step(DT, NONE);
+        w.carrier!.dropTimer = Infinity; // no drops, so any bullet would be the carrier's own
+        for (let f = 0; f < 60 * 20 && w.carrier; f++) w.step(DT, NONE);
+        expect(w.carrier).toBeNull();
+        expect(w.enemyBullets).toHaveLength(0);
+    });
+
+    it('is picked by a bullet looking for a new target only while its centre is on screen', () => {
+        const w = quietWorld();
+        const c = createCarrier(4000, 'grunt', () => 0.1, S);
+        w.enemies.push(c);
+        const b: ReleaseBullet = {
+            x: 100, y: 100, heading: 0, age: 0,
+            group: { id: 0, pending: 1, kills: [], lastX: 0, lastY: 0, lastIsBoss: false }, target: null, removed: false
+        };
+        expect(w.retarget(b)).toBeNull();
+        c.x = 0;
+        expect(w.retarget(b)).toBe(c);
+    });
+
     it('is only targeted while its centre is on screen', () => {
         const w = quietWorld();
         const c = createCarrier(4000, 'grunt', () => 0.1, S);
@@ -476,5 +506,15 @@ describe('carrier scoring, targeting and contact', () => {
         w.step(DT, NONE);
         expect(w.settlements).toEqual([expect.objectContaining({ id: 7, kills: 2, score: 2400 })]);
         expect(w.score).toBe(2400);
+    });
+});
+
+describe('carrier drop clock after a very long frame', () => {
+    it('keeps the overshoot even when a drop leaves the clock below zero, dropping again on the next frame', () => {
+        const e = createCarrier(1, 'grunt', () => 0.1, S);
+        e.x = 100;
+        updateCarrier(e, DT, S); // clock starts at 1.5 s
+        expect(updateCarrier(e, 4.6, S)).toBe(true); // 1.5 − 4.6 + 3 = −0.1: the next drop is already due
+        expect(updateCarrier(e, DT, S)).toBe(true);
     });
 });

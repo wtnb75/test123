@@ -4,13 +4,13 @@ import {
     ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
-    RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type ActorKind, type EnemyKind
+    RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type ActorKind, type DefeatKind, type EnemyKind
 } from './constants';
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
 import {
-    assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createSplitterChildren, specOf, updateEnemy,
-    type Enemy, type EnemyContext
+    assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createSplitterChildren, specOf, updateCarrier,
+    updateEnemy, type Enemy, type EnemyContext
 } from './enemy';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
@@ -110,9 +110,6 @@ const isRemoved = (item: { removed: boolean }): boolean => item.removed;
 function killScore(e: Enemy): number {
     return e.kind === 'boss' ? bossScore(e) : specOf(e.kind).score;
 }
-
-/** How a killed regular enemy is reported (debris, breakdown). */
-export type DefeatKind = EnemyKind | 'carrier';
 
 /** The kind a regular enemy is reported as (debris, breakdown): splitter children count as splitters. */
 function reportedKind(kind: Exclude<ActorKind, 'boss'>): DefeatKind {
@@ -280,7 +277,7 @@ export class World {
         this.updateReleaseBullets(dt, true);
         this.checkContact();
         this.spawnSplitterChildren();
-        this.enemies.push(...this.dropsThisStep);
+        for (const d of this.dropsThisStep) this.enemies.push(d);
         this.removeGone();
         this.elapsed += dt;
     }
@@ -441,10 +438,14 @@ export class World {
     private updateEnemies(dt: number, canFire: boolean): void {
         assignHeavySlots(this.enemies, this.player);
         for (const e of this.enemies) {
+            if (e.kind === 'carrier') {
+                // Dropping is spawning, so like other spawns it stops once the run is ending.
+                const drops = updateCarrier(e, dt, this.screen);
+                if (drops && canFire) this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
+                continue;
+            }
             const fired = e.kind === 'boss' ? updateBoss(e, dt, this.ctx) : updateEnemy(e, dt, this.ctx);
-            if (!fired || !canFire) continue;
-            if (e.kind === 'carrier') this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
-            else this.fireVolley(e);
+            if (fired && canFire) this.fireVolley(e);
         }
     }
 
