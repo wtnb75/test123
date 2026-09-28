@@ -6,6 +6,8 @@ export const KIND_COLORS = {
     rammer: 0xef5350,
     // A deeper blue than the field and release cyan, so a splitter never reads as the player's own.
     splitter: 0x42a5f5,
+    // Plain grey hull; its cargo shows as a mark in that kind's colour.
+    carrier: 0x90a4ae,
     boss: 0xffd54f
 } as const;
 

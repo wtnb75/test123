@@ -180,6 +180,21 @@ export const SPLIT_RING_DURATION = 0.2;
 export const SPLIT_RING_MAX_RADIUS = 40;
 export const SPLIT_RING_WIDTH = 3;
 
+export const CARRIER_HP = 12;
+export const CARRIER_SCORE = 1500;
+export const CARRIER_RADIUS = 30;
+/** A carrier crosses the screen at this height (fraction of the screen height)... */
+export const CARRIER_Y_RATIO = 0.1;
+export const CARRIER_SPEED = 60;
+/** ...on its own schedule: first at CARRIER_FIRST_AT, then CARRIER_INTERVAL after the previous one appeared. */
+export const CARRIER_FIRST_AT = 70;
+export const CARRIER_INTERVAL = 35;
+/** It drops its first enemy this long after its centre comes on screen, then one every drop interval. */
+export const CARRIER_FIRST_DROP = 1.5;
+export const CARRIER_DROP_INTERVAL = 3;
+/** A dropping carrier's centre mark flashes white for this long. */
+export const CARRIER_DROP_FLASH = 0.15;
+
 export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer' | 'splitter';
 
 export interface EnemySpec {
@@ -204,7 +219,16 @@ export const SPLITTER_CHILD_SPEC: EnemySpec = {
 };
 
 /** The boss and splitter children are kept out of EnemyKind so the regular spawn tables and ENEMY_SPECS stay unchanged. */
-export type ActorKind = EnemyKind | 'splitterChild' | 'boss';
+export type ActorKind = EnemyKind | 'splitterChild' | 'carrier' | 'boss';
+
+/** The carrier: scheduled like the boss, so kept out of EnemyKind and the spawn tables too. */
+export const CARRIER_SPEC: EnemySpec = { hp: CARRIER_HP, score: CARRIER_SCORE, radius: CARRIER_RADIUS, fireInterval: 0 };
+
+/** How a killed regular enemy is reported (debris, breakdown): splitter children count as splitters. */
+export type DefeatKind = EnemyKind | 'carrier';
+
+/** The kinds a carrier can carry: the ones the regular spawn picks from. */
+export type CargoKind = Exclude<EnemyKind, 'rammer'>;
 
 export const BOSS_FIRST_AT = 45;
 export const BOSS_RESPAWN_DELAY = 60;

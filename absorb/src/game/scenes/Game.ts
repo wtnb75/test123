@@ -9,10 +9,10 @@ import {
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX,
-    type EnemyKind
+    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
+import { DropFlashes } from '../logic/carrierFx';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
@@ -66,17 +66,26 @@ const BUTTON_RADIUS = 56;
 const BUTTON_INSET = 90;
 
 /** Debris colors per enemy kind, worked out once. */
-const DEBRIS_COLORS: Record<EnemyKind, number> = {
+const DEBRIS_COLORS: Record<DefeatKind, number> = {
     grunt: debrisColor('grunt', COLORS.grunt),
     shooter: debrisColor('shooter', COLORS.shooter),
     heavy: debrisColor('heavy', COLORS.heavy),
     rammer: debrisColor('rammer', COLORS.rammer),
-    splitter: debrisColor('splitter', COLORS.splitter)
+    splitter: debrisColor('splitter', COLORS.splitter),
+    carrier: debrisColor('carrier', COLORS.carrier)
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
+/** Carrier hexagon: half-height relative to its half-width (the hit radius), and the cargo mark's radius within it. */
+const CARRIER_HEIGHT_RATIO = 0.55;
+/** HP pip spacing; the carrier's 12 pips are packed a little tighter to stay within its hull width. */
+const PIP_PITCH = 6;
+const CARRIER_PIP_PITCH = 5;
+/** Half-width of the carrier's flat top and bottom edges relative to its half-width. */
+const CARRIER_TOP_RATIO = 0.5;
+const CARRIER_MARK_RATIO = 0.6;
 /** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
 const DIAMOND_WIDTH_RATIO = 0.8;
 const SCORE_POPUP_FONT_SIZE = 32;
@@ -131,6 +140,7 @@ export class Game extends Scene {
     private readonly debrisFx = new DebrisEffects();
     private readonly releaseFx = new ReleaseEffects();
     private readonly splitFx = new SplitEffects();
+    private readonly dropFlashes = new DropFlashes();
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     /** Red hit tint and edge band: over the whole play area, under the HUD. */
@@ -191,6 +201,7 @@ export class Game extends Scene {
         this.debrisFx.clear();
         this.releaseFx.clear();
         this.splitFx.clear();
+        this.dropFlashes.clear();
         this.multiKillFx.clear();
         this.hitFx.clear();
         // The previous run's texts were destroyed with the scene.
@@ -307,6 +318,7 @@ export class Game extends Scene {
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
         this.splitFx.update(dt, this.world.splits);
+        this.dropFlashes.update(dt, this.world.carrierDrops);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
         if (startsShake(this.world.releases)) {
@@ -377,7 +389,9 @@ export class Game extends Scene {
         g.fillStyle(COLORS.enemyBullet, 1);
         for (const b of w.enemyBullets) g.fillCircle(b.x, b.y, ENEMY_BULLET_RADIUS);
 
-        for (const e of w.enemies) this.drawEnemy(e);
+        // Carriers go over every other enemy: their drops start at the hull centre and would hide the mark.
+        for (const e of w.enemies) if (e.kind !== 'carrier') this.drawEnemy(e);
+        if (w.carrier) this.drawEnemy(w.carrier);
         this.drawDebris();
         this.drawSplitRings();
 
@@ -644,6 +658,18 @@ export class Game extends Scene {
                 }
                 break;
             }
+            case 'carrier': {
+                // A wide grey hexagon with a mark in the colour of the kind it drops.
+                const h = r * CARRIER_HEIGHT_RATIO;
+                g.fillStyle(COLORS.carrier, 1);
+                const top = r * CARRIER_TOP_RATIO;
+                g.fillRect(e.x - top, e.y - h, top * 2, h * 2);
+                g.fillTriangle(e.x - r, e.y, e.x - top, e.y - h, e.x - top, e.y + h);
+                g.fillTriangle(e.x + r, e.y, e.x + top, e.y - h, e.x + top, e.y + h);
+                g.fillStyle(this.dropFlashes.isFlashing(e) ? COLORS.warn : COLORS[e.cargo], 1);
+                g.fillCircle(e.x, e.y, h * CARRIER_MARK_RATIO);
+                break;
+            }
             case 'boss':
                 // The boss shows its HP on the HUD bar instead of pips.
                 this.drawBoss(e);
@@ -662,9 +688,12 @@ export class Game extends Scene {
                 );
             }
         }
-        // Remaining HP as small pips under each enemy.
+        // Remaining HP as small pips under each enemy; the flat carrier hull keeps them snug and hull-wide.
+        const carrier = e.kind === 'carrier';
+        const below = carrier ? r * CARRIER_HEIGHT_RATIO : r;
+        const pitch = carrier ? CARRIER_PIP_PITCH : PIP_PITCH;
         g.fillStyle(0xffffff, 0.8);
-        for (let i = 0; i < e.hp; i++) g.fillRect(e.x - e.hp * 3 + i * 6, e.y + r + 4, 4, 3);
+        for (let i = 0; i < e.hp; i++) g.fillRect(e.x - (e.hp * pitch) / 2 + i * pitch, e.y + below + 4, 4, 3);
     }
 
     /** A spiked gold disc with a dark core; flashes white while telegraphing a charge. */
