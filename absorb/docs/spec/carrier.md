@@ -99,7 +99,7 @@ carrier 1 体（出現してから撃破・体当たりで壊れる・画面外�
 
 ### スコアの内訳
 
-- GameOver 画面の内訳に「CARRIER」の行を置く（解放弾で倒した carrier の数と、撃破スコアの合計）。行の位置・色は docs/spec.md「GameOver 画面（スコアの内訳）」のとおり（名前の色は船体の本体色）
+- carrier を 1 体以上倒したときは、GameOver 画面の内訳に「CARRIER」の行を置く（解放弾で倒した carrier の数と、撃破スコアの合計）。行の位置・色は docs/spec.md「GameOver 画面（スコアの内訳）」のとおり（名前の色は船体の本体色）
 - carrier が落とした敵は、その種類の行に数える（carrier の行には入れない）
 
 ## パラメータ表

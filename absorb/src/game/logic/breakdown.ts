@@ -30,11 +30,21 @@ export function tallyKill(breakdown: ScoreBreakdown, kind: BreakdownKind, points
     breakdown[kind].points += points;
 }
 
-/** Whatever the game-over scene received, as a complete breakdown: missing kinds count as 0 kills, 0 points. */
+/** Whether a kind with this many kills counts as defeated this run (and so is shown). False for NaN too. */
+function defeated(count: number): boolean {
+    return count >= 1;
+}
+
+/**
+ * Whatever the game-over scene received, as a complete breakdown: missing kinds count as 0 kills, 0 points,
+ * and a kind without kills has no points either (it is not shown, so it must not hide part of the bonus).
+ */
 export function normalizeBreakdown(data?: Partial<Record<BreakdownKind, Partial<KindTally>>>): ScoreBreakdown {
     const b = emptyBreakdown();
     for (const kind of BREAKDOWN_KINDS) {
-        b[kind].count = data?.[kind]?.count ?? 0;
+        const count = data?.[kind]?.count ?? 0;
+        if (!defeated(count)) continue;
+        b[kind].count = count;
         b[kind].points = data?.[kind]?.points ?? 0;
     }
     return b;
@@ -55,8 +65,12 @@ export interface KindRow {
     points: string;
 }
 
+/**
+ * The rows for the kinds defeated at least once this run, in display order; kinds not defeated are left out
+ * so the screen never names an enemy the player hasn't met.
+ */
 export function kindRows(breakdown: ScoreBreakdown): KindRow[] {
-    return BREAKDOWN_KINDS.map((kind) => ({
+    return BREAKDOWN_KINDS.filter((kind) => defeated(breakdown[kind].count)).map((kind) => ({
         kind,
         name: kind.toUpperCase(),
         count: `×${breakdown[kind].count}`,
@@ -64,10 +78,30 @@ export function kindRows(breakdown: ScoreBreakdown): KindRow[] {
     }));
 }
 
+/** Shown in place of the kind rows when nothing was defeated. */
+export const NO_KILLS_LABEL = 'NO KILLS';
+
 export const BONUS_LABEL = 'MULTI-KILL BONUS';
 
 export function bonusValue(bonus: number): string {
     return `+${bonus}`;
+}
+
+/** One line of the table above the total, top to bottom. */
+export type TableLine =
+    | { type: 'kind'; row: KindRow }
+    | { type: 'noKills' }
+    | { type: 'bonus'; value: string };
+
+/**
+ * The table's lines in order: the defeated kinds (or NO KILLS), then the bonus. Line k fades in at
+ * k × GAMEOVER_ROW_INTERVAL, and the total follows as line `tableLines(...).length`.
+ */
+export function tableLines(score: number, breakdown: ScoreBreakdown): TableLine[] {
+    const rows = kindRows(breakdown);
+    const lines: TableLine[] = rows.length > 0 ? rows.map((row) => ({ type: 'kind', row })) : [{ type: 'noKills' }];
+    lines.push({ type: 'bonus', value: bonusValue(multiKillBonus(score, breakdown)) });
+    return lines;
 }
 
 export function totalLabel(score: number): string {
@@ -76,10 +110,10 @@ export function totalLabel(score: number): string {
 
 const FADE_EPSILON = 1e-9;
 
-/** Number of staggered lines: the seven kinds, the bonus, then the total. */
+/** Most staggered lines there can be: all seven kinds, the bonus, then the total. */
 export const BREAKDOWN_LINES = BREAKDOWN_KINDS.length + 2;
 
-/** Seconds into the game-over screen by which every line has fully faded in. */
+/** Seconds into the game-over screen by which every line has fully faded in when all seven kinds are shown. */
 export const BREAKDOWN_SHOWN_AT = (BREAKDOWN_LINES - 1) * GAMEOVER_ROW_INTERVAL + GAMEOVER_ROW_FADE;
 
 /**
