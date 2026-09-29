@@ -48,7 +48,9 @@ tasks:
       - pnpm -r run test:coverage
 
   build:games:
-    desc: build games
+    desc: build games (Phaser shared through output/vendor; each game goes to dist-shared/)
+    env:
+      SHARED_VENDOR: "1"
     cmds:
       - pnpm -r run build
 
@@ -59,7 +61,8 @@ tasks:
       - mkdir output
       - for:
           var: ALL_GAMES
-        cmd: rsync -av {{ .ITEM }}/dist/ output/{{ .ITEM }}/
+        cmd: rsync -av {{ .ITEM }}/dist-shared/ output/{{ .ITEM }}/
+      - node scripts/vendor-phaser.mjs output/vendor {{ .ALL_GAMES | replace "\n" " " }}
       - |
         cat <<EOF > output/index.html
         <!doctype html>

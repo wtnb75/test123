@@ -4,7 +4,7 @@
 // node_modules layout.
 export default function createConfig({ js, tseslint }) {
     return tseslint.config(
-        { ignores: ['dist/**'] },
+        { ignores: ['dist/**', 'dist-shared/**'] },
         js.configs.recommended,
         ...tseslint.configs.recommended,
         {
