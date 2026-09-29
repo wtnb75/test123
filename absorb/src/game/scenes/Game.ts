@@ -5,7 +5,10 @@ import {
 } from '../logic/absorbFx';
 import { bossScore } from '../logic/boss';
 import {
-    ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
+    ButtonEffects, buttonColor, buttonFillAlpha, buttonPressKind, buttonRadius, buttonStrokeAlpha
+} from '../logic/buttonFx';
+import {
+    ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BUTTON_INSET, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
@@ -30,7 +33,7 @@ import {
     scorePopupRise
 } from '../logic/effects';
 import { heavyPhase, type Enemy } from '../logic/enemy';
-import { distanceSq } from '../logic/geometry';
+import { TouchRoles, pointersToAdd } from '../logic/touchRoles';
 import { computeScreenSize } from '../logic/screen';
 import { World, type Input as WorldInput } from '../logic/world';
 import { KIND_COLORS, cssColor } from './colors';
@@ -48,8 +51,7 @@ const COLORS = {
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
     explosion: 0xffcc80,
-    childOutline: 0xffffff,
-    button: 0x4dd0e1
+    childOutline: 0xffffff
 };
 
 /** Hit tint / edge band sit over every play-area layer (popups at 5) and under the HUD and release button (10, 11). */
@@ -68,9 +70,6 @@ const GAUGE_WIDTH = 160;
 const GAUGE_HEIGHT = 14;
 const GAUGE_RIGHT_MARGIN = 20;
 const GAUGE_Y = 22;
-
-const BUTTON_RADIUS = 56;
-const BUTTON_INSET = 90;
 
 /** Debris colors per enemy kind, worked out once. */
 const DEBRIS_COLORS: Record<DefeatKind, number> = {
@@ -150,6 +149,9 @@ export class Game extends Scene {
     private readonly dropFlashes = new DropFlashes();
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
+    private readonly buttonFx = new ButtonEffects();
+    /** Whether the last frame drew the button mid-feedback, so the frame it ends is redrawn once more. */
+    private buttonFxShown = false;
     /** Red hit tint and edge band: over the whole play area, under the HUD. */
     private hitTintGfx: GameObjects.Graphics;
     private hitEdgeGfx: GameObjects.Graphics;
@@ -178,10 +180,12 @@ export class Game extends Scene {
     private touchUi = false;
     private buttonX = 0;
     private buttonY = 0;
-    private dragPointerId = -1;
+    private readonly touchRoles = new TouchRoles();
     private dragLastX = 0;
     private dragLastY = 0;
     private releaseQueued = false;
+    /** A release finger touched since the last update, so the button shows its feedback. */
+    private touchPressQueued = false;
     private readonly input_: WorldInput = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
     private pause = new PauseState();
     /** Seconds of unpaused play in this run, driving the boss spin. */
@@ -203,8 +207,9 @@ export class Game extends Scene {
         this.world = new World(size);
         this.finished = false;
         this.shownScore = this.shownLives = this.shownStock = this.shownBossHp = -1;
-        this.dragPointerId = -1;
+        this.touchRoles.clear();
         this.releaseQueued = false;
+        this.touchPressQueued = false;
         this.lastBoss = null;
         this.lastBossHp = 0;
         this.hitFlashAge = this.defeatAge = Infinity;
@@ -216,6 +221,8 @@ export class Game extends Scene {
         this.dropFlashes.clear();
         this.multiKillFx.clear();
         this.hitFx.clear();
+        this.buttonFx.clear();
+        this.buttonFxShown = false;
         // The previous run's texts were destroyed with the scene.
         this.counterViews.clear();
         this.resultViews.clear();
@@ -314,8 +321,10 @@ export class Game extends Scene {
     }
 
     private setupPointer() {
-        // One extra pointer so a second finger can press the button while the first one drags.
-        this.input.addPointer(1);
+        // One extra pointer so a second finger can release while the first one drags. Phaser keeps its
+        // pointers across scene restarts, so only the missing ones are added.
+        const missing = pointersToAdd(this.input.manager.pointersTotal);
+        if (missing > 0) this.input.addPointer(missing);
         this.input.on('pointerdown', this.onPointerDown, this);
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
@@ -325,23 +334,28 @@ export class Game extends Scene {
             this.input.off('pointermove', this.onPointerMove, this);
             this.input.off('pointerup', this.onPointerUp, this);
             this.input.off('pointerupoutside', this.onPointerUp, this);
+            this.touchRoles.clear();
         });
     }
 
     private onPointerDown(p: Input.Pointer) {
-        if (this.pause.pointerDown()) return; // a resume tap neither releases nor drags
-        if (this.touchUi && distanceSq(p.x, p.y, this.buttonX, this.buttonY) <= BUTTON_RADIUS * BUTTON_RADIUS) {
+        const role = this.touchRoles.down(p.id, p.x, p.y, {
+            paused: this.pause.pointerDown(), // a resume tap neither releases nor drags
+            touchUi: this.touchUi,
+            buttonX: this.buttonX,
+            buttonY: this.buttonY
+        });
+        if (role === 'release') {
             this.releaseQueued = true;
-            return;
+            this.touchPressQueued = true;
+        } else if (role === 'drag') {
+            this.dragLastX = p.x;
+            this.dragLastY = p.y;
         }
-        if (this.dragPointerId !== -1) return;
-        this.dragPointerId = p.id;
-        this.dragLastX = p.x;
-        this.dragLastY = p.y;
     }
 
     private onPointerMove(p: Input.Pointer) {
-        if (p.id !== this.dragPointerId) return;
+        if (this.touchRoles.roleOf(p.id) !== 'drag') return;
         this.input_.dragX += p.x - this.dragLastX;
         this.input_.dragY += p.y - this.dragLastY;
         this.dragLastX = p.x;
@@ -349,7 +363,7 @@ export class Game extends Scene {
     }
 
     private onPointerUp(p: Input.Pointer) {
-        if (p.id === this.dragPointerId) this.dragPointerId = -1;
+        this.touchRoles.up(p.id);
     }
 
     update(_time: number, delta: number) {
@@ -357,6 +371,7 @@ export class Game extends Scene {
         this.syncPauseLayer();
         if (this.pause.isPaused) return; // time stands still; the last frame stays on screen
         this.spinClock += dt;
+        this.trackButton(dt);
         this.readKeys();
         this.world.step(dt, this.input_);
         this.input_.dragX = 0;
@@ -391,13 +406,21 @@ export class Game extends Scene {
         // The countdown / boss announcement sits where "PAUSED" goes; hide it until play resumes.
         this.centerText.setVisible(!this.pause.isPaused);
         if (!this.pause.pausedThisFrame) return;
-        this.dragPointerId = -1;
+        this.touchRoles.suspendDrag();
         this.world.dropDragTarget();
         this.releaseQueued = false;
+        this.touchPressQueued = false;
         this.input_.dragX = this.input_.dragY = 0;
         this.input.keyboard?.resetKeys();
         // Cut a running release shake so the veil doesn't sit on a shifted view.
         this.cameras.main.shakeEffect.reset();
+    }
+
+    /** Starts the button feedback for a release finger, judged from the phase and stock before this frame's step. */
+    private trackButton(dt: number) {
+        const press = this.touchPressQueued ? buttonPressKind(this.world.phase, this.world.stock) : null;
+        this.touchPressQueued = false;
+        this.buttonFx.update(dt, press);
     }
 
     private readKeys() {
@@ -821,7 +844,10 @@ export class Game extends Scene {
             this.shownStock = w.stock;
             this.stockText.setText(`${w.stock}/${STOCK_MAX}`);
             this.redrawGaugeAndButton();
+        } else if (this.buttonFx.playing || this.buttonFxShown) {
+            this.redrawGaugeAndButton();
         }
+        this.buttonFxShown = this.buttonFx.playing;
         this.drawBossBar();
         const countdown = w.phase === 'ready';
         const center = countdown
@@ -843,11 +869,14 @@ export class Game extends Scene {
         g.fillStyle(COLORS.gaugeFill, 1);
         g.fillRect(x, GAUGE_Y, GAUGE_WIDTH * (stock / STOCK_MAX), GAUGE_HEIGHT);
         if (!this.buttonText) return;
-        // The release button brightens once there is something to release.
-        g.fillStyle(COLORS.button, stock > 0 ? 0.35 : 0.12);
-        g.fillCircle(this.buttonX, this.buttonY, BUTTON_RADIUS);
-        g.lineStyle(3, COLORS.button, stock > 0 ? 0.9 : 0.4);
-        g.strokeCircle(this.buttonX, this.buttonY, BUTTON_RADIUS);
+        // The release button brightens once there is something to release, and reacts to a press.
+        const { age, kind } = this.buttonFx;
+        const color = buttonColor(age, kind);
+        const radius = buttonRadius(age, kind);
+        g.fillStyle(color, buttonFillAlpha(age, kind, stock));
+        g.fillCircle(this.buttonX, this.buttonY, radius);
+        g.lineStyle(3, color, buttonStrokeAlpha(age, kind, stock));
+        g.strokeCircle(this.buttonX, this.buttonY, radius);
         this.buttonText.setText(String(stock));
     }
 }

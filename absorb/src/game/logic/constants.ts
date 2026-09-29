@@ -92,6 +92,15 @@ export const GAMEOVER_HINT_FADE = 0.2;
 export const MAX_DT = 0.05;
 /** Opacity of the black veil over the game while it is auto-paused. */
 export const PAUSE_DIM_ALPHA = 0.6;
+/** Touch release button: drawn radius, distance of its centre from the right and bottom edges, and the wider radius that counts as a touch. */
+export const BUTTON_RADIUS = 56;
+export const BUTTON_INSET = 90;
+export const BUTTON_HIT_RADIUS = 88;
+/** Press feedback on the release button: length, starting size (fraction of BUTTON_RADIUS) and starting fill opacities. */
+export const BUTTON_PRESS_DURATION = 0.12;
+export const BUTTON_PRESS_SCALE = 0.85;
+export const BUTTON_PRESS_ALPHA = 0.7;
+export const BUTTON_EMPTY_ALPHA = 0.6;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;
