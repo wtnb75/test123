@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lineAlpha } from './breakdown';
 import { GAMEOVER_INPUT_LOCK, RETRY_KEY_CODES, RetryInput, hintAlpha, retryEnabled } from './retry';
 
-// Expected values are worked out by hand from the spec: 9 staggered lines (7 kinds, bonus, total), the
+// Expected values are worked out by hand from the spec: at most 9 staggered lines (all 7 kinds, bonus, total); on that longest table the
 // total starts at 8 × 0.12 = 0.96 s and is fully shown at 0.96 + 0.2 = 1.16 s, which is when retry opens;
 // the hint then fades in linearly over 0.2 s (0.5 at 1.26 s, 1 from 1.36 s).
 // DOM key codes: Space 32, X 88, Enter 13, R 82.
@@ -26,6 +26,14 @@ describe('retry lock on the game-over screen', () => {
     it('ignores retry at 0 s and at 1.15 s', () => {
         expect(retryEnabled(0)).toBe(false);
         expect(retryEnabled(1.15)).toBe(false);
+    });
+
+    it('stays locked after a short table is in: one kind shown is done at 0.44 s, retry still waits for 1.16 s', () => {
+        expect(lineAlpha(0.44, 2)).toBe(1);
+        expect(retryEnabled(0.5)).toBe(false);
+        expect(retryEnabled(1.1)).toBe(false);
+        expect(hintAlpha(1.1)).toBe(0);
+        expect(retryEnabled(LOCK)).toBe(true);
     });
 
     it('accepts retry from exactly 1.16 s, tolerating float drift from summed frame deltas', () => {

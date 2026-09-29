@@ -3,7 +3,10 @@ import { GAMEOVER_HINT_FADE } from './constants';
 
 const EPSILON = 1e-9;
 
-/** Seconds into the game-over screen during which retry input is ignored: until the total has fully faded in. */
+/**
+ * Seconds into the game-over screen during which retry input is ignored: until the total has fully faded in
+ * on the longest table. Fixed, so a short table (fewer kinds defeated) keeps the same protection.
+ */
 export const GAMEOVER_INPUT_LOCK = BREAKDOWN_SHOWN_AT;
 
 /** Key codes (DOM `keyCode`, as Phaser's KeyCodes) that retry: the release keys Space, X and Enter. */
