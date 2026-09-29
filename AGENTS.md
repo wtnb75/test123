@@ -107,6 +107,11 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 ### 4.3 Vite / 配布
 
 - 配布物は静的サイトを前提とし、`vite build` 成果物で動作確認する
+- ビルドは 2 種類ある（設定は `scaffold/vite/config.prod.mjs`、切り替えは環境変数 `SHARED_VENDOR`）
+	- 単体ビルド（`npm run build`）: Phaser を含めて `dist/` に出力する。`dist/` だけで動く。ゲーム単位の確認（QA など）はこちらで行う
+	- 共有ビルド（`task build`、CI）: Phaser を含めず `dist-shared/` に出力し、ゲームは import map で `../vendor/phaser-<version>.esm.min.js` を読む。`task build` が全ゲームの Phaser を `output/vendor/` に 1 つだけ置く（バージョンが違えば別名で並ぶ）。GitHub Pages に載るのはこちら
+- 共有ビルドの成果物は `dist-shared/` 単体では動かない。確認するときは `task build` で `output/` を作り、サブパス（例 `/<repo>/`）で静的配信して開く
+- ビルド設定や `index.html` を触ったときは、単体ビルドと共有ビルドの両方で起動を確認する（Phaser 以外のバンドル方法を変えると、片方だけ壊れることがある）
 - 実行時に Node.js サーバー専用機能へ依存しない
 - 画像・音声などのアセットパスはビルド後の解決を壊さない
 
