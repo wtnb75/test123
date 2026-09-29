@@ -1,7 +1,7 @@
-import { GameObjects, Scene } from 'phaser';
+import { GameObjects, Scene, type Types } from 'phaser';
 import {
-    BONUS_LABEL, bonusValue, kindRows, lineAlpha, multiKillBonus, normalizeBreakdown, totalLabel,
-    type BreakdownKind, type KindTally
+    BONUS_LABEL, NO_KILLS_LABEL, lineAlpha, normalizeBreakdown, tableLines, totalLabel,
+    type BreakdownKind, type KindTally, type TableLine
 } from '../logic/breakdown';
 import { GAMEOVER_HINT_FADE } from '../logic/constants';
 import { GAMEOVER_INPUT_LOCK, RetryInput, hintAlpha } from '../logic/retry';
@@ -29,7 +29,7 @@ interface GameOverData {
 export class GameOver extends Scene {
     /** Seconds since the screen opened, driving the staggered fade-in. */
     private elapsed = 0;
-    /** The texts of each staggered line (seven kinds, the bonus, the total), faded together. */
+    /** The texts of each staggered line (shown kind rows or NO KILLS, the bonus, the total), faded together. */
     private lines: GameObjects.Text[][] = [];
     private hint!: GameObjects.Text;
     private retry = new RetryInput();
@@ -51,19 +51,11 @@ export class GameOver extends Scene {
 
         const rowStyle = { fontFamily: FONT, fontSize: ROW_FONT_SIZE, color: WHITE };
         let y = cy - 160;
-        for (const row of kindRows(breakdown)) {
-            this.lines.push([
-                this.add.text(cx + NAME_X, y, row.name, { ...rowStyle, color: cssColor(KIND_COLORS[row.kind]) }).setOrigin(0, 0.5),
-                this.add.text(cx + COUNT_X, y, row.count, rowStyle).setOrigin(0, 0.5),
-                this.add.text(cx + POINTS_X, y, row.points, rowStyle).setOrigin(1, 0.5)
-            ]);
+        for (const line of tableLines(score, breakdown)) {
+            this.lines.push(this.addTableLine(line, cx, y, rowStyle));
             y += ROW_SPACING;
         }
-        this.lines.push([
-            this.add.text(cx + NAME_X, y, BONUS_LABEL, rowStyle).setOrigin(0, 0.5),
-            this.add.text(cx + POINTS_X, y, bonusValue(multiKillBonus(score, breakdown)), rowStyle).setOrigin(1, 0.5)
-        ]);
-        y += ROW_SPACING + 40;
+        y += 40;
         this.lines.push([
             this.add.text(cx, y, totalLabel(score), { fontFamily: FONT, fontSize: TOTAL_FONT_SIZE, color: WHITE }).setOrigin(0.5)
         ]);
@@ -78,6 +70,23 @@ export class GameOver extends Scene {
             keyboard.off('keydown', this.onKeyDown, this);
             this.input.off('pointerdown', this.onPointerDown, this);
         });
+    }
+
+    /** The texts of one table line, in the name / count / points columns. */
+    private addTableLine(line: TableLine, cx: number, y: number, style: Types.GameObjects.Text.TextStyle): GameObjects.Text[] {
+        if (line.type === 'noKills') return [this.add.text(cx + NAME_X, y, NO_KILLS_LABEL, style).setOrigin(0, 0.5)];
+        if (line.type === 'bonus') {
+            return [
+                this.add.text(cx + NAME_X, y, BONUS_LABEL, style).setOrigin(0, 0.5),
+                this.add.text(cx + POINTS_X, y, line.value, style).setOrigin(1, 0.5)
+            ];
+        }
+        const { row } = line;
+        return [
+            this.add.text(cx + NAME_X, y, row.name, { ...style, color: cssColor(KIND_COLORS[row.kind]) }).setOrigin(0, 0.5),
+            this.add.text(cx + COUNT_X, y, row.count, style).setOrigin(0, 0.5),
+            this.add.text(cx + POINTS_X, y, row.points, style).setOrigin(1, 0.5)
+        ];
     }
 
     update(_time: number, delta: number) {

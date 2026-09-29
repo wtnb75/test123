@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-    BONUS_LABEL, BREAKDOWN_KINDS, BREAKDOWN_LINES, BREAKDOWN_SHOWN_AT, bonusValue, emptyBreakdown, kindRows, lineAlpha,
-    multiKillBonus, normalizeBreakdown, tallyKill, totalLabel
+    BONUS_LABEL, BREAKDOWN_KINDS, BREAKDOWN_LINES, BREAKDOWN_SHOWN_AT, NO_KILLS_LABEL, bonusValue, emptyBreakdown, kindRows, lineAlpha,
+    multiKillBonus, normalizeBreakdown, tableLines, tallyKill, totalLabel
 } from './breakdown';
 
-// Expected values below are worked out by hand from the spec: rows in the order GRUNT, SHOOTER,
-// HEAVY, RAMMER, SPLITTER, CARRIER, BOSS, then the bonus and the total; line k starts at k × 0.12 s and
-// fades in over 0.2 s, so the total (line 8) starts at 0.96 s and everything is shown by 1.16 s.
+// Expected values below are worked out by hand from the spec: rows for the kinds defeated this run in the
+// order GRUNT, SHOOTER, HEAVY, RAMMER, SPLITTER, CARRIER, BOSS (or one NO KILLS row), then the bonus and the
+// total; line k starts at k × 0.12 s and fades in over 0.2 s. With all seven kinds shown (n = 8 table lines)
+// the total (line 8) starts at 0.96 s and everything is shown by 1.16 s; a shorter table starts it at n × 0.12 s.
 
 describe('tallying kills', () => {
     it('starts every kind at 0 kills and 0 points', () => {
@@ -37,6 +38,13 @@ describe('reading what the game-over screen received', () => {
         expect(b.grunt).toEqual({ count: 0, points: 0 });
     });
 
+    it('drops the points of a kind that came without kills, so the bonus takes them (score 500, 0 grunts worth 200 → +500)', () => {
+        const b = normalizeBreakdown({ grunt: { count: 0, points: 200 } });
+        expect(b.grunt).toEqual({ count: 0, points: 0 });
+        expect(kindRows(b)).toEqual([]);
+        expect(multiKillBonus(500, b)).toBe(500);
+    });
+
     it('does not share objects with the data it was given', () => {
         const given = { grunt: { count: 1, points: 100 } };
         const b = normalizeBreakdown(given);
@@ -63,26 +71,79 @@ describe('the multi-kill bonus', () => {
 });
 
 describe('breakdown wording', () => {
-    it('lists the seven kinds in order, splitter and carrier between rammer and boss, as parts the screen can put in columns', () => {
+    it('lists all seven kinds in order, splitter and carrier between rammer and boss, when each was defeated', () => {
         const b = emptyBreakdown();
         b.grunt = { count: 12, points: 1200 };
+        b.shooter = { count: 1, points: 400 };
+        b.heavy = { count: 1, points: 1600 };
+        b.rammer = { count: 2, points: 600 };
+        b.splitter = { count: 3, points: 900 };
+        b.carrier = { count: 1, points: 2000 };
+        b.boss = { count: 1, points: 7500 };
         expect(kindRows(b)).toEqual([
             { kind: 'grunt', name: 'GRUNT', count: '×12', points: '1200' },
-            { kind: 'shooter', name: 'SHOOTER', count: '×0', points: '0' },
-            { kind: 'heavy', name: 'HEAVY', count: '×0', points: '0' },
-            { kind: 'rammer', name: 'RAMMER', count: '×0', points: '0' },
-            { kind: 'splitter', name: 'SPLITTER', count: '×0', points: '0' },
-            { kind: 'carrier', name: 'CARRIER', count: '×0', points: '0' },
-            { kind: 'boss', name: 'BOSS', count: '×0', points: '0' }
+            { kind: 'shooter', name: 'SHOOTER', count: '×1', points: '400' },
+            { kind: 'heavy', name: 'HEAVY', count: '×1', points: '1600' },
+            { kind: 'rammer', name: 'RAMMER', count: '×2', points: '600' },
+            { kind: 'splitter', name: 'SPLITTER', count: '×3', points: '900' },
+            { kind: 'carrier', name: 'CARRIER', count: '×1', points: '2000' },
+            { kind: 'boss', name: 'BOSS', count: '×1', points: '7500' }
         ]);
+    });
+
+    it('leaves out kinds not defeated, packing the rest in order (3 grunts and a boss → GRUNT, BOSS)', () => {
+        const b = emptyBreakdown();
+        b.grunt = { count: 3, points: 300 };
+        b.boss = { count: 1, points: 7500 };
+        expect(kindRows(b).map((r) => r.name)).toEqual(['GRUNT', 'BOSS']);
+    });
+
+    it('has no kind rows when nothing was defeated, and a NO KILLS label for that case', () => {
+        expect(kindRows(emptyBreakdown())).toEqual([]);
+        expect(NO_KILLS_LABEL).toBe('NO KILLS');
+    });
+
+    it('shows a kind from its first kill', () => {
+        const b = emptyBreakdown();
+        tallyKill(b, 'heavy', 1600);
+        expect(kindRows(b)).toEqual([{ kind: 'heavy', name: 'HEAVY', count: '×1', points: '1600' }]);
     });
 
     it('uses the multiplication sign U+00D7 and no thousands separators', () => {
         const b = emptyBreakdown();
         b.boss = { count: 2, points: 18750 };
-        const boss = kindRows(b)[6];
+        const [boss] = kindRows(b);
         expect(boss.count.charCodeAt(0)).toBe(0x00d7);
         expect(boss.points).toBe('18750');
+    });
+
+    it('builds a 2-line table for one kind: the kind, then the bonus (so the total is line 2)', () => {
+        const b = emptyBreakdown();
+        tallyKill(b, 'grunt', 100);
+        tallyKill(b, 'grunt', 100);
+        expect(tableLines(300, b)).toEqual([
+            { type: 'kind', row: { kind: 'grunt', name: 'GRUNT', count: '×2', points: '200' } },
+            { type: 'bonus', value: '+100' }
+        ]);
+    });
+
+    it('builds an 8-line table when all seven kinds were defeated', () => {
+        const b = emptyBreakdown();
+        for (const kind of BREAKDOWN_KINDS) tallyKill(b, kind, 100);
+        const lines = tableLines(700, b);
+        expect(lines).toHaveLength(8);
+        expect(lines.map((l) => l.type)).toEqual(['kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'bonus']);
+        expect(lines[7]).toEqual({ type: 'bonus', value: '+0' });
+    });
+
+    it('builds a 2-line table with NO KILLS and a +0 bonus when nothing was defeated', () => {
+        expect(tableLines(0, emptyBreakdown())).toEqual([{ type: 'noKills' }, { type: 'bonus', value: '+0' }]);
+    });
+
+    it('never shows NO KILLS next to kind rows', () => {
+        const b = emptyBreakdown();
+        tallyKill(b, 'boss', 7500);
+        expect(tableLines(7500, b).map((l) => l.type)).toEqual(['kind', 'bonus']);
     });
 
     it('writes the bonus and total lines', () => {
@@ -94,7 +155,7 @@ describe('breakdown wording', () => {
 });
 
 describe('staggered fade-in', () => {
-    it('has nine lines: seven kinds, the bonus, the total', () => {
+    it('has at most nine lines: all seven kinds, the bonus, the total', () => {
         expect(BREAKDOWN_LINES).toBe(9);
     });
 
@@ -105,6 +166,12 @@ describe('staggered fade-in', () => {
         expect(lineAlpha(0.46, 3)).toBeCloseTo(0.5);
         expect(lineAlpha(0.51, 3)).toBeCloseTo(0.75);
         expect(lineAlpha(0.56, 3)).toBe(1);
+    });
+
+    it('brings a short table in early: with one kind (n = 2) the total, line 2, starts at 0.24 s and is in by 0.44 s', () => {
+        expect(lineAlpha(0.24, 2)).toBe(0);
+        expect(lineAlpha(0.34, 2)).toBeCloseTo(0.5);
+        expect(lineAlpha(0.44, 2)).toBe(1);
     });
 
     it('stays fully shown afterwards instead of disappearing', () => {
