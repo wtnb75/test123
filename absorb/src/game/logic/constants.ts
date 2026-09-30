@@ -101,6 +101,21 @@ export const BUTTON_PRESS_DURATION = 0.12;
 export const BUTTON_PRESS_SCALE = 0.85;
 export const BUTTON_PRESS_ALPHA = 0.7;
 export const BUTTON_EMPTY_ALPHA = 0.6;
+/** Start effects: each countdown digit pops in from START_POP_SCALE (easing down over START_POP_DURATION), fades in over START_FADE_IN and dims to START_DIGIT_REST_ALPHA. */
+export const START_POP_SCALE = 1.6;
+export const START_POP_DURATION = 0.25;
+export const START_FADE_IN = 0.12;
+export const START_DIGIT_REST_ALPHA = 0.6;
+/** Rings from the player at each digit (and the big one at the start) last START_RING_DURATION. */
+export const START_RING_DURATION = 0.35;
+export const START_RING_WIDTH = 3;
+/** "GO!" fades out over START_GO_DURATION while growing to START_GO_SCALE; its big ring grows to START_GO_RING_MAX_RADIUS. */
+export const START_GO_DURATION = 0.5;
+export const START_GO_SCALE = 1.3;
+export const START_GO_RING_MAX_RADIUS = 220;
+export const START_GO_RING_WIDTH = 8;
+/** The HUD fades in over the first START_HUD_FADE seconds of ready. */
+export const START_HUD_FADE = 0.4;
 
 export const RELEASE_SPEED = 600;
 export const RELEASE_SPREAD = Math.PI / 6;

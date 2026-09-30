@@ -10,11 +10,15 @@ import {
 import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BUTTON_INSET, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
-    ENEMY_BULLET_RADIUS, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, READY_DURATION, RELEASE_RADIUS,
+    ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
     SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { PauseState } from '../logic/pause';
+import {
+    StartEffects, chargeRadius, digitAlpha, digitLabel, digitScale, digitTime, goAlpha, goProgress, goScale, hudAlpha,
+    startRingProgress, startRingRadius, startRingWidth
+} from '../logic/startFx';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import { DropFlashes } from '../logic/carrierFx';
 import {
@@ -66,6 +70,10 @@ const PAUSE_HINT_SIZE = 22;
 const PAUSE_TITLE_OFFSET_Y = -20;
 const PAUSE_HINT_OFFSET_Y = 40;
 
+/** The field's fill opacity with an empty stock, and how much more it gains as the stock fills up. */
+const FIELD_FILL_REST_ALPHA = 0.06;
+const FIELD_FILL_STOCK_ALPHA = 0.2;
+
 const GAUGE_WIDTH = 160;
 const GAUGE_HEIGHT = 14;
 const GAUGE_RIGHT_MARGIN = 20;
@@ -82,6 +90,7 @@ const DEBRIS_COLORS: Record<DefeatKind, number> = {
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
+const FIELD_CSS_COLOR = cssColor(COLORS.field);
 const BOSS_CSS_COLOR = cssColor(COLORS.boss);
 const DEFEAT_RING_LINE = 6;
 /** Carrier hexagon: half-height relative to its half-width (the hit radius), and the cargo mark's radius within it. */
@@ -150,6 +159,11 @@ export class Game extends Scene {
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     private readonly buttonFx = new ButtonEffects();
+    private readonly startFx = new StartEffects();
+    /** Countdown digits and "GO!": behind everything in the play area, so the player and its field stay in front. */
+    private startText: GameObjects.Text;
+    /** HUD opacity as last applied, so the fade-in only touches the objects while it changes. */
+    private shownHudAlpha = -1;
     /** Whether the last frame drew the button mid-feedback, so the frame it ends is redrawn once more. */
     private buttonFxShown = false;
     /** Red hit tint and edge band: over the whole play area, under the HUD. */
@@ -223,6 +237,7 @@ export class Game extends Scene {
         this.hitFx.clear();
         this.buttonFx.clear();
         this.buttonFxShown = false;
+        this.startFx.clear();
         // The previous run's texts were destroyed with the scene.
         this.counterViews.clear();
         this.resultViews.clear();
@@ -280,6 +295,10 @@ export class Game extends Scene {
             ? this.add.text(this.buttonX, this.buttonY, '', { fontFamily: 'monospace', fontSize: 28, color: TEXT_CSS_COLOR })
                 .setOrigin(0.5).setDepth(11)
             : null;
+        this.startText = this.add.text(width / 2, height / 2, '', {
+            fontFamily: 'monospace', fontSize: 96, color: TEXT_CSS_COLOR
+        // Twice the resolution, so the digits stay sharp while they pop in at 1.6x.
+        }).setOrigin(0.5).setResolution(2).setDepth(-1).setVisible(false);
         this.bossGfx = this.add.graphics().setDepth(10);
         this.bossLabel = this.add.text(this.bossBarX() - 8, HUD_HEIGHT + BOSS_BAR_HEIGHT / 2, 'BOSS', {
             fontFamily: 'monospace', fontSize: BOSS_LABEL_SIZE, color: BOSS_CSS_COLOR
@@ -289,6 +308,9 @@ export class Game extends Scene {
         this.popupText = this.add.text(0, 0, '', {
             fontFamily: 'monospace', fontSize: SCORE_POPUP_FONT_SIZE, color: BOSS_CSS_COLOR
         }).setOrigin(0.5).setDepth(5).setVisible(false);
+        // The HUD fades in during ready; start from invisible so the first frame never shows it whole.
+        this.shownHudAlpha = -1;
+        this.applyHudAlpha(0);
     }
 
     private bossBarX(): number {
@@ -384,6 +406,7 @@ export class Game extends Scene {
         this.dropFlashes.update(dt, this.world.carrierDrops);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
+        this.startFx.update(dt, this.world.phase, this.world.phaseTime, this.world.player.x, this.world.player.y);
         if (startsShake(this.world.releases)) {
             // force: a new full release restarts the shake instead of being ignored.
             this.cameras.main.shake(RELEASE_SHAKE_DURATION * 1000, this.shakeIntensity, true);
@@ -393,6 +416,7 @@ export class Game extends Scene {
         this.drawMultiKills();
         this.drawHitFlash();
         this.drawHud();
+        this.drawStartText();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
             // A copy, so the game-over screen never shares state with this run's world.
@@ -403,8 +427,9 @@ export class Game extends Scene {
     /** Shows the pause layer while paused; when the pause begins, drops the input in flight. */
     private syncPauseLayer() {
         this.pauseLayer.setVisible(this.pause.isPaused);
-        // The countdown / boss announcement sits where "PAUSED" goes; hide it until play resumes.
+        // The boss announcement, countdown and "GO!" sit where "PAUSED" goes; hide them until play resumes.
         this.centerText.setVisible(!this.pause.isPaused);
+        if (this.pause.isPaused) this.startText.setVisible(false);
         if (!this.pause.pausedThisFrame) return;
         this.touchRoles.suspendDrag();
         this.world.dropDragTarget();
@@ -484,6 +509,7 @@ export class Game extends Scene {
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
         this.drawReleaseRings();
+        this.drawStartRings();
 
         this.drawPlayer();
         this.drawHitRing();
@@ -555,6 +581,41 @@ export class Game extends Scene {
             g.lineStyle(releaseRingWidth(r.count), COLORS.releaseBullet, fadeAlpha(p));
             g.strokeCircle(r.x, r.y, releaseRingRadius(r.count, p));
         }
+    }
+
+    /** Rings from the player at each countdown digit and the big one at the start: the release rings' layer. */
+    private drawStartRings() {
+        const g = this.gfx;
+        for (const r of this.startFx.rings) {
+            const p = startRingProgress(r.age);
+            if (p < 0) continue;
+            g.lineStyle(startRingWidth(r.big), COLORS.field, fadeAlpha(p));
+            g.strokeCircle(r.x, r.y, startRingRadius(r.big, p));
+        }
+    }
+
+    /** The countdown digit while readying, then "GO!" for a moment: one text, behind the whole play area. */
+    private drawStartText() {
+        const w = this.world;
+        const t = this.startText;
+        if (w.phase === 'ready') {
+            const s = digitTime(w.phaseTime);
+            this.setStartLabel(digitLabel(w.phaseTime), TEXT_CSS_COLOR);
+            t.setScale(digitScale(s)).setAlpha(digitAlpha(s)).setVisible(true);
+            return;
+        }
+        const p = goProgress(this.startFx.goAge);
+        if (p < 0) {
+            t.setVisible(false);
+            return;
+        }
+        this.setStartLabel('GO!', FIELD_CSS_COLOR);
+        t.setScale(goScale(p)).setAlpha(goAlpha(p)).setVisible(true);
+    }
+
+    private setStartLabel(label: string, color: string) {
+        if (this.startText.text === label) return;
+        this.startText.setText(label).setColor(color);
     }
 
     /** Multi-kill counters and "+points" results: over the player, under the HUD (the boss popup's layer). */
@@ -658,13 +719,18 @@ export class Game extends Scene {
             g.fillCircle(p.x, p.y, PLAYER_RADIUS + t * 80);
             return;
         }
+        if (w.phase === 'ready') {
+            // Charging up: the field grows around the player before it starts absorbing (looks only).
+            const radius = chargeRadius(w.phaseTime);
+            if (radius > 0) this.drawFieldCircle(p.x, p.y, radius, FIELD_FILL_REST_ALPHA, FIELD_EDGE_WIDTH, FIELD_EDGE_ALPHA);
+        }
         if (w.phase === 'playing') {
             // The field glows brighter as the stock fills up.
-            g.fillStyle(COLORS.field, 0.06 + 0.2 * (w.stock / STOCK_MAX));
-            g.fillCircle(p.x, p.y, FIELD_RADIUS);
             const fx = this.absorbFx;
-            g.lineStyle(edgeWidth(fx.pulseAge), COLORS.field, edgeAlpha(fx.pulseAge));
-            g.strokeCircle(p.x, p.y, FIELD_RADIUS);
+            this.drawFieldCircle(
+                p.x, p.y, FIELD_RADIUS, FIELD_FILL_REST_ALPHA + FIELD_FILL_STOCK_ALPHA * (w.stock / STOCK_MAX),
+                edgeWidth(fx.pulseAge), edgeAlpha(fx.pulseAge)
+            );
             const ring = absorbRingProgress(fx.ringAge);
             if (ring >= 0) {
                 g.lineStyle(ABSORB_RING_WIDTH, COLORS.field, fadeAlpha(ring));
@@ -677,6 +743,15 @@ export class Game extends Scene {
             g.fillStyle(COLORS.player, 1);
             g.fillCircle(p.x, p.y, PLAYER_RADIUS);
         }
+    }
+
+    /** The absorb field: a translucent disc with its outline, the same look while readying and playing. */
+    private drawFieldCircle(x: number, y: number, radius: number, fillAlpha: number, edgeWidthPx: number, edgeAlphaValue: number) {
+        const g = this.gfx;
+        g.fillStyle(COLORS.field, fillAlpha);
+        g.fillCircle(x, y, radius);
+        g.lineStyle(edgeWidthPx, COLORS.field, edgeAlphaValue);
+        g.strokeCircle(x, y, radius);
     }
 
     /** Absorbed bullets being pulled into the player: every afterimage first, then the bullets in front. */
@@ -849,14 +924,21 @@ export class Game extends Scene {
         }
         this.buttonFxShown = this.buttonFx.playing;
         this.drawBossBar();
-        const countdown = w.phase === 'ready';
-        const center = countdown
-            ? String(Math.max(1, Math.ceil(READY_DURATION - w.phaseTime)))
-            : w.bossAnnounce > 0 ? 'BOSS' : '';
-        if (this.centerText.text !== center) {
-            this.centerText.setText(center).setColor(countdown ? TEXT_CSS_COLOR : BOSS_CSS_COLOR);
-        }
-        this.centerText.setAlpha(countdown ? 1 : announceAlpha(w.bossAnnounce, w.phase === 'ending' || w.phase === 'over'));
+        this.applyHudAlpha(w.phase === 'ready' ? hudAlpha(w.phaseTime) : 1);
+        const center = w.bossAnnounce > 0 ? 'BOSS' : '';
+        if (this.centerText.text !== center) this.centerText.setText(center).setColor(BOSS_CSS_COLOR);
+        this.centerText.setAlpha(announceAlpha(w.bossAnnounce, w.phase === 'ending' || w.phase === 'over'));
+    }
+
+    /** Sets the opacity of every HUD object (score, life, stock, gauge, release button); does nothing when it is unchanged. */
+    private applyHudAlpha(alpha: number) {
+        if (alpha === this.shownHudAlpha) return;
+        this.shownHudAlpha = alpha;
+        this.hudGfx.setAlpha(alpha);
+        this.scoreText.setAlpha(alpha);
+        this.livesText.setAlpha(alpha);
+        this.stockText.setAlpha(alpha);
+        this.buttonText?.setAlpha(alpha);
     }
 
     private redrawGaugeAndButton() {
