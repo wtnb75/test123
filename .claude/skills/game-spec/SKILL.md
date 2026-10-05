@@ -22,7 +22,34 @@ spec change must be made here first, with implementation/tests following.
 実装裁量
 
 Pull concept/core-loop/target-player/scope from the `game-idea` conversation
-if this is a first write. For a revision (e.g. coming out of
+if this is a first write.
+
+### First write after `game-proto`
+
+For a new game, `docs/spec.md` already has a body: the spec-lite and its
+`## プレイテストで固まったこと` section (see `game-proto`). Build the full
+spec from it, not from scratch:
+
+- The パラメータ表 values and rules the playtests settled are the initial
+  values — keep them, don't re-derive or re-tune them. Add the numbers the
+  spec-lite didn't have (anything else with gameplay weight).
+- Fill the missing required items (ターゲットプレイヤー, 画面・Scene構成,
+  ルール, MVP/非MVP範囲, 技術要件, テスト観点, 完了条件, 実装裁量). 画面・Scene
+  構成 describes the screens as the playtests ended up, not the prototype's
+  single-Scene shortcut: add what a real game needs (title/result flow) as
+  agreed with the user.
+- Fold the playtest notes into the proper sections (rules into ルール,
+  "why this number" into the table's meaning column, "must stay" items into
+  完了条件), then remove the `> spec-lite:` banner and the
+  `## プレイテストで固まったこと` section. The spec describes the current
+  game, not how it got there.
+- Technical requirements name which game rules are pure logic (hit tests,
+  scoring, spawn rules, win/lose conditions) by their role, the way any
+  spec does. Don't refer to `src/proto/` or its files — the spec has to
+  stand on its own for a reader who never sees the prototype;
+  `game-impl` reads the prototype for the details.
+
+For a revision (e.g. coming out of
 `game-balance`), only change the sections that actually changed and note
 what changed in the conversation with the user — don't silently rewrite
 unrelated sections. Exception: if an older spec lacks a required section

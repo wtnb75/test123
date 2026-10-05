@@ -67,6 +67,7 @@ never call `pnpm create @phaserjs/game@latest` directly.
    ---
    status_idea: done
    status_init: done
+   status_proto: pending
    status_spec: pending
    status_impl: pending
    status_test: pending
@@ -89,5 +90,6 @@ fails rather than just noting it.
 
 Tell the user in one line that the directory is ready, then continue
 without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-dispatches `game-spec`, which drafts the spec and stops for the user's
-approval (see `game-next` "Continuous mode").
+dispatches `game-proto`, which writes a short spec-lite, builds a
+throwaway prototype and loops playtests with the user (see `game-next`
+"Continuous mode"); the full spec comes after that, from `game-spec`.

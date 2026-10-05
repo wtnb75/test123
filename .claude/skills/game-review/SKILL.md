@@ -1,6 +1,6 @@
 ---
 name: game-review
-description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/backlog/extend/init/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
+description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/backlog/extend/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
 ---
 
 # game-review
@@ -27,7 +27,7 @@ checklist asks "can someone implement this without inventing anything?").
 | STAGE | Reviewer | Why |
 |---|---|---|
 | `spec`, `impl`, `test` | **Fresh subagent** (see below) | The output is consumed by the next stage; the author fills gaps from conversation context without noticing |
-| `idea`, `backlog`, `extend`, `init`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
+| `idea`, `backlog`, `extend`, `init`, `proto`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
 
 ### Running a subagent review
 
@@ -146,7 +146,7 @@ Before summarizing the agreed extension to the user:
   version (has `catalog:` deps from `base.json`)?
 - Is `<game-dir>` registered in `pnpm-workspace.yaml` and as a
   commented-out line in `Taskfile.yml` `GAMES`?
-- Does `<game-dir>/docs/spec.md` have all 11 `status_*` keys, `idea`/`init`
+- Does `<game-dir>/docs/spec.md` have all 12 `status_*` keys, `idea`/`init`
   `done`, the rest `pending`?
 - Did `pnpm install` run (`<game-dir>/node_modules` exists,
   `pnpm-lock.yaml` changed)?
@@ -154,6 +154,26 @@ Before summarizing the agreed extension to the user:
 - Was `task game:favicon` run (`public/favicon.png` differs from
   `scaffold/base-template/public/favicon.png`)? If it failed, was the user
   told?
+
+## STAGE=proto (self) — consumer: game-spec
+
+Before marking the prototype done:
+
+- Did the user play it and say it is settled (not just you judging that it
+  works)? If the loop itself was found not fun, was that raised with the
+  user instead of patched around?
+- Does the spec-lite body have all five items (ゲーム名 / コンセプト /
+  コアループ / 操作仕様 / パラメータ表), and does the パラメータ表 match
+  `src/proto/params.ts` value for value?
+- Are the rules, screens and number rationales the playtests settled written
+  under `## プレイテストで固まったこと` — enough that `game-spec` doesn't
+  have to read the code to learn them?
+- Are all prototype additions under `src/proto/` (plus the `src/main.ts`
+  entry pointing at it), with nothing changed outside `<game-dir>`?
+- Is game logic in `src/proto/logic.ts` without Phaser imports, and does the
+  completion summary name which parts are worth porting?
+- Were the dev server and any QA container stopped?
+- Was the commit question asked, and only answered-yes commits made?
 
 ## STAGE=spec (subagent) — consumer: game-impl
 
@@ -201,6 +221,10 @@ approves a spec that has already been through review.
 - **Internal consistency**: MVP範囲 matches コアループ/ルール (nothing core is
   also listed as non-MVP); every control in 操作仕様 is used in some Scene;
   numbers in the パラメータ表 match any numbers in the prose.
+- **No spec-lite leftovers** (first write after `game-proto`): the
+  `> spec-lite:` banner and the `## プレイテストで固まったこと` section are
+  gone, their content absorbed into the proper sections (ルール, パラメータ表,
+  画面・Scene構成, 実装裁量), and nothing refers to `src/proto/`.
 - **Unambiguous rules**: ルール and 完了条件 cannot be read two ways.
 - **Testability**: 技術要件 names which logic is pure (testable without
   Phaser) vs. Scene glue, and テスト観点 lists concrete cases (boundaries,
@@ -235,6 +259,8 @@ check.
 
 ### Checklist
 
+- **Prototype removed** (first implementation after `game-proto`): no
+  `src/proto/` directory remains and `src/main.ts` imports `./game/main`.
 - **Spec conformance**: for each rule, state transition and parameter in
   the spec (spec.md and its linked files), point to where it is
   implemented. Anything missing is a blocker;
