@@ -58,7 +58,10 @@ never call `pnpm create @phaserjs/game@latest` directly.
 5. Create `<game-dir>/docs/spec.md` with **only** this frontmatter block —
    no body content yet, that's `game-spec`'s job. This is what makes the
    game visible to `task game:detect` / `task game:next` / `game-next`
-   immediately, instead of only after the spec is written:
+   immediately, instead of only after the spec is written. Create the file
+   with the Write tool, not a shell `printf`/`echo`: in a worktree-isolated
+   session a shell command whose argument starts with `---` is refused as
+   "cannot be shown not to be git".
 
    ```yaml
    ---
