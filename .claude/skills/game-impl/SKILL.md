@@ -37,7 +37,29 @@ but when writing code reveals one, don't guess silently and don't stall:
   revision before implementing that part. Parts of the spec that aren't
   affected can be implemented meanwhile.
 
+### If `src/proto/` exists (first implementation after `game-proto`)
+
+That is the throwaway prototype, not code to build on. Read it for what the
+spec doesn't say in code form (how a rule was implemented, what the
+playtests tuned), then write the real implementation from the spec:
+
+- Port the pure logic (`src/proto/logic.ts`, `params.ts`) into the real
+  structure, adjusting it to the spec; carry nothing over wholesale
+  because it happens to work.
+- Write Scenes fresh under the Scene/preload/create/update rules below.
+- Point `src/main.ts` back at `./game/main` (the prototype's
+  `src/proto/main.ts` replaced that import) and remove `src/proto/` before
+  declaring done: `git rm -r src/proto` if it was committed, otherwise
+  `git clean -fd src/proto`. A committed prototype stays readable in the
+  history; an uncommitted one is gone after this, which is what the user
+  chose when `game-proto` asked about the WIP commit.
+- A player-visible behavior that exists only in the prototype and not in
+  the spec is a spec gap: ask via the "When the spec is silent" route.
+  Don't silently keep it, don't silently drop it.
+
 ### If code already exists, implement the delta, not a rewrite
+
+(This applies to code that is real implementation, not `src/proto/`.)
 
 `status_impl` coming back to this skill after already having been `done`
 once (check `<game-dir>/src` for existing files, not just the status key)
@@ -124,7 +146,8 @@ settles risks wasting that work on a mechanic that's still moving.
 
 ## Completion
 
-1. `npm run build` succeeds (static output).
+1. `npm run build` succeeds (static output), and `src/proto/` no longer
+   exists.
 2. `game-review STAGE=impl` has no remaining blockers.
 3. `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=done`
 4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It

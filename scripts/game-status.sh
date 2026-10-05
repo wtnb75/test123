@@ -6,14 +6,14 @@
 # games without that frontmatter are left untouched (see AGENTS.md skill
 # design notes).
 #
-# Stages added after a game started tracking (e.g. codereview, polish) have
+# Stages added after a game started tracking (e.g. codereview, polish, proto) have
 # no key in its frontmatter. An absent key reads as "absent" and is skipped
 # by `next`, so already-complete games stay complete; `set` inserts the key,
 # so the stage joins the pipeline the next time game-spec resets downstream
 # stages for a revision.
 set -euo pipefail
 
-STAGES=(idea init spec impl test check codereview qa polish balance publish)
+STAGES=(idea init proto spec impl test check codereview qa polish balance publish)
 
 usage() {
   cat <<'EOF'

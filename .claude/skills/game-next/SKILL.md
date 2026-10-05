@@ -1,12 +1,12 @@
 ---
 name: game-next
-description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend (from the backlog), game-backlog (new ideas, ranking) or another game-balance pass.
+description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend (from the backlog), game-backlog (new ideas, ranking) or another game-balance pass.
 ---
 
 # game-next
 
 One command to keep going. Figures out which game is in progress and which
-of the `game-idea` → `game-init` → `game-spec` → `game-impl` → `game-test` →
+of the `game-idea` → `game-init` → `game-proto` → `game-spec` → `game-impl` → `game-test` →
 `game-check` → `game-codereview` → `game-qa` → `game-polish` →
 `game-balance` → `game-publish` stages is next,
 then hands off to that skill — and keeps handing off stage after stage
@@ -50,6 +50,7 @@ edits files itself — it only detects state and dispatches.
 
    | stage | skill |
    |---|---|
+   | `proto` | `game-proto` |
    | `spec` | `game-spec` |
    | `impl` | `game-impl` |
    | `test` | `game-test` |
@@ -63,7 +64,9 @@ edits files itself — it only detects state and dispatches.
 
    (`idea`/`init` never come back from `task game:next` for a tracked game,
    since both are already `done` by the time `game-init` creates
-   `docs/spec.md` — see `game-init`.)
+   `docs/spec.md` — see `game-init`. A game without a `status_proto` key
+   — one that started tracking before `game-proto` existed — skips `proto`
+   and goes straight to `spec`.)
 
 5. Announce which game/stage/skill you're dispatching to in one line, then
    invoke that skill immediately via the Skill tool, passing
@@ -91,7 +94,7 @@ removes the pauses *between* stages.
 Stop, and tell the user where things stand, when:
 
 - **The stage skill is waiting for the user** — it asked a question or
-  needs approval (spec draft, codereview triage, polish/balance choices,
+  needs approval (playtest feedback in `game-proto`, spec draft, codereview triage, polish/balance choices,
   publish confirmation, a spec gap from `game-impl`, an optional feel
   check the user wants to do). For a presentation-only revision, the
   polish, balance and publish questions come as one combined question in
