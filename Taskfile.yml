@@ -17,7 +17,7 @@ vars:
     - fukuwarai
     - absorb
     - mazetd
-    #- spotdiff
+    - spotdiff
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 
