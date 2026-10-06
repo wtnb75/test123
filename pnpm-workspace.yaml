@@ -1,4 +1,5 @@
 packages:
+  - 'spotdiff'
   - 'mazetd'
   - 'absorb'
   - 'fukuwarai'
