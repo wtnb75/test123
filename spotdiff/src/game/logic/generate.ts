@@ -3,7 +3,7 @@ import type { Point } from './layout';
 import { Rng, between, shuffle } from './random';
 
 export type ShapeKind = 'circle' | 'rect' | 'triangle';
-export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'shape';
+export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'added' | 'shape';
 
 export interface Shape {
     kind: ShapeKind;
@@ -32,8 +32,11 @@ export interface Dot {
 
 export interface Stage {
     stage: number;
-    left: Shape[];
-    /** Aligned with `left` by index; null where the shape is missing from the right picture. */
+    /** The shape set both pictures are built from (before the differences are applied). */
+    shapes: Shape[];
+    /** Indexed like the shape set; null where an 'added' shape is not drawn in the left picture. */
+    left: (Shape | null)[];
+    /** Aligned with `left` by index; null where a 'missing' shape is not drawn in the right picture. */
     right: (Shape | null)[];
     diffs: Diff[];
     bgHue: number;
@@ -41,7 +44,7 @@ export interface Stage {
 }
 
 const SHAPE_KINDS: ShapeKind[] = ['circle', 'rect', 'triangle'];
-const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing', 'shape'];
+const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing', 'added', 'shape'];
 const ANGLE_TRIES = 16;
 
 export const clampStage = (stage: number): number => Math.min(Math.max(Math.round(stage), 1), PARAMS.stageCount);
@@ -80,7 +83,10 @@ const fitsPanel = (x: number, y: number, size: number): boolean =>
 
 interface Proposal {
     diff: Diff;
+    /** The shape as the right picture shows it; null = not drawn there ('missing'). */
     dst: Shape | null;
+    /** 'added': the shape is not drawn in the left picture (it exists only in the right one). */
+    hideLeft?: boolean;
 }
 
 const sign = (rng: Rng): number => (rng() < 0.5 ? -1 : 1);
@@ -121,6 +127,10 @@ const propose = (si: number, index: number, src: Shape, rng: Rng): Proposal => {
             diff: { kind, index, x: src.x, y: src.y, r: Math.max(src.size, size) + margin },
         };
     }
+    if (kind === 'added') {
+        // the mirror of 'missing': the right picture keeps the shape as it is, the left one does not draw it
+        return { dst: { ...src }, hideLeft: true, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
+    }
     if (kind === 'shape') {
         // only the form changes, to one of the other two kinds; the bounding square (2 * size) stays the same
         const others = SHAPE_KINDS.filter((k) => k !== src.kind);
@@ -137,19 +147,21 @@ const wantedDiffs = (si: number, shapeCount: number): number => Math.min(PARAMS.
 
 const buildPicture = (stage: number, rng: Rng): Stage => {
     const si = stage - 1;
-    const left = makeShapes(rng, PARAMS.shapeCounts[si], PARAMS.shapeSizeMax[si]);
-    const right: (Shape | null)[] = left.map((s) => ({ ...s }));
+    const shapes = makeShapes(rng, PARAMS.shapeCounts[si], PARAMS.shapeSizeMax[si]);
+    const left: (Shape | null)[] = shapes.map((s) => ({ ...s }));
+    const right: (Shape | null)[] = shapes.map((s) => ({ ...s }));
     const diffs: Diff[] = [];
-    const want = wantedDiffs(si, left.length);
-    for (const index of shuffle(left.map((_, i) => i), rng)) {
+    const want = wantedDiffs(si, shapes.length);
+    for (const index of shuffle(shapes.map((_, i) => i), rng)) {
         if (diffs.length >= want) break;
-        const p = propose(si, index, left[index], rng);
+        const p = propose(si, index, shapes[index], rng);
         if (!diffs.every((d) => apart(d, p.diff))) continue;
         right[index] = p.dst;
+        if (p.hideLeft) left[index] = null;
         diffs.push(p.diff);
     }
     const bgHue = Math.floor(rng() * 360);
-    return { stage, left, right, diffs, bgHue, dots: makeDots(rng) };
+    return { stage, shapes, left, right, diffs, bgHue, dots: makeDots(rng) };
 };
 
 /**

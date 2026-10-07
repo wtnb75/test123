@@ -4,7 +4,8 @@ import { clampStage, generateStage } from './generate';
 import type { Diff, Shape, Stage } from './generate';
 import { mulberry32 } from './random';
 
-const SEEDS = Array.from({ length: 120 }, (_, i) => i + 1);
+// enough seeds that every rare case (e.g. an enlargement that would leave the panel) occurs in the checks below
+const SEEDS = Array.from({ length: 300 }, (_, i) => i + 1);
 const STAGES = [1, 2, 3, 4, 5];
 const PS = PARAMS.panelSize;
 
@@ -20,7 +21,7 @@ const expectedCircle = (stage: number, l: Shape, r: Shape | null, kind: Diff['ki
         return { x: (l.x + r.x) / 2, y: (l.y + r.y) / 2, r: l.size + margin + PARAMS.moveDist[stage - 1] / 2 };
     }
     if (kind === 'size' && r) return { x: l.x, y: l.y, r: Math.max(l.size, r.size) + margin };
-    // colour, missing and shape (form change) all use the shape's own centre and size + hitMargin
+    // colour, missing, added and shape (form change) all use the shape's own centre and size + hitMargin
     return { x: l.x, y: l.y, r: l.size + margin };
 };
 
@@ -95,8 +96,9 @@ describe('generateStage: shapes', () => {
         eachStage((s, stage, seed) => {
             const max = PARAMS.shapeSizeMax[stage - 1];
             const pad = max + PARAMS.shapePadding;
-            if (s.left.length !== PARAMS.shapeCounts[stage - 1]) expect.fail(`count ${s.left.length} stage ${stage} seed ${seed}`);
-            for (const sh of s.left) {
+            const shapes = s.shapes;
+            if (shapes.length !== PARAMS.shapeCounts[stage - 1]) expect.fail(`count ${shapes.length} stage ${stage} seed ${seed}`);
+            for (const sh of shapes) {
                 const ok =
                     sh.x >= pad && sh.x <= PS - pad && sh.y >= pad && sh.y <= PS - pad &&
                     sh.size >= PARAMS.shapeSizeMin && sh.size <= max &&
@@ -111,10 +113,11 @@ describe('generateStage: shapes', () => {
     it('keeps centres apart by more than (r1 + r2) * overlapFactor, yet lets shapes overlap', () => {
         let overlapping = 0;
         eachStage((s, stage, seed) => {
-            for (let i = 0; i < s.left.length; i++) {
-                for (let j = i + 1; j < s.left.length; j++) {
-                    const a = s.left[i];
-                    const b = s.left[j];
+            const shapes = s.shapes;
+            for (let i = 0; i < shapes.length; i++) {
+                for (let j = i + 1; j < shapes.length; j++) {
+                    const a = shapes[i];
+                    const b = shapes[j];
                     const d = Math.hypot(a.x - b.x, a.y - b.y);
                     if (d <= (a.size + b.size) * PARAMS.overlapFactor) expect.fail(`too close stage ${stage} seed ${seed}`);
                     if (d < a.size + b.size) overlapping++;
@@ -126,7 +129,7 @@ describe('generateStage: shapes', () => {
 
     it('uses all three shape kinds', () => {
         const kinds = new Set<string>();
-        eachStage((s) => s.left.forEach((sh) => kinds.add(sh.kind)));
+        eachStage((s) => s.shapes.forEach((sh) => kinds.add(sh.kind)));
         expect([...kinds].sort()).toEqual(['circle', 'rect', 'triangle']);
     });
 
@@ -165,22 +168,32 @@ describe('generateStage: differences', () => {
     });
 
     it('changes exactly the shapes named by the differences, by exactly the stage amount, and nothing else', () => {
-        const seen = { color: 0, move: 0, size: 0, missing: 0, shape: 0, grown: 0, shrunk: 0, huePlus: 0, hueMinus: 0, hueWrapped: 0, forcedShrink: 0 };
+        const seen = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0, grown: 0, shrunk: 0, huePlus: 0, hueMinus: 0, hueWrapped: 0, forcedShrink: 0 };
         const quadrants = new Set<string>();
         const swaps = new Set<string>();
         eachStage((s, stage, seed) => {
             const si = stage - 1;
             const byIndex = new Map(s.diffs.map((d) => [d.index, d]));
             if (s.right.length !== s.left.length) expect.fail('right is not aligned with left');
-            s.left.forEach((l, i) => {
+            s.shapes.forEach((l, i) => {
                 const r = s.right[i];
                 const d = byIndex.get(i);
                 const tag = `stage ${stage} seed ${seed} shape ${i}`;
                 if (!d) {
-                    if (JSON.stringify(r) !== JSON.stringify(l)) expect.fail(`untouched shape changed: ${tag}`);
+                    if (JSON.stringify(r) !== JSON.stringify(l) || JSON.stringify(s.left[i]) !== JSON.stringify(l)) {
+                        expect.fail(`untouched shape changed: ${tag}`);
+                    }
                     return;
                 }
                 seen[d.kind]++;
+                if (d.kind === 'added') {
+                    // the mirror of 'missing': not drawn on the left, drawn unchanged on the right
+                    if (s.left[i] !== null) expect.fail(`added shape is drawn on the left: ${tag}`);
+                    if (JSON.stringify(r) !== JSON.stringify(l)) expect.fail(`added shape changed on the right: ${tag}`);
+                } else if (JSON.stringify(s.left[i]) !== JSON.stringify(l)) {
+                    // every other kind leaves the left picture exactly as the shape set (only the right changes)
+                    expect.fail(`the left picture differs from the shape set for a ${d.kind} difference: ${tag}`);
+                }
                 const c = expectedCircle(stage, l, r, d.kind);
                 if (Math.abs(c.x - d.x) > 1e-9 || Math.abs(c.y - d.y) > 1e-9 || Math.abs(c.r - d.r) > 1e-9) {
                     expect.fail(`hit circle mismatch (${d.kind}): ${tag}`);
@@ -189,6 +202,7 @@ describe('generateStage: differences', () => {
                     if (r !== null) expect.fail(`missing shape still drawn: ${tag}`);
                     return;
                 }
+                if (d.kind === 'added') return; // checked above against the shape set: absent on the left, unchanged on the right
                 if (!r) expect.fail(`unexpectedly missing: ${tag}`);
                 const rr = r as Shape;
                 const same = (k: keyof Shape) => rr[k] === l[k];
@@ -237,9 +251,9 @@ describe('generateStage: differences', () => {
     });
 });
 
-describe('generateStage: shares of the five difference kinds', () => {
-    it('shows all five kinds, each between 10% and 30% of the chosen differences (300 sets x 5 stages)', () => {
-        const counts: Record<string, number> = { color: 0, move: 0, size: 0, missing: 0, shape: 0 };
+describe('generateStage: shares of the six difference kinds', () => {
+    it('shows all six kinds, each between 8% and 25% of the chosen differences (300 sets x 5 stages)', () => {
+        const counts: Record<string, number> = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0 };
         let total = 0;
         for (let seed = 1; seed <= 300; seed++) {
             for (const stage of STAGES) {
@@ -252,9 +266,9 @@ describe('generateStage: shares of the five difference kinds', () => {
         // the lowest share is allowed to be low: movement circles are the largest, so overlapping candidates drop them most
         for (const [kind, n] of Object.entries(counts)) {
             const share = n / total;
-            if (n === 0 || share < 0.1 || share > 0.3) expect.fail(`${kind} share ${(share * 100).toFixed(1)}%`);
+            if (n === 0 || share < 0.08 || share > 0.25) expect.fail(`${kind} share ${(share * 100).toFixed(1)}%`);
         }
-        expect(Object.keys(counts)).toHaveLength(5);
+        expect(Object.keys(counts)).toHaveLength(6);
     });
 
     it('swaps each shape kind to either of the other two about half of the time (300 sets x 5 stages)', () => {
@@ -264,7 +278,7 @@ describe('generateStage: shares of the five difference kinds', () => {
                 const s = generateStage(stage, mulberry32(seed));
                 for (const d of s.diffs) {
                     if (d.kind !== 'shape') continue;
-                    const key = `${s.left[d.index].kind}->${(s.right[d.index] as Shape).kind}`;
+                    const key = `${(s.left[d.index] as Shape).kind}->${(s.right[d.index] as Shape).kind}`;
                     swaps[key] = (swaps[key] ?? 0) + 1;
                 }
             }
@@ -279,11 +293,29 @@ describe('generateStage: shares of the five difference kinds', () => {
         expect(Object.keys(swaps)).toHaveLength(6);
     });
 
+    it('draws a shape in the left picture unless it was added, and in the right unless it was missing (counts by hand)', () => {
+        let bothDirections = 0;
+        for (let seed = 1; seed <= 300; seed++) {
+            for (const stage of STAGES) {
+                const s = generateStage(stage, mulberry32(seed));
+                const total = PARAMS.shapeCounts[stage - 1];
+                const added = s.diffs.filter((d) => d.kind === 'added').length;
+                const missing = s.diffs.filter((d) => d.kind === 'missing').length;
+                const drawnLeft = s.left.filter((x) => x !== null).length;
+                const drawnRight = s.right.filter((x) => x !== null).length;
+                if (drawnLeft !== total - added) expect.fail(`left drawn ${drawnLeft} vs ${total - added}: stage ${stage} seed ${seed}`);
+                if (drawnRight !== total - missing) expect.fail(`right drawn ${drawnRight} vs ${total - missing}: stage ${stage} seed ${seed}`);
+                if (added > 0 && missing > 0) bothDirections++;
+            }
+        }
+        expect(bothDirections).toBeGreaterThan(0); // a picture can have a missing and an added shape at once
+    });
+
     it('lets every stage produce every kind (spec: any kind can appear at every stage)', () => {
         for (const stage of STAGES) {
             const kinds = new Set<string>();
             for (let seed = 1; seed <= 300; seed++) for (const d of generateStage(stage, mulberry32(seed)).diffs) kinds.add(d.kind);
-            expect([...kinds].sort(), `stage ${stage}`).toEqual(['color', 'missing', 'move', 'shape', 'size']);
+            expect([...kinds].sort(), `stage ${stage}`).toEqual(['added', 'color', 'missing', 'move', 'shape', 'size']);
         }
     });
 });
@@ -383,7 +415,7 @@ describe('generateStage: moves that cannot fit', () => {
             const s = generateStage(1, mulberry32(seed));
             for (const d of s.diffs) {
                 if (d.kind !== 'move') continue;
-                const l = s.left[d.index];
+                const l = s.left[d.index] as Shape; // only 'added' differences leave the left picture without the shape
                 const r = s.right[d.index] as Shape;
                 const inside = r.x - r.size >= 0 && r.x + r.size <= PS && r.y - r.size >= 0 && r.y + r.size <= PS;
                 const toward = Math.atan2(PS / 2 - l.y, PS / 2 - l.x);

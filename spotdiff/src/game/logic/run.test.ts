@@ -10,6 +10,7 @@ const A = { x: 100, y: 100 };
 const B = { x: 300, y: 300 };
 const fakeStage = (stage: number): Stage => ({
     stage,
+    shapes: [],
     left: [],
     right: [],
     diffs: [
