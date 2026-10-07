@@ -1,6 +1,6 @@
 ---
 name: game-qa
-description: Use to visually confirm a game in this monorepo actually works in a real browser — canvas rendering, input feel, clear/game-over states — via the Docker+Playwright headless-browser procedure in AGENTS.md section 9.
+description: Use to visually confirm a game in this monorepo actually works in a real browser — canvas rendering, input feel, clear/game-over states — via the Docker+Playwright headless-browser procedure in AGENTS.md section 9 (helpers in scripts/qa/).
 ---
 
 # game-qa
@@ -19,34 +19,52 @@ the only step that looks at real pixels.
 
 `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=in_progress`
 
-1. Start the dev server in `<game-dir>`: `npm run dev -- --port <PORT> --host 0.0.0.0`.
-2. If headless Chromium isn't available directly in this sandbox, use a
-   `mcr.microsoft.com/playwright:<tag>` container instead:
-   - Find *this* session's own Docker network first (`hostname` →
-     `docker inspect <id> --format '{{json .NetworkSettings.Networks}}'`).
-     `--network host` on the QA container points at the wrong host — it
-     will not reach this session's `localhost`.
-   - Start the QA container on that **same** network name, not `host`.
-   - Hit the dev server via this session's own IP, not `localhost`.
-3. Never bind-mount host paths into the QA container (`-v`) — on this class
-   of sandbox it silently yields an empty directory. Move files in/out with
-   `docker cp`.
-4. The Playwright image ships the browser only — `npm install
-   playwright@<version>` (matching the image tag) inside the container
-   before using it.
-5. Take `page.screenshot()` shots at the states that matter for this game
-   (title, mid-play, clear, game-over) and `docker cp` them out for visual
-   inspection — judge on speed feel, hit-detection feel, and whether
-   transitions match the spec, not just "it didn't crash". The spec is
-   `docs/spec.md` plus its linked `docs/spec/*.md` files.
+Use the helpers in `scripts/qa/` (see `scripts/qa/README.md`); don't rebuild
+the Docker + Playwright setup by hand.
+
+1. `scripts/qa/up.sh <game-dir> [port]` — starts the dev server on
+   `0.0.0.0:<port>` and a Playwright container on *this session's* Docker
+   network (not `--network host`, which can't reach this session's
+   `localhost`), installs `playwright` in it, and prints the base URL and the
+   container's UTC date (games that pick content by date need it).
+2. Write the scenario as an ES module under the scratchpad that imports from
+   `./lib.mjs` (`launch`, `newPage`, `shot`, `burst`, `tap`, `setHidden`,
+   `waitForQa`, `fps`, `report`). `scripts/qa/smoke.mjs` is a generic
+   starting point (desktop and phone viewport, frame rate, one tap, console
+   errors). Run it with
+   `scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]`; the
+   screenshots come back in `<out-dir>` (files move with `docker cp`, never a
+   bind mount).
+3. Take screenshots at the states that matter for this game (title,
+   mid-play, clear, game-over, and every state/Scene the spec names), on a
+   desktop and a phone-sized viewport. For effects and transitions take a
+   short burst (`burst`, every 50–100 ms). Judge on speed feel,
+   hit-detection feel, and whether transitions match the spec, not just "it
+   didn't crash". The spec is `docs/spec.md` plus its linked
+   `docs/spec/*.md` files.
 
    For a revision (this game passed QA before — e.g. after `game-extend`),
    also re-shoot every existing Scene/state listed above, not only the
    changed parts, and check them against the regression conditions in
    完了条件: the change must not have altered what it was meant to leave
    alone.
-6. Clean up: `docker rm -f <qa-container>` and stop the dev server. Always,
-   even if QA failed.
+4. `scripts/qa/down.sh <game-dir> [port]` — removes the container and stops
+   the dev server. Always, even if QA failed.
+
+Rules for scenarios (each one cost a QA run before):
+
+- **No Playwright clock** (`page.clock.*`): it slows the game's frame-based
+  time so the game clock falls behind the wall clock. For date-dependent
+  games, use the container's UTC date instead.
+- **One page at a time**; close its context before the next scenario.
+  Several pages share the software GPU and each game runs far slower.
+- **Wait for a state, not for a time.** A fixed sleep before a click makes
+  the click land during a "clear" pause and get ignored. If the game exposes
+  `window.__qa` in the dev build (a small read-only state object such as
+  `{ phase, stage, timeLeft }`), use `waitForQa`; otherwise confirm with a
+  screenshot before acting.
+- If the frame rate reported by `fps` is far below 60, fix the harness
+  (see the rules above) before judging the game's feel.
 
 ## On failure
 
