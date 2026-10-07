@@ -17,7 +17,7 @@ export class Title extends Scene {
             cx,
             405,
             [
-                `モグラ +${PARAMS.scoreMole}　／　ネコは叩いちゃダメ ${PARAMS.scoreFriend}`,
+                `モグラ +${PARAMS.scoreMole}\u3000／\u3000ネコは叩いちゃダメ ${PARAMS.scoreFriend}`,
                 '画面の外のモグラは、矢印が教えてくれる',
                 '',
                 'スクロール: ドラッグ ／ 矢印キー ／ マウスを画面の端へ',

@@ -246,7 +246,7 @@ export class Game extends Scene {
     }
 
     private updateHud() {
-        const text = `スコア ${this.score}　残り ${displaySeconds(remainingMs(this.elapsedMs))}`;
+        const text = `スコア ${this.score}\u3000残り ${displaySeconds(remainingMs(this.elapsedMs))}`;
         if (text === this.hudText) return;
         this.hudText = text;
         this.hud.setText(text);
