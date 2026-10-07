@@ -6,7 +6,7 @@ status_spec: done
 status_impl: done
 status_test: done
 status_check: done
-status_codereview: pending
+status_codereview: done
 status_qa: pending
 status_polish: pending
 status_balance: pending

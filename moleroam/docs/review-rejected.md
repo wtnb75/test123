@@ -10,3 +10,8 @@
 - `src/game/scenes/Game.ts` onPointerDown: 解放処理がフェーズの順序に依存する — 理由: 指摘自体が「現状は問題なし、リスクは低い」としている
 - `src/game/scenes/Game.ts` onPointerDown/onPointerUp: 右・中ボタンの押下で失われた左ボタンの追跡が解放されない、追跡中の左ボタンの離しが button≠0 で届く可能性、touchcancel の復帰が次の押下まで遅れる — 理由: いずれも次の左ボタンの押下で解放される自己回復する状態で、その間は pointermove が isDown を見て無視する。button の件は未検証の推測
 - `src/game/scenes/Game.ts`: ポインタ追跡の分岐に単体テストがない — 理由: Scene の接着部分。純粋なトラッカーへの切り出しはこのスコープを超える。操作は game-qa で実機確認する
+- `src/game/scenes/fx.ts` floatText: 浮かぶ文字は出現時にだけ画面内へ収めるので、浮かぶ間のスクロールで端へ流れる — 理由: 仕様に「調整するのは出現のときだけで、文字が盤面とともに動くのは今までどおり」と明記されている
+- `src/game/scenes/fx.ts` floatText: 画面の隅で文字が HUD の帯に重なりうる — 理由: 仕様が決めたのは余白 24px だけで、文字は HUD より下の深さなので HUD は常に読める。HUD 領域の扱いは新しい仕様の話
+- `src/game/scenes/Game.ts`, `Result.ts`: 「タイムアップ！」の文言・スタイルが 2 か所にある — 理由: 別の Scene に別の見た目で出す文字で、リファクタリングを混ぜない
+- `src/game/scenes/Game.ts` updateHud: 残り時間の色・拡大・キャッシュの再起動時リセットに単体テストがない — 理由: Scene の接着部分。判定と倍率の純粋関数は境界値までテスト済みで、リセットはブラウザ QA で確認する
+- `src/game/logic/arrow.test.ts`: 矢印の脈動のテストが弱い — 理由: sin→cos、周期の半減、符号反転のミューテーションはすべてテストが落ちた
