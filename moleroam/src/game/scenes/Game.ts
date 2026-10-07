@@ -1,11 +1,11 @@
 import { GameObjects, Input, Scene, Types } from 'phaser';
 import { PARAMS } from '../params';
 import { arrowFor, type View } from '../logic/arrow';
-import { BOARD_H, BOARD_W, HOLE_COUNT, clampScroll, holeCenter, startScroll, type Pt } from '../logic/board';
+import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '../logic/board';
 import { applyStrike, changeLabel, judgeStrike, popState } from '../logic/pop';
 import { displaySeconds, remainingMs } from '../logic/run';
-import { edgeDelta, isDrag, keyDelta } from '../logic/scroll';
-import { firstSpawnAt, nextSpawnAt, planSpawn } from '../logic/spawn';
+import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
+import { firstSpawnAt, isSpawnDue, nextSpawnAt, planSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { playCatHit, playMiss, playMoleHit } from './fx';
 import { DEPTH, UI_FONT } from './ui';
@@ -147,7 +147,7 @@ export class Game extends Scene {
         if (!p.wasTouch) this.mouse = { x: p.x, y: p.y };
         if (this.phase !== 'playing' || p.id !== this.pointerId || !p.isDown) return;
         if (!this.dragging && isDrag(p.x - p.downX, p.y - p.downY)) this.dragging = true;
-        if (this.dragging) this.scrollBy(p.prevPosition.x - p.x, p.prevPosition.y - p.y);
+        if (this.dragging) this.scrollBy({ x: p.prevPosition.x - p.x, y: p.prevPosition.y - p.y });
     }
 
     private onPointerUp(p: Input.Pointer) {
@@ -180,12 +180,12 @@ export class Game extends Scene {
             delta,
         );
         const e = this.mouse && !this.input.activePointer.isDown ? edgeDelta(this.mouse, delta) : { x: 0, y: 0 };
-        this.scrollBy(k.x + e.x, k.y + e.y);
+        this.scrollBy(k, e);
     }
 
-    private scrollBy(dx: number, dy: number) {
+    private scrollBy(...deltas: Pt[]) {
         const cam = this.cameras.main;
-        const next = clampScroll(cam.scrollX + dx, cam.scrollY + dy);
+        const next = combineScroll({ x: cam.scrollX, y: cam.scrollY }, ...deltas);
         cam.setScroll(next.x, next.y);
     }
 
@@ -222,7 +222,7 @@ export class Game extends Scene {
 
     /** At most one spawn check per update, however large the frame step. */
     private spawnStep() {
-        if (this.elapsedMs < this.nextSpawn) return;
+        if (!isSpawnDue(this.elapsedMs, this.nextSpawn)) return;
         const plans = planSpawn(this.live.map((v) => v.pop.hole), Math.random);
         for (const plan of plans) {
             this.live.push(new PopView(this, { ...plan, spawnedAt: this.elapsedMs }));

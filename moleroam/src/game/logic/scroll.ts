@@ -1,5 +1,12 @@
 import { PARAMS } from '../params';
-import type { Pt } from './board';
+import { clampScroll, type Pt } from './board';
+
+/** New view position: the current one plus every scroll source (keys, edge, drag), kept inside the board. */
+export const combineScroll = (current: Pt, ...deltas: Pt[]): Pt => {
+    const x = deltas.reduce((sum, d) => sum + d.x, current.x);
+    const y = deltas.reduce((sum, d) => sum + d.y, current.y);
+    return clampScroll(x, y);
+};
 
 /** True once a press has moved `dragThresholdPx` or more (exactly the threshold already counts). */
 export const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) >= PARAMS.dragThresholdPx;

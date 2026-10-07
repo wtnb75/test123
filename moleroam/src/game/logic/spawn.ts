@@ -11,6 +11,9 @@ export interface SpawnPlan {
 /** Time of the first spawn check, measured from the start of play. */
 export const firstSpawnAt = (): number => PARAMS.firstSpawnDelayMs;
 
+/** A spawn check is due once the game time reaches the scheduled time (at most one check per update). */
+export const isSpawnDue = (elapsedMs: number, scheduledAt: number): boolean => elapsedMs >= scheduledAt;
+
 /** The next check is `spawnIntervalMs` after the check that just ran, whether or not it spawned. */
 export const nextSpawnAt = (checkedAt: number): number => checkedAt + PARAMS.spawnIntervalMs;
 

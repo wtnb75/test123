@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { edgeDelta, edgeDir, isDrag, keyDelta } from './scroll';
+import { combineScroll, edgeDelta, edgeDir, isDrag, keyDelta } from './scroll';
+
+describe('combineScroll', () => {
+    const at = { x: 500, y: 400 };
+
+    it('adds key, edge and drag deltas to the current position', () => {
+        const key = keyDelta(false, true, false, true, 500); // (+350, +350)
+        const edge = edgeDelta({ x: 979, y: 384 }, 500); // (+150, 0)
+        const drag = { x: -20, y: 30 };
+        expect(combineScroll(at, key, edge, drag)).toEqual({ x: 980, y: 780 });
+    });
+
+    it('lets opposite sources cancel out', () => {
+        expect(combineScroll(at, { x: 100, y: 0 }, { x: -100, y: 0 })).toEqual(at);
+    });
+
+    it('stays put with no deltas', () => {
+        expect(combineScroll(at)).toEqual(at);
+    });
+
+    it('clamps the sum to the board, not each delta on its own', () => {
+        // 1500 + 30 + 30 would pass the right limit 1536 only after the second delta
+        expect(combineScroll({ x: 1500, y: 400 }, { x: 30, y: 0 }, { x: 30, y: 0 })).toEqual({ x: 1536, y: 400 });
+        expect(combineScroll({ x: 10, y: 5 }, { x: -50, y: -50 })).toEqual({ x: 0, y: 0 });
+    });
+
+    it('lets a later delta pull back a position that an earlier one pushed beyond the limit', () => {
+        // only the sum matters: 1536 + 100 - 100 is still inside
+        expect(combineScroll({ x: 1536, y: 0 }, { x: 100, y: 0 }, { x: -100, y: 0 })).toEqual({ x: 1536, y: 0 });
+    });
+});
 
 describe('isDrag', () => {
     it('treats a movement just under the threshold as a tap', () => {

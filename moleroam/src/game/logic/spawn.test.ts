@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HOLE_COUNT, holeCenter } from './board';
-import { firstSpawnAt, neighborHoles, nextSpawnAt, planSpawn } from './spawn';
+import { firstSpawnAt, isSpawnDue, neighborHoles, nextSpawnAt, planSpawn } from './spawn';
 
 /** A rand() that returns the given values in order and fails if asked for more. */
 const seq = (values: number[]): (() => number) => {
@@ -32,6 +32,21 @@ describe('spawn timing', () => {
     it('next check is 1200 ms after the check that just ran', () => {
         expect(nextSpawnAt(500)).toBe(1700);
         expect(nextSpawnAt(10000)).toBe(11200);
+    });
+
+    it('is not due one millisecond before the first check and is due exactly at it', () => {
+        expect(isSpawnDue(499.999, firstSpawnAt())).toBe(false);
+        expect(isSpawnDue(500, firstSpawnAt())).toBe(true);
+    });
+
+    it('after a 10 s jump one check is due and the schedule restarts from that moment', () => {
+        const scheduled = firstSpawnAt();
+        expect(isSpawnDue(10000, scheduled)).toBe(true);
+        const next = nextSpawnAt(10000);
+        expect(next).toBe(11200);
+        expect(isSpawnDue(10001, next)).toBe(false);
+        expect(isSpawnDue(11199.999, next)).toBe(false);
+        expect(isSpawnDue(11200, next)).toBe(true);
     });
 });
 
