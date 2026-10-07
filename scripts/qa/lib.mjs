@@ -16,7 +16,7 @@ export const BASE = process.env.QA_BASE_URL;
 export const SHOTS = '/work/shots';
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Console errors/warnings and uncaught exceptions, tagged by page. WebGL software-rendering noise is excluded. */
+/** Console errors/warnings, uncaught exceptions and failed (4xx/5xx) requests, tagged by page. WebGL software-rendering noise is excluded. */
 export const errors = [];
 const NOISE = /WebGL|swiftshader|GPU stall/i;
 
@@ -30,6 +30,11 @@ export async function newPage(browser, tag, opts = {}) {
         if ((m.type() === 'error' || m.type() === 'warning') && !NOISE.test(m.text())) errors.push(`[${tag}] ${m.type()}: ${m.text()}`);
     });
     page.on('pageerror', (e) => errors.push(`[${tag}] pageerror: ${e.message}`));
+    // a missing asset or module (e.g. a wrong path in the shared build) is a failed request, not always a console error
+    page.on('response', (r) => {
+        if (r.status() >= 400) errors.push(`[${tag}] http ${r.status()}: ${r.url()}`);
+    });
+    page.on('requestfailed', (r) => errors.push(`[${tag}] request failed: ${r.url()} (${r.failure()?.errorText})`));
     return page;
 }
 

@@ -361,7 +361,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
   an earlier stage (test/check)? List any that nothing checked.
 - Was feel (speed, hit detection, transition timing) judged against the
   spec, not just "it rendered"?
-- Were the QA container and dev server actually cleaned up?
+- Was the shared build (`scripts/qa/up.sh <game-dir> <port> --shared`) served
+  under the sub-path and smoke-tested (no console errors / failed requests),
+  and were its screenshots looked at?
+- Were the QA container and server actually cleaned up?
 
 ## STAGE=polish (self) — consumer: game-balance
 
