@@ -198,7 +198,7 @@ Run this as a `game-spec` revision, on its own branch:
   items for the base game stay in `docs/spec.md`. Move text verbatim —
   don't rewrite it.
 - Because behavior doesn't change, this is the one revision that does
-  **not** run the eight downstream resets below. Instead, run
+  **not** run the downstream reset below. Instead, run
   `game-review STAGE=spec` to confirm nothing was lost or duplicated and
   every link resolves, then commit and open a docs-only PR (confirm with
   the user before pushing/opening it).
@@ -235,8 +235,10 @@ before the downstream reset below overwrites it:
   `feat/<game-dir>` (which may already be deleted, and mixing a fix into a
   branch named after the original feature is confusing history). Ask the
   user what kind of change this is and a short kebab-case slug describing
-  it, and check out a fresh branch from `main` before drafting anything:
-  `git checkout main && git checkout -b <type>/<game-dir>-<slug>`. Pick
+  it, and check out a fresh branch from `origin/main` before drafting
+  anything: `git fetch origin && git checkout -b <type>/<game-dir>-<slug> origin/main`
+  (not `git checkout main`: in a worktree session `main` may be checked out
+  elsewhere, and `origin/main` is the up-to-date base). Pick
   `<type>` from context if it's obvious (a bug found in `game-qa`/
   `game-check` → `fix`; a `game-balance` tuning pass → `balance`; a new
   mechanic/stage/feature request, including anything coming from
@@ -261,17 +263,12 @@ logic: handle it here, uniformly, every time, as part of completing a
 revision (not a first write):
 
 ```
-task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=pending
-task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=pending
+task game:reset PACKAGE=<game-dir>
 ```
 
-For a normal revision, run all eight unconditionally (the only exceptions are
+This sets `impl`, `test`, `check`, `codereview`, `qa`, `polish`, `balance`
+and `publish` back to `pending` in one go (a stage that has no key yet gets
+one). For a normal revision, always run it in full (the only exceptions are
 the verbatim split and the clarification-only revision named above) — resetting a stage that's already `pending`
 is a harmless no-op, and trying to guess which stages the change "actually
 affects" is exactly the kind of judgment call that's easy to get wrong.
@@ -292,9 +289,10 @@ handles in the only sensible way. Such a revision:
 - still goes through `game-review STAGE=spec` and the user's approval
   (usually folded into the question that raised it);
 - resets only the stages after `codereview` —
-  `qa`, `polish`, `balance`, `publish` — because the implementation, tests
-  and gate are untouched; say in the conversation which finding it records
-  and why nothing earlier needs to run again.
+  `qa`, `polish`, `balance`, `publish` — with
+  `task game:reset PACKAGE=<game-dir> FROM=qa`, because the implementation,
+  tests and gate are untouched; say in the conversation which finding it
+  records and why nothing earlier needs to run again.
 
 ## Review (before showing the user)
 
@@ -309,9 +307,9 @@ Also check the process yourself, for a revision:
 
 - Did you check `status_publish`'s value *before* resetting it, and branch
   accordingly (new branch only if it was `done`)?
-- Did you actually run the eight downstream resets above (or, for a
-  clarification-only revision, the four after `codereview`), not just
-  remember that they exist?
+- Did you actually run `task game:reset` (or, for a clarification-only
+  revision, with `FROM=qa` for the four stages after `codereview`), not just
+  remember that it exists?
 - For an effect section: is every item of the 演出・UI checklist settled?
 
 ## Completion

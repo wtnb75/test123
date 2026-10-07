@@ -294,6 +294,11 @@ tasks:
     cmds:
       - scripts/game-status.sh set {{ .PACKAGE }} {{ .STAGE }} {{ .VALUE }}
 
+  game:reset:
+    desc: set the stages after a spec revision back to pending for PACKAGE= (FROM= impl by default; qa for a clarification-only revision)
+    cmds:
+      - scripts/game-status.sh reset {{ .PACKAGE }} {{ .FROM | default "impl" }}
+
   game:next:
     desc: show the next incomplete workflow stage for PACKAGE=
     cmds:
