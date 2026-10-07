@@ -336,7 +336,11 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 ## STAGE=codereview (self) — consumer: game-qa
 
 - Did the user make the accept/reject call, once per round, on a table
-  with your recommendation — not you alone?
+  with your recommendation — not you alone? (A round from round 2 on where
+  every finding was rejected is shown with its reasons and not asked.)
+- Were the rejected findings given to the reviewer (from
+  `docs/review-rejected.md` and this run) and appended to that file at the
+  end?
 - Was each finding checked against the code before it was recommended,
   and does every rejected one have a stated reason?
 - Does every accepted correctness fix have a regression test that failed
@@ -344,7 +348,8 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - Did findings that change player-visible behavior go to `game-spec`
   instead of being fixed straight in code?
 - Did the four `game-check` commands pass after the *last* fix?
-- Does the diff contain only the accepted fixes — no drive-by refactoring?
+- Does the diff contain only the accepted fixes (plus the updated
+  `docs/review-rejected.md`) — no drive-by refactoring?
 - Did the loop end properly (a round with nothing accepted, or round 3
   with the rest handed to the user)?
 

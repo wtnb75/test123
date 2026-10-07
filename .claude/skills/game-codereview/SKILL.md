@@ -21,14 +21,35 @@ fixed.
 
 What changed on this branch under `<game-dir>`:
 
-- committed: `git diff main...HEAD -- <game-dir>`
+- committed: `git diff origin/main -- <game-dir>`
 - uncommitted and untracked: `git status --porcelain --untracked-files=all -- <game-dir>`
+
+`code-review` works from a diff, and new files that aren't committed yet
+have none ("no diff to read"; it then just reads the files). So don't rely on
+the diff to define the scope: name the files or directories (and say what
+changed) in the arguments you give it — see "What to hand the reviewer".
 
 For a first pass on a new game that is the whole game directory. When this
 stage comes back after a revision (`game-spec` reset it), focus on the code
 that revision changed — the conversation / `game-impl` summary says what
 that was. Findings in code an earlier round already reviewed and nobody
 changed are `should` at most.
+
+## Findings you rejected: `docs/review-rejected.md`
+
+Reviewers raise the same things again in the next round and in the next
+cycle (an extension re-reviews code a previous cycle already judged). Keep
+what was rejected, with the reason, in `<game-dir>/docs/review-rejected.md`
+(not part of the spec; it ships with the PR like `docs/backlog.md`), one
+line each:
+
+```markdown
+- `<file or area>`: <the finding in one line> — 理由: <why it was rejected>
+```
+
+Read it at the start and hand its lines to the reviewer; at completion
+append this run's rejected findings. Drop a line when the code it is about
+is gone, and keep the file short (merge near-duplicates).
 
 ## The loop
 
@@ -46,8 +67,9 @@ nothing gets changed or posted before the user has triaged.
 If `code-review` isn't available in this session, launch one fresh
 `general-purpose` agent (Agent tool) instead. Give it only: the game
 directory, the scope above, `<game-dir>/docs/spec.md` and every
-`docs/spec/*.md` it links to, AGENTS.md section 4, and the "Look for"
-list below. Tell it to stay read-only and to return
+`docs/spec/*.md` it links to, AGENTS.md section 4, the lines of
+`docs/review-rejected.md`, and the "Look for" list below. Tell it to stay
+read-only and to return
 findings in this format, most severe first, or `no findings`:
 
 ```
@@ -71,8 +93,20 @@ Look for (Phaser-game-specific, on top of general correctness):
 - magic numbers that should come from the parameter constants;
 - tests that pass for the wrong reason (tautological expectations).
 
-On later rounds, also pass the list of findings the user already rejected,
-so they aren't raised again.
+#### What to hand the reviewer
+
+Always pass, in the arguments: the level, the game directory, the scope
+(files/directories and what changed), the round number, and the lines of
+`docs/review-rejected.md` plus anything rejected earlier in this run so they
+aren't raised again. For example:
+
+```
+high <game-dir> — scope: src/game/logic, src/game/scenes (new game, first pass).
+Already rejected, do not raise again: <lines from docs/review-rejected.md>
+```
+
+For round 2 and later, say it is a re-review of the previous round's fixes
+only (name the files and what each fix did), at level `medium`.
 
 ### 2. Triage — the user decides
 
@@ -94,6 +128,12 @@ Then show the user one numbered table (番号 / 場所 / 指摘 / 推奨 / 理�
 ask **once** which ones to accept — "推奨どおり" is a valid answer. Don't
 ask per finding.
 
+The exception is a round from round 2 on in which, after your checks, every
+finding is **reject**: nothing would change, so don't ask. Show the table
+with the reasons, say the loop ends here and that the user can ask for any
+item to be reconsidered, and go on to completion. Round 1 is always asked.
+A round with even one accept, spec or spec (clarify) is asked as usual.
+
 ### 3. Fix
 
 - **accept** → fix it. For a correctness bug, write a regression test that
@@ -106,7 +146,8 @@ ask per finding.
 - **spec (clarify)** → hand it to `game-spec` as a clarification-only
   revision (see its "Clarification-only revisions"): it only resets the
   stages after this one, so this loop carries on where it was.
-- **reject** → remember the reason; report it at completion.
+- **reject** → remember the reason; report it at completion and add it to
+  `docs/review-rejected.md`.
 
 After the last fix of the round, run the `game-check` gate (lint, test,
 test:coverage, build, all four, from the top). Don't start the next round
@@ -114,7 +155,8 @@ with a failing gate.
 
 ### When to stop
 
-- A round whose findings are all rejected (or `no findings`) ends the loop.
+- A round whose findings are all rejected (or `no findings`) ends the loop
+  (from round 2 on without asking, see "Triage").
 - After round 3, list anything still open for the user with your
   recommendation instead of starting round 4.
 
@@ -129,7 +171,10 @@ against its `STAGE=codereview` checklist — before marking this stage done.
    fix.
 2. Report in one short block: rounds run, fixes made (with their regression
    tests), findings rejected and why, anything sent to `game-spec`.
-3. `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=done`
-4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
+3. Append this run's rejected findings to `<game-dir>/docs/review-rejected.md`
+   (create it if missing; drop lines about code that is gone). It is part
+   of the change, like the accepted fixes.
+4. `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=done`
+5. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
    dispatches `game-qa` and keeps going until a stage needs the user
    (see `game-next` "Continuous mode").
