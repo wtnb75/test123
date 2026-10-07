@@ -18,6 +18,7 @@ vars:
     - absorb
     - mazetd
     - spotdiff
+    #- moleroam
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 
