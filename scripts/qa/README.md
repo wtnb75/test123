@@ -4,18 +4,30 @@ AGENTS.md 9節（Docker + Playwright でヘッドレスブラウザ確認）の�
 `game-qa`（と `game-polish`・`game-balance` の画面確認）から使う。
 
 ```bash
-scripts/qa/up.sh <game-dir> [port=5191]                 # dev サーバー + Playwright コンテナ（セッションと同じ Docker ネットワーク）
+scripts/qa/up.sh <game-dir> [port=5191] [--shared]      # dev サーバー（--shared なら公開と同じ共有ビルドをサブパスで配信）+ Playwright コンテナ（セッションと同じ Docker ネットワーク）
 scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]   # シナリオを実行して画面を <out-dir> に回収
 scripts/qa/down.sh <game-dir> [port]                    # コンテナと dev サーバーを片付ける（QA が失敗しても必ず）
 ```
 
 | ファイル | 役割 |
 |---|---|
-| `up.sh` | dev サーバーを `0.0.0.0:<port>` で起動し、自セッションと同じネットワークに Playwright コンテナを立てて `playwright` を入れる。接続先 URL とコンテナの UTC 日付を表示する |
+| `up.sh` | dev サーバーを `0.0.0.0:<port>` で起動し、自セッションと同じネットワークに Playwright コンテナを立てて `playwright` を入れる。接続先 URL とコンテナの UTC 日付を表示する。`--shared` では、そのゲームを `SHARED_VENDOR=1` でビルドして `output/` と同じ並び（`<repo>/<game>/` と `<repo>/vendor/`）にし、`/<repo>/<game>/` で静的配信する |
 | `run.sh` | スクリプトと追加ファイルを `docker cp` で渡して実行し、`/work/shots` の画面を回収する（実行のたびに空にする） |
-| `down.sh` | コンテナの削除と dev サーバーの停止。残っていればエラーにする |
+| `down.sh` | コンテナの削除とサーバーの停止（dev サーバーも `--shared` の静的サーバーも）。残っていればエラーにする |
 | `lib.mjs` | シナリオ用ヘルパー（`launch` / `newPage` / `shot` / `burst` / `tap` / `setHidden` / `waitForQa` / `fps` / `report`） |
-| `smoke.mjs` | どのゲームにも使える最小の確認（デスクトップとスマホ、フレームレート、中央を1回タップ、コンソールエラー） |
+| `smoke.mjs` | どのゲームにも使える最小の確認（デスクトップとスマホ、フレームレート、中央を1回タップ、コンソールエラーと 4xx/5xx のリクエスト）。失敗時は原因のリクエストを表示する |
+
+## 共有ビルド（公開と同じ形）の確認
+
+公開されるのは `SHARED_VENDOR=1` のビルド（Phaser を含めず、import map で `../vendor/` から読む）で、サブパスの下で配信される。dev サーバーでは動いても、アセットのパスや vendor の欠落はここでしか見えない。
+
+```bash
+scripts/qa/up.sh <game-dir> 5192 --shared
+scripts/qa/run.sh <game-dir> scripts/qa/smoke.mjs <out-dir>
+scripts/qa/down.sh <game-dir> 5192
+```
+
+全ゲームを作る `task build`（`output/`、CI が行う）は、ここでは動かさない。
 
 ## シナリオを書くときのルール（どれも一度は QA を無駄にした）
 

@@ -49,7 +49,20 @@ the Docker + Playwright setup by hand.
    完了条件: the change must not have altered what it was meant to leave
    alone.
 4. `scripts/qa/down.sh <game-dir> [port]` — removes the container and stops
-   the dev server. Always, even if QA failed.
+   the server. Always, even if QA failed.
+5. **Shared build check** (what is actually published): the dev server runs
+   a different bundle from the one GitHub Pages serves — Phaser is left out
+   of `dist-shared/` and loaded from `../vendor/` through an import map, and
+   the site lives under a sub-path, so a wrong asset path or a missing
+   vendor file only shows up there. After the dev-server run, do
+   `scripts/qa/up.sh <game-dir> <port> --shared` (builds with
+   `SHARED_VENDOR=1`, lays it out like `output/`, serves it under `/<repo>/`),
+   run `scripts/qa/run.sh <game-dir> scripts/qa/smoke.mjs <out-dir>` (it
+   fails on a missing canvas, console errors or 4xx/5xx requests, and its
+   screenshots show title and the first tap), look at them, then
+   `scripts/qa/down.sh <game-dir> <port>`. Do it every time a game goes
+   through QA, and always when `index.html` or the build config changed
+   (AGENTS.md 4.3). `task build` itself (all games, CI) stays CI's job.
 
 Rules for scenarios (each one cost a QA run before):
 
