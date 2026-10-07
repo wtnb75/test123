@@ -3,7 +3,7 @@ import type { Point } from './layout';
 import { Rng, between, shuffle } from './random';
 
 export type ShapeKind = 'circle' | 'rect' | 'triangle';
-export type DiffKind = 'color' | 'move' | 'size' | 'missing';
+export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'shape';
 
 export interface Shape {
     kind: ShapeKind;
@@ -41,7 +41,7 @@ export interface Stage {
 }
 
 const SHAPE_KINDS: ShapeKind[] = ['circle', 'rect', 'triangle'];
-const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing'];
+const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing', 'shape'];
 const ANGLE_TRIES = 16;
 
 export const clampStage = (stage: number): number => Math.min(Math.max(Math.round(stage), 1), PARAMS.stageCount);
@@ -120,6 +120,12 @@ const propose = (si: number, index: number, src: Shape, rng: Rng): Proposal => {
             dst: { ...src, size },
             diff: { kind, index, x: src.x, y: src.y, r: Math.max(src.size, size) + margin },
         };
+    }
+    if (kind === 'shape') {
+        // only the form changes, to one of the other two kinds; the bounding square (2 * size) stays the same
+        const others = SHAPE_KINDS.filter((k) => k !== src.kind);
+        const swapped = others[Math.floor(rng() * others.length)];
+        return { dst: { ...src, kind: swapped }, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
     }
     return { dst: null, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
 };
