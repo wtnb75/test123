@@ -5,8 +5,12 @@ export interface Point {
     y: number;
 }
 
+export type LayoutKind = 'portrait' | 'landscape' | 'wide';
+
 export interface Layout {
-    portrait: boolean;
+    kind: LayoutKind;
+    /** True on the phone-oriented layouts, where texts must stay >= 32px on the canvas. */
+    bigText: boolean;
     width: number;
     height: number;
     /** Top-left corners of the two panels on the canvas. */
@@ -23,47 +27,57 @@ export interface PanelHit extends Point {
     panel: number;
 }
 
-/** Portrait when the window is taller than wide; a square window is landscape. */
-export const isPortraitSize = (width: number, height: number): boolean => height > width;
+/** Portrait when the window is taller than wide; wide when it is at least `wideAspectMin` times as wide as tall. */
+export const layoutKindFor = (width: number, height: number): LayoutKind => {
+    if (height > width) return 'portrait';
+    return width / height >= PARAMS.wideAspectMin ? 'wide' : 'landscape';
+};
 
-export const layoutFor = (portrait: boolean): Layout => {
-    if (portrait) {
-        const { width, height } = PARAMS.portrait;
-        const scale = PARAMS.portraitPanelScale;
-        const x = (width - PARAMS.panelSize * scale) / 2;
-        const [y0, y1] = PARAMS.portraitPanelY;
-        return {
-            portrait,
-            width,
-            height,
-            panels: [
-                { x, y: y0 },
-                { x, y: y1 },
-            ],
-            panelScale: scale,
-            hud: { x: width / 2, y: PARAMS.hudY.portrait },
-            message: { x: width / 2, y: PARAMS.messageY.portrait },
-            center: { x: width / 2, y: height / 2 },
-        };
-    }
-    const ps = PARAMS.panelSize;
-    const { width, height } = PARAMS.landscape;
-    const x0 = (width - ps * 2 - PARAMS.panelGap) / 2;
-    const y = PARAMS.landscapePanelY;
+const stacked = (scale: number): Layout => {
+    const { width, height } = PARAMS.portrait;
+    const x = (width - PARAMS.panelSize * scale) / 2;
+    const [y0, y1] = PARAMS.portraitPanelY;
     return {
-        portrait,
+        kind: 'portrait',
+        bigText: true,
+        width,
+        height,
+        panels: [
+            { x, y: y0 },
+            { x, y: y1 },
+        ],
+        panelScale: scale,
+        hud: { x: width / 2, y: PARAMS.hudY.portrait },
+        message: { x: width / 2, y: PARAMS.messageY.portrait },
+        center: { x: width / 2, y: height / 2 },
+    };
+};
+
+const sideBySide = (kind: 'landscape' | 'wide'): Layout => {
+    const wide = kind === 'wide';
+    const { width, height } = wide ? PARAMS.wide : PARAMS.landscape;
+    const scale = wide ? PARAMS.widePanelScale : 1;
+    const size = PARAMS.panelSize * scale;
+    const x0 = (width - size * 2 - PARAMS.panelGap) / 2;
+    const y = wide ? PARAMS.widePanelY : PARAMS.landscapePanelY;
+    return {
+        kind,
+        bigText: wide,
         width,
         height,
         panels: [
             { x: x0, y },
-            { x: x0 + ps + PARAMS.panelGap, y },
+            { x: x0 + size + PARAMS.panelGap, y },
         ],
-        panelScale: 1,
-        hud: { x: width / 2, y: PARAMS.hudY.landscape },
-        message: { x: width / 2, y: PARAMS.messageY.landscape },
+        panelScale: scale,
+        hud: { x: width / 2, y: wide ? PARAMS.hudY.wide : PARAMS.hudY.landscape },
+        message: { x: width / 2, y: wide ? PARAMS.messageY.wide : PARAMS.messageY.landscape },
         center: { x: width / 2, y: height / 2 },
     };
 };
+
+export const layoutFor = (kind: LayoutKind): Layout =>
+    kind === 'portrait' ? stacked(PARAMS.portraitPanelScale) : sideBySide(kind);
 
 /** Canvas size of one panel on screen. */
 export const panelPixels = (layout: Layout): number => PARAMS.panelSize * layout.panelScale;

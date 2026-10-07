@@ -44,7 +44,7 @@ export class Title extends Scene {
 
     private place(layout: Layout) {
         const { x, y } = layout.center;
-        this.dateText.setFontSize(layout.portrait ? 32 : 28); // portrait texts stay >= 32px on the canvas
+        this.dateText.setFontSize(layout.bigText ? 32 : 28); // phone layout texts stay >= 32px on the canvas
         drawBackdrop(this.backdrop, layout.width, layout.height, MENU_HUE);
         this.name.setPosition(x, y - 140);
         this.tagline.setPosition(x, y - 60);

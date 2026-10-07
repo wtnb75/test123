@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Diff } from './generate';
 import { judgeClick } from './judge';
-import { hitPanel, layoutFor, toCanvas } from './layout';
+import { LayoutKind, hitPanel, layoutFor, toCanvas } from './layout';
 
 const diffs: Diff[] = [
     { kind: 'color', index: 0, x: 10, y: 10, r: 5 },
@@ -37,29 +37,30 @@ describe('judgeClick', () => {
     });
 });
 
-describe('judging a tap on the enlarged portrait panels (regression: logic coordinates are unchanged)', () => {
+describe('judging a tap on the enlarged portrait and wide panels (regression: logic coordinates are unchanged)', () => {
     // A known hit circle: centre (100, 100), radius 40, in panel-local units.
     const circle: Diff[] = [{ kind: 'color', index: 0, x: 100, y: 100, r: 40 }];
 
-    const judgeAt = (portrait: boolean, panel: number, lx: number, ly: number) => {
-        const layout = layoutFor(portrait);
+    const judgeAt = (kind: LayoutKind, panel: number, lx: number, ly: number) => {
+        const layout = layoutFor(kind);
         const at = toCanvas(layout, panel, lx, ly);
         const hit = hitPanel(layout, at.x, at.y);
         return hit ? judgeClick(circle, none, hit.x, hit.y) : -2;
     };
 
-    it.each([false, true])('hits at the circle edge on both panels and misses just beyond it (portrait=%s)', (portrait) => {
+    it.each<LayoutKind>(['landscape', 'portrait', 'wide'])('hits at the circle edge on both panels and misses just beyond it (%s)', (kind) => {
         for (const panel of [0, 1]) {
-            expect(judgeAt(portrait, panel, 140, 100)).toBe(0);
-            expect(judgeAt(portrait, panel, 140.5, 100)).toBe(-1);
-            expect(judgeAt(portrait, panel, 100, 60)).toBe(0);
-            expect(judgeAt(portrait, panel, 100, 59.5)).toBe(-1);
+            expect(judgeAt(kind, panel, 140, 100)).toBe(0);
+            expect(judgeAt(kind, panel, 140.5, 100)).toBe(-1);
+            expect(judgeAt(kind, panel, 100, 60)).toBe(0);
+            expect(judgeAt(kind, panel, 100, 59.5)).toBe(-1);
         }
     });
 
-    it('gives the same verdict in portrait and landscape for the same panel-local point', () => {
+    it('gives the same verdict in every layout for the same panel-local point', () => {
         for (const [lx, ly] of [[100, 100], [139, 100], [141, 100], [130, 125], [0, 0], [400, 400]]) {
-            expect(judgeAt(true, 1, lx, ly)).toBe(judgeAt(false, 1, lx, ly));
+            expect(judgeAt('portrait', 1, lx, ly)).toBe(judgeAt('landscape', 1, lx, ly));
+            expect(judgeAt('wide', 1, lx, ly)).toBe(judgeAt('landscape', 1, lx, ly));
         }
     });
 });
