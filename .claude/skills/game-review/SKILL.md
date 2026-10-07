@@ -408,5 +408,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
   `Taskfile.yml` untouched?
 - Post-publish revision: does `README.md` reflect the changed rules and
   controls, and does the PR body say what was added and why?
-- Is the branch not `main`, and does `git show --stat` touch only files
-  that belong to this change?
+- Is the branch not `main`, and does `git diff --stat origin/main` (what
+  is committed plus what is still uncommitted) touch only files that belong
+  to this change?
+- Has the user confirmed the push and the PR (and, for a first publish, the
+  listing)? `status_publish: done` is written only after that, then
+  committed with the change, then pushed — never left on a branch without an
+  open PR.
