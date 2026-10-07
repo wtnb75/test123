@@ -51,6 +51,11 @@ describe('placeFloatText', () => {
         expect(placeFloatText({ x: 100, y: 384 }, 1000, H).x).toBe(512);
     });
 
+    it('still places a text that fits in exactly one spot (height 650: y must be 24 + 325 + 70 = 419, not the center)', () => {
+        expect(placeFloatText({ x: 512, y: 50 }, W, 650).y).toBe(419);
+        expect(placeFloatText({ x: 512, y: 700 }, W, 650).y).toBe(419);
+    });
+
     it('puts a text too tall to fit at the vertical center', () => {
         // height 700: allowed y range is [444, 394], which is empty
         expect(placeFloatText({ x: 512, y: 50 }, W, 700).y).toBe(384);
