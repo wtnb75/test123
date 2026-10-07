@@ -53,7 +53,32 @@ export class Game extends Scene {
         this.cameras.main.setScroll(start.x, start.y);
         this.cursors = this.input.keyboard!.createCursorKeys();
         this.bindInput();
-        this.events.once('shutdown', () => this.unbindInput());
+        if (import.meta.env.DEV) this.exposeQa();
+        this.events.once('shutdown', () => {
+            this.unbindInput();
+            if (import.meta.env.DEV) delete (window as unknown as { __qa?: unknown }).__qa;
+        });
+    }
+
+    /** Dev build only: a read-only snapshot for the browser QA scripts (positions are canvas coordinates). */
+    private exposeQa() {
+        const cam = this.cameras.main;
+        Object.defineProperty(window, '__qa', {
+            configurable: true,
+            get: () => ({
+                phase: this.phase,
+                score: this.score,
+                remainingMs: remainingMs(this.elapsedMs),
+                scroll: { x: cam.scrollX, y: cam.scrollY },
+                pops: this.live.map((v) => ({
+                    hole: v.pop.hole,
+                    kind: v.pop.kind,
+                    state: popState(v.pop, this.elapsedMs),
+                    x: v.center.x - cam.scrollX,
+                    y: v.center.y - cam.scrollY,
+                })),
+            }),
+        });
     }
 
     update(_time: number, delta: number) {
