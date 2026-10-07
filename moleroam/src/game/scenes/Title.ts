@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { PARAMS } from '../params';
-import { addButton, addLabel, drawBackdrop } from './ui';
+import { addButton, addLabel, drawBackdrop, fadeInScene } from './ui';
 
 export class Title extends Scene {
     constructor() {
@@ -9,6 +9,7 @@ export class Title extends Scene {
 
     create() {
         const cx = PARAMS.viewW / 2;
+        fadeInScene(this);
         drawBackdrop(this);
         addLabel(this, cx, 150, 'モグラ巡り', 96);
         addLabel(this, cx, 255, '広い盤面を動き回って、モグラを叩こう！', 34, '#e8f5e9');

@@ -13,6 +13,10 @@ export interface View {
 export const isInView = (p: Pt, view: View): boolean =>
     p.x >= view.x && p.x <= view.x + view.w && p.y >= view.y && p.y <= view.y + view.h;
 
+/** Multiplier of the arrow's pulse at game time `elapsedMs`: 1 at the start, +-arrowPulseAmp over arrowPulsePeriodMs. */
+export const arrowPulse = (elapsedMs: number): number =>
+    1 + PARAMS.arrowPulseAmp * Math.sin((2 * Math.PI * elapsedMs) / PARAMS.arrowPulsePeriodMs);
+
 export interface Arrow {
     /** Position on screen (relative to the view's top-left). */
     x: number;

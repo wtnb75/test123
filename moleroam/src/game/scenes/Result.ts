@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { PARAMS } from '../params';
-import { addButton, addLabel, drawBackdrop } from './ui';
+import { addButton, addLabel, drawBackdrop, fadeInScene } from './ui';
 
 export class Result extends Scene {
     private score = 0;
@@ -19,6 +19,7 @@ export class Result extends Scene {
         // Ignore buttons and keys right after arriving, so the last whack does not trigger a retry.
         this.ready = false;
         this.time.delayedCall(PARAMS.inputGuardMs, () => (this.ready = true));
+        fadeInScene(this);
         drawBackdrop(this);
         addLabel(this, cx, 130, 'タイムアップ！', 64);
         addLabel(this, cx, 230, 'スコア', 36, '#e8f5e9');

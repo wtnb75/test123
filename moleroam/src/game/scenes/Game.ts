@@ -1,14 +1,17 @@
 import { GameObjects, Input, Scene, Types } from 'phaser';
 import { PARAMS } from '../params';
-import { arrowFor, type View } from '../logic/arrow';
+import { arrowFor, arrowPulse, type View } from '../logic/arrow';
 import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '../logic/board';
 import { applyStrike, changeLabel, judgeStrike, popState } from '../logic/pop';
-import { displaySeconds, remainingMs } from '../logic/run';
+import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
 import { firstSpawnAt, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
-import { playCatHit, playMiss, playMoleHit } from './fx';
-import { DEPTH, UI_FONT } from './ui';
+import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
+import { DEPTH, UI_FONT, fadeInScene } from './ui';
+
+const HUD_STYLE = { fontFamily: UI_FONT, fontSize: '30px', color: '#ffffff', stroke: '#000000', strokeThickness: 4 };
+const LOW_TIME_COLOR = '#ff5252';
 
 type Phase = 'playing' | 'ending';
 
@@ -20,8 +23,13 @@ export class Game extends Scene {
     private score = 0;
     private live: PopView[] = [];
     private arrows: GameObjects.Triangle[] = [];
-    private hud!: GameObjects.Text;
-    private hudText = '';
+    private scoreText!: GameObjects.Text;
+    private timeText!: GameObjects.Text;
+    private scoreShown = -1;
+    private timeShown = -1;
+    private timeLow = false;
+    private timeScale = 1;
+    private veil!: GameObjects.Rectangle;
     private cursors!: Types.Input.Keyboard.CursorKeys;
     /** The pointer whose press is being followed (the first one down); null when none. */
     private tracked: Input.Pointer | null = null;
@@ -44,11 +52,16 @@ export class Game extends Scene {
         this.arrows = [];
         this.releasePointer();
         this.mouse = null;
-        this.hudText = '';
+        this.scoreShown = -1;
+        this.timeShown = -1;
+        this.timeLow = false;
+        this.timeScale = 1;
 
         this.drawBoard();
         this.createHud();
         this.createArrows();
+        this.veil = createCatVeil(this);
+        fadeInScene(this);
         const start = startScroll();
         this.cameras.main.setScroll(start.x, start.y);
         this.cursors = this.input.keyboard!.createCursorKeys();
@@ -112,14 +125,11 @@ export class Game extends Scene {
     }
 
     private createHud() {
-        this.hud = this.add
-            .text(16, 12, '', {
-                fontFamily: UI_FONT,
-                fontSize: '30px',
-                color: '#ffffff',
-                stroke: '#000000',
-                strokeThickness: 4,
-            })
+        this.scoreText = this.add.text(16, 12, '', HUD_STYLE).setScrollFactor(0).setDepth(DEPTH.hud);
+        // right aligned, and scaled from its top-right corner so it never moves off the screen edge
+        this.timeText = this.add
+            .text(PARAMS.viewW - 16, 12, '', HUD_STYLE)
+            .setOrigin(1, 0)
             .setScrollFactor(0)
             .setDepth(DEPTH.hud);
         this.add
@@ -240,7 +250,7 @@ export class Game extends Scene {
         this.score = score;
         this.live = this.live.filter((v) => v !== view);
         if (hit.kind === 'mole') playMoleHit(this, view, changeLabel(applied));
-        else playCatHit(this, view, changeLabel(applied));
+        else playCatHit(this, view, changeLabel(applied), this.veil);
     }
 
     private updatePops() {
@@ -271,17 +281,37 @@ export class Game extends Scene {
             if (v.pop.kind !== 'mole' || used >= this.arrows.length) continue;
             const arrow = arrowFor(v.center, this.view);
             if (!arrow) continue;
-            this.arrows[used].setPosition(arrow.x, arrow.y).setRotation(arrow.angle).setVisible(true);
+            this.arrows[used]
+                .setPosition(arrow.x, arrow.y)
+                .setRotation(arrow.angle)
+                .setScale(PARAMS.arrowScale * arrowPulse(this.elapsedMs))
+                .setVisible(true);
             used++;
         }
         for (let i = used; i < this.arrows.length; i++) this.arrows[i].setVisible(false);
     }
 
     private updateHud() {
-        const text = `スコア ${this.score}\u3000残り ${displaySeconds(remainingMs(this.elapsedMs))}`;
-        if (text === this.hudText) return;
-        this.hudText = text;
-        this.hud.setText(text);
+        if (this.score !== this.scoreShown) {
+            this.scoreShown = this.score;
+            this.scoreText.setText(`スコア ${this.score}`);
+        }
+        const remaining = remainingMs(this.elapsedMs);
+        const seconds = displaySeconds(remaining);
+        if (seconds !== this.timeShown) {
+            this.timeShown = seconds;
+            this.timeText.setText(`残り ${seconds}`);
+        }
+        const low = isLowTime(remaining);
+        if (low !== this.timeLow) {
+            this.timeLow = low;
+            this.timeText.setColor(low ? LOW_TIME_COLOR : HUD_STYLE.color);
+        }
+        const scale = timePulseScale(remaining);
+        if (scale !== this.timeScale) {
+            this.timeScale = scale;
+            this.timeText.setScale(scale);
+        }
     }
 
     // --- ending -------------------------------------------------------------------------------
@@ -293,6 +323,11 @@ export class Game extends Scene {
         this.arrows.forEach((a) => a.setVisible(false));
         this.releasePointer();
         this.updateHud();
+        this.add
+            .text(PARAMS.viewW / 2, PARAMS.viewH / 2, 'タイムアップ！', { ...HUD_STYLE, fontSize: '96px', strokeThickness: 8 })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(DEPTH.hud);
     }
 
     private updateEnding(delta: number) {

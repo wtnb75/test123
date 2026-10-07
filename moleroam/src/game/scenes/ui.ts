@@ -4,7 +4,12 @@ import { PARAMS } from '../params';
 export const UI_FONT = 'sans-serif';
 
 /** Draw order, back to front (see docs/spec.md "描画順"). */
-export const DEPTH = { dust: 10, body: 20, fx: 50, text: 60, arrow: 90, hud: 100 } as const;
+export const DEPTH = { dust: 10, body: 20, fx: 50, text: 60, arrow: 90, overlay: 95, hud: 100 } as const;
+
+/** A new Scene fades in from black; input is never held back by it. */
+export const fadeInScene = (scene: Scene): void => {
+    scene.cameras.main.fadeIn(PARAMS.sceneFadeMs);
+};
 
 export const BACKDROP_COLOR = 0x1f5a27;
 
