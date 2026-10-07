@@ -151,10 +151,12 @@ export class Game extends Scene {
 
     private relayout(layout: Layout) {
         this.layout = layout;
-        // portrait texts must stay >= 32px on the canvas (readable on a phone; spec 演出・UI); landscape keeps the compact sizes
-        const big = layout.portrait;
-        this.hud.setFontSize(big ? 36 : 30).setPosition(layout.hud.x, layout.hud.y);
-        this.message.setFontSize(big ? 36 : 28).setPosition(layout.message.x, layout.message.y);
+        // phone layout texts must stay >= 32px on the canvas (readable on a phone; spec 演出・UI); landscape keeps the compact sizes
+        const big = layout.bigText;
+        // the wide layout's HUD and message rows (y = 34 / 78) are only 44px apart, so they use the 32px minimum
+        const rowSize = layout.kind === 'wide' ? 32 : 36;
+        this.hud.setFontSize(big ? rowSize : 30).setPosition(layout.hud.x, layout.hud.y);
+        this.message.setFontSize(big ? rowSize : 28).setPosition(layout.message.x, layout.message.y);
         for (const p of this.popups) p.setFontSize(big ? 36 : 30);
         this.pausedTitle.setPosition(layout.center.x, layout.center.y - 40);
         this.pausedHint.setPosition(layout.center.x, layout.center.y + 40);
