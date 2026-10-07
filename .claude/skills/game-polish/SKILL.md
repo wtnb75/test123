@@ -62,7 +62,8 @@ Out of scope — route elsewhere:
    (performance, input delay). "Add more juice" is not a proposal;
    "score +N text rises 40 px and fades over 0.5 s at the catch point" is.
 4. **Agree with the user.** Taste is theirs — ask once which items to do
-   (or "全部" / "上から N 件").
+   (or "全部" / "上から N 件"). Show them the screenshots the proposal rests
+   on (see "Showing screenshots to the user").
 5. **Record in the spec first** (AGENTS.md 2.4). Invoke `game-spec` as a
    revision: agreed effects and UI go into 画面・Scene構成 (an 演出・UI
    subsection per Scene or one shared list), durations and sizes that
@@ -115,6 +116,18 @@ confirm before marking done.
 
 Like `game-balance`, only the user decides it looks good enough. Show
 before/after screenshots of each change and ask explicitly.
+
+## Showing screenshots to the user
+
+Screenshots written to your scratchpad are not visible to the user, who is
+often following from another device. When the user has to judge something by
+eye (the proposal, the before/after of a change, the QA screenshots for a
+combined confirmation), send the files with the `SendUserFile` tool if you
+have it (`display: "render"`; a caption saying what to look at, and for a
+before/after say which is which). Send the few that matter, not every
+frame. Without that tool, say where the files are and describe what they
+show, and ask the user to open them or to play the dev-server URL
+(`scripts/qa/up.sh` prints one).
 
 ## Review (before completion)
 
