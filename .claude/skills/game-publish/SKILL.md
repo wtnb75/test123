@@ -60,26 +60,44 @@ revision — see that skill) — **not** `main`. If you're on `main`, stop:
 something upstream skipped its branch step, and committing here would mix
 this game with whatever else is on `main`. Don't improvise a fix by
 hand-picking hunks; go back and create the branch that skill should have
-created, from `main`, then return here.
+created, from `origin/main` (`git fetch origin && git checkout -b <branch>
+origin/main`), then return here.
 
-Given that, staging is normally just `git add -A` on this branch — the
-whole point of branching per-game upfront is that everything sitting dirty
-on it already belongs to this change. Still, run `git status` once before
-staging: this repo's per-game directories are independent, so it's
-possible (if unlikely, on a correctly-branched session) for something
-unrelated to have ended up here too — if so, stop and ask rather than
-silently including or excluding it.
+### Order of the steps (the status key is part of the PR)
 
-Then: commit the staged files with a message describing the change, push
-the branch, and `gh pr create` with a title/body describing the change —
-for a first publish, "add one game" with one line on what it is and a link
-to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed and
-why.
+`status_publish` lives in `<game-dir>/docs/spec.md`, which is part of this
+PR. So `done` has to be written **before** the commit, or the merged spec
+would still say `in_progress` and the dashboard would never show the game as
+complete. Do it in this order:
 
-## Review (before completion)
+1. The user has confirmed the listing (first publish) and the push + PR
+   (above) — one question can cover both. Do not write `done` before that:
+   if they decline, nothing was marked.
+2. Run `game-review STAGE=publish PACKAGE=<game-dir>` (see "Review").
+3. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
+4. Staging is normally just `git add -A` on this branch — the whole point
+   of branching per-game upfront is that everything sitting dirty on it
+   already belongs to this change. Still, run `git status` once before
+   staging: this repo's per-game directories are independent, so it's
+   possible (if unlikely, on a correctly-branched session) for something
+   unrelated to have ended up here too — if so, stop and ask rather than
+   silently including or excluding it. The `status_publish: done` line in
+   `docs/spec.md` belongs to the change.
+5. Commit the staged files with a message describing the change, push the
+   branch, and `gh pr create` with a title/body describing the change — for
+   a first publish, "add one game" with one line on what it is and a link
+   to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed
+   and why.
+6. If the commit, the push or the PR fails (or the user stops you after
+   step 3), set it back with
+   `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`
+   and tell the user what failed. Never leave `done` on a branch whose PR
+   is not open.
+
+## Review (before the status is written and committed)
 
 Run `game-review STAGE=publish PACKAGE=<game-dir>` — a self-review against
-its `STAGE=publish` checklist — before marking this stage done. Fix anything that
+its `STAGE=publish` checklist — before step 3 above. Fix anything that
 fails rather than just noting it.
 
 ## Completion
@@ -87,9 +105,8 @@ fails rather than just noting it.
 1. For a first publish, the `Taskfile.yml` change is correct and the user
    has confirmed the listing; for a post-publish revision, `README.md` is
    current and `Taskfile.yml` is untouched. Either way, the PR is open with
-   a link to show them.
-2. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
-3. Tell the user this game's workflow is complete —
-   `task game:dashboard` will now show it as `next=complete` — and that
-   the next options are `game-extend` (add a feature) or `game-balance`
-   (another tuning pass), same as `game-next` offers.
+   a link to show them, and the commit contains `status_publish: done`.
+2. Tell the user this game's workflow is complete —
+   `task game:dashboard` will show it as `next=complete` once the PR is
+   merged — and that the next options are `game-extend` (add a feature) or
+   `game-balance` (another tuning pass), same as `game-next` offers.
