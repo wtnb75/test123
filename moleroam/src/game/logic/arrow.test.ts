@@ -1,5 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { arrowFor, isInView, type View } from './arrow';
+import { arrowFor, arrowPulse, isInView, type View } from './arrow';
+
+describe('arrowPulse', () => {
+    it('starts at 1 when the game starts', () => {
+        expect(arrowPulse(0)).toBe(1);
+    });
+
+    it('peaks at 1.1 a quarter period in (125 ms) and dips to 0.9 at three quarters (375 ms)', () => {
+        expect(arrowPulse(125)).toBeCloseTo(1.1, 10);
+        expect(arrowPulse(375)).toBeCloseTo(0.9, 10);
+    });
+
+    it('is back at 1 at half and full periods (250 ms, 500 ms)', () => {
+        expect(arrowPulse(250)).toBeCloseTo(1, 10);
+        expect(arrowPulse(500)).toBeCloseTo(1, 10);
+    });
+
+    it('repeats every 500 ms', () => {
+        expect(arrowPulse(625)).toBeCloseTo(1.1, 10);
+        expect(arrowPulse(5125)).toBeCloseTo(1.1, 10);
+    });
+});
 
 // A view whose center is (1512, 884). The arrow rectangle is 40 px inside: half sizes 472 x 344.
 const view: View = { x: 1000, y: 500, w: 1024, h: 768 };
