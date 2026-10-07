@@ -1,0 +1,12 @@
+- `src/game/scenes/Game.ts` update: 毎フレームに小さな配列・座標オブジェクトを作る — 理由: 仕様の「不要なオブジェクトを作らない」は Phaser の表示オブジェクトの話で、矢印は使い回し済み。10 個前後の短命な座標オブジェクトは実害がない
+- `src/game/scenes/Game.ts` update: 時計が Phaser の平滑化された delta の積算で実時間とずれる — 理由: タブが隠れている間の進行は仕様が Phaser の既定に委ねている。生の `time` を使うと隠れている間も進み、切り替え中にラウンドが終わる
+- `src/game/scenes/PopView.ts`, `fx.ts`, `ui.ts`: 見た目の数値（オフセット、図形サイズ、座標）が PARAMS の外にある — 理由: 形・色・オフセットは仕様の実装裁量。仕様に書かれた数値はすべて PARAMS にある
+- `src/game/scenes/fx.ts`: `view.body` の null ガードに到達しない — 理由: 型が null を許すため必要な防御で、害はない
+- `src/game/scenes/{Title,Result,Game}.ts`: キーボードの登録・解除の記述が重複している — 理由: 動作は正しく解除漏れもない。リファクタリングを混ぜない
+- `src/game/main.ts`: 背景色のリテラルが `BACKDROP_COLOR` と二重管理 — 理由: 影響は見た目だけで、仕様の数値ではない
+- `src/game/scenes/Game.ts` scrollStep: 端スクロールの判定が `activePointer.isDown` に依存する — 理由: マウス位置が入るのは最後の動きがマウスのときだけで、そのとき activePointer もマウス。実害のある組み合わせを再現できない
+- `src/game/scenes/Game.ts` onPointerUp: キャンバスの端ちょうどで離すと叩きになる — 理由: 端のピクセルはキャンバスの内側で、仕様の「外で離したら叩かない」に反しない
+- `src/game/logic/spawn.ts` stepSpawn: 次の判定時刻を「今」から数えるためフレーム分ずれる — 理由: 仕様に「判定を行った時刻に spawnIntervalMs を足した時刻」と明記されている
+- `src/game/scenes/Game.ts` onPointerDown: 解放処理がフェーズの順序に依存する — 理由: 指摘自体が「現状は問題なし、リスクは低い」としている
+- `src/game/scenes/Game.ts` onPointerDown/onPointerUp: 右・中ボタンの押下で失われた左ボタンの追跡が解放されない、追跡中の左ボタンの離しが button≠0 で届く可能性、touchcancel の復帰が次の押下まで遅れる — 理由: いずれも次の左ボタンの押下で解放される自己回復する状態で、その間は pointermove が isDown を見て無視する。button の件は未検証の推測
+- `src/game/scenes/Game.ts`: ポインタ追跡の分岐に単体テストがない — 理由: Scene の接着部分。純粋なトラッカーへの切り出しはこのスコープを超える。操作は game-qa で実機確認する

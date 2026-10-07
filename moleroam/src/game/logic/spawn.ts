@@ -14,6 +14,20 @@ export const firstSpawnAt = (): number => PARAMS.firstSpawnDelayMs;
 /** A spawn check is due once the game time reaches the scheduled time (at most one check per update). */
 export const isSpawnDue = (elapsedMs: number, scheduledAt: number): boolean => elapsedMs >= scheduledAt;
 
+/**
+ * One update's worth of spawning: when a check is due, plan the spawn and schedule the next check from
+ * now (never from the old schedule, and never more than one check per update, however big the time jump).
+ */
+export const stepSpawn = (
+    elapsedMs: number,
+    scheduledAt: number,
+    usedHoles: readonly number[],
+    rand: () => number,
+): { plan: SpawnPlan[]; scheduledAt: number } =>
+    isSpawnDue(elapsedMs, scheduledAt)
+        ? { plan: planSpawn(usedHoles, rand), scheduledAt: nextSpawnAt(elapsedMs) }
+        : { plan: [], scheduledAt };
+
 /** The next check is `spawnIntervalMs` after the check that just ran, whether or not it spawned. */
 export const nextSpawnAt = (checkedAt: number): number => checkedAt + PARAMS.spawnIntervalMs;
 

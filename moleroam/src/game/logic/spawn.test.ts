@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HOLE_COUNT, holeCenter } from './board';
-import { firstSpawnAt, isSpawnDue, neighborHoles, nextSpawnAt, planSpawn } from './spawn';
+import { firstSpawnAt, isSpawnDue, neighborHoles, nextSpawnAt, planSpawn, stepSpawn } from './spawn';
 
 /** A rand() that returns the given values in order and fails if asked for more. */
 const seq = (values: number[]): (() => number) => {
@@ -47,6 +47,31 @@ describe('spawn timing', () => {
         expect(isSpawnDue(10001, next)).toBe(false);
         expect(isSpawnDue(11199.999, next)).toBe(false);
         expect(isSpawnDue(11200, next)).toBe(true);
+    });
+});
+
+describe('stepSpawn', () => {
+    it('does nothing and draws no random value before the scheduled time', () => {
+        expect(stepSpawn(499.999, 500, [], seq([]))).toEqual({ plan: [], scheduledAt: 500 });
+    });
+
+    it('plans one spawn exactly at the scheduled time and schedules the next check 1200 ms later', () => {
+        // combo roll 0.5 (no combo), hole pick 0 -> hole 0, kind roll 0.5 -> mole
+        expect(stepSpawn(500, 500, [], seq([0.5, 0, 0.5]))).toEqual({
+            plan: [{ hole: 0, kind: 'mole' }],
+            scheduledAt: 1700,
+        });
+    });
+
+    it('runs one check only after a 10 s jump and counts the next check from that moment', () => {
+        // seq allows exactly one spawn's worth of draws: a catch-up loop would run out and throw
+        const result = stepSpawn(10000, 500, [], seq([0.5, 0, 0.5]));
+        expect(result.plan).toHaveLength(1);
+        expect(result.scheduledAt).toBe(11200);
+    });
+
+    it('still schedules the next check when there is no room to spawn', () => {
+        expect(stepSpawn(2000, 1700, [0, 1, 2, 3], seq([]))).toEqual({ plan: [], scheduledAt: 3200 });
     });
 });
 

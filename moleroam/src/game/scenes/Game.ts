@@ -5,7 +5,7 @@ import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '
 import { applyStrike, changeLabel, judgeStrike, popState } from '../logic/pop';
 import { displaySeconds, remainingMs } from '../logic/run';
 import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
-import { firstSpawnAt, isSpawnDue, nextSpawnAt, planSpawn } from '../logic/spawn';
+import { firstSpawnAt, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { playCatHit, playMiss, playMoleHit } from './fx';
 import { DEPTH, UI_FONT } from './ui';
@@ -23,7 +23,8 @@ export class Game extends Scene {
     private hud!: GameObjects.Text;
     private hudText = '';
     private cursors!: Types.Input.Keyboard.CursorKeys;
-    private pointerId: number | null = null;
+    /** The pointer whose press is being followed (the first one down); null when none. */
+    private tracked: Input.Pointer | null = null;
     private dragging = false;
     /** Last observed mouse position in canvas coordinates; null for touch or outside the canvas. */
     private mouse: Pt | null = null;
@@ -41,8 +42,7 @@ export class Game extends Scene {
         this.score = 0;
         this.live = [];
         this.arrows = [];
-        this.pointerId = null;
-        this.dragging = false;
+        this.releasePointer();
         this.mouse = null;
         this.hudText = '';
 
@@ -135,26 +135,35 @@ export class Game extends Scene {
     }
 
     private onPointerDown(p: Input.Pointer) {
-        // Only the first pointer counts, and only the left mouse button.
-        if (this.phase !== 'playing' || this.pointerId !== null) return;
+        if (this.phase !== 'playing') return;
+        // Only the left mouse button counts (other buttons never touch the tracked press).
         if (!p.wasTouch && p.button !== 0) return;
-        this.pointerId = p.id;
+        // A pointerup can be lost (released outside the window, touch cancelled): the tracked pointer
+        // pressing again, or no longer being down, means its earlier press is over.
+        if (this.tracked && (this.tracked === p || !this.tracked.isDown)) this.releasePointer();
+        // Only the first pointer counts.
+        if (this.tracked) return;
+        this.tracked = p;
         this.dragging = false;
         if (p.wasTouch) this.mouse = null;
     }
 
+    private releasePointer() {
+        this.tracked = null;
+        this.dragging = false;
+    }
+
     private onPointerMove(p: Input.Pointer) {
         if (!p.wasTouch) this.mouse = { x: p.x, y: p.y };
-        if (this.phase !== 'playing' || p.id !== this.pointerId || !p.isDown) return;
+        if (this.phase !== 'playing' || p !== this.tracked || !p.isDown) return;
         if (!this.dragging && isDrag(p.x - p.downX, p.y - p.downY)) this.dragging = true;
         if (this.dragging) this.scrollBy({ x: p.prevPosition.x - p.x, y: p.prevPosition.y - p.y });
     }
 
     private onPointerUp(p: Input.Pointer) {
-        if (p.id !== this.pointerId || (!p.wasTouch && p.button !== 0)) return;
+        if (p !== this.tracked || (!p.wasTouch && p.button !== 0)) return;
         const wasDrag = this.dragging;
-        this.pointerId = null;
-        this.dragging = false;
+        this.releasePointer();
         if (this.phase !== 'playing' || wasDrag || isDrag(p.upX - p.downX, p.upY - p.downY)) return;
         const inside = p.x >= 0 && p.x <= PARAMS.viewW && p.y >= 0 && p.y <= PARAMS.viewH;
         if (inside) this.strike(p.x, p.y);
@@ -222,12 +231,10 @@ export class Game extends Scene {
 
     /** At most one spawn check per update, however large the frame step. */
     private spawnStep() {
-        if (!isSpawnDue(this.elapsedMs, this.nextSpawn)) return;
-        const plans = planSpawn(this.live.map((v) => v.pop.hole), Math.random);
-        for (const plan of plans) {
-            this.live.push(new PopView(this, { ...plan, spawnedAt: this.elapsedMs }));
-        }
-        this.nextSpawn = nextSpawnAt(this.elapsedMs);
+        const used = this.live.map((v) => v.pop.hole);
+        const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random);
+        for (const p of plan) this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }));
+        this.nextSpawn = scheduledAt;
     }
 
     private updateArrows() {
@@ -259,8 +266,7 @@ export class Game extends Scene {
         this.live.forEach((v) => v.destroy());
         this.live = [];
         this.arrows.forEach((a) => a.setVisible(false));
-        this.pointerId = null;
-        this.dragging = false;
+        this.releasePointer();
         this.updateHud();
     }
 
