@@ -1,25 +1,23 @@
-import { Game as MainGame } from './scenes/Game';
-import { AUTO, Game, Scale,Types } from 'phaser';
-
-// Find out more information about the Game Config at:
-// https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
-const config: Types.Core.GameConfig = {
-    type: AUTO,
-    width: 1024,
-    height: 768,
-    parent: 'game-container',
-    backgroundColor: '#028af8',
-    scale: {
-        mode: Scale.FIT,
-        autoCenter: Scale.CENTER_BOTH
-    },
-    scene: [
-        MainGame
-    ]
-};
+import { AUTO, Game, Scale, Types } from 'phaser';
+import { PARAMS } from './params';
+import { Game as GameScene } from './scenes/Game';
+import { Result } from './scenes/Result';
+import { Title } from './scenes/Title';
 
 const StartGame = (parent: string) => {
-    return new Game({ ...config, parent });
-}
+    const config: Types.Core.GameConfig = {
+        type: AUTO,
+        width: PARAMS.viewW,
+        height: PARAMS.viewH,
+        parent,
+        backgroundColor: '#1f5a27',
+        scale: {
+            mode: Scale.FIT,
+            autoCenter: Scale.CENTER_BOTH,
+        },
+        scene: [Title, GameScene, Result],
+    };
+    return new Game(config);
+};
 
 export default StartGame;
