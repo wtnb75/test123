@@ -44,10 +44,8 @@ the Docker + Playwright setup by hand.
    `docs/spec/*.md` files.
 
    For a revision (this game passed QA before — e.g. after `game-extend`),
-   also re-shoot every existing Scene/state listed above, not only the
-   changed parts, and check them against the regression conditions in
-   完了条件: the change must not have altered what it was meant to leave
-   alone.
+   how much to re-shoot depends on what the change touched — see "Scope of
+   a revision's QA" below. The first QA of a game is always the full set.
 4. `scripts/qa/down.sh <game-dir> [port]` — removes the container and stops
    the server. Always, even if QA failed.
 5. **Shared build check** (what is actually published): the dev server runs
@@ -63,6 +61,24 @@ the Docker + Playwright setup by hand.
    `scripts/qa/down.sh <game-dir> <port>`. Do it every time a game goes
    through QA, and always when `index.html` or the build config changed
    (AGENTS.md 4.3). `task build` itself (all games, CI) stays CI's job.
+
+## Scope of a revision's QA
+
+Re-shooting everything after a small change (a 6-line generator change took
+minutes of idle-time scenarios that could not have changed) is not the point
+of QA; but a change that touches shared code can break any screen. Classify
+the change from the spec revision and the diff, and re-shoot accordingly:
+
+| What the change touches | Re-shoot |
+|---|---|
+| **Shared parts**: build config, `index.html`, canvas size / orientation / layout, Scene start-stop-restart, input handling, pause, anything every state goes through | Every Scene and state (the full set), checked against the regression conditions in 完了条件 |
+| **A local change to rules or content**: generation, judging, scoring, a new kind of element, a tuning number | The states where the change shows (its own screens, bursts for effects), plus **one representative shot per Scene on both viewports** (`scripts/qa/smoke.mjs` covers title and first tap), plus only the 完了条件 regression items the change could reach (e.g. the result screen when scoring changed) |
+| **Wording only** (README, spec text, comments) | `scripts/qa/smoke.mjs` only |
+
+Write the class and the reason in the QA report in one line ("local change:
+only the difference generator; rendering, input, layout untouched"), so the
+user can overrule it. When in doubt, take the larger class. The shared build
+check (step 5) is done in every case.
 
 Rules for scenarios (each one cost a QA run before):
 
