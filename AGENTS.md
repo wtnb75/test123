@@ -165,7 +165,7 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 
 - 単体テストでは検証できない見た目・操作感（速度感、当たり判定の体感、演出）は、可能な限り実ブラウザで確認する
 - サンドボックス環境に headless Chromium の依存関係が無く直接は動かせない場合でも、`docker` が使えるなら Playwright の公式イメージ（`mcr.microsoft.com/playwright:<tag>`。Chromium 同梱、事前キャッシュされていることが多い）で代替できる
-- 手順
+- 手順は `scripts/qa/` にスクリプト化されている（`up.sh` で dev サーバーと QA コンテナを起動、`run.sh` でシナリオを実行して画面を回収、`down.sh` で後片付け。詳細は `scripts/qa/README.md`）。以下はその中身と、手で行う場合の注意
 	1. 確認したいゲームのディレクトリで dev サーバーを起動する（例: `npm run dev -- --port <PORT> --host 0.0.0.0`）
 	2. **エージェントセッション自体が Docker コンテナ内で動いている場合の注意**: QA 用コンテナに `--network host` を指定しても、それは dockerd 側ホストのネットワークを指すのであって、このセッションの `localhost` には届かない
 		- 自セッションが属する Docker ネットワークを先に調べる: `hostname` でコンテナIDを取得し、`docker inspect <そのID> --format '{{json .NetworkSettings.Networks}}'` でネットワーク名と自分の IP を確認する
