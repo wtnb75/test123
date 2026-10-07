@@ -20,6 +20,7 @@ usage() {
 Usage:
   game-status.sh get <game-dir> [stage]
   game-status.sh set <game-dir> <stage> <value>
+  game-status.sh reset <game-dir> [from-stage=impl]
   game-status.sh next <game-dir>
   game-status.sh dashboard
   game-status.sh detect
@@ -97,6 +98,23 @@ cmd_set() {
   fi
 }
 
+# After a spec revision everything downstream is stale: set every stage from <from> through publish back to pending
+# (what the game-spec skill used to do with eight `set` calls). <from> is impl for a normal revision, or qa for a
+# clarification-only one. Stages before impl (idea .. spec) are never reset here.
+cmd_reset() {
+  local game="$1" from="${2:-impl}" s started=0
+  case "$from" in
+    impl|test|check|codereview|qa|polish|balance|publish) ;;
+    *) echo "from-stage must be one of impl|test|check|codereview|qa|polish|balance|publish" >&2; exit 1 ;;
+  esac
+  [[ -f "$(spec_file "$game")" ]] || { echo "no spec.md for $game" >&2; exit 1; }
+  for s in "${STAGES[@]}"; do
+    [[ "$s" == "$from" ]] && started=1
+    [[ "$started" -eq 1 ]] && { cmd_set "$game" "$s" pending; echo "reset $s"; }
+  done
+  return 0
+}
+
 cmd_next() {
   local game="$1" s v
   for s in "${STAGES[@]}"; do
@@ -167,6 +185,7 @@ main() {
   case "$sub" in
     get) [[ $# -ge 1 ]] || usage; cmd_get "$@" ;;
     set) [[ $# -eq 3 ]] || usage; cmd_set "$@" ;;
+    reset) [[ $# -ge 1 && $# -le 2 ]] || usage; cmd_reset "$@" ;;
     next) [[ $# -eq 1 ]] || usage; cmd_next "$@" ;;
     dashboard) cmd_dashboard ;;
     detect) cmd_detect ;;

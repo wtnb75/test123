@@ -21,16 +21,19 @@ never call `pnpm create @phaserjs/game@latest` directly.
    by passing `PACKAGE=` themselves — don't ask again. Confirm only when
    the name is new to them (e.g. you had to pick or adjust it here).
 2. Create and check out a dedicated branch for this game before touching
-   any files: `feat/<game-dir>`, branched from the current `main`. This is
+   any files: `feat/<game-dir>`, branched from `origin/main`. This is
    what lets `game-publish` later open a PR scoped to exactly this game,
    without needing to pick this game's changes out of a working tree that
    also has unrelated work sitting in it (learned the hard way — sorting
    that out by hand after the fact is real, avoidable effort).
-   - If the current branch isn't `main`, stop and confirm with the user
-     before branching from it — branching from the wrong base carries
-     whatever unrelated work is on that branch into the new game's branch
-     too.
-   - `git checkout -b feat/<game-dir> main`
+   - Always branch from `origin/main`, not from the branch you happen to be
+     on: in a worktree session you start on a worktree branch, and local
+     `main` may be checked out in another worktree (so `git checkout main`
+     fails) or be behind. Branching from `origin/main` also keeps whatever
+     is on the current branch out of the game's branch. If the working tree
+     has uncommitted changes, stop and confirm with the user first — they
+     would be carried into the new branch.
+   - `git fetch origin && git checkout -b feat/<game-dir> origin/main`
    - If `feat/<game-dir>` already exists, don't reuse or overwrite it
      silently — you don't know what state it's in (an abandoned earlier
      attempt, leftover from a rename, something else entirely). Find the

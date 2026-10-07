@@ -233,4 +233,12 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 	- 指摘は blocker / should / nit に分け、段階を止めるのは blocker のみ。
 	  ユーザーへの質問は 1 回にまとめ、レビューの往復は最大 2 回とする
 
+### ワークツリー上のセッションでの注意
+
+Claude Code をワークツリー（`--worktree`）で動かすと、git の操作が「ワークツリーの外に出ないと確認できる形」でないと拒否される。スキルの手順は次の形で書く。
+
+- ブランチは `main` ではなく **`origin/main` から切る**（`git fetch origin && git checkout -b <branch> origin/main`）。ワークツリーでは `main` が別の場所で使われていて `git checkout main` が失敗することがあり、ローカルの `main` は古いこともある
+- 複数の状態更新は、変数やループを含むコマンドを書かず、タスクかスクリプトにまとめる（下流の段階をまとめて戻す `task game:reset PACKAGE=<game-dir> [FROM=qa]` など）
+- コマンドの引数や here-doc に `git` を含む長い文章を渡すと拒否されることがある。文章のあるファイルは `Write` / `Edit` で作り、コマンドは短く分けて実行する
+
 以上。
