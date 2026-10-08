@@ -30,6 +30,13 @@ export const portraitLayout = (viewH: number): Layout =>
 export const PORTRAIT: Layout = portraitLayout(PARAMS.portraitViewHMin);
 
 /**
+ * How far to move a menu screen's vertical positions so the group stays centered when the portrait canvas is
+ * taller than its minimum (the positions are laid out for 1024 px). 0 in landscape and at the minimum height.
+ */
+export const verticalOffset = (layout: Layout): number =>
+    layout.viewH > layout.viewW ? Math.round((layout.viewH - PARAMS.portraitViewHMin) / 2) : 0;
+
+/**
  * The layout for a window of `width` x `height`. Portrait when the window is strictly taller than wide, with a
  * view height that follows the window shape: round(768 x height / width) (half rounds up), kept within
  * [portraitViewHMin, portraitViewHMax]. A square window counts as landscape, and so does a window whose

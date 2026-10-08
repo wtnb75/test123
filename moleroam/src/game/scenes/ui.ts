@@ -26,13 +26,6 @@ export const applyLayout = (scene: Scene): Layout => {
     return layout;
 };
 
-/**
- * How far to move a menu screen's vertical positions so the group stays centered when the portrait canvas is
- * taller than its minimum (the positions are laid out for 1024 px). 0 in landscape and at the minimum height.
- */
-export const verticalOffset = (layout: Layout): number =>
-    layout.viewH > layout.viewW ? Math.round((layout.viewH - PARAMS.portraitViewHMin) / 2) : 0;
-
 /** Plain green backdrop for the menu screens. */
 export const drawBackdrop = (scene: Scene, layout: Layout): void => {
     const g = scene.add.graphics();

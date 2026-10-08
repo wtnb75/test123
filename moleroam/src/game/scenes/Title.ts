@@ -1,7 +1,8 @@
 import { Scene } from 'phaser';
 import { PARAMS } from '../params';
 import type { Layout } from '../logic/layout';
-import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene, verticalOffset } from './ui';
+import { verticalOffset } from '../logic/layout';
+import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene } from './ui';
 
 /** Where things go on the title (see docs/spec.md and docs/spec/portrait.md "レイアウト方針"). */
 const POSITIONS = {

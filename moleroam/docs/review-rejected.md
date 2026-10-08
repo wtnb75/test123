@@ -31,3 +31,10 @@
 - `src/game/scenes/ui.ts` applyLayout: カメラの大きさが Phaser の内部の追従に依存する（`setSize` を外した） — 理由: Title→Game、Game→Result、Title で回してから Game の開始の各経路を実機で確認済み。どの Scene も同じ仕組み
 - `src/game/logic/layout.test.ts`: 近傍が埋まって 3 個未満になるケースを通していない、期待値に 48・6・3・7 を決め打ちしている — 理由: 同時数の上限 4 では、コンボのとき使用中の穴は最大 1 個で起こらない。決め打ちは仕様の値で手計算した期待値
 - `src/game/logic/layout.test.ts` 近傍の全穴の掃引: カウンターが 48 を決め打ちで落ちない、期待値が本体と同じ行・列の算術 — 理由: 行優先は仕様の定義で、隅と端の具体的な期待値は別のテストが固定している。範囲を狭めたときは決め打ちの 48 と食い違う
+- `src/game/scenes/ui.ts` verticalOffset: Title/Result の「まとまり」が 1024 の配置の偏り（上に寄る）を引き継ぎ、完全な中央ではない — 理由: 1792 でも偏りは約 95px で目立たない。配置の細部は仕様で実装裁量
+- `src/game/logic/board.ts` startScroll: 奇数の高さで開始位置が小数（447.5 など）になる — 理由: 仕様の式のとおり。ドラッグなどでスクロール位置は元から小数になる
+- `src/game/logic/layout.test.ts`: 「高さによらない」テストが高さの影響で落ちる形ではない（名前の言い過ぎ）、`pickLayout` が縦画面で毎回新しいオブジェクトを返す（同一性で比べられない） — 理由: 関数が高さを読まないことの確認で、呼び出し側は値を読むだけ。テストは `toEqual`
+- `src/game/scenes/ui.ts` applyLayout: 縦画面のまま高さだけが変わるときにカメラが追従しないかもしれない — 理由: 実機で確認済み（Title 390×844 → 390×700 でスタート: キャンバスもカメラも 768×1378）
+- `src/game/scenes/Title.ts`: `../logic/layout` からの import が 2 本に分かれている — 理由: lint は 0 件で通る（重複を禁止する規則は有効ではない）
+- `public/style.css` と `main.ts`/`ui.ts`: `100dvh` で箱の高さが動いても、レイアウトは Scene の開始時にしか決め直さない — 理由: 仕様が「Scene の途中でウィンドウの形が変わっても作り直さず、FIT で拡縮する」と定めている
+- `src/game/logic/layout.test.ts` verticalOffset の掃引: 整数と範囲しか見ておらず、式を全高さで確かめていない — 理由: 切り捨てへの変更は固定の値（1025、1663）で落ちることを確認済み

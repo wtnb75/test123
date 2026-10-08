@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { arrowFor, type View } from './arrow';
 import { clampScroll, holeCenter, startScroll } from './board';
 import { placeFloatText } from './float';
-import { LANDSCAPE, PORTRAIT, pickLayout, portraitLayout } from './layout';
+import { LANDSCAPE, PORTRAIT, pickLayout, portraitLayout, verticalOffset } from './layout';
 import { judgeStrike, type Pop } from './pop';
 import { combineScroll, combineScrollIn, edgeDelta, edgeDir } from './scroll';
 import { neighborHoles, planSpawn, stepSpawn } from './spawn';
@@ -398,6 +398,34 @@ describe('portrait layouts of different heights (the view height follows the win
 
     it('moves the edge-scroll distance with the layout: 600 px/s at the real bottom edge', () => {
         expect(edgeDelta({ x: 400, y: 1662 }, 1000, tall)).toEqual({ x: 0, y: 600 });
+    });
+});
+
+describe('verticalOffset (menu screens stay together when the portrait canvas is taller than 1024)', () => {
+    it('is 0 in landscape, not (768 - 1024) / 2 = -128', () => {
+        expect(verticalOffset(LANDSCAPE)).toBe(0);
+    });
+
+    it('is 0 at the minimum portrait height 1024, so those positions are unchanged', () => {
+        expect(verticalOffset(PORTRAIT)).toBe(0);
+        expect(verticalOffset(portraitLayout(1024))).toBe(0);
+    });
+
+    it('is half the extra height: 319 at 1662 and 384 at the maximum 1792', () => {
+        expect(verticalOffset(portraitLayout(1662))).toBe(319);
+        expect(verticalOffset(portraitLayout(1792))).toBe(384);
+    });
+
+    it('rounds a half pixel up so texts are not drawn between pixels: 1663 -> 319.5 -> 320, 1025 -> 0.5 -> 1', () => {
+        expect(verticalOffset(portraitLayout(1663))).toBe(320);
+        expect(verticalOffset(portraitLayout(1025))).toBe(1);
+    });
+
+    it('is a whole number for every height the window can give (1024..1792)', () => {
+        for (let h = 1024; h <= 1792; h++) {
+            const dy = verticalOffset(portraitLayout(h));
+            if (!Number.isInteger(dy) || dy < 0 || dy > 384) expect.fail(`height ${h}: offset ${dy}`);
+        }
     });
 });
 
