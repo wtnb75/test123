@@ -124,11 +124,19 @@ describe('spawn plan on the portrait board', () => {
         expect(plan.map((p) => p.hole)).toEqual([5, 4, 11]);
     });
 
-    it('draws the same number of random values for both layouts (7)', () => {
-        let calls = 0;
-        const counting = (): number => [0.1, 0.115, 0, 0.99, 0.9, 0.9, 0.9][calls++];
-        planSpawn([], counting, PORTRAIT);
-        expect(calls).toBe(7);
+    it('does not choose a hole in use: with hole 4 occupied the anchor-5 combo is {5, 10, 11}', () => {
+        // free list without hole 4: hole 5 is at index 4 (0.096 * 47 = 4.5); neighbours of 5 that are free: [10, 11]
+        const plan = planSpawn([4], seq([0.1, 0.096, 0, 0.99, 0.9, 0.9, 0.9]), PORTRAIT);
+        expect(plan.map((p) => p.hole)).toEqual([5, 10, 11]);
+    });
+
+    it('draws 7 random values for a portrait combo plan (combo roll, anchor, 2 neighbours, 3 kinds) and 7 on landscape', () => {
+        for (const layout of [PORTRAIT, LANDSCAPE]) {
+            let calls = 0;
+            const counting = (): number => [0.1, 0.115, 0, 0.99, 0.9, 0.9, 0.9][calls++];
+            planSpawn([], counting, layout);
+            expect(calls).toBe(7);
+        }
     });
 });
 
@@ -212,6 +220,11 @@ describe('arrows and floating texts in the portrait view', () => {
         expect(placeFloatText({ x: 384, y: 0 }, 100, 40, PORTRAIT).y).toBe(114);
         expect(placeFloatText({ x: 384, y: 1024 }, 100, 40, PORTRAIT).y).toBe(980);
         expect(placeFloatText({ x: 384, y: 512 }, 100, 40, PORTRAIT)).toEqual({ x: 384, y: 512 });
+    });
+
+    it('puts a text too wide or too tall for the portrait screen at its center (384, 512), not the landscape center', () => {
+        expect(placeFloatText({ x: 100, y: 300 }, 1000, 40, PORTRAIT).x).toBe(384);
+        expect(placeFloatText({ x: 300, y: 100 }, 100, 1000, PORTRAIT).y).toBe(512);
     });
 });
 
