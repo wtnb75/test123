@@ -145,6 +145,23 @@ describe('PointerTracker', () => {
             expect(lift(B, 300, 300)).toEqual({ x: 300, y: 300 });
         });
 
+        it('strikes for both fingers lifted together (both already up when the first release arrives)', () => {
+            press(A, 100, 100);
+            press(B, 300, 300);
+            down.clear();
+            expect(t.release(A, 100, 100, true)).toEqual({ x: 100, y: 100 });
+            expect(t.release(B, 300, 300, true)).toEqual({ x: 300, y: 300 });
+        });
+
+        it('does not strike the tap of a finger lifted together with the scroll finger', () => {
+            press(A, 100, 100);
+            t.move(A, 150, 100);
+            press(B, 300, 300);
+            down.clear();
+            expect(t.release(A, 150, 100, true)).toBeNull();
+            expect(t.release(B, 301, 300, true)).toEqual({ x: 301, y: 300 });
+        });
+
         it('lets the mouse scroll independently from a scrolling finger; both deltas are reported', () => {
             press(A, 100, 100);
             expect(t.move(A, 120, 100)).toEqual({ x: -20, y: 0 });

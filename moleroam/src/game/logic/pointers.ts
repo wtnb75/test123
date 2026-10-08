@@ -17,9 +17,11 @@ interface Contact {
  * - A tap (released before reaching the drag threshold, inside the canvas) strikes at the release position.
  * - Only one touch finger scrolls at a time: the first one past the threshold; later ones that reach the
  *   threshold are ignored until the scroll finger is gone. The mouse scrolls on its own.
- * - At most `maxTouchPointers` touch fingers are followed; the mouse does not count.
+ * - At most `maxTouchPointers` touch fingers are followed; the mouse does not count. (main.ts sets Phaser's
+ *   `input.activePointers` from the same parameter, so a finger beyond it never reaches the tracker in the game.)
  * - A pointer that is no longer down but never reported its release is dropped (without a strike) the next time
- *   any pointer event arrives.
+ *   a pointer is pressed or moves. Releases do not check: fingers lifted together are all marked up before the first
+ *   release event arrives, and each of them must still strike.
  * `isDown` tells whether a pointer is still pressed right now (the Phaser pointer's `isDown`).
  */
 export class PointerTracker {
@@ -53,7 +55,6 @@ export class PointerTracker {
 
     /** A pointer was released at (x, y); `inside` tells whether that is within the canvas. Returns the strike position, or null. */
     release(id: number, x: number, y: number, inside: boolean): Pt | null {
-        this.dropStale(id);
         const c = this.contacts.get(id);
         if (!c) return null;
         this.cancel(id);
@@ -81,10 +82,11 @@ export class PointerTracker {
         return n;
     }
 
-    /** Drop pointers that are no longer down (their release was lost). `except` is the pointer being released now. */
-    private dropStale(except?: number): void {
+    /** Drop pointers that are no longer down (their release was lost). */
+    private dropStale(): void {
+        if (this.contacts.size === 0) return;
         this.contacts.forEach((_, id) => {
-            if (id !== except && !this.isDown(id)) this.cancel(id);
+            if (!this.isDown(id)) this.cancel(id);
         });
     }
 }
