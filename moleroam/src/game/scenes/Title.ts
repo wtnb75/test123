@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { PARAMS } from '../params';
 import type { Layout } from '../logic/layout';
-import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene } from './ui';
+import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene, verticalOffset } from './ui';
 
 /** Where things go on the title (see docs/spec.md and docs/spec/portrait.md "レイアウト方針"). */
 const POSITIONS = {
@@ -42,12 +42,13 @@ export class Title extends Scene {
         const portrait = layout.viewH > layout.viewW;
         const pos = portrait ? POSITIONS.portrait : POSITIONS.landscape;
         const cx = layout.viewW / 2;
+        const dy = verticalOffset(layout);
         fadeInScene(this);
         drawBackdrop(this, layout);
-        addLabel(this, cx, pos.name, 'モグラ巡り', 96);
-        addLabel(this, cx, pos.tagline, '広い盤面を動き回って、モグラを叩こう！', 34, '#e8f5e9');
-        addLabel(this, cx, pos.info, infoLines(portrait).join('\n'), pos.infoSize).setLineSpacing(10);
-        addButton(this, cx, pos.button, 'スタート', () => this.begin());
+        addLabel(this, cx, pos.name + dy, 'モグラ巡り', 96);
+        addLabel(this, cx, pos.tagline + dy, '広い盤面を動き回って、モグラを叩こう！', 34, '#e8f5e9');
+        addLabel(this, cx, pos.info + dy, infoLines(portrait).join('\n'), pos.infoSize).setLineSpacing(10);
+        addButton(this, cx, pos.button + dy, 'スタート', () => this.begin());
         this.input.keyboard?.on('keydown-ENTER', this.onKey, this);
         this.input.keyboard?.on('keydown-SPACE', this.onKey, this);
         this.events.once('shutdown', () => {

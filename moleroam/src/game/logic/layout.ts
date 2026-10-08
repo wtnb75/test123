@@ -22,13 +22,22 @@ const make = (viewW: number, viewH: number, cols: number, rows: number): Layout 
 /** The default layout: 1024 x 768 view over an 8 x 6 board. */
 export const LANDSCAPE: Layout = make(PARAMS.viewW, PARAMS.viewH, PARAMS.boardCols, PARAMS.boardRows);
 
-/** 768 x 1024 view over a 6 x 8 board: the same visible area and the same share of the board. */
-export const PORTRAIT: Layout = make(
-    PARAMS.portraitViewW,
-    PARAMS.portraitViewH,
-    PARAMS.portraitBoardCols,
-    PARAMS.portraitBoardRows,
-);
+/** The portrait layout for a view `viewH` high: 768 wide over a 6 x 8 board (1920 x 2560). */
+export const portraitLayout = (viewH: number): Layout =>
+    make(PARAMS.portraitViewW, viewH, PARAMS.portraitBoardCols, PARAMS.portraitBoardRows);
 
-/** Portrait when the window is strictly taller than wide; a square window counts as landscape. */
-export const pickLayout = (width: number, height: number): Layout => (height > width ? PORTRAIT : LANDSCAPE);
+/** The smallest portrait layout, 768 x 1024 (3:4). */
+export const PORTRAIT: Layout = portraitLayout(PARAMS.portraitViewHMin);
+
+/**
+ * The layout for a window of `width` x `height`. Portrait when the window is strictly taller than wide, with a
+ * view height that follows the window shape: round(768 x height / width) (half rounds up), kept within
+ * [portraitViewHMin, portraitViewHMax]. A square window counts as landscape, and so does a window whose
+ * size is 0, negative or not a number (e.g. 0 x 0 right after start-up).
+ */
+export const pickLayout = (width: number, height: number): Layout => {
+    const valid = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+    if (!valid || height <= width) return LANDSCAPE;
+    const viewH = Math.round((PARAMS.portraitViewW * height) / width);
+    return portraitLayout(Math.min(PARAMS.portraitViewHMax, Math.max(PARAMS.portraitViewHMin, viewH)));
+};

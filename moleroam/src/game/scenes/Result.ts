@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { PARAMS } from '../params';
-import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene } from './ui';
+import { addButton, addLabel, applyLayout, drawBackdrop, fadeInScene, verticalOffset } from './ui';
 
 /** Vertical positions of the result screen (see docs/spec.md and docs/spec/portrait.md "レイアウト方針"). */
 const POSITIONS = {
@@ -24,16 +24,17 @@ export class Result extends Scene {
         const layout = applyLayout(this);
         const pos = layout.viewH > layout.viewW ? POSITIONS.portrait : POSITIONS.landscape;
         const cx = layout.viewW / 2;
+        const dy = verticalOffset(layout);
         // Ignore buttons and keys right after arriving, so the last whack does not trigger a retry.
         this.ready = false;
         this.time.delayedCall(PARAMS.inputGuardMs, () => (this.ready = true));
         fadeInScene(this);
         drawBackdrop(this, layout);
-        addLabel(this, cx, pos.title, 'タイムアップ！', 64);
-        addLabel(this, cx, pos.label, 'スコア', 36, '#e8f5e9');
-        addLabel(this, cx, pos.score, String(this.score), 140, '#ffee58');
-        addButton(this, cx, pos.retry, 'もう一度', () => this.retry());
-        addButton(this, cx, pos.toTitle, 'タイトルへ', () => this.toTitle());
+        addLabel(this, cx, pos.title + dy, 'タイムアップ！', 64);
+        addLabel(this, cx, pos.label + dy, 'スコア', 36, '#e8f5e9');
+        addLabel(this, cx, pos.score + dy, String(this.score), 140, '#ffee58');
+        addButton(this, cx, pos.retry + dy, 'もう一度', () => this.retry());
+        addButton(this, cx, pos.toTitle + dy, 'タイトルへ', () => this.toTitle());
         this.input.keyboard?.on('keydown-ENTER', this.onRetryKey, this);
         this.input.keyboard?.on('keydown-SPACE', this.onRetryKey, this);
         this.input.keyboard?.on('keydown-ESC', this.onTitleKey, this);
