@@ -7,6 +7,8 @@ export interface Pop {
     hole: number;
     kind: Kind;
     spawnedAt: number;
+    /** A cat that also gets a direction arrow; decided once at spawn. Absent means not a decoy. */
+    decoy?: boolean;
 }
 
 export type PopState = 'telegraph' | 'up' | 'gone';
@@ -16,6 +18,13 @@ export const popState = (pop: Pop, now: number): PopState => {
     if (now < upAt) return 'telegraph';
     return now < upAt + PARAMS.popLifetimeMs ? 'up' : 'gone';
 };
+
+/**
+ * Whether a pop is a candidate for a direction arrow: moles and decoy cats, while telegraphing or up.
+ * (The arrow is only drawn while the hole is off screen; that part is `arrowFor`.) Ordinary cats never.
+ */
+export const showsArrow = (pop: Pop, now: number): boolean =>
+    popState(pop, now) !== 'gone' && (pop.kind === 'mole' || pop.decoy === true);
 
 /**
  * The pop a strike at `at` (board coordinates) hits: among pops that are up and whose hole center is
