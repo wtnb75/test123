@@ -32,5 +32,14 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "absorb",
+    "summary": "敵の弾をよけずに吸い込んで溜め、タイミングを見てまとめて撃ち返すシューティング。",
+    "tags": [
+      "シューティング",
+      "キーボード",
+      "タッチ"
+    ]
   }
 }

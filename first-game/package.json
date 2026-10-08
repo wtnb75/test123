@@ -32,5 +32,14 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "Minefield Rogue",
+    "summary": "数字のヒントから地雷の位置を推理して、スタートからゴールを目指すローグライク。運に頼らず解ける盤面で、ミスをすると最初からやり直し。",
+    "tags": [
+      "パズル",
+      "ローグライク",
+      "キーボード"
+    ]
   }
 }
