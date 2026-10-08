@@ -5,7 +5,8 @@ import { holeCenter, startScroll, type Pt } from '../logic/board';
 import { LANDSCAPE, type Layout } from '../logic/layout';
 import { applyStrike, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
-import { combineScrollIn, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
+import { PointerTracker } from '../logic/pointers';
+import { combineScrollIn, edgeDelta, keyDelta } from '../logic/scroll';
 import { firstSpawnAt, rollDecoys, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
@@ -32,9 +33,8 @@ export class Game extends Scene {
     private timeScale = 1;
     private veil!: GameObjects.Rectangle;
     private cursors!: Types.Input.Keyboard.CursorKeys;
-    /** The pointer whose press is being followed (the first one down); null when none. */
-    private tracked: Input.Pointer | null = null;
-    private dragging = false;
+    /** Follows the pressed pointers (mouse and fingers) from press to release. */
+    private readonly pointers = new PointerTracker((id) => this.input.manager.pointers[id]?.isDown ?? false);
     /** Last observed mouse position in canvas coordinates; null for touch or outside the canvas. */
     private mouse: Pt | null = null;
     /** The layout chosen when this Scene started; it never changes during the run. */
@@ -56,7 +56,7 @@ export class Game extends Scene {
         this.score = 0;
         this.live = [];
         this.arrows = [];
-        this.releasePointer();
+        this.pointers.clear();
         this.mouse = null;
         this.scoreShown = -1;
         this.timeShown = -1;
@@ -181,37 +181,24 @@ export class Game extends Scene {
 
     private onPointerDown(p: Input.Pointer) {
         if (this.phase !== 'playing') return;
-        // Only the left mouse button counts (other buttons never touch the tracked press).
+        // Only the left mouse button counts.
         if (!p.wasTouch && p.button !== 0) return;
-        // A pointerup can be lost (released outside the window, touch cancelled): the tracked pointer
-        // pressing again, or no longer being down, means its earlier press is over.
-        if (this.tracked && (this.tracked === p || !this.tracked.isDown)) this.releasePointer();
-        // Only the first pointer counts.
-        if (this.tracked) return;
-        this.tracked = p;
-        this.dragging = false;
+        this.pointers.press(p.id, p.wasTouch, p.x, p.y);
         if (p.wasTouch) this.mouse = null;
-    }
-
-    private releasePointer() {
-        this.tracked = null;
-        this.dragging = false;
     }
 
     private onPointerMove(p: Input.Pointer) {
         if (!p.wasTouch) this.mouse = { x: p.x, y: p.y };
-        if (this.phase !== 'playing' || p !== this.tracked || !p.isDown) return;
-        if (!this.dragging && isDrag(p.x - p.downX, p.y - p.downY)) this.dragging = true;
-        if (this.dragging) this.scrollBy({ x: p.prevPosition.x - p.x, y: p.prevPosition.y - p.y });
+        if (this.phase !== 'playing') return;
+        const delta = this.pointers.move(p.id, p.x, p.y);
+        if (delta) this.scrollBy(delta);
     }
 
     private onPointerUp(p: Input.Pointer) {
-        if (p !== this.tracked || (!p.wasTouch && p.button !== 0)) return;
-        const wasDrag = this.dragging;
-        this.releasePointer();
-        if (this.phase !== 'playing' || wasDrag || isDrag(p.upX - p.downX, p.upY - p.downY)) return;
+        if (this.phase !== 'playing' || (!p.wasTouch && p.button !== 0)) return;
         const inside = p.x >= 0 && p.x <= this.layout.viewW && p.y >= 0 && p.y <= this.layout.viewH;
-        if (inside) this.strike(p.x, p.y);
+        const at = this.pointers.release(p.id, p.x, p.y, inside);
+        if (at) this.strike(at.x, at.y);
     }
 
     private onGameOut() {
@@ -333,7 +320,7 @@ export class Game extends Scene {
         this.live.forEach((v) => v.destroy());
         this.live = [];
         this.arrows.forEach((a) => a.setVisible(false));
-        this.releasePointer();
+        this.pointers.clear();
         this.updateHud();
         this.add
             .text(this.layout.viewW / 2, this.layout.viewH / 2, 'タイムアップ！', { ...HUD_STYLE, fontSize: '96px', strokeThickness: 8 })

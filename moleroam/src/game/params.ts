@@ -28,6 +28,7 @@ export const PARAMS = {
     scoreFriend: -20,
     scrollSpeed: 700,
     dragThresholdPx: 10,
+    maxTouchPointers: 2,
     arrowMargin: 40,
     edgeScrollZonePx: 90,
     edgeScrollSpeed: 600,
