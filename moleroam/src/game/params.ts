@@ -10,6 +10,7 @@ export const PARAMS = {
     spawnIntervalMs: 1200,
     maxActive: 4,
     friendRate: 0.25,
+    decoyRate: 0.3,
     comboRate: 0.2,
     comboSize: 3,
     telegraphMs: 800,

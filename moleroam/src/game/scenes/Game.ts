@@ -2,10 +2,10 @@ import { GameObjects, Input, Scene, Types } from 'phaser';
 import { PARAMS } from '../params';
 import { arrowFor, arrowPulse, type View } from '../logic/arrow';
 import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '../logic/board';
-import { applyStrike, changeLabel, judgeStrike, popState } from '../logic/pop';
+import { applyStrike, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
-import { firstSpawnAt, stepSpawn } from '../logic/spawn';
+import { firstSpawnAt, rollDecoy, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
 import { DEPTH, UI_FONT, fadeInScene } from './ui';
@@ -86,6 +86,7 @@ export class Game extends Scene {
                 pops: this.live.map((v) => ({
                     hole: v.pop.hole,
                     kind: v.pop.kind,
+                    decoy: v.pop.decoy === true,
                     state: popState(v.pop, this.elapsedMs),
                     x: v.center.x - cam.scrollX,
                     y: v.center.y - cam.scrollY,
@@ -268,7 +269,11 @@ export class Game extends Scene {
     private spawnStep() {
         const used = this.live.map((v) => v.pop.hole);
         const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random);
-        for (const p of plan) this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }));
+        // decoy rolls come after the whole plan is made, in plan order, from the same random source
+        for (const p of plan) {
+            const decoy = rollDecoy(p.kind, Math.random);
+            this.live.push(new PopView(this, { ...p, decoy, spawnedAt: this.elapsedMs }));
+        }
         this.nextSpawn = scheduledAt;
     }
 
@@ -278,7 +283,7 @@ export class Game extends Scene {
         this.view.y = cam.scrollY;
         let used = 0;
         for (const v of this.live) {
-            if (v.pop.kind !== 'mole' || used >= this.arrows.length) continue;
+            if (!showsArrow(v.pop, this.elapsedMs) || used >= this.arrows.length) continue;
             const arrow = arrowFor(v.center, this.view);
             if (!arrow) continue;
             this.arrows[used]

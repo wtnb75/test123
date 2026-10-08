@@ -59,6 +59,13 @@ const freeHoles = (used: readonly number[]): number[] => {
 
 const toKind = (rand: () => number): Kind => (rand() < PARAMS.friendRate ? 'cat' : 'mole');
 
+/**
+ * Whether a freshly spawned pop is a decoy (a cat that also gets a direction arrow). Drawn once at spawn,
+ * after the whole spawn plan is made, from the same random source: only cats draw (a mole never does),
+ * and a cat is a decoy when the value is below `decoyRate`.
+ */
+export const rollDecoy = (kind: Kind, rand: () => number): boolean => kind === 'cat' && rand() < PARAMS.decoyRate;
+
 /** Anchor hole plus free neighbours, at most `comboSize` holes in all. */
 const comboHoles = (free: readonly number[], rand: () => number): number[] => {
     const anchor = free[pick(free.length, rand)];
