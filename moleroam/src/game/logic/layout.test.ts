@@ -82,7 +82,7 @@ describe('the two layouts', () => {
         expect(PORTRAIT).toEqual({ viewW: 768, viewH: 1024, cols: 6, rows: 8, boardW: 1920, boardH: 2560 });
     });
 
-    it('both have 48 holes, the same visible area (786,432 px^2) and the same visible share (16%) of the board', () => {
+    it('landscape and the minimum portrait (1024 high) both have 48 holes and see 786,432 px^2, 16% of the board', () => {
         for (const l of [LANDSCAPE, PORTRAIT]) {
             expect(l.cols * l.rows).toBe(48);
             expect(l.viewW * l.viewH).toBe(786432);
