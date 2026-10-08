@@ -83,6 +83,7 @@ export class Game extends Scene {
                 score: this.score,
                 remainingMs: remainingMs(this.elapsedMs),
                 scroll: { x: cam.scrollX, y: cam.scrollY },
+                arrowsShown: this.arrows.filter((a) => a.visible).length,
                 pops: this.live.map((v) => ({
                     hole: v.pop.hole,
                     kind: v.pop.kind,
