@@ -140,6 +140,61 @@ describe('spawn plan on the portrait board', () => {
     });
 });
 
+describe('portrait neighbours of every hole (oracle: grid coordinates)', () => {
+    it('are exactly the holes within one row and one column, on the 6 x 8 board, excluding the hole itself', () => {
+        let checked = 0;
+        for (let hole = 0; hole < 48; hole++) {
+            const expected: number[] = [];
+            for (let other = 0; other < 48; other++) {
+                const dc = Math.abs((other % 6) - (hole % 6));
+                const dr = Math.abs(Math.floor(other / 6) - Math.floor(hole / 6));
+                if (other !== hole && dc <= 1 && dr <= 1) expected.push(other);
+            }
+            const actual = sorted(neighborHoles(hole, PORTRAIT));
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                expect.fail(`hole ${hole}: got ${actual}, expected ${expected}`);
+            }
+            checked++;
+        }
+        expect(checked).toBe(48);
+    });
+});
+
+describe('portrait combos over every anchor and every occupied hole (oracle: grid coordinates)', () => {
+    it('always give 3 unique, free holes next to the anchor on the 6-column board, with no wrap to the next row', () => {
+        let combos = 0;
+        let leftColumnAnchors = 0;
+        let rightColumnAnchors = 0;
+        for (let anchor = 0; anchor < 48; anchor++) {
+            for (let used = -1; used < 48; used++) {
+                if (used === anchor) continue;
+                const usedHoles = used < 0 ? [] : [used];
+                // the anchor is drawn from the free holes in order, so its index drops by one when a lower hole is in use
+                const index = anchor - (used >= 0 && used < anchor ? 1 : 0);
+                const draws = seq([0.1, (index + 0.5) / (48 - usedHoles.length), 0.3, 0.7, 0.9, 0.9, 0.9]);
+                const holes = planSpawn(usedHoles, draws, PORTRAIT).map((p) => p.hole);
+                if (holes.length !== 3) expect.fail(`anchor ${anchor}, used ${used}: ${holes.length} holes`);
+                if (holes[0] !== anchor) expect.fail(`anchor ${anchor}, used ${used}: first hole is ${holes[0]}`);
+                if (new Set(holes).size !== 3) expect.fail(`anchor ${anchor}, used ${used}: duplicates in ${holes}`);
+                for (const h of holes) {
+                    if (h < 0 || h >= 48) expect.fail(`anchor ${anchor}, used ${used}: hole ${h} is off the board`);
+                    if (h === used) expect.fail(`anchor ${anchor}, used ${used}: chose the hole in use`);
+                    const dc = Math.abs((h % 6) - (anchor % 6));
+                    const dr = Math.abs(Math.floor(h / 6) - Math.floor(anchor / 6));
+                    if (dc > 1 || dr > 1) expect.fail(`anchor ${anchor}, used ${used}: hole ${h} is not next to the anchor`);
+                }
+                combos++;
+                if (anchor % 6 === 0) leftColumnAnchors++;
+                if (anchor % 6 === 5) rightColumnAnchors++;
+            }
+        }
+        // guard against a vacuous run: every anchor, with and without an occupied hole, including both edge columns
+        expect(combos).toBe(48 * 48);
+        expect(leftColumnAnchors).toBeGreaterThan(0);
+        expect(rightColumnAnchors).toBeGreaterThan(0);
+    });
+});
+
 describe('strikes on the portrait board', () => {
     // hole 6 is at (160, 480) in portrait and at (2080, 160) in landscape
     const pop: Pop = { hole: 6, kind: 'mole', spawnedAt: 0 };

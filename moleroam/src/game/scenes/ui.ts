@@ -23,7 +23,6 @@ export const applyLayout = (scene: Scene): Layout => {
     const layout = pickLayout(window.innerWidth, window.innerHeight);
     const size = scene.scale.gameSize;
     if (size.width !== layout.viewW || size.height !== layout.viewH) scene.scale.setGameSize(layout.viewW, layout.viewH);
-    scene.cameras.main.setSize(layout.viewW, layout.viewH);
     return layout;
 };
 
