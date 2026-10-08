@@ -18,7 +18,7 @@ interface Contact {
  * - Only one touch finger scrolls at a time: the first one past the threshold; later ones that reach the
  *   threshold are ignored until the scroll finger is gone. The mouse scrolls on its own.
  * - At most `maxTouchPointers` touch fingers are followed; the mouse does not count. (main.ts sets Phaser's
- *   `input.activePointers` from the same parameter, so a finger beyond it never reaches the tracker in the game.)
+ *   `input.activePointers` from the same parameter, so a finger beyond it normally never reaches the tracker.)
  * - A pointer that is no longer down but never reported its release is dropped (without a strike) the next time
  *   a pointer is pressed or moves. Releases do not check: fingers lifted together are all marked up before the first
  *   release event arrives, and each of them must still strike.
@@ -84,6 +84,7 @@ export class PointerTracker {
 
     /** Drop pointers that are no longer down (their release was lost). */
     private dropStale(): void {
+        // Early exit so that an idle mouse hover does not allocate the closure below on every move.
         if (this.contacts.size === 0) return;
         this.contacts.forEach((_, id) => {
             if (!this.isDown(id)) this.cancel(id);

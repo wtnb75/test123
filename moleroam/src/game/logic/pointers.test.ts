@@ -153,6 +153,16 @@ describe('PointerTracker', () => {
             expect(t.release(B, 300, 300, true)).toEqual({ x: 300, y: 300 });
         });
 
+        it('strikes a lifted finger while a lost-release contact is present, and drops that contact on the next move', () => {
+            press(MOUSE, 500, 500);
+            press(B, 300, 300);
+            down.delete(MOUSE); // the mouse release was lost
+            down.delete(B);
+            expect(t.release(B, 300, 300, true)).toEqual({ x: 300, y: 300 });
+            expect(t.move(MOUSE, 520, 500)).toBeNull(); // dropped now, no scroll
+            expect(t.release(MOUSE, 520, 500, true)).toBeNull();
+        });
+
         it('does not strike the tap of a finger lifted together with the scroll finger', () => {
             press(A, 100, 100);
             t.move(A, 150, 100);
