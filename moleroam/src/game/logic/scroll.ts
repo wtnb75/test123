@@ -1,12 +1,16 @@
 import { PARAMS } from '../params';
 import { clampScroll, type Pt } from './board';
+import { LANDSCAPE, type Layout } from './layout';
 
-/** New view position: the current one plus every scroll source (keys, edge, drag), kept inside the board. */
-export const combineScroll = (current: Pt, ...deltas: Pt[]): Pt => {
+/** New view position in `layout`: the current one plus every scroll source (keys, edge, drag), kept inside the board. */
+export const combineScrollIn = (layout: Layout, current: Pt, deltas: readonly Pt[]): Pt => {
     const x = deltas.reduce((sum, d) => sum + d.x, current.x);
     const y = deltas.reduce((sum, d) => sum + d.y, current.y);
-    return clampScroll(x, y);
+    return clampScroll(x, y, layout);
 };
+
+/** The landscape layout's `combineScrollIn`. */
+export const combineScroll = (current: Pt, ...deltas: Pt[]): Pt => combineScrollIn(LANDSCAPE, current, deltas);
 
 /** True once a press has moved `dragThresholdPx` or more (exactly the threshold already counts). */
 export const isDrag = (dx: number, dy: number): boolean => Math.hypot(dx, dy) >= PARAMS.dragThresholdPx;
@@ -26,13 +30,13 @@ const edgeAxis = (value: number, size: number): number => {
 };
 
 /** Edge-scroll direction (-1..1 per axis) for a mouse at `at` in canvas coordinates. */
-export const edgeDir = (at: Pt): Pt => ({
-    x: edgeAxis(at.x, PARAMS.viewW),
-    y: edgeAxis(at.y, PARAMS.viewH),
+export const edgeDir = (at: Pt, layout: Layout = LANDSCAPE): Pt => ({
+    x: edgeAxis(at.x, layout.viewW),
+    y: edgeAxis(at.y, layout.viewH),
 });
 
-export const edgeDelta = (at: Pt, deltaMs: number): Pt => {
-    const dir = edgeDir(at);
+export const edgeDelta = (at: Pt, deltaMs: number, layout: Layout = LANDSCAPE): Pt => {
+    const dir = edgeDir(at, layout);
     const step = (PARAMS.edgeScrollSpeed * deltaMs) / 1000;
     return { x: dir.x * step, y: dir.y * step };
 };

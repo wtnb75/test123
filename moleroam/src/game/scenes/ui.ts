@@ -1,5 +1,6 @@
 import type { GameObjects, Scene } from 'phaser';
 import { PARAMS } from '../params';
+import { pickLayout, type Layout } from '../logic/layout';
 
 export const UI_FONT = 'sans-serif';
 
@@ -13,14 +14,27 @@ export const fadeInScene = (scene: Scene): void => {
 
 export const BACKDROP_COLOR = 0x1f5a27;
 
+/**
+ * Picks the layout for the Scene that is starting (portrait when the window is taller than wide) and, if the
+ * canvas size differs, switches the logical canvas to it. Called once at the start of every Scene: a Scene is
+ * never rebuilt when the device is rotated afterwards (the canvas just rescales to fit).
+ */
+export const applyLayout = (scene: Scene): Layout => {
+    const layout = pickLayout(window.innerWidth, window.innerHeight);
+    const size = scene.scale.gameSize;
+    if (size.width !== layout.viewW || size.height !== layout.viewH) scene.scale.setGameSize(layout.viewW, layout.viewH);
+    scene.cameras.main.setSize(layout.viewW, layout.viewH);
+    return layout;
+};
+
 /** Plain green backdrop for the menu screens. */
-export const drawBackdrop = (scene: Scene): void => {
+export const drawBackdrop = (scene: Scene, layout: Layout): void => {
     const g = scene.add.graphics();
     g.fillStyle(BACKDROP_COLOR, 1);
-    g.fillRect(0, 0, PARAMS.viewW, PARAMS.viewH);
+    g.fillRect(0, 0, layout.viewW, layout.viewH);
     g.fillStyle(0x2e7d32, 1);
-    g.fillCircle(PARAMS.viewW * 0.1, PARAMS.viewH * 0.15, 200);
-    g.fillCircle(PARAMS.viewW * 0.92, PARAMS.viewH * 0.9, 260);
+    g.fillCircle(layout.viewW * 0.1, layout.viewH * 0.15, 200);
+    g.fillCircle(layout.viewW * 0.92, layout.viewH * 0.9, 260);
 };
 
 export const addLabel = (
