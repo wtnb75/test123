@@ -1,6 +1,7 @@
 import type { GameObjects, Scene } from 'phaser';
 import { PARAMS } from '../params';
 import { holeCenter, type Pt } from '../logic/board';
+import type { Layout } from '../logic/layout';
 import type { Pop } from '../logic/pop';
 import { DEPTH } from './ui';
 
@@ -16,8 +17,9 @@ export class PopView {
     constructor(
         private readonly scene: Scene,
         readonly pop: Pop,
+        layout: Layout,
     ) {
-        this.center = holeCenter(pop.hole);
+        this.center = holeCenter(pop.hole, layout);
         this.dust = scene.add
             .ellipse(this.center.x, this.center.y + 10, PARAMS.dustWidth, PARAMS.dustHeight, 0xd7ccc8, 0.8)
             .setDepth(DEPTH.dust);

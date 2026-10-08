@@ -1,5 +1,6 @@
 import { PARAMS } from '../params';
 import { holeCenter, type Pt } from './board';
+import { LANDSCAPE, type Layout } from './layout';
 import type { Kind } from './spawn';
 
 /** One mole or cat in a hole. `spawnedAt` is in game milliseconds. */
@@ -30,12 +31,12 @@ export const showsArrow = (pop: Pop, now: number): boolean =>
  * The pop a strike at `at` (board coordinates) hits: among pops that are up and whose hole center is
  * within `hitRadius`, the nearest; on equal distance the lower hole index. null means a miss.
  */
-export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number): Pop | null => {
+export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number, layout: Layout = LANDSCAPE): Pop | null => {
     let best: Pop | null = null;
     let bestDist = Infinity;
     for (const pop of pops) {
         if (popState(pop, now) !== 'up') continue;
-        const c = holeCenter(pop.hole);
+        const c = holeCenter(pop.hole, layout);
         const dist = Math.hypot(c.x - at.x, c.y - at.y);
         if (dist > PARAMS.hitRadius) continue;
         if (dist < bestDist || (dist === bestDist && best !== null && pop.hole < best.hole)) {

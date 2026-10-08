@@ -1,5 +1,5 @@
 import { PARAMS } from '../params';
-import { HOLE_COUNT } from './board';
+import { LANDSCAPE, type Layout } from './layout';
 
 export type Kind = 'mole' | 'cat';
 
@@ -23,9 +23,10 @@ export const stepSpawn = (
     scheduledAt: number,
     usedHoles: readonly number[],
     rand: () => number,
+    layout: Layout = LANDSCAPE,
 ): { plan: SpawnPlan[]; scheduledAt: number } =>
     isSpawnDue(elapsedMs, scheduledAt)
-        ? { plan: planSpawn(usedHoles, rand), scheduledAt: nextSpawnAt(elapsedMs) }
+        ? { plan: planSpawn(usedHoles, rand, layout), scheduledAt: nextSpawnAt(elapsedMs) }
         : { plan: [], scheduledAt };
 
 /** The next check is `spawnIntervalMs` after the check that just ran, whether or not it spawned. */
@@ -34,26 +35,26 @@ export const nextSpawnAt = (checkedAt: number): number => checkedAt + PARAMS.spa
 /** Index into a list of `length` items from a random value in [0, 1) (1 is tolerated). */
 const pick = (length: number, rand: () => number): number => Math.min(length - 1, Math.floor(rand() * length));
 
-/** The holes around `hole` (8-neighbourhood), never outside the board. */
-export const neighborHoles = (hole: number): number[] => {
-    const col = hole % PARAMS.boardCols;
-    const row = Math.floor(hole / PARAMS.boardCols);
+/** The holes around `hole` (8-neighbourhood), never outside the board of `layout` (landscape when omitted). */
+export const neighborHoles = (hole: number, layout: Layout = LANDSCAPE): number[] => {
+    const col = hole % layout.cols;
+    const row = Math.floor(hole / layout.cols);
     const result: number[] = [];
     for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
             const c = col + dc;
             const r = row + dr;
-            const inside = c >= 0 && c < PARAMS.boardCols && r >= 0 && r < PARAMS.boardRows;
-            if (inside && (dr !== 0 || dc !== 0)) result.push(r * PARAMS.boardCols + c);
+            const inside = c >= 0 && c < layout.cols && r >= 0 && r < layout.rows;
+            if (inside && (dr !== 0 || dc !== 0)) result.push(r * layout.cols + c);
         }
     }
     return result;
 };
 
-const freeHoles = (used: readonly number[]): number[] => {
+const freeHoles = (used: readonly number[], layout: Layout): number[] => {
     const taken = new Set(used);
     const free: number[] = [];
-    for (let i = 0; i < HOLE_COUNT; i++) if (!taken.has(i)) free.push(i);
+    for (let i = 0; i < layout.cols * layout.rows; i++) if (!taken.has(i)) free.push(i);
     return free;
 };
 
@@ -78,9 +79,9 @@ export const rollDecoys = (plan: readonly SpawnPlan[], rand: () => number): Deco
     plan.map((p) => ({ ...p, decoy: rollDecoy(p.kind, rand) }));
 
 /** Anchor hole plus free neighbours, at most `comboSize` holes in all. */
-const comboHoles = (free: readonly number[], rand: () => number): number[] => {
+const comboHoles = (free: readonly number[], rand: () => number, layout: Layout): number[] => {
     const anchor = free[pick(free.length, rand)];
-    const near = neighborHoles(anchor).filter((h) => free.includes(h));
+    const near = neighborHoles(anchor, layout).filter((h) => free.includes(h));
     const holes = [anchor];
     while (holes.length < PARAMS.comboSize && near.length > 0) {
         holes.push(near.splice(pick(near.length, rand), 1)[0]);
@@ -93,11 +94,11 @@ const comboHoles = (free: readonly number[], rand: () => number): number[] => {
  * Random draws in order: combo roll (only when there is room for a combo), anchor hole,
  * neighbour holes, then one kind roll per spawned pop.
  */
-export const planSpawn = (usedHoles: readonly number[], rand: () => number): SpawnPlan[] => {
+export const planSpawn = (usedHoles: readonly number[], rand: () => number, layout: Layout = LANDSCAPE): SpawnPlan[] => {
     const room = PARAMS.maxActive - usedHoles.length;
-    const free = freeHoles(usedHoles);
+    const free = freeHoles(usedHoles, layout);
     if (room <= 0 || free.length === 0) return [];
     const combo = room >= PARAMS.comboSize && rand() < PARAMS.comboRate;
-    const holes = combo ? comboHoles(free, rand) : [free[pick(free.length, rand)]];
+    const holes = combo ? comboHoles(free, rand, layout) : [free[pick(free.length, rand)]];
     return holes.map((hole) => ({ hole, kind: toKind(rand) }));
 };

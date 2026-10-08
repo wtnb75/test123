@@ -1,14 +1,16 @@
 import { AUTO, Game, Scale, Types } from 'phaser';
-import { PARAMS } from './params';
+import { pickLayout } from './logic/layout';
 import { Game as GameScene } from './scenes/Game';
 import { Result } from './scenes/Result';
 import { Title } from './scenes/Title';
 
 const StartGame = (parent: string) => {
+    // The first Scene starts with the layout for the window's current shape; every later Scene picks again.
+    const layout = pickLayout(window.innerWidth, window.innerHeight);
     const config: Types.Core.GameConfig = {
         type: AUTO,
-        width: PARAMS.viewW,
-        height: PARAMS.viewH,
+        width: layout.viewW,
+        height: layout.viewH,
         parent,
         backgroundColor: '#1f5a27',
         scale: {

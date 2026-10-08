@@ -5,6 +5,14 @@ export const PARAMS = {
     boardCols: 8,
     boardRows: 6,
     holeSpacing: 320,
+    // portrait layout (docs/spec/portrait.md): same 48 holes and spacing, a taller view
+    portraitViewW: 768,
+    // the portrait height follows the window shape, kept within [Min, Max] (3:4 .. 3:7)
+    portraitViewHMin: 1024,
+    portraitViewHMax: 1792,
+    portraitBoardCols: 6,
+    portraitBoardRows: 8,
+    hudMargin: 16,
     gameSeconds: 60,
     firstSpawnDelayMs: 500,
     spawnIntervalMs: 1200,

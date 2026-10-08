@@ -1,14 +1,15 @@
 import { GameObjects, Input, Scene, Types } from 'phaser';
 import { PARAMS } from '../params';
 import { arrowFor, arrowPulse, type View } from '../logic/arrow';
-import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '../logic/board';
+import { holeCenter, startScroll, type Pt } from '../logic/board';
+import { LANDSCAPE, type Layout } from '../logic/layout';
 import { applyStrike, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
-import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
+import { combineScrollIn, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
 import { firstSpawnAt, rollDecoys, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
-import { DEPTH, UI_FONT, fadeInScene } from './ui';
+import { DEPTH, UI_FONT, applyLayout, fadeInScene } from './ui';
 
 const HUD_STYLE = { fontFamily: UI_FONT, fontSize: '30px', color: '#ffffff', stroke: '#000000', strokeThickness: 4 };
 const LOW_TIME_COLOR = '#ff5252';
@@ -36,13 +37,18 @@ export class Game extends Scene {
     private dragging = false;
     /** Last observed mouse position in canvas coordinates; null for touch or outside the canvas. */
     private mouse: Pt | null = null;
-    private readonly view: View = { x: 0, y: 0, w: PARAMS.viewW, h: PARAMS.viewH };
+    /** The layout chosen when this Scene started; it never changes during the run. */
+    private layout: Layout = LANDSCAPE;
+    private readonly view: View = { x: 0, y: 0, w: LANDSCAPE.viewW, h: LANDSCAPE.viewH };
 
     constructor() {
         super('Game');
     }
 
     create() {
+        this.layout = applyLayout(this);
+        this.view.w = this.layout.viewW;
+        this.view.h = this.layout.viewH;
         this.phase = 'playing';
         this.elapsedMs = 0;
         this.endingElapsedMs = 0;
@@ -60,9 +66,9 @@ export class Game extends Scene {
         this.drawBoard();
         this.createHud();
         this.createArrows();
-        this.veil = createCatVeil(this);
+        this.veil = createCatVeil(this, this.layout);
         fadeInScene(this);
-        const start = startScroll();
+        const start = startScroll(this.layout);
         this.cameras.main.setScroll(start.x, start.y);
         this.cursors = this.input.keyboard!.createCursorKeys();
         this.bindInput();
@@ -82,6 +88,8 @@ export class Game extends Scene {
                 phase: this.phase,
                 score: this.score,
                 remainingMs: remainingMs(this.elapsedMs),
+                layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
+                camera: { w: cam.width, h: cam.height },
                 scroll: { x: cam.scrollX, y: cam.scrollY },
                 arrowsShown: this.arrows.filter((a) => a.visible).length,
                 pops: this.live.map((v) => ({
@@ -118,24 +126,24 @@ export class Game extends Scene {
     private drawBoard() {
         const g = this.add.graphics();
         g.fillStyle(0x3a8f3f, 1);
-        g.fillRect(0, 0, BOARD_W, BOARD_H);
+        g.fillRect(0, 0, this.layout.boardW, this.layout.boardH);
         g.fillStyle(0x3e2723, 1);
-        for (let i = 0; i < HOLE_COUNT; i++) {
-            const c = holeCenter(i);
+        for (let i = 0; i < this.layout.cols * this.layout.rows; i++) {
+            const c = holeCenter(i, this.layout);
             g.fillEllipse(c.x, c.y + 20, 150, 60);
         }
     }
 
     private createHud() {
-        this.scoreText = this.add.text(16, 12, '', HUD_STYLE).setScrollFactor(0).setDepth(DEPTH.hud);
+        this.scoreText = this.add.text(PARAMS.hudMargin, 12, '', HUD_STYLE).setScrollFactor(0).setDepth(DEPTH.hud);
         // right aligned, and scaled from its top-right corner so it never moves off the screen edge
         this.timeText = this.add
-            .text(PARAMS.viewW - 16, 12, '', HUD_STYLE)
+            .text(this.layout.viewW - PARAMS.hudMargin, 12, '', HUD_STYLE)
             .setOrigin(1, 0)
             .setScrollFactor(0)
             .setDepth(DEPTH.hud);
         this.add
-            .circle(PARAMS.viewW / 2, PARAMS.viewH / 2, 14)
+            .circle(this.layout.viewW / 2, this.layout.viewH / 2, 14)
             .setStrokeStyle(3, 0xffffff)
             .setScrollFactor(0)
             .setDepth(DEPTH.hud);
@@ -202,7 +210,7 @@ export class Game extends Scene {
         const wasDrag = this.dragging;
         this.releasePointer();
         if (this.phase !== 'playing' || wasDrag || isDrag(p.upX - p.downX, p.upY - p.downY)) return;
-        const inside = p.x >= 0 && p.x <= PARAMS.viewW && p.y >= 0 && p.y <= PARAMS.viewH;
+        const inside = p.x >= 0 && p.x <= this.layout.viewW && p.y >= 0 && p.y <= this.layout.viewH;
         if (inside) this.strike(p.x, p.y);
     }
 
@@ -213,7 +221,7 @@ export class Game extends Scene {
     /** Space hits under the mouse cursor if there is one, otherwise at the screen center. */
     private onSpace(event: KeyboardEvent) {
         if (event.repeat || this.phase !== 'playing') return;
-        const at = this.mouse ?? { x: PARAMS.viewW / 2, y: PARAMS.viewH / 2 };
+        const at = this.mouse ?? { x: this.layout.viewW / 2, y: this.layout.viewH / 2 };
         this.strike(at.x, at.y);
     }
 
@@ -225,13 +233,13 @@ export class Game extends Scene {
             this.cursors.down.isDown,
             delta,
         );
-        const e = this.mouse && !this.input.activePointer.isDown ? edgeDelta(this.mouse, delta) : { x: 0, y: 0 };
+        const e = this.mouse && !this.input.activePointer.isDown ? edgeDelta(this.mouse, delta, this.layout) : { x: 0, y: 0 };
         this.scrollBy(k, e);
     }
 
     private scrollBy(...deltas: Pt[]) {
         const cam = this.cameras.main;
-        const next = combineScroll({ x: cam.scrollX, y: cam.scrollY }, ...deltas);
+        const next = combineScrollIn(this.layout, { x: cam.scrollX, y: cam.scrollY }, deltas);
         cam.setScroll(next.x, next.y);
     }
 
@@ -242,17 +250,17 @@ export class Game extends Scene {
         if (this.phase !== 'playing') return;
         const cam = this.cameras.main;
         const at = { x: cam.scrollX + sx, y: cam.scrollY + sy };
-        const hit = judgeStrike(at, this.live.map((v) => v.pop), this.elapsedMs);
+        const hit = judgeStrike(at, this.live.map((v) => v.pop), this.elapsedMs, this.layout);
         const view = this.live.find((v) => v.pop === hit);
         if (!hit || !view) {
-            playMiss(this, at.x, at.y);
+            playMiss(this, at.x, at.y, this.layout);
             return;
         }
         const { score, applied } = applyStrike(this.score, hit.kind);
         this.score = score;
         this.live = this.live.filter((v) => v !== view);
-        if (hit.kind === 'mole') playMoleHit(this, view, changeLabel(applied));
-        else playCatHit(this, view, changeLabel(applied), this.veil);
+        if (hit.kind === 'mole') playMoleHit(this, view, changeLabel(applied), this.layout);
+        else playCatHit(this, view, changeLabel(applied), this.veil, this.layout);
     }
 
     private updatePops() {
@@ -269,9 +277,9 @@ export class Game extends Scene {
     /** At most one spawn check per update, however large the frame step. */
     private spawnStep() {
         const used = this.live.map((v) => v.pop.hole);
-        const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random);
+        const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random, this.layout);
         for (const p of rollDecoys(plan, Math.random)) {
-            this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }));
+            this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }, this.layout));
         }
         this.nextSpawn = scheduledAt;
     }
@@ -328,7 +336,7 @@ export class Game extends Scene {
         this.releasePointer();
         this.updateHud();
         this.add
-            .text(PARAMS.viewW / 2, PARAMS.viewH / 2, 'タイムアップ！', { ...HUD_STYLE, fontSize: '96px', strokeThickness: 8 })
+            .text(this.layout.viewW / 2, this.layout.viewH / 2, 'タイムアップ！', { ...HUD_STYLE, fontSize: '96px', strokeThickness: 8 })
             .setOrigin(0.5)
             .setScrollFactor(0)
             .setDepth(DEPTH.hud);
