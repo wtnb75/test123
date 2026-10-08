@@ -3,11 +3,11 @@ status_idea: done
 status_init: done
 status_proto: done
 status_spec: done
-status_impl: done
-status_test: done
-status_check: done
-status_codereview: done
-status_qa: done
+status_impl: pending
+status_test: pending
+status_check: pending
+status_codereview: pending
+status_qa: pending
 status_polish: pending
 status_balance: pending
 status_publish: pending
@@ -143,7 +143,7 @@ Title と Result はキーボードでも進められる: Title は Enter／Spac
 
 | 名前 | 初期値 | 意味 |
 |---|---|---|
-| viewW × viewH | 1024 × 768 | 横画面の論理キャンバスサイズ（縦画面は 768 × 1024。[縦画面レイアウト](spec/portrait.md)） |
+| viewW × viewH | 1024 × 768 | 横画面の論理キャンバスサイズ（縦画面は幅 768 × 高さ 1024〜1792 で、高さは端末の縦横比に合わせる。[縦画面レイアウト](spec/portrait.md)） |
 | boardCols × boardRows | 8 × 6 | 横画面の穴の数（48 個。縦画面は 6 × 8） |
 | holeSpacing | 320 px | 穴の間隔。横画面の盤面は 2560 × 1920、画面の約 2.5 倍（縦画面の盤面は 1920 × 2560） |
 | hudMargin | 16 px | HUD（スコア・残り時間）を画面の端から内側に置く余白（横画面・縦画面とも） |
@@ -305,4 +305,4 @@ Title と Result はキーボードでも進められる: Title は Enter／Spac
 
 ## 拡張
 
-- [縦画面レイアウト](spec/portrait.md) — ウィンドウが縦長のとき、盤面を 6 列 × 8 行、視野を 768 × 1024 にする専用レイアウト（スマホの縦持ち）
+- [縦画面レイアウト](spec/portrait.md) — ウィンドウが縦長のとき、盤面を 6 列 × 8 行、視野を幅 768 × 端末の縦横比に合わせた高さ（1024〜1792）にする専用レイアウト（スマホの縦持ち）
