@@ -32,5 +32,15 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "Calc Rush",
+    "summary": "各手の演算を選んで、60 秒以内に目標の数に合わせる計算パズル。",
+    "tags": [
+      "パズル",
+      "数学",
+      "タッチ",
+      "マウス"
+    ]
   }
 }

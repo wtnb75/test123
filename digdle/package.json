@@ -32,5 +32,15 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "digdle",
+    "summary": "2〜6 桁の素数を当てる Wordle 風のゲーム。色のヒントを頼りに、制限回数の中で答えをしぼり込む。",
+    "tags": [
+      "パズル",
+      "数学",
+      "キーボード",
+      "タッチ"
+    ]
   }
 }

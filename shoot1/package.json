@@ -32,5 +32,14 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "shoot1",
+    "summary": "弾幕をよけながら地雷を置いて、敵と弾をまとめて爆破する生き残りシューティング。時間がたつほど弾が増える。",
+    "tags": [
+      "シューティング",
+      "キーボード",
+      "タッチ"
+    ]
   }
 }
