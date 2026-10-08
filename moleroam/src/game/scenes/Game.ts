@@ -5,7 +5,7 @@ import { BOARD_H, BOARD_W, HOLE_COUNT, holeCenter, startScroll, type Pt } from '
 import { applyStrike, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { combineScroll, edgeDelta, isDrag, keyDelta } from '../logic/scroll';
-import { firstSpawnAt, rollDecoy, stepSpawn } from '../logic/spawn';
+import { firstSpawnAt, rollDecoys, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
 import { DEPTH, UI_FONT, fadeInScene } from './ui';
@@ -269,10 +269,8 @@ export class Game extends Scene {
     private spawnStep() {
         const used = this.live.map((v) => v.pop.hole);
         const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random);
-        // decoy rolls come after the whole plan is made, in plan order, from the same random source
-        for (const p of plan) {
-            const decoy = rollDecoy(p.kind, Math.random);
-            this.live.push(new PopView(this, { ...p, decoy, spawnedAt: this.elapsedMs }));
+        for (const p of rollDecoys(plan, Math.random)) {
+            this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }));
         }
         this.nextSpawn = scheduledAt;
     }

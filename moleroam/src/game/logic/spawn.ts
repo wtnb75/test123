@@ -66,6 +66,17 @@ const toKind = (rand: () => number): Kind => (rand() < PARAMS.friendRate ? 'cat'
  */
 export const rollDecoy = (kind: Kind, rand: () => number): boolean => kind === 'cat' && rand() < PARAMS.decoyRate;
 
+export interface DecoyPlan extends SpawnPlan {
+    decoy: boolean;
+}
+
+/**
+ * The decoy rolls for a finished spawn plan: one draw per cat, in plan order, none for moles. Taking the
+ * plan keeps the rule "roll after the whole plan, from the same random source" in the signature.
+ */
+export const rollDecoys = (plan: readonly SpawnPlan[], rand: () => number): DecoyPlan[] =>
+    plan.map((p) => ({ ...p, decoy: rollDecoy(p.kind, rand) }));
+
 /** Anchor hole plus free neighbours, at most `comboSize` holes in all. */
 const comboHoles = (free: readonly number[], rand: () => number): number[] => {
     const anchor = free[pick(free.length, rand)];

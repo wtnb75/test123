@@ -15,3 +15,11 @@
 - `src/game/scenes/Game.ts`, `Result.ts`: 「タイムアップ！」の文言・スタイルが 2 か所にある — 理由: 別の Scene に別の見た目で出す文字で、リファクタリングを混ぜない
 - `src/game/scenes/Game.ts` updateHud: 残り時間の色・拡大・キャッシュの再起動時リセットに単体テストがない — 理由: Scene の接着部分。判定と倍率の純粋関数は境界値までテスト済みで、リセットはブラウザ QA で確認する
 - `src/game/logic/arrow.test.ts`: 矢印の脈動のテストが弱い — 理由: sin→cos、周期の半減、符号反転のミューテーションはすべてテストが落ちた
+- `src/game/logic/decoy.test.ts`: `seq` と乱数生成の補助が `spawn.test.ts` と重複している — 理由: テスト補助の小さな重複。共通化は別の変更にする
+- `src/game/logic/pop.ts` `decoy?: boolean`: モグラにも `decoy: true` が型の上で書ける、`DecoyPlan.decoy`（必須）と型が揃っていない — 理由: 仕様が「モグラは常におとりではない」と定め `rollDecoy` が守る。任意なのは既存のテストが `decoy` なしの Pop を作るため
+- `src/game/scenes/Game.ts` updateArrows: 叩かれた Pop の矢印が消えることの単体テストがない — 理由: 叩いた Pop は同じ処理の中で `live` から外れ、矢印の更新より前に消える。ブラウザ QA で確認する
+- `src/game/logic/decoy.test.ts`: 割合のテストの帯が広い、期待値に 0.3・上限 4・間隔 3200 を決め打ちしている — 理由: 仕様の値で手計算した期待値。数値を変えたらテストを見直すのが正しい扱い
+- `src/game/logic/pop.ts` showsArrow: 「消えていない」判定が `updatePops` の処理と二重 — 理由: 仕様が「状態が telegraph または up」と定めており、純粋ロジックとして独立に持つ
+- `src/game/scenes/Game.ts`: おとりの `__qa` の値を使う QA のシナリオがまだない — 理由: `game-qa` の仕事。次の QA で確認する
+- `src/game/logic/spawn.ts` rollDecoys: 「計画 → おとり」を 1 つの関数にまとめるべき、展開した計画が `Pop` に紛れ込みうる — 理由: 仕様が、おとりの抽選を出現計画のあとの別の段階と決めている（計画の乱数の使い方を変えないため）。紛れ込みは推測
+- `src/game/logic/decoy.test.ts`: 出現計画の乱数の使い方（コンボの 7 回）を決め打ちしている — 理由: 計画の乱数の順序を変えると、先に `spawn.test.ts` が落ちる。元になったケースをコメントに書いてある

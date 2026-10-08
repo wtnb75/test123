@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { showsArrow, type Pop } from './pop';
-import { rollDecoy, type Kind } from './spawn';
+import { rollDecoy, rollDecoys, stepSpawn, type Kind } from './spawn';
 
 /** A rand() that returns the given values in order, fails if asked for more, and counts its calls. */
 const seq = (values: number[]): { rand: () => number; calls: () => number } => {
@@ -76,6 +76,58 @@ describe('rollDecoy', () => {
         expect(ordinary).toBeGreaterThan(0);
         expect(decoys / 20000).toBeGreaterThan(0.28);
         expect(decoys / 20000).toBeLessThan(0.32);
+    });
+});
+
+describe('rollDecoys after a real spawn plan (stepSpawn then rollDecoys, one random source)', () => {
+    it('rolls only for the cat, after the plan: a combo [mole, cat, mole] uses 7 plan draws then 1 decoy draw', () => {
+        // plan draws (see the combo case in spawn.test.ts): combo roll 0.1, anchor 0, near 0 and 0.99, kinds 0.9 / 0.1 / 0.5
+        // = mole at hole 0, cat at hole 1, mole at hole 9. Then one decoy draw for the cat: 0.2 -> decoy.
+        const r = seq([0.1, 0, 0, 0.99, 0.9, 0.1, 0.5, 0.2]);
+        const { plan } = stepSpawn(500, 500, [], r.rand);
+        expect(r.calls()).toBe(7);
+        const rolled = rollDecoys(plan, r.rand);
+        expect(r.calls()).toBe(8);
+        expect(rolled).toEqual([
+            { hole: 0, kind: 'mole', decoy: false },
+            { hole: 1, kind: 'cat', decoy: true },
+            { hole: 9, kind: 'mole', decoy: false },
+        ]);
+    });
+
+    it('gives the first cat in plan order the first decoy draw: [cat, cat, mole] with draws 0.5 then 0.1 -> [no, yes]', () => {
+        // plan draws: combo roll 0.1, anchor 0, near 0 and 0.99, kinds 0.1 / 0.1 / 0.9 = cat at 0, cat at 1, mole at 9
+        const r = seq([0.1, 0, 0, 0.99, 0.1, 0.1, 0.9, 0.5, 0.1]);
+        const { plan } = stepSpawn(500, 500, [], r.rand);
+        const rolled = rollDecoys(plan, r.rand);
+        expect(rolled.map((p) => [p.hole, p.kind, p.decoy])).toEqual([
+            [0, 'cat', false],
+            [1, 'cat', true],
+            [9, 'mole', false],
+        ]);
+        expect(r.calls()).toBe(9);
+    });
+
+    it('draws nothing for an empty plan (a check that is not due, or has no room)', () => {
+        const r = seq([]);
+        expect(rollDecoys(stepSpawn(499.999, 500, [], r.rand).plan, r.rand)).toEqual([]);
+        expect(r.calls()).toBe(0);
+    });
+
+    it('draws nothing when the board is full of pops (no room): the check is due but the plan is empty', () => {
+        const r = seq([]); // a due check with 4 pops out must not draw anything, for the plan or for decoys
+        const { plan, scheduledAt } = stepSpawn(2000, 1700, [0, 1, 2, 3], r.rand);
+        expect(plan).toEqual([]);
+        expect(scheduledAt).toBe(3200);
+        expect(rollDecoys(plan, r.rand)).toEqual([]);
+        expect(r.calls()).toBe(0);
+    });
+
+    it('draws nothing for a plan of moles only and marks none as decoys', () => {
+        const r = seq([]);
+        const rolled = rollDecoys([{ hole: 4, kind: 'mole' }], r.rand);
+        expect(rolled).toEqual([{ hole: 4, kind: 'mole', decoy: false }]);
+        expect(r.calls()).toBe(0);
     });
 });
 
