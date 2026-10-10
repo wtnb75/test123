@@ -19,6 +19,7 @@ vars:
     - mazetd
     - spotdiff
     - moleroam
+    #- pushline
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
 
