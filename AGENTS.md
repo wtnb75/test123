@@ -240,5 +240,6 @@ Claude Code をワークツリー（`--worktree`）で動かすと、git の操�
 - ブランチは `main` ではなく **`origin/main` から切る**（`git fetch origin && git checkout -b <branch> origin/main`）。ワークツリーでは `main` が別の場所で使われていて `git checkout main` が失敗することがあり、ローカルの `main` は古いこともある
 - 複数の状態更新は、変数やループを含むコマンドを書かず、タスクかスクリプトにまとめる（下流の段階をまとめて戻す `task game:reset PACKAGE=<game-dir> [FROM=qa]` など）
 - コマンドの引数や here-doc に `git` を含む長い文章を渡すと拒否されることがある。文章のあるファイルは `Write` / `Edit` で作り、コマンドは短く分けて実行する
+- 変数・ループ・サブシェル・`$(...)` を含むコマンドは拒否される。複数の手順は、`Write` でスクリプトを作って 1 コマンド（`node <script>`、`python3 <script>`）で実行するか、単純なコマンドを順に実行する
 
 以上。
