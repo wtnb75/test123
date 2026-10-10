@@ -46,6 +46,25 @@ When tests already exist (a revision, e.g. after `game-extend`):
 - Every regression condition in 完了条件 (what the change must leave
   alone) gets a test that would fail if that behavior changed.
 
+### Small revisions (a delta of one rule or one module)
+
+A revision that changes one rule or one pure module may skip the full
+review rounds, but not these four things — and only then may `test` be
+marked `done` without running the whole skill again:
+
+1. The tests that pin the changed behavior are updated to the new spec
+   (and say so in the summary); new boundary cases of the change are added.
+2. A mutation spot-check of the changed lines (a throwaway script under
+   the scratchpad that restores the file in `finally` and compares its
+   md5 afterwards); survivors are explained or killed.
+3. The four gate commands pass (coverage included).
+4. One fresh-subagent review limited to the delta (`game-review STAGE=test`
+   with the change summary).
+
+Say in the report that the small-revision path was used and why. Any
+revision that touches more than one module, a Scene, or the input
+handling is not small: run the whole skill.
+
 ## Logic-heavy modules: check correctness, not just coverage
 
 The 90% gate only proves code was *executed*. A solver, generator, or rules

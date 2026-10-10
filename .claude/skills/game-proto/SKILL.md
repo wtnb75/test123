@@ -98,7 +98,11 @@ Rules for the code (deliberately lighter than `game-impl`):
    that — your own opinion that it "works" doesn't end the loop. Keep
    rounds small and quick; one change at a time that the user can feel is
    better than a batch they can't tell apart.
-5. Stop the dev server (and any QA container) when the loop ends.
+5. Stop the dev server (and any QA container) when the loop ends. Stop it
+   by its process id (the background task's PID, or the vite process whose
+   `/proc/<pid>/cwd` is `<game-dir>`), then confirm the URL no longer
+   answers. Never `pkill -f <pattern>`: the pattern also matches your own
+   command line and kills the shell.
 
 Write what the playtests settled into the spec-lite as you go, under a
 `## プレイテストで固まったこと` section: rules the user confirmed or

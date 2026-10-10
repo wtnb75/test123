@@ -64,3 +64,11 @@ fails rather than just noting it.
 3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
    dispatches `game-codereview` and keeps going until a stage needs the user
    (see `game-next` "Continuous mode").
+
+## Small revisions
+
+After a one-rule or one-module revision, `check` may be marked `done` once
+all four commands pass from the top after the last change (the scaffold
+cleanup only when the change touched `public/` or the build). Say in the
+report that the small-revision path was used. Anything bigger runs the
+whole skill.
