@@ -70,6 +70,12 @@ Out of scope — route elsewhere:
    matter to the player go into パラメータ表, and details that genuinely
    don't matter (exact easing, particle tint) go into 実装裁量.
    `game-spec` resets the downstream stages itself.
+   The user's agreement in step 4 already covers the content of these
+   items — including any rule they were told about in the proposal (name
+   such a rule change in the proposal itself, as "仕様の ... を改訂"). Show
+   the spec diff and the review result in one short block and go on; ask
+   again only if the spec review raised a question the proposal did not
+   answer, or the spec change goes beyond what was proposed.
 6. **Implement** via `game-impl`, then the normal chain runs again:
    test → check → codereview → qa → back to this skill.
 

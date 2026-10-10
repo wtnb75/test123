@@ -92,8 +92,19 @@ Rules for scenarios (each one cost a QA run before):
   `window.__qa` in the dev build (a small read-only state object such as
   `{ phase, stage, timeLeft }`), use `waitForQa`; otherwise confirm with a
   screenshot before acting.
+  Write the publishing code inline inside `if (import.meta.env.DEV) { … }`
+  (not in a method called from it: the unused method body stays in the
+  production bundle), and check `rg -c __qa <game-dir>/dist/assets/*.js`
+  prints nothing after `npm run build`.
 - If the frame rate reported by `fps` is far below 60, fix the harness
   (see the rules above) before judging the game's feel.
+- **Keep each run short and split by viewport.** One script per viewport
+  (or per scenario that waits for a state such as the Result screen), each
+  under about 2 minutes. Run `scripts/qa/run.sh` in the background with a
+  `timeout`, and poll for the screenshots (`docker exec <container> ls
+  /work/shots`); `run.sh` prints nothing until it finishes. If a run has
+  produced no new file for a minute, kill the node process in the container
+  (`docker exec <container> pkill node`) and rerun only the missing part.
 
 ## On failure
 
