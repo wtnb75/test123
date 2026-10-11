@@ -2,42 +2,46 @@ import { Input, Scene, type GameObjects } from 'phaser';
 
 import {
     BOX_ORDER,
+    DEFAULT_BOX_CAPACITY,
     advanceQueue,
     createDistributionState,
     createEmptyBoxes,
     createQueue,
     getBoxOrder,
     resolvePlacement,
+    stackDigits,
     type BoxKey,
     type DistributionState,
     type Difficulty,
     type QueueState
 } from '../logic/primtris';
+import { BoxesView, type BoxesViewStyle } from './boxesView';
 
 const DEFAULT_DIFFICULTY: Difficulty = {
     digitCount: 2,
-    boxCapacity: 12
+    boxCapacity: DEFAULT_BOX_CAPACITY
 };
 
 const ENTRY_FALL_SPEED = 720;
 const ENTRY_START_Y = -120;
 const READY_Y = 220;
 const BOX_REGION_HEIGHT = 180;
+const GAME_BOX_STYLE: Omit<BoxesViewStyle, 'top'> = {
+    height: BOX_REGION_HEIGHT,
+    labelOffset: 18,
+    labelFont: 22,
+    digitsOffset: 62,
+    digitsFont: 20,
+    digitsLineSpacing: 2,
+    capacityOffset: BOX_REGION_HEIGHT - 34,
+    capacityFont: 18
+};
 const LOG_LIMIT = 4;
-const BOX_DIGITS_PER_LINE = 5;
-const BOX_MAX_LINES = 3;
 const FACTOR_POPUP_DURATION_MS = 2000;
 const NORMAL_DROP_COMMIT_MS = 140;
 const GAME_OVER_DROP_COMMIT_MS = 520;
 const GAME_OVER_SLOW_MOTION_SCALE = 0.35;
 const GAME_OVER_SLOW_MOTION_DELAY_MS = 560;
-
-interface BoxView {
-    background: GameObjects.Rectangle;
-    capacityText: GameObjects.Text;
-    digitsText: GameObjects.Text;
-    labelText: GameObjects.Text;
-}
 
 interface GameInitData {
     digitCount?: number;
@@ -46,7 +50,7 @@ interface GameInitData {
 export class Game extends Scene
 {
     private boxes = createEmptyBoxes();
-    private boxViews!: Record<BoxKey, BoxView>;
+    private boxesView!: BoxesView;
     private collateralClears = 0;
     private currentValueText!: GameObjects.Text;
     private currentX = 0;
@@ -56,7 +60,6 @@ export class Game extends Scene
     private dragging = false;
     private difficulty: Difficulty = { ...DEFAULT_DIFFICULTY };
     private distributionState: DistributionState = createDistributionState();
-    private highlightedBox: BoxKey | null = null;
     private isEntering = true;
     private isGameOver = false;
     private isResolving = false;
@@ -88,6 +91,11 @@ export class Game extends Scene
     {
         const { width, height } = this.cameras.main;
 
+        if (import.meta.env.DEV) {
+            // QA only: which Scene is running and with how many digits.
+            (window as unknown as { __qa?: unknown }).__qa = { scene: 'Game', digitCount: this.difficulty.digitCount };
+        }
+
         this.cameras.main.setBackgroundColor('#1b263b');
         this.resetRuntimeState(width, height);
         this.queue = createQueue(this.difficulty, Math.random, this.distributionState);
@@ -107,7 +115,6 @@ export class Game extends Scene
         this.currentX = this.getColumnCenter(this.getDefaultColumnIndex());
         this.currentY = ENTRY_START_Y;
         this.dragging = false;
-        this.highlightedBox = null;
         this.isEntering = true;
         this.isGameOver = false;
         this.isResolving = false;
@@ -177,38 +184,13 @@ export class Game extends Scene
             wordWrap: { width: width - 48 }
         });
 
-        const boxWidth = width / this.activeBoxes.length;
-        const boxTop = height - BOX_REGION_HEIGHT;
-
-        this.boxViews = Object.fromEntries(BOX_ORDER.map((boxKey) => {
-            const hidden = !this.activeBoxes.includes(boxKey);
-            const index = this.activeBoxes.indexOf(boxKey);
-            const x = hidden ? 0 : index * boxWidth;
-            const fillColor = hidden ? 0x000000 : (index % 2 === 0 ? 0x415a77 : 0x33415c);
-            const alpha = hidden ? 0 : 1;
-            const background = this.add.rectangle(x, boxTop, boxWidth, BOX_REGION_HEIGHT, fillColor).setOrigin(0).setAlpha(alpha);
-            const labelText = this.add.text(x + boxWidth / 2, boxTop + 18, boxKey.toUpperCase(), {
-                color: '#f8f4e3',
-                fontFamily: 'sans-serif',
-                fontSize: '22px',
-                fontStyle: 'bold'
-            }).setOrigin(0.5, 0).setAlpha(alpha);
-            const digitsText = this.add.text(x + boxWidth / 2, boxTop + 62, '--', {
-                align: 'center',
-                color: '#f8f4e3',
-                fontFamily: 'monospace',
-                fontSize: '20px',
-                fontStyle: 'bold',
-                lineSpacing: 2
-            }).setOrigin(0.5, 0).setAlpha(alpha);
-            const capacityText = this.add.text(x + boxWidth / 2, boxTop + BOX_REGION_HEIGHT - 34, `0/${this.difficulty.boxCapacity}`, {
-                color: '#ffd166',
-                fontFamily: 'sans-serif',
-                fontSize: '18px'
-            }).setOrigin(0.5, 0).setAlpha(alpha);
-
-            return [boxKey, { background, labelText, digitsText, capacityText }];
-        })) as Record<BoxKey, BoxView>;
+        this.boxesView = new BoxesView(
+            this,
+            this.activeBoxes,
+            width,
+            { ...GAME_BOX_STYLE, top: height - BOX_REGION_HEIGHT },
+            this.difficulty.boxCapacity
+        );
     }
 
     private buildInputHandlers (width: number)
@@ -463,33 +445,12 @@ export class Game extends Scene
         this.nextText.setText(`NEXT: [ ${this.queue.next[0]} ] [ ${this.queue.next[1]} ]`);
         this.syncCurrentValueDisplay();
 
-        for (const boxKey of this.activeBoxes) {
-            const digits = this.boxes[boxKey];
-            const view = this.boxViews[boxKey];
-
-            view.digitsText.setText(this.formatBoxDigits(digits));
-            view.capacityText.setText(`${digits.length}/${this.difficulty.boxCapacity}`);
-        }
-    }
-
-    private formatBoxDigits (digits: number[]): string
-    {
-        if (digits.length === 0) {
-            return '--';
-        }
-
-        const rows: string[] = [];
-
-        for (let index = 0; index < digits.length; index += BOX_DIGITS_PER_LINE) {
-            rows.push(digits.slice(index, index + BOX_DIGITS_PER_LINE).join(''));
-        }
-
-        return rows.slice(-BOX_MAX_LINES).join('\n');
+        this.boxesView.update(this.boxes);
     }
 
     private syncCurrentValueDisplay ()
     {
-        this.currentValueText.setText(String(this.queue.current).split('').join('\n'));
+        this.currentValueText.setText(stackDigits(this.queue.current));
         this.currentValueText.setPosition(this.currentX, this.currentY);
     }
 
@@ -504,15 +465,6 @@ export class Game extends Scene
     {
         const activeBox = this.getBoxForX(this.currentX);
 
-        if (this.highlightedBox === activeBox) {
-            return;
-        }
-
-        this.highlightedBox = activeBox;
-
-        for (const boxKey of this.activeBoxes) {
-            const view = this.boxViews[boxKey];
-            view.background.setFillStyle(boxKey === activeBox ? 0x778da9 : (this.activeBoxes.indexOf(boxKey) % 2 === 0 ? 0x415a77 : 0x33415c));
-        }
+        this.boxesView.setHighlight(activeBox);
     }
 }
