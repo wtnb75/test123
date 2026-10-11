@@ -19,7 +19,8 @@ vars:
     - spotdiff
     - pushline
   ALL_GAMES:
-    sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
+    # Games only: entries with a / (shared packages under shared/) are not games.
+    sh: sed -n "s/^  - '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
   # Games listed only on labs.html (works in progress), oldest first.
   LAB_GAMES:
     - shoot1

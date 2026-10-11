@@ -38,6 +38,13 @@ export const msgPopScale = (ms: number): number => {
 export const promptAlpha = (ms: number): number =>
     PARAMS.promptPulseMin + ((1 - PARAMS.promptPulseMin) * (1 + Math.cos((2 * Math.PI * ms) / PARAMS.promptPulseMs))) / 2;
 
+/** Radius (canvas px) of the Title demo's tap ring: grows linearly from `demoRingFrom` to `demoRingTo`. */
+export const tapRingRadius = (ms: number): number =>
+    PARAMS.demoRingFrom + (PARAMS.demoRingTo - PARAMS.demoRingFrom) * clamp01(ms / PARAMS.demoRingMs);
+
+/** Opacity of the tap ring: 1 at t = 0, 0 from `demoRingMs` on (linear). */
+export const tapRingAlpha = (ms: number): number => 1 - clamp01(ms / PARAMS.demoRingMs);
+
 /** Fade-in factor of the Result texts. */
 export const fadeAlpha = (ms: number): number => clamp01(ms / PARAMS.resultFadeMs);
 

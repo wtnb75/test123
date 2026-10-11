@@ -62,4 +62,22 @@ export const PARAMS = {
     promptPulseMs: 1600,
     promptPulseMin: 0.5,
     resultFadeMs: 300,
+
+    // Title demo (see docs/spec.md "Title" > "デモ")
+    demoStages: 2,
+    demoSeedSet: 0,
+    demoWaitMs: 900,
+    demoTapMs: 700,
+    demoFadeMs: 300,
+    demoRingMs: 400,
+    demoRingFrom: 12,
+    demoRingTo: 40,
+    demoRingWidth: 4,
+    demoRingColor: 0xffffff,
+    // Title layout per layout kind: text rows (centre y), the panels' display scale (spec: `titlePanelScale`) and top (portrait: the two tops).
+    titleLayout: {
+        portrait: { nameY: 130, taglineY: 230, dateY: 300, promptY: 1540, panelScale: 1.25, panelY: [380, 920] },
+        landscape: { nameY: 60, taglineY: 125, dateY: 175, promptY: 700, panelScale: 1, panelY: [220, 220] },
+        wide: { nameY: 60, taglineY: 125, dateY: 175, promptY: 700, panelScale: 1, panelY: [220, 220] },
+    },
 } as const;

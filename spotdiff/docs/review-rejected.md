@@ -29,3 +29,12 @@
 - `src/game/scenes/orientation.ts`（3値の切り替えのテストとヒステリシス）: 1.6 付近のリサイズで切り替わりが続く — 理由: spec が「切り替わるが状態は引き継ぐ」と明記。Scene は単体テスト対象外で、QA で向きを変えて確認する
 - `src/game/logic/layout.ts`（16:9 の PC も横長になる）: スマホ向けレイアウトが PC に出る — 理由: 意図した変更で、spec に明記しユーザーが確認済み
 - `src/game/scenes/orientation.ts`（JSDoc の長さ、`kind` の名前）: 見た目だけの指摘 — 理由: 動作に影響しない
+- `src/game/scenes/Title.ts`（ボットのタップのフレームで、印と輪を 2 回描き直す）: 出力が同じ描画が 2 回走る — 理由: 700 ms に 1 回の 1 フレームだけ。直すと「どこで描くか」が暗黙になる
+- `shared/title-demo/src/director.ts`（`state`・`phase`・`rounds` が外から代入できる。README は `readonly`）: 契約と実装の食い違い — 理由: Scene は代入しない。内部で更新するので `readonly` には getter と private への作り直しが要る。README は契約の記述
+- `src/game/logic/titleLayout.ts`（Game のレイアウトを作り直して 3 つの値だけ使い、中央寄せの式を重複している）: — 理由: 向きの変更のときだけ呼ばれる純粋関数で、式は 1 行。共通化の見返りが小さい
+- リポジトリ（1 PR に spotdiff・pushline・共有パッケージ・AGENTS.md・Taskfile が混ざる）: 1 ゲーム 1 PR に反する — 理由: 共有パッケージを同時に作る方針をユーザーが選んで合意済み。完了条件にも pushline のテストを通すことを書いている
+- `src/game/logic/titleDemo.ts`（判定円が重なるとボットの手順が古くなり、再計画が続く恐れ）: 重なる判定円では手順が崩れる — 理由: spec が「判定円どうしが重ならない」と定め、生成のテストで確認済み。差分の中心は必ず自分の円の中にある
+- `src/game/storage.test.ts`（共有パッケージを含む glob が長い 1 行で、`../../../` に依存する）: — 理由: 取りこぼすと `toContain` の検査が大きな声で失敗する。lint・型は通っている
+- `shared/title-demo/src/director.ts`（`fadeMs` が NaN のときの扱い）: 検証が無い — 理由: 設定値の書き間違いだけで起き、揃った動き（すぐ終わる）になる
+- `pushline/src/game/logic/demo.ts`（アダプタが `advance` を null にする）: 将来 `advance` を足すと再描画されない — 理由: pushline に `advance` は無い。コメントで明記している
+- `src/game/logic/titleDemo.ts`（`botPlan` の既定の `Set` を毎回作る）: 無駄な割り当て — 理由: 本番の呼び出しは常に `found` を渡す。無視できる量

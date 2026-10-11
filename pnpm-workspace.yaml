@@ -15,6 +15,7 @@ packages:
   - 'nonoedit'
   - 'primtris'
   - 'shoot1'
+  - 'shared/title-demo'
 
 catalog:
   phaser: '4.1.0'
