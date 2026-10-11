@@ -9,6 +9,7 @@ import type { Position, Stage } from '../core/types';
 import { REFERENCE_CELL } from '../core/title';
 import { BoardView } from './boardView';
 import { PressTracker, StageFlow, restartKeyAction } from '../core/flow';
+import { restartButtonAt, restartButtonLayout, type ButtonBox, type RestartButtonLayout, type RestartChoice } from '../core/restartButtons';
 import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 
@@ -90,10 +91,10 @@ export class Game extends Scene
     flagMode = false;
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
-    retryBg?: Phaser.GameObjects.Rectangle;
-    retryLabel?: Phaser.GameObjects.Text;
-    newGameBg?: Phaser.GameObjects.Rectangle;
-    newGameLabel?: Phaser.GameObjects.Text;
+    /** The game-over buttons (backgrounds and labels) while they are on screen. */
+    restartObjects: Phaser.GameObjects.GameObject[] = [];
+    /** Where the game-over buttons were put when they appeared (they do not move on resize). */
+    restartLayout?: RestartButtonLayout;
 
     constructor ()
     {
@@ -127,6 +128,9 @@ export class Game extends Scene
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
 
+        // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
+        this.flagMode = false;
+        this.inputLockUntil = 0;
         this.startFirstStage();
         this.createVirtualControls();
 
@@ -158,6 +162,8 @@ export class Game extends Scene
             this.joystickCurrentDir = undefined;
             this.joystickHasFired = false;
             this.view.destroy();
+            this.restartObjects = [];
+            this.restartLayout = undefined;
         });
     }
 
@@ -609,7 +615,7 @@ export class Game extends Scene
         if (this.flow.awaitingRestart) {
             const action = restartKeyAction(event.code, event.repeat);
             if (action !== 'none') {
-                this.doRestart(action === 'retry');
+                this.doRestart(action);
             }
             return;
         }
@@ -762,7 +768,7 @@ export class Game extends Scene
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer(true);
-            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / 他のキーかボタンで新ゲーム');
+            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / T = タイトルへ / 他のキーかボタンで新ゲーム');
             this.time.delayedCall(DEATH_DELAY_MS, () => {
                 if (this.flow.showRestart()) {
                     this.showRestartButtons();
@@ -784,52 +790,43 @@ export class Game extends Scene
 
     private showRestartButtons (): void
     {
-        const W = this.camera.width;
-        const H = this.camera.height;
-        const btnW = 140;
-        const btnH = 44;
-        const gap = 16;
-        const centerY = H * 0.72;
+        const layout = restartButtonLayout(this.camera.width, this.camera.height);
+        this.restartLayout = layout;
+        this.makeRestartButton(layout.retry, 'RETRY [R]', 0x1e3a5f, 0x60a5fa, '#93c5fd');
+        this.makeRestartButton(layout.newGame, 'NEW GAME', 0x1a1a2e, 0x6b7280, '#9ca3af');
+        this.makeRestartButton(layout.title, 'TITLE [T]', 0x1a1a2e, 0x6b7280, '#9ca3af');
+    }
 
-        // RETRY button (left of center)
-        const retryX = W / 2 - btnW / 2 - gap / 2;
-        this.retryBg = this.add.rectangle(retryX, centerY, btnW, btnH, 0x1e3a5f, 0.95)
-            .setStrokeStyle(2, 0x60a5fa)
+    private makeRestartButton (box: ButtonBox, text: string, fill: number, stroke: number, color: string): void
+    {
+        const bg = this.add.rectangle(box.x, box.y, box.width, box.height, fill, 0.95)
+            .setStrokeStyle(2, stroke)
             .setScrollFactor(0).setDepth(50).setOrigin(0.5, 0.5);
-        this.retryLabel = this.add.text(retryX, centerY, 'RETRY [R]', {
-            fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color: '#93c5fd'
+        const label = this.add.text(box.x, box.y, text, {
+            fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color
         }).setScrollFactor(0).setDepth(51).setOrigin(0.5, 0.5);
-
-        // NEW GAME button (right of center)
-        const newGameX = W / 2 + btnW / 2 + gap / 2;
-        this.newGameBg = this.add.rectangle(newGameX, centerY, btnW, btnH, 0x1a1a2e, 0.95)
-            .setStrokeStyle(2, 0x6b7280)
-            .setScrollFactor(0).setDepth(50).setOrigin(0.5, 0.5);
-        this.newGameLabel = this.add.text(newGameX, centerY, 'NEW GAME', {
-            fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color: '#9ca3af'
-        }).setScrollFactor(0).setDepth(51).setOrigin(0.5, 0.5);
+        this.restartObjects.push(bg, label);
     }
 
     private hideRestartButtons (): void
     {
-        this.retryBg?.destroy();
-        this.retryLabel?.destroy();
-        this.newGameBg?.destroy();
-        this.newGameLabel?.destroy();
-        this.retryBg = undefined;
-        this.retryLabel = undefined;
-        this.newGameBg = undefined;
-        this.newGameLabel = undefined;
+        for (const object of this.restartObjects) {
+            object.destroy();
+        }
+        this.restartObjects = [];
+        this.restartLayout = undefined;
     }
 
-    private doRestart (retryStage: boolean): void
+    private doRestart (choice: RestartChoice): void
     {
         if (!this.flow.beginRestart()) {
             return;
         }
         this.hideRestartButtons();
-        if (retryStage) {
+        if (choice === 'retry') {
             this.startStage(this.gameOverStageNo);
+        } else if (choice === 'title') {
+            this.scene.start('Title');
         } else {
             this.scene.start('Game');
         }
@@ -948,14 +945,10 @@ export class Game extends Scene
             if (!this.flow.awaitingRestart) {
                 return;
             }
-            // Check if tap is on RETRY or NEW GAME button (both use origin 0.5,0.5)
-            const retryHit = this.retryBg &&
-                Math.abs(pointer.x - this.retryBg.x) <= this.retryBg.width / 2 &&
-                Math.abs(pointer.y - this.retryBg.y) <= this.retryBg.height / 2;
-            const newGameHit = this.newGameBg &&
-                Math.abs(pointer.x - this.newGameBg.x) <= this.newGameBg.width / 2 &&
-                Math.abs(pointer.y - this.newGameBg.y) <= this.newGameBg.height / 2;
-            this.doRestart(retryHit === true && newGameHit !== true);
+            // The release position chooses: TITLE, RETRY, or (anywhere else, NEW GAME included) a new game.
+            if (this.restartLayout) {
+                this.doRestart(restartButtonAt(this.restartLayout, pointer.x, pointer.y));
+            }
             return;
         }
 

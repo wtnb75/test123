@@ -7,11 +7,23 @@ describe('restartKeyAction', () => {
     expect(restartKeyAction('ArrowUp', true)).toBe('none');
   });
 
-  it('retries on a fresh R and starts a new game on any other fresh key', () => {
+  it('ignores the auto-repeat of a held T', () => {
+    expect(restartKeyAction('KeyT', true)).toBe('none');
+  });
+
+  it('retries on a fresh R, goes to the title on a fresh T, and starts a new game on any other fresh key', () => {
     expect(restartKeyAction('KeyR', false)).toBe('retry');
+    expect(restartKeyAction('KeyT', false)).toBe('title');
     expect(restartKeyAction('ArrowUp', false)).toBe('new');
     expect(restartKeyAction('ShiftLeft', false)).toBe('new');
   });
+
+  it.each(['Space', 'Enter', 'Escape', 'KeyY', 'KeyS', 'Numpad5', 'ControlLeft', 'MetaLeft', 'AltLeft'])(
+    'starts a new game on %s (only T leaves the game)',
+    (code) => {
+      expect(restartKeyAction(code, false)).toBe('new');
+    }
+  );
 });
 
 describe('StageFlow', () => {

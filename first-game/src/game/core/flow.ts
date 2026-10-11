@@ -1,19 +1,25 @@
 // Pure state of the end-of-stage flow and of presses, so the rules in docs/spec.md can be unit tested.
 
-/** What a key does on the game-over screen: R retries, any other key starts a new game, a held key does nothing. */
-export type RestartAction = 'retry' | 'new' | 'none';
+import type { RestartChoice } from './restartButtons';
+
+/** What a key does on the game-over screen: R retries, T goes to the title, any other key starts a new game, a held key does nothing. */
+export type RestartAction = RestartChoice | 'none';
 
 export const restartKeyAction = (code: string, repeat: boolean): RestartAction => {
   if (repeat) {
     return 'none';
   }
-  return code === 'KeyR' ? 'retry' : 'new';
+  if (code === 'KeyR') {
+    return 'retry';
+  }
+  return code === 'KeyT' ? 'title' : 'new';
 };
 
 /**
  * `play` -> (goal) `clearing` -> next stage starts -> `play`; `play` -> (death) `dying` -> (after DeathDelay)
- * `gameover` -> RETRY / NEW GAME / STAGE jump -> `play` (`restarting` is the moment between choosing a restart
- * and the new stage). Only `play` accepts board input.
+ * `gameover` -> RETRY / STAGE jump -> `play`; `gameover` -> NEW GAME / TITLE -> `restarting` until the Scene is
+ * created again (`Game.create` calls `reset`; `Title` never looks at this flow). `restarting` is the moment between
+ * choosing a restart or leaving and the next Scene. Only `play` accepts board input.
  */
 export type FlowPhase = 'play' | 'clearing' | 'dying' | 'gameover' | 'restarting';
 

@@ -23,3 +23,8 @@
 - `src/game/core/title.ts`（高さ約 120 px 未満で名前とボタンが重なる）— 理由: spec が保証するのは高さ 320 px 以上
 - `src/game/core/titleDemo.test.ts`（「生成に影響しない」テストは落ちようがない）— 理由: spec のテスト観点に明記された回帰条件。将来モジュール内の状態を持ち込んだときの安全網
 - `src/game/core/demoBot.ts`（ミューテーション: 隣接の並べ替え・開示済みの爆弾の歩行判定・`invalid` の判定が生き残る）— 理由: 等価（`neighbors8` が既にインデックス順。開示済みの爆弾は死亡後だけ。`movePlayer` は `invalid` を返さない）
+- `src/game/scenes/Game.ts`（画面の回転・リサイズでゲームオーバーのボタンが動かず、TITLE が画面外になる）— 理由: 「表示した時点の位置で動かない」は RETRY / NEW GAME の変更前からの挙動で spec にも明記済み。今回の範囲外にして `docs/backlog.md` の `restart-buttons-resize` に記録した
+- `src/game/scenes/Game.ts`（死亡直後の「T = タイトルへ」の案内が、`DeathDelay` の間は効かない）— 理由: R・他のキーの案内も同じ時点で出ていて同じ扱い。`DeathDelay` は 0.6 秒
+- `src/game/scenes/Game.ts`（触れたままの別の指が、戻った Title の Start の上で離れるとすぐ開始する）— 理由: Title の「押し始めの位置は問わない」は spec 済みの既存の挙動。マルチタッチの稀なケース
+- `src/game/scenes/Game.ts`（`restartLayout` が無いままゲームオーバーの画面の離しが何も起こさず止まる。'new' に落とすべき）— 理由: `showRestart` とボタンの表示は常に同時で、`restartLayout` は表示と同時に入る。到達しない分岐を置かない（不変条件は保たれている）
+- `src/game/scenes/Game.ts`（`DeathDelay` 中に押し始めた指が TITLE を選べない、というテストが Scene に無い）— 理由: `onPointerDown` が `awaitingRestart` のときだけ押下を記録する単純な条件で、Scene のコード。QA（spec 完了条件）で確認する
