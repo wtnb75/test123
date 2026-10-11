@@ -3,25 +3,28 @@
 version: "3"
 
 vars:
+  # Games listed on the top page, oldest first (the page shows them newest first).
   GAMES:
     - kogodrop
     - primtris
     - first-game
     - digdle
-    - shoot1
     - calc1
     #- nonoedit
     #- editmin
     #- dutchcalc
     #- cjump
-    - fukuwarai
+    #- fukuwarai
     - absorb
-    - mazetd
     - spotdiff
-    - moleroam
     - pushline
   ALL_GAMES:
     sh: sed -n "s/^  - '\(.*\)'\$/\1/p" pnpm-workspace.yaml
+  # Games listed only on labs.html (works in progress), oldest first.
+  LAB_GAMES:
+    - shoot1
+    - mazetd
+    - moleroam
 
 tasks:
   default:
@@ -66,7 +69,7 @@ tasks:
           var: ALL_GAMES
         cmd: rsync -av {{ .ITEM }}/dist-shared/ output/{{ .ITEM }}/
       - node scripts/vendor-phaser.mjs output/vendor {{ .ALL_GAMES | replace "\n" " " }}
-      - node scripts/build-index.mjs output/index.html {{ .GAMES | join " " }}
+      - node scripts/build-index.mjs output {{ .GAMES | join " " }} --labs {{ .LAB_GAMES | join " " }}
 
   build:
     desc: build game + output

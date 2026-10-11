@@ -41,6 +41,8 @@
 	- `pnpm install` を実行してロックファイルを更新する
 	- `task game:favicon PACKAGE=<game-dir>` を実行し、テンプレート既定の `public/favicon.png` をゲーム名から生成した identicon（jdenticon）に置き換える
 	- 公開一覧（トップページ）に載せる準備ができたら `Taskfile.yml` の `GAMES` 該当行のコメントアウトを外す
+		- `GAMES` は追記順（古い順）に書く。トップページ（`scripts/build-index.mjs`）は新しいものを上に並べ、カードの `tags` で絞り込める
+		- 作りこみが途中のゲームは `GAMES` ではなく `LAB_GAMES` に移すと、トップページには出ず `labs.html`（試作・実験作）に載る
 
 ### 2.3 オプション指定ルール
 
