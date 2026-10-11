@@ -1,13 +1,11 @@
 import { Scene, type GameObjects, type Input } from 'phaser';
 import { PARAMS } from '../params';
-import {
-    FIXED, MOVABLE, type Cell, type Deps, type Dir, type KindPt, type MoveResult, type Pt, type State,
-} from '../logic/types';
+import type { Deps, Dir, MoveResult, Pt, State } from '../logic/types';
 import { Flow, QuitConfirm, type PointerAction } from '../logic/flow';
-import { stalePopKeys } from '../logic/pops';
 import { cellAt, type Layout } from '../logic/layout';
 import { canUndo, createState, move, tapOutcome, undo } from '../logic/rules';
 import { tensionOf, type Tension } from '../logic/tension';
+import { BoardView, qaRows } from './boardView';
 import { addLabel, applyLayout, COLORS, createButton, DEPTH, FONT_SIZE, watchOrientation, type ButtonView } from './ui';
 
 const KEY_DIRS: Record<string, Dir> = {
@@ -28,8 +26,7 @@ export class Game extends Scene {
     private quitShown = false;
     private layout!: Layout;
 
-    private board!: GameObjects.Graphics;
-    private playerDot!: GameObjects.Arc;
+    private view!: BoardView;
     private movesText!: GameObjects.Text;
     private linesText!: GameObjects.Text;
     private undoButton!: ButtonView;
@@ -37,13 +34,6 @@ export class Game extends Scene {
     /** Red frame around the canvas that pulses in the `critical` tension (never interactive). */
     private edge!: GameObjects.Graphics;
     private tension: Tension = 'none';
-
-    /** Transient effect objects (shrinking, popping, thinned-out ghosts); dropped on a layout change. */
-    private effects = new Set<GameObjects.GameObject>();
-    /** Cells whose new block is still being drawn by a pop-in; the board draws them as empty. */
-    private popping = new Map<string, { rect: GameObjects.Rectangle; kind: Cell }>();
-    /** The board needs redrawing (set by effect completions, handled once per frame in `update`). */
-    private dirty = false;
 
     constructor() {
         super('Game');
@@ -58,15 +48,9 @@ export class Game extends Scene {
         this.quit = new QuitConfirm();
         this.quitShown = false;
         this.cameras.main.fadeIn(PARAMS.sceneFadeMs);
-        this.effects.clear();
-        this.popping.clear();
-        this.dirty = false;
 
         this.cameras.main.setBackgroundColor(COLORS.bg);
-        this.board = this.add.graphics().setDepth(DEPTH.board);
-        this.playerDot = this.add
-            .circle(0, 0, PARAMS.cellSize * PARAMS.playerRadiusRatio, COLORS.player)
-            .setDepth(DEPTH.player);
+        this.view = new BoardView(this, this.layout);
         this.movesText = addLabel(this, 0, 0, '', FONT_SIZE.hud).setDepth(DEPTH.hud);
         this.linesText = addLabel(this, 0, 0, '', FONT_SIZE.hud).setDepth(DEPTH.hud);
         this.undoButton = createButton(this, 'Undo', COLORS.buttonDefault, DEPTH.hud);
@@ -84,10 +68,7 @@ export class Game extends Scene {
         const now = this.deps.now();
         this.pump(now);
         if (this.quitShown) this.refreshQuitButton(now); // takes the label back when the time is up
-        if (this.dirty) {
-            this.dirty = false;
-            this.render();
-        }
+        if (this.view.takeDirty()) this.render();
     }
 
     // ---- input -------------------------------------------------------------------------------
@@ -122,7 +103,7 @@ export class Game extends Scene {
                 if (!canUndo(this.state)) break;
                 this.flow.cancelWalk();
                 undo(this.state);
-                this.dropStalePops();
+                this.view.dropStalePops(this.state.grid);
                 this.render();
                 break;
             case 'quit':
@@ -190,7 +171,7 @@ export class Game extends Scene {
     private step(dir: Dir): boolean {
         const result = move(this.state, dir, this.deps);
         if (!result.moved) return false;
-        this.dropStalePops();
+        this.view.dropStalePops(this.state.grid);
         this.playEffects(result);
         this.render();
         if (this.state.over) {
@@ -206,8 +187,7 @@ export class Game extends Scene {
     /** Orientation changed while the Scene is shown: only the placement changes, never the run. */
     private relayout(layout: Layout) {
         this.layout = layout;
-        this.effects.forEach((o) => this.dispose(o));
-        this.popping.clear();
+        this.view.setLayout(layout);
         this.flow.discardPress();
         this.placeUi();
         this.render();
@@ -251,29 +231,9 @@ export class Game extends Scene {
 
     // ---- drawing -----------------------------------------------------------------------------
 
-    private cellOrigin(x: number, y: number): Pt {
-        return { x: this.layout.boardX + x * PARAMS.cellSize, y: this.layout.boardY + y * PARAMS.cellSize };
-    }
-
     private render() {
         const s = this.state;
-        const size = PARAMS.cellSize;
-        const inset = PARAMS.cellInset;
-        const g = this.board.clear();
-        s.grid.forEach((row, y) => row.forEach((cell, x) => {
-            const shown = this.popping.has(`${x},${y}`) ? 0 : cell;
-            const o = this.cellOrigin(x, y);
-            const color = shown === MOVABLE ? COLORS.movable : shown === FIXED ? COLORS.fixed : COLORS.empty;
-            g.fillStyle(color).fillRect(o.x + inset, o.y + inset, size - 2 * inset, size - 2 * inset);
-            if (shown === FIXED) {
-                const c = PARAMS.crossInset;
-                g.lineStyle(PARAMS.crossWidth, COLORS.fixedMark)
-                    .lineBetween(o.x + c, o.y + c, o.x + size - c, o.y + size - c)
-                    .lineBetween(o.x + size - c, o.y + c, o.x + c, o.y + size - c);
-            }
-        }));
-        const p = this.cellOrigin(s.px, s.py);
-        this.playerDot.setPosition(p.x + size / 2, p.y + size / 2);
+        this.view.render(s);
         this.movesText.setText(this.movesLabel());
         this.linesText.setText(`ライン ${s.score}`);
         this.updateTension();
@@ -283,8 +243,6 @@ export class Game extends Scene {
         this.undoButton.label.setAlpha(undoAlpha);
         // Dev build only: a read-only snapshot for the browser QA scripts (scripts/qa); removed from production.
         if (import.meta.env.DEV) {
-            const rows = s.grid.map((row, y) =>
-                row.map((c, x) => (x === s.px && y === s.py ? '@' : '.ox'[c])).join(''));
             Object.assign(window, {
                 __qa: {
                     scene: 'Game',
@@ -292,18 +250,9 @@ export class Game extends Scene {
                     moves: s.moves,
                     score: s.score,
                     orientation: this.layout.orientation,
-                    rows,
+                    rows: qaRows(s),
                 },
             });
-        }
-    }
-
-    /** A pop-in whose block was pushed away (or covered, or undone) must not keep growing on that cell. */
-    private dropStalePops() {
-        for (const k of stalePopKeys(this.popping, this.state.grid)) {
-            const pop = this.popping.get(k);
-            this.popping.delete(k);
-            if (pop) this.dispose(pop.rect);
         }
     }
 
@@ -311,29 +260,9 @@ export class Game extends Scene {
         return `手数 ${this.state.moves}/${PARAMS.maxMoves}`;
     }
 
-    private blockRect(p: KindPt, fill: number, depth: number): GameObjects.Rectangle {
-        const o = this.cellOrigin(p.x, p.y);
-        const size = PARAMS.cellSize - 2 * PARAMS.cellInset;
-        const rect = this.add.rectangle(o.x + PARAMS.cellSize / 2, o.y + PARAMS.cellSize / 2, size, size, fill).setDepth(depth);
-        this.effects.add(rect);
-        return rect;
-    }
-
-    /** An effect finished by itself: forget and destroy its object. */
-    private release(obj: GameObjects.GameObject) {
-        this.effects.delete(obj);
-        obj.destroy();
-    }
-
-    /** An effect cut short (layout change): its tweens must not run their completion handlers either. */
-    private dispose(obj: GameObjects.GameObject) {
-        this.tweens.killTweensOf(obj);
-        this.release(obj);
-    }
-
     /** Where a tap landed: a ring spreading on the walk's target, a red frame on a cell that failed. */
     private playTapMark(cell: Pt, kind: 'walk' | 'fail') {
-        const o = this.cellOrigin(cell.x, cell.y);
+        const o = this.view.cellOrigin(cell.x, cell.y);
         const cx = o.x + PARAMS.cellSize / 2;
         const cy = o.y + PARAMS.cellSize / 2;
         const inner = PARAMS.cellSize - 2 * PARAMS.cellInset;
@@ -341,10 +270,10 @@ export class Game extends Scene {
             ? this.add.circle(cx, cy, PARAMS.cellSize * PARAMS.tapRingRatio).setStrokeStyle(PARAMS.tapRingWidth, COLORS.player)
             : this.add.rectangle(cx, cy, inner, inner).setStrokeStyle(PARAMS.tapFrameWidth, COLORS.alarm);
         mark.setDepth(DEPTH.mark);
-        this.effects.add(mark);
+        this.view.track(mark);
         this.tweens.add({
             targets: mark, alpha: 0, scale: kind === 'walk' ? 2 : 1, duration: PARAMS.tapMarkMs,
-            onComplete: () => this.release(mark),
+            onComplete: () => this.view.release(mark),
         });
     }
 
@@ -360,47 +289,18 @@ export class Game extends Scene {
         const text = addLabel(this, x, startY, `+${amount}`, FONT_SIZE.hud, COLORS.recoveredText)
             .setOrigin(landscape ? 0.5 : 0, 0.5)
             .setDepth(DEPTH.hud);
-        this.effects.add(text);
+        this.view.track(text);
         const top = text.height / 2 + PARAMS.recoveredEdgeMargin;
         const toY = Math.max(startY - PARAMS.recoveredRisePx, top);
         this.tweens.add({
             targets: text, y: toY, alpha: 0, duration: PARAMS.recoveredMs, ease: 'Sine.easeOut',
-            onComplete: () => this.release(text),
+            onComplete: () => this.view.release(text),
         });
     }
 
-    /** Line clear: blocks shrink away. Thinned leftovers: grey blink then fade. Spawns: pop in. */
+    /** The effects of one move: the "+N" of a recovery, and the blocks' clear / thin-out / pop-in. */
     private playEffects(res: MoveResult) {
-        const color = (kind: number) => (kind === FIXED ? COLORS.fixed : COLORS.movable);
         if (res.recovered > 0) this.playRecovered(res.recovered);
-        res.cleared.forEach((p) => {
-            const r = this.blockRect(p, color(p.kind), DEPTH.fx);
-            this.tweens.add({
-                targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
-                onComplete: () => this.release(r),
-            });
-        });
-        res.pruned.forEach((p) => {
-            const r = this.blockRect(p, COLORS.pruned, DEPTH.ghost);
-            this.tweens.add({
-                targets: r, alpha: PARAMS.pruneBlinkAlpha, duration: PARAMS.pruneBlinkMs, yoyo: true, repeat: 1,
-                onComplete: () => {
-                    this.tweens.add({ targets: r, alpha: 0, duration: PARAMS.pruneFadeMs, onComplete: () => this.release(r) });
-                },
-            });
-        });
-        res.spawned.forEach((p) => {
-            const k = `${p.x},${p.y}`;
-            const r = this.blockRect(p, color(p.kind), DEPTH.fx).setScale(0);
-            this.popping.set(k, { rect: r, kind: p.kind });
-            this.tweens.add({
-                targets: r, scale: 1, duration: PARAMS.popMs, delay: PARAMS.popDelayMs,
-                onComplete: () => {
-                    this.release(r);
-                    if (this.popping.get(k)?.rect === r) this.popping.delete(k);
-                    this.dirty = true; // several pop-ins end in the same frame: one redraw in update()
-                },
-            });
-        });
+        this.view.playBlockEffects(res);
     }
 }
