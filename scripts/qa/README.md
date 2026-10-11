@@ -12,7 +12,7 @@ scripts/qa/share.sh <game-dir> [port=5191]              # dev サーバーを Cl
 
 | ファイル | 役割 |
 |---|---|
-| `up.sh` | dev サーバーを `0.0.0.0:<port>` で起動し、自セッションと同じネットワークに Playwright コンテナを立てて `playwright` を入れる。接続先 URL とコンテナの UTC 日付を表示する。`--shared` では、そのゲームを `SHARED_VENDOR=1` でビルドして `output/` と同じ並び（`<repo>/<game>/` と `<repo>/vendor/`）にし、`/<repo>/<game>/` で静的配信する |
+| `up.sh` | dev サーバーを自セッションの Docker IP の `<port>` で起動し（全インターフェースには公開しない）、自セッションと同じネットワークに Playwright コンテナを立てて `playwright` を入れる。接続先 URL とコンテナの UTC 日付を表示する。`--shared` では、そのゲームを `SHARED_VENDOR=1` でビルドして `output/` と同じ並び（`<repo>/<game>/` と `<repo>/vendor/`）にし、`/<repo>/<game>/` で静的配信する |
 | `run.sh` | スクリプトと追加ファイルを `docker cp` で渡して実行し、`/work/shots` の画面を回収する（実行のたびに空にする） |
 | `down.sh` | コンテナの削除とサーバー・トンネルの停止（dev サーバーも `--shared` の静的サーバーも `share.sh` のトンネルも）。残っていればエラーにする |
 | `share.sh` | `cloudflared tunnel --url` で dev サーバーを `https://*.trycloudflare.com` に公開し、URL を最後の行に出す。`<port>` で応答する dev サーバーがあればそれを使い、無ければ `127.0.0.1` で起動する。`cloudflared` が無ければエラーで止まる |
@@ -41,9 +41,18 @@ scripts/qa/down.sh <game-dir> [port]    # 終わったら必ず止める
 - `cloudflared` を事前に入れておく（アカウント不要）。URL は実行のたびに変わる
 - dev サーバーに認証は無く、URL を知る人は誰でも開ける。短時間だけ公開し、URL は見せたい相手にだけ渡す
 - `.trycloudflare.com` の Host を許可するのは、`share.sh` が環境変数 `SHARE_TUNNEL=1` で起動した dev サーバーだけ（`scaffold/vite/config.dev.mjs`）。普通の `npm run dev` で起動済みのサーバーが `<port>` を使っていると、`share.sh` は案内を出して止まる（`down.sh` で止めてから再実行）。他のサービスのドメインを使うときは許可に足す
-- ログは `${TMPDIR:-/tmp}/share-<uid>/`（0700、所有者を確認）に出る
+- ログは状態ディレクトリ（下記）に出る
 - 発行された URL は、出力から数秒おいてから開く。直後に名前を引くと、その環境では 40 秒以上引けない状態が続くことがある（`curl` で即座に確認しない。8 秒待てば 200 になった）
 - ビルド成果物（`--shared`）の公開は対象外。`up.sh --shared` はコンテナ内の QA 用
+
+## 状態ファイルの置き場所
+
+`up.sh` / `run.sh` / `down.sh` / `share.sh` が受け渡す状態（`<game-dir>.env`、サーバーのログ、`--shared` のサイト）は
+`${TMPDIR:-/tmp}/qa-<uid>/` に置く（共通処理は `_state.sh`）。
+
+- 0700 で作成し、シンボリックリンクや他ユーザー所有のディレクトリなら使わずに止まる（予測可能な `/tmp/qa-<game>.env` を他のユーザーに先回りされないため）
+- `.env` は `source` せず、`BASE_URL` / `CONTAINER` / `PORT` だけを検証して読む。書き換えられていても何も実行されない
+- `<game-dir>` は `[A-Za-z0-9._-]`（先頭にドットを付けない）のみ、`port` は数字のみ
 
 ## シナリオを書くときのルール（どれも一度は QA を無駄にした）
 

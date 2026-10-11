@@ -11,14 +11,18 @@
 # Starts the dev server itself (bound to 127.0.0.1: the tunnel connects locally) with SHARE_TUNNEL=1, which is what makes
 # scaffold/vite/config.dev.mjs accept *.trycloudflare.com Host headers. A dev server already answering on <port> is
 # reused only if it accepts them too; otherwise stop it and run this again.
-# Logs go to a private (0700, owner-checked) directory, not to predictable world-writable /tmp paths.
+# Logs go to the private state directory (see scripts/qa/_state.sh), not to predictable world-writable /tmp paths.
 # Prints the public URL on stdout as the last line; progress goes to stderr.
 # Do not look the URL up in the first few seconds: a name resolved right after it is issued can keep failing for
 # 40s+ on that resolver (checked: waiting ~8s first gave 200 every time).
 set -euo pipefail
+# shellcheck source=scripts/qa/_state.sh
+source "$(dirname "$0")/_state.sh"
 
 GAME="${1:?usage: share.sh <game-dir> [port]}"
 PORT="${2:-5191}"
+qa_check_game "$GAME"
+case "$PORT" in "" | *[!0-9]*) echo "invalid port: $PORT" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LOCAL_URL="http://localhost:${PORT}"
@@ -28,15 +32,7 @@ accepts_tunnel_host() {
   [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -H 'Host: probe.trycloudflare.com' "$LOCAL_URL/")" = 200 ]
 }
 
-# Private state directory: created 0700 and refused unless it is a real directory owned by this user, so another
-# local user cannot pre-create the path or point a symlink at a file of ours.
-STATE_DIR="${TMPDIR:-/tmp}/share-$(id -u)"
-[ -e "$STATE_DIR" ] || [ -L "$STATE_DIR" ] || mkdir -m 700 "$STATE_DIR"
-if [ -L "$STATE_DIR" ] || [ ! -d "$STATE_DIR" ] || [ ! -O "$STATE_DIR" ]; then
-  echo "refusing to use ${STATE_DIR}: not a directory owned by you" >&2
-  exit 1
-fi
-chmod 700 "$STATE_DIR"
+STATE_DIR="$(qa_state_dir)"
 SERVER_LOG="${STATE_DIR}/${GAME}-server.log"
 TUNNEL_LOG="${STATE_DIR}/${GAME}-tunnel.log"
 

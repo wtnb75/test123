@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start what a browser QA run needs (AGENTS.md section 9):
-#   1. a server for <game-dir> listening on 0.0.0.0:<port>:
+#   1. a server for <game-dir> listening on <this session's Docker IP>:<port> (not on every interface):
 #        default   the Vite dev server (fast, hot reload)
 #        --shared  the published shape: the game built with SHARED_VENDOR=1 (Phaser left out, loaded through an
 #                  import map from ../vendor/), laid out like output/ (<repo>/<game>/ and <repo>/vendor/) and served
@@ -11,9 +11,12 @@
 # Usage: scripts/qa/up.sh <game-dir> [port=5191] [--shared]
 # Env:   PLAYWRIGHT_TAG (default v1.56.0-noble)
 #
-# Writes /tmp/qa-<game-dir>.env (BASE_URL, CONTAINER, PORT) for run.sh / down.sh.
+# Writes <state dir>/<game-dir>.env (BASE_URL, CONTAINER, PORT) for run.sh / down.sh. The state dir is private
+# (${TMPDIR:-/tmp}/qa-<uid>, 0700); see scripts/qa/_state.sh.
 # Clean up with scripts/qa/down.sh <game-dir> [port].
 set -euo pipefail
+# shellcheck source=scripts/qa/_state.sh
+source "$(dirname "$0")/_state.sh"
 
 SHARED=0
 ARGS=()
@@ -26,10 +29,14 @@ TAG="${PLAYWRIGHT_TAG:-v1.56.0-noble}"
 PW_VERSION="${TAG#v}"
 PW_VERSION="${PW_VERSION%%-*}"
 
+qa_check_game "$GAME"
+case "$PORT" in "" | *[!0-9]*) echo "invalid port: $PORT" >&2; exit 1 ;; esac
+
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CONTAINER="${GAME}-qa"
-ENV_FILE="/tmp/qa-${GAME}.env"
-LOG="/tmp/qa-${GAME}-server.log"
+STATE_DIR="$(qa_state_dir)"
+ENV_FILE="${STATE_DIR}/${GAME}.env"
+LOG="${STATE_DIR}/${GAME}-server.log"
 
 [ -d "$ROOT/$GAME" ] || { echo "no such game directory: $GAME" >&2; exit 1; }
 
@@ -45,7 +52,7 @@ answers() { curl -s -o /dev/null --max-time 2 "$1"; }
 if [ "$SHARED" = 1 ]; then
   # Same layout as `task build`'s output/: <site>/<repo>/<game>/ next to <site>/<repo>/vendor/, served under /<repo>/.
   REPO="$(basename "$(git -C "$ROOT" remote get-url origin 2>/dev/null || echo site)" .git)"
-  SITE="$(mktemp -d "/tmp/qa-site-${GAME}-XXXXXX")"
+  SITE="$(mktemp -d "${STATE_DIR}/site-${GAME}-XXXXXX")"
   (cd "$ROOT/$GAME" && SHARED_VENDOR=1 npm run build >"$LOG" 2>&1) || { echo "shared build failed; see $LOG" >&2; exit 1; }
   mkdir -p "$SITE/$REPO/$GAME"
   rsync -a "$ROOT/$GAME/dist-shared/" "$SITE/$REPO/$GAME/"
@@ -55,13 +62,13 @@ if [ "$SHARED" = 1 ]; then
     echo "something already answers on port ${PORT}; run down.sh first" >&2
     exit 1
   fi
-  (cd "$SITE" && exec nohup python3 -m http.server "$PORT" --bind 0.0.0.0 >"$LOG" 2>&1 </dev/null) &
+  (cd "$SITE" && exec nohup python3 -m http.server "$PORT" --bind "$IP" >"$LOG" 2>&1 </dev/null) &
 else
   if answers "$BASE_URL/"; then
     echo "dev server already answers on port ${PORT}"
   else
     # exec + redirects: the backgrounded subshell must not keep this script's stdout (a pipe) open
-    (cd "$ROOT/$GAME" && exec nohup npm run dev -- --port "$PORT" --host 0.0.0.0 >"$LOG" 2>&1 </dev/null) &
+    (cd "$ROOT/$GAME" && exec nohup npm run dev -- --port "$PORT" --host "$IP" >"$LOG" 2>&1 </dev/null) &
   fi
 fi
 for _ in $(seq 1 30); do
