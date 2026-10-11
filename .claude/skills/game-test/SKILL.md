@@ -122,6 +122,13 @@ worth it, a trivial helper is not.
   exit or a prune) or that no valid input can reach are equivalent — say so
   rather than chasing them. Survivors are often gaps in the tests, not just
   in the code: read each one.
+  The throwaway script must bound each mutant: run the tests of one
+  mutant with a hard time limit (e.g. `timeout 60`, or vitest
+  `--testTimeout` plus a process kill) and count a timeout as "killed
+  (hung)" — a mutant that makes a loop endless is a finding about the
+  code, not a reason to wait. Print one line per mutant as it finishes
+  (`n/N <name> killed|survived|timeout`) so a silent run can be told
+  from a hung one, and say in the reply how many remain when starting it.
 - **When an oracle test fails, find out who is wrong.** It is either a bug
   in the implementation or a wrong assumption in the oracle. Check what the
   code is documented or intended to guarantee before deciding — don't bend

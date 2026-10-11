@@ -59,6 +59,10 @@ Ask one question at a time.
    - how it affects the core loop: does it deepen the existing loop or
      widen it with something beside it?
    - controls added or changed (or explicitly none);
+   - when the addition goes onto an existing Scene: how many px of the
+     canvas height the new element gets after the existing elements keep
+     their places, and what existing text/elements may be removed or
+     moved to make room — show it as a to-scale sketch (px), not ratios;
    - the direction for looks and for initial numbers (game-spec fills in
      the パラメータ表; game-balance tunes it later).
 4. **Classify it**: *presentation-only* (effects, UI, result screens —

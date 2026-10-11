@@ -63,6 +63,10 @@ hand-picking hunks; go back and create the branch that skill should have
 created, from `origin/main` (`git fetch origin && git checkout -b <branch>
 origin/main`), then return here.
 
+If the PR title/body has to change after it is open, use
+`gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F title=... -F body=@<file>`.
+`gh pr edit` fails in this repo with a Projects (classic) GraphQL error.
+
 ### Order of the steps (the status key is part of the PR)
 
 `status_publish` lives in `<game-dir>/docs/spec.md`, which is part of this

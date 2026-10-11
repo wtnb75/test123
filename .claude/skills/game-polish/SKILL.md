@@ -111,6 +111,13 @@ answers are the evidence) and let `game-publish` run without asking its
 confirmation again. If they want changes to the look, stay here and loop as
 usual; if they want tuning, hand over to `game-balance`.
 
+If a manual check of this revision was already requested (e.g. a
+`share.sh` URL from `game-impl`), put the three questions (look / feel
+unchanged and no rule or number changed / PR may be pushed) in that same
+message, and treat the answer as covering only what was asked. If it
+covered the look only, ask the other two before marking balance and
+publish done.
+
 ## Coming back after an unrelated revision
 
 A `game-balance` or bug-fix revision resets this stage too. If nothing
