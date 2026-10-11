@@ -40,7 +40,9 @@ scripts/qa/down.sh <game-dir> [port]    # 終わったら必ず止める
 
 - `cloudflared` を事前に入れておく（アカウント不要）。URL は実行のたびに変わる
 - dev サーバーに認証は無く、URL を知る人は誰でも開ける。短時間だけ公開し、URL は見せたい相手にだけ渡す
-- 許可ホストは `scaffold/vite/config.dev.mjs` の `server.allowedHosts`（`.trycloudflare.com`）。他のサービスのドメインを使うときはそこに足す
+- `.trycloudflare.com` の Host を許可するのは、`share.sh` が環境変数 `SHARE_TUNNEL=1` で起動した dev サーバーだけ（`scaffold/vite/config.dev.mjs`）。普通の `npm run dev` で起動済みのサーバーが `<port>` を使っていると、`share.sh` は案内を出して止まる（`down.sh` で止めてから再実行）。他のサービスのドメインを使うときは許可に足す
+- ログは `${TMPDIR:-/tmp}/share-<uid>/`（0700、所有者を確認）に出る
+- 発行された URL は、出力から数秒おいてから開く。直後に名前を引くと、その環境では 40 秒以上引けない状態が続くことがある（`curl` で即座に確認しない。8 秒待てば 200 になった）
 - ビルド成果物（`--shared`）の公開は対象外。`up.sh --shared` はコンテナ内の QA 用
 
 ## シナリオを書くときのルール（どれも一度は QA を無駄にした）
