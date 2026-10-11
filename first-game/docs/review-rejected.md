@@ -15,3 +15,11 @@
 - `src/game/core/flow.ts`（`restartKeyAction` が修飾キー単独でも NEW GAME にする）— 理由: spec が「修飾キーだけを含む他のキーは NEW GAME」と決めている（元の挙動）
 - `src/game/core/highScore.ts`（書き込み失敗後、同じスコアでは再書き込みされない）— 理由: spec の規則どおり（「スコア > ハイスコア（セッション最大を含む）」のときだけ書く）。保存が壊れている環境の例外的なケース
 - `src/game/scenes/Game.ts`（`applyResult` の先頭の `flow.playing` の戻りが結果を黙って捨てる）— 理由: すべての呼び出し元が先に `flow.playing` を確認していて、先頭の戻りは念のための防御
+- `src/game/core/demoBot.ts`（`planDemo` が毎手 `analyzeCurrentState` を全計算する）— 理由: 実測で `planDemo` は最大 6 ms（ステージ 3、最大 66 手）。分析の使い回しは spec で実装裁量だが、複雑さに見合わない
+- `src/game/scenes/Title.ts`（`resize` で同期のステージ 1 の生成が走る）— 理由: 実測で生成は最大 3 ms。時間上限（1500 ms）に届くのは大きいステージだけ
+- `src/game/scenes/Title.ts`（`resize` のたびの再描画にデバウンスが要る）— 理由: サイズ・位置・ステージが同じなら再描画しない。残る再描画は配置が変わるときだけで、盤面は最大約 100 マス
+- `src/game/core/titleDemo.ts`（`generateStage` の実時間の上限で再現性が崩れる恐れ）— 理由: ステージ 1〜3 の生成は数 ms で上限に届かない。再現性のテストはシード付き
+- `src/game/scenes/Title.ts`（`drawnKey` が手組みの文字列で、`force` の真偽値が壊れやすい）— 理由: 再描画の条件（ステージ番号・幅・原点・セル）を全て含み、盤面は正方形。リセットは create・非表示・描画の 3 点で足りている
+- `src/game/core/title.ts`（高さ約 120 px 未満で名前とボタンが重なる）— 理由: spec が保証するのは高さ 320 px 以上
+- `src/game/core/titleDemo.test.ts`（「生成に影響しない」テストは落ちようがない）— 理由: spec のテスト観点に明記された回帰条件。将来モジュール内の状態を持ち込んだときの安全網
+- `src/game/core/demoBot.ts`（ミューテーション: 隣接の並べ替え・開示済みの爆弾の歩行判定・`invalid` の判定が生き残る）— 理由: 等価（`neighbors8` が既にインデックス順。開示済みの爆弾は死亡後だけ。`movePlayer` は `invalid` を返さない）
