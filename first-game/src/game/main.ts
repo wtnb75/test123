@@ -1,4 +1,5 @@
 import { Game as MainGame } from './scenes/Game';
+import { Title } from './scenes/Title';
 import { AUTO, Game, Scale } from 'phaser';
 
 const GAME_WIDTH = 1024;
@@ -17,6 +18,7 @@ const config: Phaser.Types.Core.GameConfig = {
         autoCenter: Scale.CENTER_BOTH
     },
     scene: [
+        Title,
         MainGame
     ]
 };
