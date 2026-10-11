@@ -34,7 +34,10 @@ describe('solver', () => {
 
     const result = analyzeSolvability(stage);
 
-    expect(result.decidedBombs).toBeLessThanOrEqual(2);
+    // After (0,0) opens its zero chain, the hints at (1,0), (0,1) and (1,1) each leave two candidates, so
+    // no bomb can be decided: the board is not solvable by logic alone.
+    expect(result.solvable).toBe(false);
+    expect(result.decidedBombs).toBe(0);
   });
 });
 
