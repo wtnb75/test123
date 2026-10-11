@@ -1,3 +1,15 @@
+---
+status_idea: done
+status_init: done
+status_spec: done
+status_impl: done
+status_test: done
+status_check: done
+status_qa: done
+status_balance: done
+status_publish: done
+---
+
 # ゲーム仕様: Calc Rush (仮)
 
 ## ゲーム名（仮称可）
