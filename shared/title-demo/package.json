@@ -1,0 +1,28 @@
+{
+  "name": "title-demo",
+  "description": "Game-independent flow of the auto-play demo shown behind a Title screen (phases, waits, fades) and the start gate.",
+  "version": "0.1.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}
