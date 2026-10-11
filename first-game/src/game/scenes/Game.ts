@@ -6,6 +6,9 @@ import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
+import { PressTracker, StageFlow, restartKeyAction } from '../core/flow';
+import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
+import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 
 const CELL_SIZE = 30;
 const BOARD_ORIGIN_X = 20;
@@ -15,6 +18,11 @@ const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const HIGHSCORE_KEY = 'minefield-rogue-highscore';
 const START_STAGE_KEY = 'minefield-rogue-start-stage';
+const DEATH_DELAY_MS = 600;
+const CLEAR_DELAY_MS = 250;
+
+// Best score of this page's session: lives outside the Scene so NEW GAME / RETRY keep it.
+const sessionBest = createSessionBest();
 
 type JoystickState = {
     active: boolean;
@@ -73,7 +81,9 @@ export class Game extends Scene
     cameraBoundsWidth = 0;
     cameraBoundsHeight = 0;
     inputLockUntil = 0;
-    isEnding = false;
+    flow = new StageFlow();
+    presses = new PressTracker();
+    store = browserStore();
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
     virtualControlLayer?: Phaser.GameObjects.Container;
     joystickBase?: Phaser.GameObjects.Ellipse;
@@ -92,7 +102,6 @@ export class Game extends Scene
     flagMode = false;
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
-    awaitingRestart = false;
     retryBg?: Phaser.GameObjects.Rectangle;
     retryLabel?: Phaser.GameObjects.Text;
     newGameBg?: Phaser.GameObjects.Rectangle;
@@ -129,7 +138,7 @@ export class Game extends Scene
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
 
-        this.startStage(this.resolveInitialStageNo());
+        this.startFirstStage();
         this.createVirtualControls();
 
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
@@ -138,7 +147,7 @@ export class Game extends Scene
         this.input.on('pointerup', this.onPointerUp, this);
         this.scale.on('resize', this.onResize, this);
 
-        this.events.on('shutdown', () => {
+        this.events.once('shutdown', () => {
             this.input.keyboard?.off('keydown', this.onKeyDown, this);
             this.input.off('pointerdown', this.onPointerDown, this);
             this.input.off('pointermove', this.onPointerMove, this);
@@ -169,6 +178,8 @@ export class Game extends Scene
 
     private startStage (stageNo: number): void
     {
+        this.flow.reset();
+        this.presses.clear();
         this.gameOverLogical = undefined;
         this.stageData = generateStage(stageNo);
         this.renderBoard();
@@ -176,20 +187,17 @@ export class Game extends Scene
         this.centerCameraOnPlayer(true);
     }
 
-    private resolveInitialStageNo (): number
+    private startFirstStage (): void
     {
-        const fromQuery = Number.parseInt(new URLSearchParams(window.location.search).get('stage') ?? '', 10);
-        if (Number.isFinite(fromQuery) && fromQuery >= 1) {
-            localStorage.setItem(START_STAGE_KEY, String(fromQuery));
-            return fromQuery;
+        const start = resolveStartStage(
+            new URLSearchParams(window.location.search).get('stage'),
+            safeGetItem(this.store, START_STAGE_KEY)
+        );
+        this.startStage(start.stage);
+        // Saved only once the stage has started, so an oversized value can never block later launches.
+        if (start.fromQuery) {
+            safeSetItem(this.store, START_STAGE_KEY, String(start.stage));
         }
-
-        const fromStorage = Number.parseInt(localStorage.getItem(START_STAGE_KEY) ?? '', 10);
-        if (Number.isFinite(fromStorage) && fromStorage >= 1) {
-            return fromStorage;
-        }
-
-        return 1;
     }
 
     private renderBoard (): void
@@ -539,25 +547,22 @@ export class Game extends Scene
 
     private promptAndStartStage (): void
     {
-        const current = this.stageData?.stageNo ?? 1;
-        const text = window.prompt('Start stage number (1-999)', String(current));
-        if (text == null) {
+        const current = Math.min(this.stageData?.stageNo ?? 1, STAGE_MAX);
+        const answer = parseStagePrompt(window.prompt(`Start stage number (1-${STAGE_MAX})`, String(current)));
+        if (answer.kind === 'cancel') {
+            return;
+        }
+        if (answer.kind === 'invalid') {
+            this.refreshHud(`Invalid stage (1-${STAGE_MAX})`);
             return;
         }
 
-        const selected = Number.parseInt(text.trim(), 10);
-        if (!Number.isFinite(selected) || selected < 1 || selected > 999) {
-            this.refreshHud('Invalid stage (1-999)');
-            return;
-        }
-
-        localStorage.setItem(START_STAGE_KEY, String(selected));
+        const selected = answer.stage;
         this.hideRestartButtons();
-        this.awaitingRestart = false;
-        this.isEnding = false;
-        this.cancelJoystickRepeat();
+        this.discardPointerState();
         this.time.removeAllEvents();
         this.startStage(selected);
+        safeSetItem(this.store, START_STAGE_KEY, String(selected));
         this.refreshHud(`Jumped to stage ${selected}`);
     }
 
@@ -592,6 +597,10 @@ export class Game extends Scene
                     delay: JOYSTICK_REPEAT_DELAY,
                     callback: () => {
                         this.fireJoystickDirection();
+                        if (!this.joystickCurrentDir || !this.flow.playing) {
+                            // The first repeat step ended the stage (death / goal) and released the pad.
+                            return;
+                        }
                         this.joystickRepeatEvent = this.time.addEvent({
                             delay: JOYSTICK_REPEAT_INTERVAL,
                             callback: this.fireJoystickDirection,
@@ -610,7 +619,7 @@ export class Game extends Scene
 
     private fireJoystickDirection (): void
     {
-        if (!this.joystickCurrentDir || this.isEnding) {
+        if (!this.joystickCurrentDir || !this.flow.playing) {
             return;
         }
         this.joystickHasFired = true;
@@ -621,6 +630,14 @@ export class Game extends Scene
     {
         this.joystickRepeatEvent?.remove(false);
         this.joystickRepeatEvent = undefined;
+    }
+
+    /** Death, goal and the STAGE jump: forget every press and the pad, so nothing acts on a later release. */
+    private discardPointerState (): void
+    {
+        this.presses.clear();
+        this.resetJoystickThumb();
+        this.dragState.active = false;
     }
 
     private resetJoystickThumb (): void
@@ -636,7 +653,7 @@ export class Game extends Scene
 
     private resolveJoystick (upX: number, upY: number): void
     {
-        if (this.isEnding || this.time.now < this.inputLockUntil) {
+        if (!this.flow.playing || this.time.now < this.inputLockUntil) {
             return;
         }
 
@@ -732,11 +749,26 @@ export class Game extends Scene
     private refreshHud (message: string): void
     {
         const score = this.stageData.stageNo - 1;
-        const highscore = Number(localStorage.getItem(HIGHSCORE_KEY) ?? '0');
+        const highscore = currentHighScore(this.store, HIGHSCORE_KEY, sessionBest);
         this.hudText.setText(`Stage ${this.stageData.stageNo}  Score ${score}  High ${highscore}`);
         this.hintText.setText(
             `${message} | Move: arrows/QWEA-XZDC/numpad  Flag: Shift+dir  Chord: S/Num5  Mobile: virtual pad`
         );
+
+        if (import.meta.env.DEV) {
+            // QA only: a read-only view of the state (never part of the production bundle).
+            const flow = this.flow;
+            const stage = this.stageData;
+            (window as unknown as { __qa?: unknown }).__qa = {
+                get phase () { return flow.phase; },
+                stage: stage.stageNo,
+                width: stage.width,
+                height: stage.height,
+                player: { x: stage.player.x, y: stage.player.y },
+                goal: { x: stage.goal.x, y: stage.goal.y },
+                bombs: stage.cells.map((cell) => cell.hasBomb)
+            };
+        }
     }
 
     private revealAllBombs (): void
@@ -833,13 +865,15 @@ export class Game extends Scene
 
     private onKeyDown (event: KeyboardEvent): void
     {
-        if (this.awaitingRestart) {
-            const retry = event.code === 'KeyR';
-            this.doRestart(retry);
+        if (this.flow.awaitingRestart) {
+            const action = restartKeyAction(event.code, event.repeat);
+            if (action !== 'none') {
+                this.doRestart(action === 'retry');
+            }
             return;
         }
 
-        if (this.isEnding) {
+        if (!this.flow.playing) {
             return;
         }
 
@@ -957,17 +991,21 @@ export class Game extends Scene
         changedCellIndices?: number[]
     ): void
     {
+        if (!this.flow.playing) {
+            return;
+        }
+
         const prevStage = this.stageData;
         const hasVisibleChange = this.hasVisibleStageChange(prevStage, nextStage, changedCellIndices);
         const useDiffRender = status === 'alive' && hasVisibleChange && this.canDiffRender(prevStage, nextStage);
         this.stageData = nextStage;
 
-        if (status !== 'alive') {
+        if (status === 'goal') {
             this.renderBoard();
-        } else if (useDiffRender) {
+        } else if (status === 'alive' && useDiffRender) {
             const changedIndices = changedCellIndices ?? this.collectChangedCellIndices(prevStage, nextStage);
             this.renderChangedCells(changedIndices);
-        } else if (hasVisibleChange) {
+        } else if (status === 'alive' && hasVisibleChange) {
             this.renderBoard();
         } else {
             this.updatePlayerMarkerPosition();
@@ -978,28 +1016,28 @@ export class Game extends Scene
         this.centerCameraOnPlayer();
 
         if (status === 'dead') {
-            this.isEnding = true;
+            this.flow.die();
+            this.discardPointerState();
             this.gameOverStageNo = this.stageData.stageNo;
-            const score = this.stageData.stageNo - 1;
-            const currentHigh = Number(localStorage.getItem(HIGHSCORE_KEY) ?? '0');
-            if (score > currentHigh) {
-                localStorage.setItem(HIGHSCORE_KEY, String(score));
-            }
+            recordScore(this.store, HIGHSCORE_KEY, sessionBest, this.stageData.stageNo - 1);
             this.gameOverLogical = analyzeCurrentState(this.stageData);
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer(true);
             this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / 他のキーかボタンで新ゲーム');
-            this.time.delayedCall(600, () => {
-                this.awaitingRestart = true;
-                this.showRestartButtons();
+            this.time.delayedCall(DEATH_DELAY_MS, () => {
+                if (this.flow.showRestart()) {
+                    this.showRestartButtons();
+                }
             });
             return;
         }
 
         if (status === 'goal') {
+            this.flow.reachGoal();
+            this.discardPointerState();
             this.refreshHud('Stage clear');
-            this.time.delayedCall(250, () => this.startStage(this.stageData.stageNo + 1));
+            this.time.delayedCall(CLEAR_DELAY_MS, () => this.startStage(this.stageData.stageNo + 1));
             return;
         }
 
@@ -1048,9 +1086,10 @@ export class Game extends Scene
 
     private doRestart (retryStage: boolean): void
     {
+        if (!this.flow.beginRestart()) {
+            return;
+        }
         this.hideRestartButtons();
-        this.awaitingRestart = false;
-        this.isEnding = false;
         if (retryStage) {
             this.startStage(this.gameOverStageNo);
         } else {
@@ -1061,16 +1100,24 @@ export class Game extends Scene
     private onPointerDown (pointer: Phaser.Input.Pointer): void
     {
         if (this.stageSelectHitArea && Phaser.Geom.Rectangle.Contains(this.stageSelectHitArea, pointer.x, pointer.y)) {
+            this.presses.begin(pointer.id, 'button');
             this.promptAndStartStage();
             return;
         }
 
-        if (this.isEnding) {
+        if (this.flow.awaitingRestart) {
+            // Only a press that starts after the buttons appeared can pick one.
+            this.presses.begin(pointer.id, 'restart');
+            return;
+        }
+
+        if (!this.flow.playing) {
             return;
         }
 
         // FLAG button
         if (this.flagHitArea && Phaser.Geom.Circle.Contains(this.flagHitArea, pointer.x, pointer.y)) {
+            this.presses.begin(pointer.id, 'button');
             this.flagMode = !this.flagMode;
             this.updateFlagButtonVisual();
             this.refreshHud(this.flagMode ? 'Flag mode ON' : 'Flag mode OFF');
@@ -1079,6 +1126,7 @@ export class Game extends Scene
 
         // Joystick area
         if (this.joystickHitArea && Phaser.Geom.Circle.Contains(this.joystickHitArea, pointer.x, pointer.y)) {
+            this.presses.begin(pointer.id, 'pad');
             this.joystickState = {
                 active: true,
                 pointerId: pointer.id,
@@ -1089,6 +1137,7 @@ export class Game extends Scene
             return;
         }
 
+        this.presses.begin(pointer.id, 'board');
         this.dragState = {
             active: false,
             startX: pointer.x,
@@ -1100,7 +1149,7 @@ export class Game extends Scene
 
     private onPointerMove (pointer: Phaser.Input.Pointer): void
     {
-        if (this.isEnding) {
+        if (!this.flow.playing) {
             return;
         }
 
@@ -1112,7 +1161,8 @@ export class Game extends Scene
             return;
         }
 
-        if (!pointer.isDown) {
+        // Only a press accepted on the board may scroll (a finger held across a death / goal / jump may not).
+        if (!pointer.isDown || !this.presses.holds(pointer.id, 'board')) {
             return;
         }
 
@@ -1129,6 +1179,7 @@ export class Game extends Scene
             const dy = pointer.y - this.dragState.lastY;
             this.camera.scrollX -= dx;
             this.camera.scrollY -= dy;
+            this.updateGoalArrow();
         }
 
         this.dragState.lastX = pointer.x;
@@ -1137,7 +1188,28 @@ export class Game extends Scene
 
     private onPointerUp (pointer: Phaser.Input.Pointer): void
     {
-        if (this.awaitingRestart) {
+        if (pointer.wasCanceled) {
+            // A touch the system cancelled never acts: drop what it started.
+            const ownsDrag = this.presses.holds(pointer.id, 'board');
+            this.presses.cancel(pointer.id);
+            if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
+                this.resetJoystickThumb();
+            }
+            if (ownsDrag) {
+                this.dragState.active = false;
+            }
+            return;
+        }
+
+        const press = this.presses.end(pointer.id);
+        if (press === null) {
+            return;
+        }
+
+        if (press === 'restart') {
+            if (!this.flow.awaitingRestart) {
+                return;
+            }
             // Check if tap is on RETRY or NEW GAME button (both use origin 0.5,0.5)
             const retryHit = this.retryBg &&
                 Math.abs(pointer.x - this.retryBg.x) <= this.retryBg.width / 2 &&
@@ -1149,14 +1221,16 @@ export class Game extends Scene
             return;
         }
 
-        if (this.isEnding) {
+        if (!this.flow.playing) {
             return;
         }
 
         // Resolve joystick
-        if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
-            this.resolveJoystick(pointer.x, pointer.y);
-            this.resetJoystickThumb();
+        if (press === 'pad') {
+            if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
+                this.resolveJoystick(pointer.x, pointer.y);
+                this.resetJoystickThumb();
+            }
             return;
         }
 
