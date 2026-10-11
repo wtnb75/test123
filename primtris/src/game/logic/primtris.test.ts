@@ -5,6 +5,7 @@ import {
     createDistributionState,
     createEmptyBoxes,
     createQueue,
+    formatBoxDigits,
     generateNumber,
     getBoxOrder,
     getValidBoxes,
@@ -12,6 +13,7 @@ import {
     isCorrectPlacement,
     resolvePlacement,
     splitDigits,
+    stackDigits,
     type Difficulty
 } from './primtris';
 
@@ -300,5 +302,28 @@ describe('resolvePlacement', () => {
 
         expect(resolvePlacement(11, 'P', boxes, 12).scoreDelta).toBe(1);
         expect(resolvePlacement(14, 'x3', boxes, 12).scoreDelta).toBe(1);
+    });
+});
+
+describe('stackDigits', () => {
+    it('puts one digit on each line', () => {
+        expect(stackDigits(84)).toBe('8\n4');
+        expect(stackDigits(1284)).toBe('1\n2\n8\n4');
+    });
+});
+
+describe('formatBoxDigits', () => {
+    it('shows -- for an empty box', () => {
+        expect(formatBoxDigits([])).toBe('--');
+    });
+
+    it('puts 5 digits on a line', () => {
+        expect(formatBoxDigits([1, 2, 3])).toBe('123');
+        expect(formatBoxDigits([1, 2, 3, 4, 5, 6])).toBe('12345\n6');
+    });
+
+    it('keeps only the last 3 lines', () => {
+        const digits = Array.from({ length: 17 }, (_, index) => (index + 1) % 10);
+        expect(formatBoxDigits(digits)).toBe('67890\n12345\n67');
     });
 });

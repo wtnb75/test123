@@ -10,6 +10,9 @@ export const getBoxOrder = (digitCount: number): BoxKey[] => {
     return [...BOX_ORDER];
 };
 
+/** The box capacity `Game` plays with (every digit count). */
+export const DEFAULT_BOX_CAPACITY = 12;
+
 export interface Difficulty {
     digitCount: number;
     boxCapacity: number;
@@ -56,6 +59,11 @@ export const createDistributionState = (): DistributionState => ({
 
 export const splitDigits = (value: number): number[] => {
     return String(value).split('').map((digit) => Number(digit));
+};
+
+/** A number with one digit per line (how a falling number is shown). */
+export const stackDigits = (value: number): string => {
+    return String(value).split('').join('\n');
 };
 
 export const isPrime = (value: number): boolean => {
@@ -310,4 +318,22 @@ export const resolvePlacement = (
         gameOver: nextBoxes[box].length > boxCapacity,
         isCorrect: false
     };
+};
+
+const BOX_DIGITS_PER_LINE = 5;
+const BOX_MAX_LINES = 3;
+
+/** The residual digits of a box as shown: 5 digits per line, the last 3 lines; `--` when empty. */
+export const formatBoxDigits = (digits: number[]): string => {
+    if (digits.length === 0) {
+        return '--';
+    }
+
+    const rows: string[] = [];
+
+    for (let index = 0; index < digits.length; index += BOX_DIGITS_PER_LINE) {
+        rows.push(digits.slice(index, index + BOX_DIGITS_PER_LINE).join(''));
+    }
+
+    return rows.slice(-BOX_MAX_LINES).join('\n');
 };
