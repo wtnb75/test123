@@ -81,6 +81,11 @@ Rules for the code (deliberately lighter than `game-impl`):
    guessing it works. (An optional headless screenshot via the AGENTS.md
    section 9 procedure is fine for "does it start", never for "is it
    fun".)
+   If they want to play on another device (a phone, another machine),
+   offer `scripts/qa/share.sh <game-dir> <PORT>` (AGENTS.md section 9.1)
+   and run it only when they say yes — it makes the dev server public
+   through a Cloudflare Quick Tunnel. Stop it with `scripts/qa/down.sh`
+   when the playtest is over.
 2. Ask once, open-ended: play it and tell me what felt wrong, boring or
    unclear — and what felt good, so it isn't tuned away. Don't pre-load
    a questionnaire.

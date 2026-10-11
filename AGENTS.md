@@ -176,6 +176,12 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 	5. Phaser などキャンバス描画のゲームは結果を DOM から読めないため、`page.screenshot()` で撮ったスクリーンショットを `docker cp` で取り出し、目視で確認する（クリア／ゲームオーバー等の判定も同様）
 	6. 確認が終わったら QA 用コンテナ（`docker rm -f <name>`）と dev サーバープロセスを必ず後片付けする
 
+### 9.1 別の端末（スマホ等）から遊んで確認する
+
+- ユーザーが別のマシンやスマートフォンで dev サーバーの動作を見たいときは、`scripts/qa/share.sh <game-dir> [port]` で Cloudflare Quick Tunnel を張る（`cloudflared` が必要。アカウント・設定は不要で、実行のたびにランダムな `https://*.trycloudflare.com` の URL が払い出される）
+- dev サーバーに認証は無い。URL を知っていれば誰でも開けるため、エージェントが自動で公開せず、ユーザーが望んだときだけ実行して URL を渡す。確認が終わったら `scripts/qa/down.sh <game-dir> [port]` でトンネルと dev サーバーを止める
+- `.trycloudflare.com` の Host を許可するのは、`share.sh` が起動した dev サーバー（環境変数 `SHARE_TUNNEL=1`。`scaffold/vite/config.dev.mjs` の `server.allowedHosts`）だけ。普通の `npm run dev` で起動済みのサーバーには許可が入っていないので、`share.sh` は止めて再実行するよう案内して終了する。他のトンネルサービスを使う場合は、そのドメインを許可に足す必要がある
+
 ## 10. 開発ワークフロー（Claude Code スキル）
 
 Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/skills/game-*` と
