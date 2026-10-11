@@ -79,4 +79,10 @@ export const PARAMS = {
     tapRingRatio: 0.2,
     tapRingWidth: 4,
     tapFrameWidth: 6,
+
+    // title demo (docs/spec.md "Title" > "デモ")
+    demoStepMs: 220,
+    demoWaitMs: 500,
+    demoLines: 4,
+    demoFadeMs: 300,
 } as const;

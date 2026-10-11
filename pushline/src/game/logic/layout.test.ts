@@ -177,4 +177,29 @@ describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE
         expect(inRect(canvas, l.titleName.x, l.titleName.y)).toBe(true);
         expect(inRect(canvas, l.resultLines.x, l.resultLines.y)).toBe(true);
     });
+
+    // A generous box for the 8-letter name: 0.65 em per letter, one em high.
+    const nameBox = (): Rect => {
+        const w = 8 * 0.65 * l.titleFontPx;
+        return { x: l.titleName.x - w / 2, y: l.titleName.y - l.titleFontPx / 2, w, h: l.titleFontPx };
+    };
+
+    it('puts the Title demo board where the Game board is (same boardX / boardY)', () => {
+        // The Title draws its demo on the layout's board position, which Game also uses.
+        expect([l.boardX, l.boardY]).toEqual(l.orientation === 'portrait' ? [40, 110] : [280, 60]);
+    });
+
+    it('keeps the Title name and Start button inside the canvas and off the demo board', () => {
+        expect(inside(nameBox())).toBe(true);
+        expect(inside(l.titleButton)).toBe(true);
+        expect(overlap(nameBox(), board)).toBe(false);
+        expect(overlap(l.titleButton, board)).toBe(false);
+        expect(overlap(nameBox(), l.titleButton)).toBe(false);
+    });
+
+    it('places the Start button as specified: below the board (portrait), in the right margin (landscape)', () => {
+        const centre = { x: l.titleButton.x + l.titleButton.w / 2, y: l.titleButton.y + l.titleButton.h / 2 };
+        expect(centre).toEqual(l.orientation === 'portrait' ? { x: 240, y: 690 } : { x: 820, y: 300 });
+        expect(l.titleName).toEqual(l.orientation === 'portrait' ? { x: 240, y: 60 } : { x: 140, y: 300 });
+    });
 });

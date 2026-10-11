@@ -24,6 +24,8 @@ export interface Layout {
     undoButton: Rect;
     quitButton: Rect;
     titleName: Pt;
+    /** Font size of the game name: the landscape side margin is narrower than the portrait width. */
+    titleFontPx: number;
     titleButton: Rect;
     resultLines: Pt;
     resultRetry: Rect;
@@ -51,8 +53,10 @@ export const PORTRAIT: Layout = {
     hudLines: { x: 440, y: 40, originX: 1 },
     undoButton: button(130, 700),
     quitButton: button(350, 700),
-    titleName: { x: 240, y: 280 },
-    titleButton: button(240, 480),
+    // Above and below the demo board, which sits where the Game board does.
+    titleName: { x: 240, y: 60 },
+    titleFontPx: 72,
+    titleButton: button(240, 690),
     resultLines: { x: 240, y: 260 },
     resultRetry: button(240, 480),
     resultToTitle: button(240, 600),
@@ -68,8 +72,10 @@ export const LANDSCAPE: Layout = {
     hudLines: { x: 140, y: 280, originX: 0.5 },
     undoButton: button(820, 220),
     quitButton: button(820, 340),
-    titleName: { x: 480, y: 190 },
-    titleButton: button(480, 380),
+    // In the left and right margins of the demo board.
+    titleName: { x: 140, y: 300 },
+    titleFontPx: 48,
+    titleButton: button(820, 300),
     resultLines: { x: 480, y: 150 },
     resultRetry: button(480, 330),
     resultToTitle: button(480, 440),
