@@ -7,16 +7,18 @@
 # screenshots to /work/shots (lib's `shot`). Extra files (e.g. a JSON with answer positions) land in /work.
 # /work/shots is emptied first, so each run only returns its own screenshots.
 set -euo pipefail
+# shellcheck source=scripts/qa/_state.sh
+source "$(dirname "$0")/_state.sh"
 
 GAME="${1:?usage: run.sh <game-dir> <script.mjs> <out-dir> [extra files...]}"
 SCRIPT="${2:?script.mjs missing}"
 OUT="${3:?out-dir missing}"
 shift 3
 
-ENV_FILE="/tmp/qa-${GAME}.env"
+qa_check_game "$GAME"
+ENV_FILE="$(qa_state_dir)/${GAME}.env"
 [ -f "$ENV_FILE" ] || { echo "run scripts/qa/up.sh ${GAME} first" >&2; exit 1; }
-# shellcheck disable=SC1090
-source "$ENV_FILE"
+qa_load_env "$ENV_FILE" || { echo "run scripts/qa/up.sh ${GAME} again" >&2; exit 1; }
 
 docker exec "$CONTAINER" bash -c 'rm -rf /work/shots && mkdir -p /work/shots'
 docker cp "$SCRIPT" "${CONTAINER}:/work/$(basename "$SCRIPT")"

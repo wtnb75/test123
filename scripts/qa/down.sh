@@ -5,16 +5,22 @@
 #
 # Usage: scripts/qa/down.sh <game-dir> [port]   (port defaults to the one recorded by up.sh, else 5191)
 set -euo pipefail
+# shellcheck source=scripts/qa/_state.sh
+source "$(dirname "$0")/_state.sh"
 
 GAME="${1:?usage: down.sh <game-dir> [port]}"
-ENV_FILE="/tmp/qa-${GAME}.env"
-PORT="${2:-}"
+qa_check_game "$GAME"
+ARG_PORT="${2:-}"
+ENV_FILE="$(qa_state_dir)/${GAME}.env"
 CONTAINER="${GAME}-qa"
+PORT=""
+# best effort: cleanup must go on even when the env file is missing or unreadable
 if [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
+  qa_load_env "$ENV_FILE" || true
 fi
-PORT="${PORT:-5191}"
+PORT="${ARG_PORT:-${PORT:-5191}}"
+case "$PORT" in "" | *[!0-9]*) echo "invalid port: $PORT" >&2; exit 1 ;; esac
+CONTAINER="${CONTAINER:-${GAME}-qa}"
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 
@@ -23,10 +29,10 @@ pkill -f "cloudflared tunnel .*--url http://localhost:${PORT}" 2>/dev/null || tr
 # npm and vite are both started with the port on the command line
 pkill -f "npm run dev --port ${PORT}" 2>/dev/null || true
 pkill -f "vite.js --config vite/config.dev.mjs --port ${PORT}" 2>/dev/null || true
-pkill -f "http.server ${PORT} --bind 0.0.0.0" 2>/dev/null || true
+pkill -f "http.server ${PORT} --bind" 2>/dev/null || true
 sleep 1
 
-if pgrep -f "vite.js --config vite/config.dev.mjs --port ${PORT}|http.server ${PORT} --bind 0.0.0.0|cloudflared tunnel .*--url http://localhost:${PORT}" >/dev/null 2>&1; then
+if pgrep -f "vite.js --config vite/config.dev.mjs --port ${PORT}|http.server ${PORT} --bind|cloudflared tunnel .*--url http://localhost:${PORT}" >/dev/null 2>&1; then
   echo "the server or tunnel on port ${PORT} is still running" >&2
   exit 1
 fi

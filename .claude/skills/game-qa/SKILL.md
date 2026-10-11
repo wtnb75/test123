@@ -23,7 +23,8 @@ Use the helpers in `scripts/qa/` (see `scripts/qa/README.md`); don't rebuild
 the Docker + Playwright setup by hand.
 
 1. `scripts/qa/up.sh <game-dir> [port]` — starts the dev server on
-   `0.0.0.0:<port>` and a Playwright container on *this session's* Docker
+   this session's Docker IP (`<ip>:<port>`, not every interface) and a
+   Playwright container on *this session's* Docker
    network (not `--network host`, which can't reach this session's
    `localhost`), installs `playwright` in it, and prints the base URL and the
    container's UTC date (games that pick content by date need it).
