@@ -1,7 +1,15 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
-import { StartGate } from 'title-demo';
-import { isStartKey, titleLayout } from '../core/title';
+import { DemoDirector, StartGate } from 'title-demo';
+import type { DemoAction } from '../core/demoBot';
+import { REFERENCE_CELL, demoLayout, isStartKey, titleLayout } from '../core/title';
+import {
+    TITLE_DEMO_OPTIONS,
+    createTitleDemoGame,
+    type TitleDemoDetail,
+    type TitleDemoState
+} from '../core/titleDemo';
+import { BoardView } from './boardView';
 
 const BACKGROUND_COLOR = 0x0a1f2f;
 const GAME_NAME = 'Minefield Rogue';
@@ -9,9 +17,12 @@ const BUTTON_FILL = 0x1e3a5f;
 const BUTTON_STROKE = 0x60a5fa;
 const BUTTON_LABEL_SIZE = 24;
 
+type Demo = DemoDirector<TitleDemoState, DemoAction, TitleDemoDetail>;
+
 /**
- * The title screen (docs/spec/title.md): the game name and a Start button. Start (a release over the button,
- * Enter or Space) starts `Game`; the first request wins. It reads and writes no storage.
+ * The title screen (docs/spec/title.md, docs/spec/title-demo.md): the game name, a demo of a bot playing the
+ * first stages, and a Start button. Start (a release over the button, Enter or Space) starts `Game`; the first
+ * request wins. It reads and writes no storage and never looks at the start stage.
  */
 export class Title extends Scene
 {
@@ -19,6 +30,12 @@ export class Title extends Scene
     private nameText!: Phaser.GameObjects.Text;
     private buttonBg!: Phaser.GameObjects.Rectangle;
     private buttonLabel!: Phaser.GameObjects.Text;
+    private view!: BoardView;
+    private demo?: Demo;
+    /** Elapsed time of this Scene (ms), counted from `update`'s delta. */
+    private clock = 0;
+    /** What is drawn now (stage, origin, cell): a resize that changes none of it keeps the drawing. */
+    private drawnKey = '';
 
     constructor ()
     {
@@ -29,7 +46,11 @@ export class Title extends Scene
     {
         // Phaser reuses Scene instances: everything is (re)built here, not in field initialisers.
         this.gate = new StartGate();
+        this.demo = undefined;
+        this.drawnKey = '';
+        this.clock = 0;
         this.cameras.main.setBackgroundColor(BACKGROUND_COLOR);
+        this.view = new BoardView(this, { originX: 0, originY: 0, cell: REFERENCE_CELL });
 
         this.nameText = this.add.text(0, 0, GAME_NAME, {
             fontFamily: 'monospace',
@@ -56,9 +77,42 @@ export class Title extends Scene
             this.input.keyboard?.off('keydown', this.onKeyDown, this);
             this.input.keyboard?.removeCapture('SPACE');
             this.scale.off('resize', this.place, this);
+            this.view.destroy();
+            this.demo = undefined;
         });
 
         this.place();
+    }
+
+    update (_time: number, delta: number)
+    {
+        const demo = this.demo;
+        if (import.meta.env.DEV) {
+            // QA only: a read-only view of the scene (never part of the production bundle).
+            (window as unknown as { __qa?: unknown }).__qa = {
+                scene: 'Title',
+                demoStage: demo?.state.stage.stageNo ?? null,
+                demoPhase: demo?.phase ?? null,
+                demoRounds: demo?.rounds ?? null
+            };
+        }
+        if (!demo || this.gate.leaving) {
+            return;
+        }
+
+        this.clock += delta;
+        const event = demo.tick(this.clock);
+        if (event) {
+            const stage = demo.state.stage;
+            if (event.kind === 'action') {
+                this.view.renderChanged(stage, event.detail.changed);
+                this.view.updatePlayer(stage);
+            } else if (event.kind === 'advance' || event.kind === 'fade-in') {
+                // A different stage (maybe another size) is in place: lay it out and draw it again.
+                this.drawDemo();
+            }
+        }
+        this.view.setAlpha(demo.opacity(this.clock));
     }
 
     private place (): void
@@ -68,6 +122,44 @@ export class Title extends Scene
         this.nameText.setFontSize(l.fontSize).setPosition(l.centerX, l.nameY);
         this.buttonBg.setSize(l.buttonWidth, l.buttonHeight).setPosition(l.centerX, l.buttonY);
         this.buttonLabel.setPosition(l.centerX, l.buttonY);
+
+        if (!demoLayout(width, height).visible) {
+            // Too small to read: the demo stops and is dropped; a new run starts when it fits again.
+            this.demo = undefined;
+            this.drawnKey = '';
+            this.view.destroy();
+            return;
+        }
+        if (!this.demo) {
+            this.demo = new DemoDirector(createTitleDemoGame(), TITLE_DEMO_OPTIONS, this.clock);
+        }
+        this.drawDemo(false);
+        this.view.setAlpha(this.demo.opacity(this.clock));
+    }
+
+    /** Draws the demo's current stage, centred in the area between the name and the button. */
+    private drawDemo (force = true): void
+    {
+        const demo = this.demo;
+        if (!demo) {
+            return;
+        }
+        const { width, height } = this.scale.gameSize;
+        const d = demoLayout(width, height);
+        const stage = demo.state.stage;
+        const layout = {
+            originX: Math.round(d.centerX - (stage.width * d.cell) / 2),
+            originY: Math.round(d.centerY - (stage.height * d.cell) / 2),
+            cell: d.cell
+        };
+        // The same stage at the same place and size is already on screen (a resize that moved nothing): keep it.
+        const key = `${stage.stageNo}:${stage.width}:${layout.originX}:${layout.originY}:${layout.cell}`;
+        if (force === false && key === this.drawnKey) {
+            return;
+        }
+        this.drawnKey = key;
+        this.view.setLayout(layout);
+        this.view.render(stage);
     }
 
     private onButtonUp (pointer: Phaser.Input.Pointer): void

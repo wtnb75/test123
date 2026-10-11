@@ -6,11 +6,13 @@ import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
+import { REFERENCE_CELL } from '../core/title';
+import { BoardView } from './boardView';
 import { PressTracker, StageFlow, restartKeyAction } from '../core/flow';
 import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 
-const CELL_SIZE = 30;
+const CELL_SIZE = REFERENCE_CELL;
 const BOARD_ORIGIN_X = 20;
 const BOARD_ORIGIN_Y = 80;
 const CAMERA_FOLLOW_MARGIN_CELLS = 4;
@@ -48,17 +50,6 @@ const JOYSTICK_DIRS: Position[] = [
     { x: 1,  y: -1 }  // 7 NE
 ];
 
-const HINT_COLORS: Record<number, string> = {
-    1: '#4da3ff',
-    2: '#7bed9f',
-    3: '#ff6b81',
-    4: '#70a1ff',
-    5: '#ff9f43',
-    6: '#34e7e4',
-    7: '#f1f2f6',
-    8: '#ced6e0'
-};
-
 type DragState = {
     active: boolean;
     startX: number;
@@ -70,13 +61,10 @@ type DragState = {
 export class Game extends Scene
 {
     camera!: Phaser.Cameras.Scene2D.Camera;
-    boardLayer?: Phaser.GameObjects.Container;
     hudText!: Phaser.GameObjects.Text;
     hintText!: Phaser.GameObjects.Text;
     goalArrow!: Phaser.GameObjects.Text;
-    playerHighlight?: Phaser.GameObjects.Rectangle;
-    playerMarker?: Phaser.GameObjects.Text;
-    cellLayers: Array<Phaser.GameObjects.Container | undefined> = [];
+    view!: BoardView;
     stageData!: Stage;
     cameraBoundsWidth = 0;
     cameraBoundsHeight = 0;
@@ -116,6 +104,7 @@ export class Game extends Scene
     {
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x0a1f2f);
+        this.view = new BoardView(this, { originX: BOARD_ORIGIN_X, originY: BOARD_ORIGIN_Y, cell: CELL_SIZE });
 
         this.hudText = this.add.text(20, 20, '', {
             fontFamily: 'monospace',
@@ -168,11 +157,7 @@ export class Game extends Scene
             this.cancelJoystickRepeat();
             this.joystickCurrentDir = undefined;
             this.joystickHasFired = false;
-            this.playerHighlight?.destroy();
-            this.playerHighlight = undefined;
-            this.playerMarker?.destroy();
-            this.playerMarker = undefined;
-            this.cellLayers = [];
+            this.view.destroy();
         });
     }
 
@@ -202,151 +187,8 @@ export class Game extends Scene
 
     private renderBoard (): void
     {
-        this.boardLayer?.destroy(true);
-        this.boardLayer = this.add.container(0, 0);
-        this.cellLayers = new Array(this.stageData.cells.length);
-
-        for (let y = 0; y < this.stageData.height; y += 1) {
-            for (let x = 0; x < this.stageData.width; x += 1) {
-                const idx = y * this.stageData.width + x;
-                const layer = this.createCellLayer(x, y, idx);
-                this.cellLayers[idx] = layer;
-                this.boardLayer.add(layer);
-            }
-        }
-
-        this.drawEdgeMarker(this.stageData.start, 0x7bed9f);
-        this.drawEdgeMarker(this.stageData.goal, 0xffa502);
-        this.ensurePlayerHighlight();
-        this.updatePlayerHighlightPosition();
-        this.ensurePlayerMarker();
-        this.updatePlayerMarkerPosition();
-
+        this.view.render(this.stageData, this.gameOverLogical);
         this.updateCameraBounds();
-    }
-
-    private ensurePlayerHighlight (): void
-    {
-        if (this.playerHighlight) {
-            return;
-        }
-
-        this.playerHighlight = this.add.rectangle(0, 0, CELL_SIZE - 2, CELL_SIZE - 2, 0x57606f, 0.32)
-            .setOrigin(0)
-            .setStrokeStyle(2, 0xdfe4ea, 0.75)
-            .setDepth(5);
-    }
-
-    private updatePlayerHighlightPosition (): void
-    {
-        this.ensurePlayerHighlight();
-        const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE;
-        const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE;
-        this.playerHighlight?.setPosition(px, py);
-    }
-
-    private createCellLayer (x: number, y: number, idx: number): Phaser.GameObjects.Container
-    {
-        const cell = this.stageData.cells[idx];
-        const px = BOARD_ORIGIN_X + x * CELL_SIZE;
-        const py = BOARD_ORIGIN_Y + y * CELL_SIZE;
-        const layer = this.add.container(px, py);
-
-        const fill = this.cellFillColor(x, y, cell);
-        const rect = this.add.rectangle(0, 0, CELL_SIZE - 2, CELL_SIZE - 2, fill).setOrigin(0);
-        layer.add(rect);
-
-        if (cell.hasBomb && cell.revealed) {
-            const isDeducible = this.gameOverLogical?.knownBombs.has(idx) ?? false;
-            const bomb = this.add.text(
-                CELL_SIZE / 2,
-                CELL_SIZE / 2,
-                '*',
-                {
-                    fontFamily: 'monospace',
-                    fontSize: 20,
-                    fontStyle: 'bold',
-                    color: isDeducible ? '#ffb347' : '#ff3b30',
-                    stroke: '#0b1220',
-                    strokeThickness: 3
-                }
-            ).setOrigin(0.5);
-            layer.add(bomb);
-        }
-
-        if (!cell.hasBomb && cell.revealed) {
-            const text = this.add.text(
-                CELL_SIZE / 2,
-                CELL_SIZE / 2,
-                cell.hint === 0 ? '' : String(cell.hint),
-                {
-                    fontFamily: 'monospace',
-                    fontSize: 16,
-                    fontStyle: 'bold',
-                    color: this.hintColor(cell.hint),
-                    stroke: '#0b1220',
-                    strokeThickness: 3
-                }
-            ).setOrigin(0.5);
-            layer.add(text);
-        }
-
-        if (cell.flagged) {
-            const isWrongFlag = this.gameOverLogical != null && !cell.hasBomb;
-            const flag = this.add.text(5, 3, 'F', {
-                fontFamily: 'monospace',
-                fontSize: 16,
-                fontStyle: isWrongFlag ? 'bold' : 'normal',
-                color: isWrongFlag ? '#a29bfe' : '#ff4757'
-            });
-            layer.add(flag);
-            if (isWrongFlag) {
-                const cross = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '×', {
-                    fontFamily: 'monospace',
-                    fontSize: 18,
-                    fontStyle: 'bold',
-                    color: '#a29bfe',
-                    stroke: '#0b1220',
-                    strokeThickness: 2
-                }).setOrigin(0.5);
-                layer.add(cross);
-            }
-        }
-
-        if (this.gameOverLogical && !cell.revealed && !cell.flagged) {
-            if (this.gameOverLogical.knownBombs.has(idx)) {
-                const hint = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '!', {
-                    fontFamily: 'monospace',
-                    fontSize: 16,
-                    fontStyle: 'bold',
-                    color: '#ffb347'
-                }).setOrigin(0.5);
-                layer.add(hint);
-            } else if (this.gameOverLogical.knownSafe.has(idx)) {
-                const hint = this.add.text(CELL_SIZE / 2, CELL_SIZE / 2, '○', {
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: '#7bed9f'
-                }).setOrigin(0.5);
-                layer.add(hint);
-            }
-        }
-
-        return layer;
-    }
-
-    private canDiffRender (prevStage: Stage, nextStage: Stage): boolean
-    {
-        return this.boardLayer != null &&
-            this.cellLayers.length === nextStage.cells.length &&
-            prevStage.stageNo === nextStage.stageNo &&
-            prevStage.width === nextStage.width &&
-            prevStage.height === nextStage.height &&
-            prevStage.start.x === nextStage.start.x &&
-            prevStage.start.y === nextStage.start.y &&
-            prevStage.goal.x === nextStage.goal.x &&
-            prevStage.goal.y === nextStage.goal.y &&
-            this.gameOverLogical == null;
     }
 
     private collectChangedCellIndices (prevStage: Stage, nextStage: Stage): number[]
@@ -370,44 +212,6 @@ export class Game extends Scene
             }
         }
         return changed;
-    }
-
-    private renderChangedCells (changedIndices: number[]): void
-    {
-        if (!this.boardLayer || changedIndices.length === 0) {
-            return;
-        }
-
-        for (const idx of changedIndices) {
-            this.cellLayers[idx]?.destroy();
-
-            const x = idx % this.stageData.width;
-            const y = Math.floor(idx / this.stageData.width);
-            const layer = this.createCellLayer(x, y, idx);
-            this.cellLayers[idx] = layer;
-            this.boardLayer.add(layer);
-        }
-    }
-
-    private ensurePlayerMarker (): void
-    {
-        if (this.playerMarker) {
-            return;
-        }
-
-        this.playerMarker = this.add.text(0, 0, '@', {
-            fontFamily: 'monospace',
-            fontSize: 12,
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(12);
-    }
-
-    private updatePlayerMarkerPosition (): void
-    {
-        this.ensurePlayerMarker();
-        const px = BOARD_ORIGIN_X + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2 - 9;
-        const py = BOARD_ORIGIN_Y + this.stageData.player.y * CELL_SIZE + CELL_SIZE / 2 - 8;
-        this.playerMarker?.setPosition(px, py);
     }
 
     private updateCameraBounds (): void
@@ -683,69 +487,6 @@ export class Game extends Scene
         this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode, 'virtual-joystick');
     }
 
-    private drawEdgeMarker (pos: Position, color: number): void
-    {
-        let px = BOARD_ORIGIN_X + pos.x * CELL_SIZE;
-        let py = BOARD_ORIGIN_Y + pos.y * CELL_SIZE;
-        let markerWidth: number;
-        let markerHeight: number;
-
-        if (pos.y === 0) {
-            markerWidth = CELL_SIZE - 2;
-            markerHeight = Math.max(8, Math.floor(CELL_SIZE * 0.35));
-            py = BOARD_ORIGIN_Y - markerHeight;
-        } else if (pos.y === this.stageData.height - 1) {
-            markerWidth = CELL_SIZE - 2;
-            markerHeight = Math.max(8, Math.floor(CELL_SIZE * 0.35));
-            py = BOARD_ORIGIN_Y + this.stageData.height * CELL_SIZE;
-        } else if (pos.x === 0) {
-            markerWidth = Math.max(8, Math.floor(CELL_SIZE * 0.35));
-            markerHeight = CELL_SIZE - 2;
-            px = BOARD_ORIGIN_X - markerWidth;
-        } else {
-            markerWidth = Math.max(8, Math.floor(CELL_SIZE * 0.35));
-            markerHeight = CELL_SIZE - 2;
-            px = BOARD_ORIGIN_X + this.stageData.width * CELL_SIZE;
-        }
-
-        const marker = this.add.rectangle(px, py, markerWidth, markerHeight, color)
-            .setOrigin(0)
-            .setStrokeStyle(2, 0xf1f2f6);
-
-        this.boardLayer?.add(marker);
-    }
-
-    private cellFillColor (x: number, y: number, cell: Stage['cells'][number]): number
-    {
-        if (this.gameOverLogical) {
-            const idx = y * this.stageData.width + x;
-            if (cell.hasBomb && cell.revealed) {
-                // 爆弾マス：論理的に確定できたものはアンバー、そうでないものは通常の赤系
-                return this.gameOverLogical.knownBombs.has(idx) ? 0x7d3800 : 0x2f3542;
-            }
-            if (!cell.revealed) {
-                if (cell.flagged && !cell.hasBomb) {
-                    return 0x3d1f6e; // 誤フラグ（紫系）
-                }
-                if (this.gameOverLogical.knownBombs.has(idx)) {
-                    return 0x7d3800; // 論理的に爆弾確定（未開示のまま）
-                }
-                if (this.gameOverLogical.knownSafe.has(idx)) {
-                    return 0x0d2b1a; // 論理的に安全確定
-                }
-            }
-        }
-        if (cell.revealed) {
-            return 0x2f3542;
-        }
-        return 0x1e272e;
-    }
-
-    private hintColor (hint: number): string
-    {
-        return HINT_COLORS[hint] ?? '#ffffff';
-    }
-
     private refreshHud (message: string): void
     {
         const score = this.stageData.stageNo - 1;
@@ -997,22 +738,19 @@ export class Game extends Scene
 
         const prevStage = this.stageData;
         const hasVisibleChange = this.hasVisibleStageChange(prevStage, nextStage, changedCellIndices);
-        const useDiffRender = status === 'alive' && hasVisibleChange && this.canDiffRender(prevStage, nextStage);
+        const useDiffRender = status === 'alive' && hasVisibleChange && this.view.canDiff(prevStage, nextStage, this.gameOverLogical);
         this.stageData = nextStage;
 
         if (status === 'goal') {
             this.renderBoard();
         } else if (status === 'alive' && useDiffRender) {
             const changedIndices = changedCellIndices ?? this.collectChangedCellIndices(prevStage, nextStage);
-            this.renderChangedCells(changedIndices);
+            this.view.renderChanged(this.stageData, changedIndices, this.gameOverLogical);
         } else if (status === 'alive' && hasVisibleChange) {
             this.renderBoard();
-        } else {
-            this.updatePlayerMarkerPosition();
         }
 
-        this.updatePlayerHighlightPosition();
-        this.updatePlayerMarkerPosition();
+        this.view.updatePlayer(this.stageData);
         this.centerCameraOnPlayer();
 
         if (status === 'dead') {
