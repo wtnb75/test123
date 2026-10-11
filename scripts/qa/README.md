@@ -6,14 +6,16 @@ AGENTS.md 9節（Docker + Playwright でヘッドレスブラウザ確認）の�
 ```bash
 scripts/qa/up.sh <game-dir> [port=5191] [--shared]      # dev サーバー（--shared なら公開と同じ共有ビルドをサブパスで配信）+ Playwright コンテナ（セッションと同じ Docker ネットワーク）
 scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]   # シナリオを実行して画面を <out-dir> に回収
-scripts/qa/down.sh <game-dir> [port]                    # コンテナと dev サーバーを片付ける（QA が失敗しても必ず）
+scripts/qa/down.sh <game-dir> [port]                    # コンテナ・dev サーバー・トンネルを片付ける（QA が失敗しても必ず）
+scripts/qa/share.sh <game-dir> [port=5191]              # dev サーバーを Cloudflare Quick Tunnel で公開し、URL を出す（別の端末で遊ぶ用）
 ```
 
 | ファイル | 役割 |
 |---|---|
 | `up.sh` | dev サーバーを `0.0.0.0:<port>` で起動し、自セッションと同じネットワークに Playwright コンテナを立てて `playwright` を入れる。接続先 URL とコンテナの UTC 日付を表示する。`--shared` では、そのゲームを `SHARED_VENDOR=1` でビルドして `output/` と同じ並び（`<repo>/<game>/` と `<repo>/vendor/`）にし、`/<repo>/<game>/` で静的配信する |
 | `run.sh` | スクリプトと追加ファイルを `docker cp` で渡して実行し、`/work/shots` の画面を回収する（実行のたびに空にする） |
-| `down.sh` | コンテナの削除とサーバーの停止（dev サーバーも `--shared` の静的サーバーも）。残っていればエラーにする |
+| `down.sh` | コンテナの削除とサーバー・トンネルの停止（dev サーバーも `--shared` の静的サーバーも `share.sh` のトンネルも）。残っていればエラーにする |
+| `share.sh` | `cloudflared tunnel --url` で dev サーバーを `https://*.trycloudflare.com` に公開し、URL を最後の行に出す。`<port>` で応答する dev サーバーがあればそれを使い、無ければ `127.0.0.1` で起動する。`cloudflared` が無ければエラーで止まる |
 | `lib.mjs` | シナリオ用ヘルパー（`launch` / `newPage` / `shot` / `burst` / `tap` / `setHidden` / `waitForQa` / `fps` / `report`） |
 | `smoke.mjs` | どのゲームにも使える最小の確認（デスクトップとスマホ、フレームレート、中央を1回タップ、コンソールエラーと 4xx/5xx のリクエスト）。失敗時は原因のリクエストを表示する |
 
@@ -28,6 +30,18 @@ scripts/qa/down.sh <game-dir> 5192
 ```
 
 全ゲームを作る `task build`（`output/`、CI が行う）は、ここでは動かさない。
+
+## 別の端末（スマホ等）で遊ぶ
+
+```bash
+scripts/qa/share.sh <game-dir> [port]   # 最後の行の https://….trycloudflare.com をスマホ等で開く
+scripts/qa/down.sh <game-dir> [port]    # 終わったら必ず止める
+```
+
+- `cloudflared` を事前に入れておく（アカウント不要）。URL は実行のたびに変わる
+- dev サーバーに認証は無く、URL を知る人は誰でも開ける。短時間だけ公開し、URL は見せたい相手にだけ渡す
+- 許可ホストは `scaffold/vite/config.dev.mjs` の `server.allowedHosts`（`.trycloudflare.com`）。他のサービスのドメインを使うときはそこに足す
+- ビルド成果物（`--shared`）の公開は対象外。`up.sh --shared` はコンテナ内の QA 用
 
 ## シナリオを書くときのルール（どれも一度は QA を無駄にした）
 

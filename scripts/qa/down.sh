@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Clean up after a QA run: remove the Playwright container and stop the server (dev server or the --shared static
-# server) started by up.sh.
+# server) started by up.sh, and the Cloudflare tunnel started by share.sh.
 # Run it even when QA failed (AGENTS.md section 9).
 #
 # Usage: scripts/qa/down.sh <game-dir> [port]   (port defaults to the one recorded by up.sh, else 5191)
@@ -18,18 +18,20 @@ PORT="${PORT:-5191}"
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 
+# the tunnel is matched by the local URL it forwards to
+pkill -f "cloudflared tunnel .*--url http://localhost:${PORT}" 2>/dev/null || true
 # npm and vite are both started with the port on the command line
 pkill -f "npm run dev --port ${PORT}" 2>/dev/null || true
 pkill -f "vite.js --config vite/config.dev.mjs --port ${PORT}" 2>/dev/null || true
 pkill -f "http.server ${PORT} --bind 0.0.0.0" 2>/dev/null || true
 sleep 1
 
-if pgrep -f "vite.js --config vite/config.dev.mjs --port ${PORT}|http.server ${PORT} --bind 0.0.0.0" >/dev/null 2>&1; then
-  echo "the server on port ${PORT} is still running" >&2
+if pgrep -f "vite.js --config vite/config.dev.mjs --port ${PORT}|http.server ${PORT} --bind 0.0.0.0|cloudflared tunnel .*--url http://localhost:${PORT}" >/dev/null 2>&1; then
+  echo "the server or tunnel on port ${PORT} is still running" >&2
   exit 1
 fi
 if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
   echo "container ${CONTAINER} is still there" >&2
   exit 1
 fi
-echo "cleaned up: container ${CONTAINER} removed, server on port ${PORT} stopped"
+echo "cleaned up: container ${CONTAINER} removed, server and tunnel on port ${PORT} stopped"

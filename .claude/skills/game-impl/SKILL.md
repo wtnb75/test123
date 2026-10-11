@@ -128,7 +128,8 @@ reading the diff — a new input/gesture mechanic, physics- or math-heavy
 interaction, timing-sensitive behavior, anything where "does this feel
 right" genuinely can't be answered without touching it — say so explicitly
 and offer the user a quick manual check (e.g. `npm run dev` and try it in
-a browser) before moving on. This is the user's call, not a silent skip —
+a browser; for another device, `scripts/qa/share.sh` — AGENTS.md section
+9.1, only on their say-so) before moving on. This is the user's call, not a silent skip —
 offer it, don't force it, and don't default to offering it for ordinary
 changes that don't carry this risk.
 

@@ -12,6 +12,8 @@ export default {
         }
     },
     server: {
-        port: 8080
+        port: 8080,
+        // scripts/qa/share.sh serves the dev server through a Cloudflare Quick Tunnel (random subdomain each run)
+        allowedHosts: ['.trycloudflare.com']
     }
 };
