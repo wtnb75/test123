@@ -1,9 +1,13 @@
 import { Scene, type GameObjects, type Time } from 'phaser';
 import { applyGuess, createGame } from '../logic/game';
-import type { DigitStatus, GameMode, RoundState } from '../types';
+import { isDigitOption, modeFromData } from '../logic/selectLayout';
+import type { DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData } from '../types';
+import {
+    BACKGROUND_COLOR, createButton, createHomeIcon, createReselectIcon, createText, detectLocale, translate,
+    type Locale, type TextKey
+} from './ui';
 
-type UiPhase = 'select' | 'playing' | 'won' | 'lost';
-type Locale = 'ja' | 'en';
+type UiPhase = 'playing' | 'won' | 'lost';
 
 interface BoardCell {
     box: GameObjects.Rectangle;
@@ -45,7 +49,7 @@ const KEY_PRIORITY: Record<DigitStatus, number> = {
 };
 
 export class Game extends Scene {
-    private phase: UiPhase = 'select';
+    private phase: UiPhase = 'playing';
     private gameApi = createGame();
     private round: RoundState | null = null;
     private selectedMode: GameMode = 'normal';
@@ -62,40 +66,68 @@ export class Game extends Scene {
     private layout: LayoutMetrics | null = null;
     private endClickOverlay: GameObjects.Rectangle | null = null;
     private locale: Locale = 'ja';
+    private startDigits: DigitOption | null = null;
+    private startedAt = 0;
+    private readonly onResize = (): void => {
+        this.relayoutCurrentPhase();
+    };
 
     constructor() {
         super('Game');
     }
 
+    init(data?: Partial<GameStartData>): void {
+        this.selectedMode = modeFromData(data);
+        this.startDigits = isDigitOption(data?.digits) ? data.digits : null;
+        this.phase = 'playing';
+        this.round = null;
+        this.currentGuess = '';
+        this.uiObjects = [];
+        this.endUiObjects = [];
+        this.boardCells = [];
+        this.toastText = null;
+        this.toastBg = null;
+        this.toastTimer = null;
+        this.keyBoxes.clear();
+        this.keyStatus.clear();
+        this.keyboardObjects = [];
+        this.layout = null;
+        this.endClickOverlay = null;
+    }
+
     create(): void {
-        this.cameras.main.setBackgroundColor(0x111827);
-        this.locale = this.detectLocale();
+        if (this.startDigits === null) {
+            this.goToTitle();
+            return;
+        }
 
-        this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
-            this.onPhysicalKey(event.key);
-        });
+        this.cameras.main.setBackgroundColor(BACKGROUND_COLOR);
+        this.locale = detectLocale();
+        this.startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
 
-        this.scale.on('resize', () => {
-            this.relayoutCurrentPhase();
-        });
+        this.input.keyboard?.on('keydown', this.onKeyDown);
+        this.scale.on('resize', this.onResize);
 
         this.events.once('shutdown', () => {
-            this.scale.off('resize');
+            this.input.keyboard?.off('keydown', this.onKeyDown);
+            this.scale.off('resize', this.onResize);
         });
 
-        this.showSelectScreen();
+        this.startRound(this.startDigits);
     }
+
+    /** Ignores the key press that started this Scene, so it is not typed into the board. */
+    private readonly onKeyDown = (event: KeyboardEvent): void => {
+        if (event.timeStamp < this.startedAt) {
+            return;
+        }
+
+        this.onPhysicalKey(event.key);
+    };
 
     private onPhysicalKey(key: string): void {
         if (this.phase === 'won' || this.phase === 'lost') {
             this.beginNextRoundFromTrigger();
-            return;
-        }
-
-        if (this.phase === 'select') {
-            if (key === '2' || key === '3' || key === '4' || key === '5' || key === '6') {
-                this.startRound(Number(key));
-            }
             return;
         }
 
@@ -123,125 +155,8 @@ export class Game extends Scene {
         this.handleToken(token);
     }
 
-    private showSelectScreen(): void {
-        this.cleanupMainUi();
-        this.clearEndUi();
-        this.phase = 'select';
-        this.round = null;
-        this.currentGuess = '';
-
-        this.buildTopIcons(false);
-
-        const width = this.scale.gameSize.width;
-        const height = this.scale.gameSize.height;
-
-        const titleY = Math.max(72, Math.floor(height * 0.15));
-        const subtitleY = titleY + 58;
-        const hintY = subtitleY + 42;
-
-        this.createText(width / 2, titleY, 'digdle', 54, '#f9fafb', 0.5, this.uiObjects);
-        this.createText(width / 2, subtitleY, this.t('subtitle'), 26, '#cbd5e1', 0.5, this.uiObjects);
-        this.createText(width / 2, hintY, this.t('selectHint'), 22, '#94a3b8', 0.5, this.uiObjects);
-
-        // Mode toggle buttons
-        const modeY = hintY + 52;
-        const modeButtonWidth = 130;
-        const modeButtonHeight = 44;
-        const modeGap = 16;
-        const modeTotalWidth = modeButtonWidth * 2 + modeGap;
-        const modeStartX = (width - modeTotalWidth) / 2;
-
-        const normalBox = this.createButton(
-            modeStartX,
-            modeY,
-            modeButtonWidth,
-            modeButtonHeight,
-            this.t('normalMode'),
-            () => {
-                this.selectedMode = 'normal';
-                normalBox.box.setStrokeStyle(3, 0x38bdf8);
-                hardBox.box.setStrokeStyle(2, 0x94a3b8);
-            },
-            this.uiObjects
-        );
-        const hardBox = this.createButton(
-            modeStartX + modeButtonWidth + modeGap,
-            modeY,
-            modeButtonWidth,
-            modeButtonHeight,
-            this.t('hardMode'),
-            () => {
-                this.selectedMode = 'hard';
-                hardBox.box.setStrokeStyle(3, 0xf59e0b);
-                normalBox.box.setStrokeStyle(2, 0x94a3b8);
-            },
-            this.uiObjects
-        );
-
-        // Highlight current mode
-        if (this.selectedMode === 'normal') {
-            normalBox.box.setStrokeStyle(3, 0x38bdf8);
-        } else {
-            hardBox.box.setStrokeStyle(3, 0xf59e0b);
-        }
-
-        const options = [2, 3, 4, 5, 6];
-        const narrow = width < 560;
-        const buttonWidth = narrow ? 90 : 100;
-        const buttonHeight = 64;
-        const buttonGap = narrow ? 12 : 16;
-        const rowTop = modeY + modeButtonHeight + 28;
-
-        if (!narrow) {
-            const rowWidth = options.length * buttonWidth + (options.length - 1) * buttonGap;
-            const startX = (width - rowWidth) / 2;
-
-            for (let i = 0; i < options.length; i += 1) {
-                const value = options[i];
-                const x = startX + i * (buttonWidth + buttonGap);
-                this.createButton(
-                    x,
-                    rowTop,
-                    buttonWidth,
-                    buttonHeight,
-                    String(value),
-                    () => this.startRound(value),
-                    this.uiObjects
-                );
-            }
-            return;
-        }
-
-        // narrow layout: 3 + 2 rows
-        const cols = 3;
-        const gridWidth = cols * buttonWidth + (cols - 1) * buttonGap;
-        const startX = (width - gridWidth) / 2;
-        for (let i = 0; i < options.length; i += 1) {
-            const value = options[i];
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = startX + col * (buttonWidth + buttonGap);
-            const y = rowTop + row * (buttonHeight + buttonGap);
-            this.createButton(
-                x,
-                y,
-                buttonWidth,
-                buttonHeight,
-                String(value),
-                () => this.startRound(value),
-                this.uiObjects
-            );
-        }
-    }
-
     private relayoutCurrentPhase(): void {
-        if (this.phase === 'select') {
-            this.showSelectScreen();
-            return;
-        }
-
         if (!this.round) {
-            this.showSelectScreen();
             return;
         }
 
@@ -271,7 +186,7 @@ export class Game extends Scene {
 
     private beginNextRoundFromTrigger(): void {
         if (!this.round) {
-            this.showSelectScreen();
+            this.goToTitle();
             return;
         }
         const previous = this.round.answer;
@@ -286,7 +201,7 @@ export class Game extends Scene {
 
         this.layout = this.computeLayout(this.round.attemptLimit, this.round.n);
         this.buildVerticalTitle();
-        this.buildTopIcons(true);
+        this.buildTopIcons();
         this.createToastUi();
 
         this.buildBoard(this.round.attemptLimit, this.round.n);
@@ -357,34 +272,15 @@ export class Game extends Scene {
         }
     }
 
-    private buildTopIcons(showReselect: boolean): void {
-        const width = this.scale.gameSize.width;
-        const iconSize = 28;
-        const margin = 20;
+    private buildTopIcons(): void {
+        createHomeIcon(this, this.uiObjects);
+        createReselectIcon(this, this.scale.gameSize.width, () => this.goToTitle(), this.uiObjects);
+    }
 
-        const home = this.add.text(margin, margin, '🏠', {
-            fontFamily: 'sans-serif',
-            fontSize: iconSize,
-            color: '#f8fafc'
-        }).setOrigin(0, 0);
-        home.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-            window.location.assign('../');
-        });
-        this.uiObjects.push(home);
-
-        if (!showReselect) {
-            return;
-        }
-
-        const reselect = this.add.text(width - margin, margin, '◀️', {
-            fontFamily: 'sans-serif',
-            fontSize: iconSize,
-            color: '#f8fafc'
-        }).setOrigin(1, 0);
-        reselect.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-            this.showSelectScreen();
-        });
-        this.uiObjects.push(reselect);
+    /** Back to the Title; the selected mode is handed over so it stays highlighted. */
+    private goToTitle(): void {
+        const data: TitleData = { mode: this.selectedMode };
+        this.scene.start('Title', data);
     }
 
     private buildVerticalTitle(): void {
@@ -469,7 +365,8 @@ export class Game extends Scene {
                 const x = this.layout.keyboardStartX + col * (this.layout.keyboardButtonWidth + this.layout.keyboardGap);
                 const y = this.layout.keyboardStartY + row * (this.layout.keyboardButtonHeight + this.layout.keyboardGap);
 
-                const { box } = this.createButton(
+                const { box } = createButton(
+                    this,
                     x,
                     y,
                     this.layout.keyboardButtonWidth,
@@ -560,9 +457,9 @@ export class Game extends Scene {
         const height = this.layout?.height ?? this.scale.gameSize.height;
         const centerX = this.layout?.boardCenterX ?? width / 2;
 
-        this.createText(centerX, 52, statusMessage, 22, '#f8fafc', 0.5, this.endUiObjects);
+        createText(this, centerX, 52, statusMessage, 22, '#f8fafc', 0.5, this.endUiObjects);
         if (this.phase === 'lost' && this.round) {
-            this.createText(centerX, 82, this.formatAnswerReveal(this.round.answer), 18, '#fca5a5', 0.5, this.endUiObjects);
+            createText(this, centerX, 82, this.formatAnswerReveal(this.round.answer), 18, '#fca5a5', 0.5, this.endUiObjects);
         }
 
         this.endClickOverlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.001)
@@ -577,13 +474,14 @@ export class Game extends Scene {
         const buttonX = (width - buttonWidth) / 2;
         const buttonY = height - 70;
 
-        this.createButton(
+        createButton(
+            this,
             buttonX,
             buttonY,
             buttonWidth,
             buttonHeight,
             this.t('reselectDigits'),
-            () => this.showSelectScreen(),
+            () => this.goToTitle(),
             this.endUiObjects
         );
     }
@@ -595,34 +493,8 @@ export class Game extends Scene {
         return `Answer: ${answer}`;
     }
 
-    private detectLocale(): Locale {
-        const lang = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'ja';
-        return lang.startsWith('ja') ? 'ja' : 'en';
-    }
-
-    private t(key: 'subtitle' | 'selectHint' | 'clear' | 'gameOver' | 'reselectDigits' | 'checkInput' | 'normalMode' | 'hardMode'): string {
-        const ja: Record<typeof key, string> = {
-            subtitle: 'N桁の素数を当てよう',
-            selectHint: '2 / 3 / 4 / 5 / 6 を選択',
-            clear: 'Clear',
-            gameOver: 'GameOver',
-            reselectDigits: '桁数を選び直す',
-            checkInput: '入力を確認してください',
-            normalMode: 'ノーマル',
-            hardMode: 'ハード'
-        };
-        const en: Record<typeof key, string> = {
-            subtitle: 'Guess the N-digit prime',
-            selectHint: 'Choose 2 / 3 / 4 / 5 / 6',
-            clear: 'Clear',
-            gameOver: 'GameOver',
-            reselectDigits: 'Choose digits again',
-            checkInput: 'Please check your input',
-            normalMode: 'Normal',
-            hardMode: 'Hard'
-        };
-
-        return this.locale === 'ja' ? ja[key] : en[key];
+    private t(key: TextKey): string {
+        return translate(this.locale, key);
     }
 
     private localizeValidationMessage(message: string): string {
@@ -677,6 +549,18 @@ export class Game extends Scene {
     private refreshUi(): void {
         if (!this.round) {
             return;
+        }
+
+        if (import.meta.env.DEV) {
+            // QA only: a read-only view of the round (never part of the production bundle).
+            (window as unknown as { __qa?: unknown }).__qa = {
+                scene: 'Game',
+                phase: this.phase,
+                digits: this.round.n,
+                mode: this.round.mode,
+                attemptsUsed: this.round.attemptsUsed,
+                attemptLimit: this.round.attemptLimit
+            };
         }
 
         this.refreshBoardOnly();
@@ -826,48 +710,5 @@ export class Game extends Scene {
             obj.destroy();
         }
         this.endUiObjects = [];
-    }
-
-    private createText(
-        x: number,
-        y: number,
-        text: string,
-        fontSize: number,
-        color: string,
-        origin: number,
-        store: GameObjects.GameObject[]
-    ): GameObjects.Text {
-        const obj = this.add.text(x, y, text, {
-            fontFamily: 'sans-serif',
-            fontSize,
-            color
-        }).setOrigin(origin, 0.5);
-        store.push(obj);
-        return obj;
-    }
-
-    private createButton(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        label: string,
-        onClick: () => void,
-        store: GameObjects.GameObject[]
-    ): { box: GameObjects.Rectangle; text: GameObjects.Text } {
-        const box = this.add.rectangle(x, y, width, height, 0x334155)
-            .setOrigin(0, 0)
-            .setStrokeStyle(2, 0x94a3b8);
-        const text = this.add.text(x + width / 2, y + height / 2, label, {
-            fontFamily: 'sans-serif',
-            fontSize: 20,
-            color: '#f8fafc'
-        }).setOrigin(0.5);
-
-        box.setInteractive({ useHandCursor: true }).on('pointerdown', () => onClick());
-        text.setInteractive({ useHandCursor: true }).on('pointerdown', () => onClick());
-
-        store.push(box, text);
-        return { box, text };
     }
 }
