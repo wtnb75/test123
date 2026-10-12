@@ -2,6 +2,7 @@
 
 Title 画面の背景で流す「自動プレイのデモ」の進行を、ゲームに依存しない形で扱う共有パッケージです（ゲームではありません。公開の一覧には出ません）。
 
+- 実装の入口は `TitleDemoRunner`（時計・開始の門・透明度をまとめたもの。下の「TitleDemoRunner」）。
 - 使うゲーム: `pushline`（盤面を押して一列を消す）、`spotdiff`（差分を見つけてタップする）、`first-game`（数字を読んで推理し、ゴールへ進む）、`primtris`（落ちてくる数字を素因数でボックスへ仕分ける）、`digdle`（素数を色ヒントで推理する）
 - Phaser に依存しない純粋なロジックだけを持つ。時刻は引数で渡す（テストで再現できる）。描画・演出・入力はゲーム側（Scene）が担当する
 - 各ゲームは、自分の状態・ルール・手順の作り方を `DemoGame` として渡す。このパッケージは「いつ・何を 1 手進めるか」と「作り直しの透明度」だけを決める
@@ -126,8 +127,64 @@ class StartGate {
 
 このパッケージの単体テストは、ゲームに依存しないテスト用の `DemoGame`（数値の列を進めるだけのもの）で、上の振る舞いを確認する。カバレッジはリポジトリ共通の閾値（90%）を守る。
 
+## TitleDemoRunner
+
+どの Title の Scene も、`DemoDirector` の周りに同じものを手で書いていた（Scene の時計を `update` の delta で数える、開始の門、透明度）。`TitleDemoRunner` はそれをまとめた、Phaser に依存しない薄い部品。
+
+```ts
+import { TitleDemoRunner } from 'title-demo';
+
+// create(): 入るたびに新しい走り（時刻 0）
+this.runner = new TitleDemoRunner(createTitleDemoGame(rng), TITLE_DEMO_OPTIONS);
+
+// update(_time, delta)
+const event = this.runner.update(delta);     // 開始が受け付けられたあとは null（時計も止まる）
+if (event?.kind === 'action') { /* 演出を再生 */ }
+this.view.setAlpha(this.runner.opacity());   // 走りの作り直しの透明化
+
+// 開始（ボタン・キー・タップ）
+if (this.runner.requestStart()) this.scene.start('Game', data);   // 最初の 1 回だけ true
+```
+
+- `update(deltaMs)`: 時計を `deltaMs` 進めて `tick` する（イベントは最大 1 つ）。負の delta は 0 として扱う。`requestStart()` が `true` を返したあとは、`tick` も時計も動かず、`null` を返す。
+- `clock` / `leaving` / `state` / `director`: 描画やテスト用の読み取り。演出の開始時刻（`rowStartedAt[row] = runner.clock` など）は `clock` を使う。
+- 選択の変更でデモを作り直すゲーム（primtris の桁数）のように、時計を自分で管理したい場合は、これまでどおり `DemoDirector` を直接使ってよい。
+
+## dev 専用の `window.__qa`（Title の形）
+
+QA のスクリプト（`scripts/qa/title-viewports.mjs` など）が読む、dev ビルドだけの読み取り専用のオブジェクト。`if (import.meta.env.DEV) { … }` の中に直接書く（メソッドを呼ぶ形にすると、使われない本体が本番の bundle に残る）。ビルドのあとに `rg -c __qa <game>/dist/assets/*.js` が何も出さないことを確かめる。
+
+```ts
+(window as unknown as { __qa?: unknown }).__qa = {
+    scene: 'Title',
+    demoVisible: boolean,        // デモを描いているか（置けない画面では false）
+    demoPhase: director.phase,   // 'waiting' | 'stepping' | 'fading-out' | 'fading-in'
+    demoRounds: director.rounds, // 今の走りで終えたラウンド数
+    // ゲーム固有の値（行数・スコア・選択中のモードなど）は、同じオブジェクトに足してよい
+};
+```
+
+## Title のデモの spec のひな形
+
+`docs/spec/title-demo.md`（分割ファイル。必須の見出しは `game-spec` スキルの「Spec layout」）に、次を書く。digdle・primtris で毎回同じ項目を足したので、最初から入れておく。
+
+- **概要**（1〜3 行）: 何を見せるか。ルール・得点・数値は変えない。
+- **操作仕様**: デモは操作を受け付けない。Title の既存の操作は、再生中・透明化中も変わらず働く。
+- **画面・Scene構成**
+  - レイアウト: デモを置く場所と大きさの式。**置けない画面でどうするか**（デモなしにするか、配置を変えるか）。**手計算の例の表**に、少なくとも iPhone SE の Safari の縦（375 × 550）と横（667 × 310 程度）、スマホ縦（390 × 844）、PC（1280 × 720）、置けない境界の前後（1 px 差）を入れる。実機の表示領域はアドレスバー分だけ画面の高さより低い。
+  - 見た目（色・枠・文字の大きさ）、描画順、リサイズでの扱い（走りは作り直さず、今の状態から描き直す。置けなくなっても進行は続ける）。
+- **状態**: `DemoDirector` との対応表（状態 `S`・ラウンド・`start`・`plan`・`play`・`advance`・`timing`）、時計の数え方（`TitleDemoRunner`）、開始の門、演出を捨てるイベント（`advance`・`fade-out`・`fade-in`）、透明化は盤面だけに掛けること。
+- **ボット**: 乱数を注入できること、手の選び方、同じ手を繰り返さないこと、ラウンドの終わり。
+- **ルール**: ゲーム本体に影響しない。保存しない（`localStorage` を使わない）。
+- **パラメータ表**: 待ち・透明化・セルの大きさの上下限・余白など。値同士の制約（例: 待ち > 1 手の演出の長さ）も書く。
+- **テスト観点**: 配置の境界値（1 px 差）、ボットの性質テスト（空振りの検査つき: 勝ち・負けの両方を数える）、時刻列の手計算、負けの経路を固定した乱数で、リサイズでの配置の切り替え。
+- **完了条件**: 画面サイズごとのスクリーンショット（`scripts/qa/title-viewports.mjs`）、デモの再生中の入力（開始・モード切替）、置けない画面で Title が崩れないこと。
+- **実装裁量**: 純粋ロジックの置き場所、細かい演出（短い動き）、乱数の種。
+
+QA は `scripts/qa/title-viewports.mjs` を使う（画面サイズを順に切り替え、`__qa.demoVisible` を確かめ、スクリーンショットを撮る）。
+
 ## ゲーム側の約束
 
 - 乱数・時計・手順の求め方は `DemoGame` の中で注入できるようにする（テストの再現性）。
-- Scene は、イベントに応じて演出を再生し、`opacity` を描画に掛ける。開始（`StartGate.start()` が `true`）したら、`tick` を呼ばず、再生中の演出を捨てる。
+- Scene は、イベントに応じて演出を再生し、`opacity` を描画に掛ける。開始（`StartGate.start()` / `TitleDemoRunner.requestStart()` が `true`）したら、`tick` を呼ばず、再生中の演出を捨てる。
 - 向きの変更（レイアウトの変更）では、このパッケージの状態に触れない（配置し直すだけ）。
