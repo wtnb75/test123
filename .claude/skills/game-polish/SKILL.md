@@ -32,7 +32,11 @@ In scope:
   few seconds without reading the README (a one-line hint, a demo motion, a
   highlighted first target).
 - **Readability**: HUD placement and size, contrast, text size on a phone
-  screen, touch targets ≥ 44 CSS px, color never the only signal.
+  screen, touch targets ≥ 44 CSS px, color never the only signal. The
+  measurable checks (real text size after FIT, clipping, how much of the
+  screen the board uses, black bars, control placement, the screen sizes to
+  look at) are AGENTS.md section 4.6; run them, and take the whole-game
+  picture with `scripts/qa/look.mjs`.
 - **Browser tab**: `<title>` in `index.html` is the game's name and
   `public/favicon.png` is this game's own (see `task game:favicon`).
 

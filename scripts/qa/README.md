@@ -19,6 +19,7 @@ scripts/qa/share.sh <game-dir> [port=5191]              # dev サーバーを Cl
 | `lib.mjs` | シナリオ用ヘルパー（`launch` / `newPage` / `shot` / `burst` / `tap` / `setHidden` / `waitForQa` / `fps` / `report`） |
 | `title-viewports.mjs` | Title を、スマホ・PC の画面サイズ（iPhone SE の Safari の縦 375 × 550・横 667 × 310 を含む）に順に切り替えて撮り、`window.__qa.demoVisible` を確かめる。サイズごとの期待値は JSON（`title-cases.json`）で渡せる。既定は 1 つのページを順にリサイズする。Title の開始時に画面サイズを決めるゲーム（absorb）は、ケースに `"fresh": true` を付けると、そのサイズで開いた新しいページで撮る。`__qa` の形は `shared/title-demo/README.md` |
 | `title-start.mjs` | Title の標準シナリオ。長く待ってから Enter・Space・クリックで START し、Title を抜けたこと、1 秒後の `__qa`（ゲームが最初から始まるか）を確かめる。`cycle` を付けると、デモの幕が閉じて走りが作り直される様子も撮る。設定は JSON（`title-start.json`）で渡せる |
+| `look.mjs` | どのゲームにも使える「見た目の全体像」。スマホ縦（390 × 844）・SE（375 × 550）・PC（1280 × 720）で、読み込み → Enter → 中央クリック → Space → 中央クリック → 下寄りクリックと進めて、各段の画面を横に並べた 1 枚（`montage_phone.png` / `montage_se.png` / `montage_pc.png`）にする。AGENTS.md 4.6 の画面構成の確認の入口（結果画面や選択後の画面には届かないことがある。そのときは個別のシナリオで撮る） |
 | `smoke.mjs` | どのゲームにも使える最小の確認（デスクトップとスマホ、フレームレート、中央を1回タップ、コンソールエラーと 4xx/5xx のリクエスト）。失敗時は原因のリクエストを表示する |
 
 ## 共有ビルド（公開と同じ形）の確認

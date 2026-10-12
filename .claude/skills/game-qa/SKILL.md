@@ -36,7 +36,9 @@ the Docker + Playwright setup by hand.
    `scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]`; the
    screenshots come back in `<out-dir>` (files move with `docker cp`, never a
    bind mount).
-3. Take screenshots at the states that matter for this game (title,
+3. For a first look at a game's layout, `scripts/qa/look.mjs` gives one montage per
+   screen size (AGENTS.md 4.6 lists what to check there).
+   Take screenshots at the states that matter for this game (title,
    mid-play, clear, game-over, and every state/Scene the spec names), on a
    desktop and a phone-sized viewport. For effects and transitions take a
    short burst (`burst`, every 50–100 ms). Judge on speed feel,
