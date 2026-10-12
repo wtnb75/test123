@@ -34,6 +34,20 @@ export const P = {
     CLEAR_FLASH_TIME: 0.2,
     RESULT_SHAKE_TIME: 0.2,
     RESULT_SHAKE_INTENSITY: 0.006,
+    DEMO_RUN_MS: 30000,
+    DEMO_FADE_MS: 400,
+    DEMO_END_HOLD_MS: 1200,
+    START_W: 200,
+    START_H: 64,
+    DEMO_VIEW_X: 48,
+    DEMO_VIEW_Y: 96,
+    DEMO_VIEW_W: 264,
+    DEMO_VIEW_H: 528,
+    DEMO_ROAM_CENTER: 5,
+    DEMO_ROAM_AMPLITUDE: 3.5,
+    DEMO_ROAM_PERIOD_S: 12.6,
+    DEMO_ARRIVE_TOL: 0.15,
+    DEMO_BODY_MARGIN: 0.08,
 } as const;
 
 /** Logical canvas size in px. */

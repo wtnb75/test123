@@ -1,66 +1,56 @@
-import { GameObjects, Scene } from 'phaser';
-import { HEIGHT, P, WIDTH } from '../params';
-import { InputArbiter, START_KEYS, wasPressed, type StickView } from '../logic/input';
+import { Scene } from 'phaser';
+import { P, WIDTH } from '../params';
+import { InputArbiter, type StickView } from '../logic/input';
+import type { MoveInput } from '../logic/player';
 import { Round } from '../logic/round';
-import { BoardView } from './BoardView';
+import { BoardView, type BoardViewOptions } from './BoardView';
 import type { ResultData } from './Result';
 import { SceneInput } from './SceneInput';
 
-export interface GameInitData {
-    /** Retry: skip the ready overlay and start playing at once. */
-    autoStart?: boolean;
-}
-
-type Phase = 'ready' | 'playing' | 'ended';
+type Phase = 'playing' | 'ended';
 
 /** Extra time to keep redrawing after the shake, so its last frame is shown. */
 const RENDER_MARGIN_MS = 100;
 
-const READY_LINES: readonly { text: string; size: number; y: number }[] = [
-    { text: 'MINOCLIMB', size: 40, y: HEIGHT * 0.38 },
-    { text: '←→ 移動 / ジャンプ', size: 18, y: HEIGHT * 0.5 },
-    { text: '左ドラッグ = 移動 / 右タップ = ジャンプ', size: 16, y: HEIGHT * 0.56 },
-    { text: 'タップまたはスペースで開始', size: 20, y: HEIGHT * 0.66 },
-];
+/** One frame's worth of control: the moves and, for the touch stick, what to draw. */
+export interface Control {
+    move: MoveInput;
+    stick: StickView | null;
+}
 
-/** Plays one attempt: ready overlay, then the round until it is cleared or lost. */
+/**
+ * Plays one attempt, from the first frame, until it is cleared or lost. The Title starts it, and so does
+ * a retry from the Result. `Demo` is a subclass that lets a bot play behind the Title; the hooks below are
+ * the only places it differs (the normal path is the default of each).
+ */
 export class Game extends Scene {
-    private autoStart = false;
-    private phase: Phase = 'ready';
-    private round!: Round;
-    private view!: BoardView;
-    private controls!: SceneInput;
-    private arbiter!: InputArbiter;
-    private overlay: GameObjects.GameObject[] = [];
+    protected phase: Phase = 'playing';
+    /** True for the demo behind the Title: its dev-only state goes to its own global, not the game's. */
+    protected readonly isDemo: boolean = false;
+    protected round!: Round;
+    protected view!: BoardView;
+    private controls: SceneInput | null = null;
+    private arbiter: InputArbiter | null = null;
     /** Frame clock (ms) while playing; frozen once the round ends so the landing frame stops pulsing. */
     private clock = 0;
+    /** Seconds of play so far (dt capped at MAX_DT like the round's). */
+    protected playSec = 0;
     /** Milliseconds since the round ended. */
     private sinceEnd = 0;
 
-    constructor() {
-        super('Game');
-    }
-
-    init(data: GameInitData): void {
-        this.autoStart = data?.autoStart === true;
+    constructor(key = 'Game') {
+        super(key);
     }
 
     create(): void {
         // The Scene instance is reused on retry, so every per-run field is reset here.
-        this.phase = 'ready';
-        this.overlay = [];
+        this.phase = 'playing';
         this.clock = 0;
+        this.playSec = 0;
         this.sinceEnd = 0;
         this.round = new Round(Math.random);
-        this.view = new BoardView(this);
-        this.controls = new SceneInput(this);
-        this.arbiter = new InputArbiter(WIDTH / 2, P.STICK_DEADZONE, P.STICK_RING_RADIUS);
-
-        if (this.autoStart) {
-            this.beginPlaying();
-        } else {
-            this.overlay = this.buildReadyOverlay();
-        }
+        this.view = new BoardView(this, this.viewOptions());
+        this.setupControls();
         this.view.draw(this.round, null, 0, 0, false);
     }
 
@@ -73,31 +63,22 @@ export class Game extends Scene {
             }
             return;
         }
-        const raw = this.controls.read();
-        let stick: StickView | null = null;
 
-        let dtForEffects = deltaMs;
-        if (this.phase === 'ready') {
-            if (wasPressed(raw, START_KEYS)) {
-                this.beginPlaying();
-                dtForEffects = 0; // the trigger frame is time 0 for hints and flashes
-            }
-        } else if (this.phase === 'playing') {
-            const read = this.arbiter.read(raw);
-            stick = read.stick;
-            this.clock = time;
-            this.round.step(deltaMs / 1000, read.move);
-            if (this.round.status !== 'playing') this.finish();
-        }
+        const control = this.readControl();
+        this.clock = time;
+        this.playSec += Math.min(deltaMs / 1000, P.MAX_DT);
+        this.round.step(deltaMs / 1000, control.move);
+        if (this.round.status !== 'playing') this.finish();
         // After the round ends the scene keeps running (so the shake plays) but nothing advances.
         const playing = this.phase === 'playing';
-        this.view.draw(this.round, playing ? stick : null, this.clock, dtForEffects, playing);
+        this.view.draw(this.round, playing ? control.stick : null, this.clock, deltaMs, playing);
 
         if (import.meta.env.DEV && (this.phase as Phase) !== 'ended') {
             // QA only (not in the production bundle): lets browser scenarios wait for a state, and
-            // gives them the Round to stage rare situations such as reaching the goal.
-            (window as unknown as { __qa?: unknown }).__qa = {
-                scene: 'Game',
+            // gives them the Round to stage rare situations such as reaching the goal. The demo behind
+            // the Title writes its own global so it never hides the Title's or the game's.
+            (window as unknown as Record<string, unknown>)[this.isDemo ? '__qaDemo' : '__qa'] = {
+                scene: this.sys.settings.key,
                 phase: this.phase,
                 status: this.round.status,
                 flow: this.round.flow.kind,
@@ -108,16 +89,26 @@ export class Game extends Scene {
         }
     }
 
-    /** Starts the round; keys and fingers held right now stay ignored until released. */
-    private beginPlaying(): void {
-        this.arbiter.blockHeld(this.controls.read());
-        this.overlay.forEach((o) => o.destroy());
-        this.overlay = [];
-        this.phase = 'playing';
+    /** What the Scene shows: hints and the touch tint are for the player, not for the demo. */
+    protected viewOptions(): BoardViewOptions {
+        return { hints: true, touchTint: true };
     }
 
-    private finish(): void {
-        this.phase = 'ended';
+    /** Listens to the player. Keys and fingers held right now stay ignored until released. */
+    protected setupControls(): void {
+        this.controls = new SceneInput(this);
+        this.arbiter = new InputArbiter(WIDTH / 2, P.STICK_DEADZONE, P.STICK_RING_RADIUS);
+        this.arbiter.blockHeld(this.controls.read());
+    }
+
+    /** This frame's moves: the keyboard and the touch stick. */
+    protected readControl(): Control {
+        // The arbiter returns one reused object (same shape as Control): nothing is allocated per frame.
+        return this.arbiter!.read(this.controls!.read());
+    }
+
+    /** The round is over: show the result (the demo has none). */
+    protected onRoundEnd(): void {
         const data: ResultData = {
             status: this.round.status === 'cleared' ? 'cleared' : 'lost',
             reason: this.round.loseReason,
@@ -129,12 +120,8 @@ export class Game extends Scene {
         }
     }
 
-    private buildReadyOverlay(): GameObjects.GameObject[] {
-        const dim = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.6);
-        const texts = READY_LINES.map(({ text, size, y }) =>
-            this.add.text(WIDTH / 2, y, text, {
-                fontFamily: 'sans-serif', fontSize: `${size}px`, color: '#ffffff', align: 'center',
-            }).setOrigin(0.5));
-        return [dim, ...texts];
+    private finish(): void {
+        this.phase = 'ended';
+        this.onRoundEnd();
     }
 }

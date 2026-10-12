@@ -66,7 +66,7 @@ export class Result extends Scene {
         if (this.elapsed < P.RETRY_LOCKOUT) return;
         this.retryHint.setVisible(true);
         if (pressed) {
-            this.scene.start('Game', { autoStart: true });
+            this.scene.start('Game');
         }
     }
 }

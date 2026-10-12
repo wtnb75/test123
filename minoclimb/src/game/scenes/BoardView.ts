@@ -32,6 +32,13 @@ interface Flash {
     t: number;
 }
 
+export interface BoardViewOptions {
+    /** The operation hints of the first seconds (not shown behind the Title). */
+    hints: boolean;
+    /** The faint right-half tint that marks the jump side for touch players. */
+    touchTint: boolean;
+}
+
 /** Draws the field, the climber, the minos, the labels, the hints, the HUD and the touch stick. */
 export class BoardView {
     private readonly board: GameObjects.Graphics;
@@ -41,9 +48,12 @@ export class BoardView {
     private readonly flashes: Flash[] = [];
     private playElapsed = 0;
 
-    constructor(scene: Scene) {
+    private readonly hintsEnabled: boolean;
+
+    constructor(scene: Scene, options: BoardViewOptions = { hints: true, touchTint: true }) {
+        this.hintsEnabled = options.hints;
         // The static layer never changes, so it is drawn once, below everything else.
-        this.drawBackground(scene.add.graphics());
+        this.drawBackground(scene.add.graphics(), options.touchTint);
         this.board = scene.add.graphics();
         this.hud = scene.add.text(6, 4, '', HUD_FONT);
         scene.add.text(WIDTH - 6, P.GOAL_ROW * P.CELL - 4, 'GOAL', { ...LABEL_FONT, color: '#ffe040' })
@@ -59,7 +69,7 @@ export class BoardView {
     }
 
     /**
-     * Draws one frame. `active` is true while the round is being played (not in ready, not after it
+     * Draws one frame. `active` is true while the round is being played (not after it
      * ended): only then do hints and flashes run. `time` is the frame clock in ms (frozen by the caller
      * once the round ends so the landing frame stops pulsing), `dtMs` the frame time.
      */
@@ -87,6 +97,11 @@ export class BoardView {
         this.hud.setText(`高さ ${round.height} / ${P.ROWS - P.GOAL_ROW}`);
         this.updateHints(dt, active);
         this.drawStick(stick);
+    }
+
+    /** Drops the lights that are playing (the Title's curtain starts to close over the demo). */
+    clearEffects(): void {
+        this.flashes.length = 0;
     }
 
     private updateFlashes(round: Round, dt: number, active: boolean): void {
@@ -123,15 +138,16 @@ export class BoardView {
     };
 
     private updateHints(dt: number, active: boolean): void {
+        if (!this.hintsEnabled) return;
         if (active) this.playElapsed += dt;
         const alpha = active ? HINT_MAX_ALPHA * hintAlpha(this.playElapsed) : 0;
         for (const hint of this.hints) hint.setAlpha(alpha);
     }
 
-    private drawBackground(g: GameObjects.Graphics): void {
+    private drawBackground(g: GameObjects.Graphics, touchTint: boolean): void {
         const C = P.CELL;
         g.fillStyle(BACKGROUND, 1).fillRect(0, 0, WIDTH, HEIGHT);
-        g.fillStyle(RIGHT_HALF_TINT, 0.05).fillRect(WIDTH / 2, 0, WIDTH / 2, HEIGHT);
+        if (touchTint) g.fillStyle(RIGHT_HALF_TINT, 0.05).fillRect(WIDTH / 2, 0, WIDTH / 2, HEIGHT);
         g.fillStyle(DANGER_BAND, 1).fillRect(0, 0, WIDTH, P.TOP_OUT_ROW * C);
         g.fillStyle(GOAL_LINE, 1).fillRect(0, P.GOAL_ROW * C - GOAL_LINE_THICKNESS / 2, WIDTH, GOAL_LINE_THICKNESS);
     }
