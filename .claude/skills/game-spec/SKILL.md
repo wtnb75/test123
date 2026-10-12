@@ -84,6 +84,8 @@ the body — see "Spec layout" below), and a branch slug. When writing it:
   order. The backlog is not part of the spec — only the ranked list
   `game-extend` picks from (`game-backlog` maintains it).
 
+`game-title` hands over the same way (a post-publish, presentation-only revision whose spec location is always `docs/spec/title-demo.md`, written from the template in `shared/title-demo/README.md`); its hand-over also carries the test / codereview / qa notes — write them into テスト観点 and 完了条件 of that file, with the "must not change" list as regression conditions.
+
 ### パラメータ表 and 実装裁量
 
 - **パラメータ表**: a table of every number with gameplay weight — canvas

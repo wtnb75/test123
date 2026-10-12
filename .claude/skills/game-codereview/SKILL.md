@@ -91,7 +91,11 @@ Look for (Phaser-game-specific, on top of general correctness):
 - boundary behavior that contradicts the spec's (`docs/spec.md` or a
   linked file's) ルール / パラメータ表;
 - magic numbers that should come from the parameter constants;
-- tests that pass for the wrong reason (tautological expectations).
+- tests that pass for the wrong reason (tautological expectations);
+- for a Title / demo: a demo rebuilt several times leaves the same number of listeners
+  and timers; Title's keys and key captures are released on shutdown; the game's
+  clock is not taken from `this.time.now` (stale after a Title); the normal path
+  (Game → result → Game) is unchanged.
 
 #### What to hand the reviewer
 

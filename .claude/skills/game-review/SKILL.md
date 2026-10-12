@@ -1,6 +1,6 @@
 ---
 name: game-review
-description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/backlog/extend/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
+description: The stage-exit review for this monorepo's game workflow — called by each game-* skill before it marks its stage done (STAGE=idea/backlog/extend/title/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish). Holds every stage's review checklist in one place; spec/impl/test are reviewed by a fresh subagent, the rest by self-review.
 ---
 
 # game-review
@@ -27,7 +27,7 @@ checklist asks "can someone implement this without inventing anything?").
 | STAGE | Reviewer | Why |
 |---|---|---|
 | `spec`, `impl`, `test` | **Fresh subagent** (see below) | The output is consumed by the next stage; the author fills gaps from conversation context without noticing |
-| `idea`, `backlog`, `extend`, `init`, `proto`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
+| `idea`, `backlog`, `extend`, `title`, `init`, `proto`, `check`, `codereview`, `qa`, `polish`, `balance`, `publish` | Self-review against the checklist | Mechanically verifiable, or the user's subjective call — a subagent would only re-derive context (`codereview` already ran its own independent reviewer) |
 
 ### Running a subagent review
 
@@ -137,6 +137,34 @@ Before summarizing the agreed extension to the user:
 - Is it classified presentation-only or gameplay?
 - Were candidates offered from `docs/backlog.md` top-down (if it exists), and
   are the ones left for later listed in the summary for `game-spec` to record?
+
+## STAGE=title (self) — consumer: game-spec
+
+Before summarizing the agreed Title and demo to the user:
+
+- Is `status_publish` `done`, and does the game not already have a demo
+  (`title-demo` in `package.json`, `docs/spec/title-demo.md`)?
+- Was the method chosen from the three offered with their cost (replay-style
+  demo / the real game in the background / Title without demo), and is the
+  reason stated?
+- Was it checked how the screen size is decided and whether the game's
+  Scene uses `this.time.now`? Is "the time after START is unchanged, however
+  long the Title was shown" in the must-not-change list?
+- Is there a hand-worked layout table covering 375 × 550, 667 × 310,
+  390 × 844, 1280 × 720 and the border where the demo no longer fits — and
+  what happens when it does not fit (hidden / changed layout)?
+- Is the bot described as a pure function with injected or no randomness,
+  with a way to look alive (not still, not one repeated move) and a quality
+  bar written as properties?
+- Does the must-not-change list name the rules, scoring, difficulty,
+  controls and the existing transitions?
+- Is it classified presentation-only, in one PR (or cut: Title first, demo
+  later) — and if the `Game` Scene needs more than small hooks, was the user
+  told?
+- Is the spec location `docs/spec/title-demo.md` (+ Scene table and `## 拡張`
+  line in `docs/spec.md`), and the branch slug free?
+- Are the downstream notes (test / codereview / qa) in the hand-over, and
+  was a real-device check offered?
 
 ## STAGE=init (self)
 
