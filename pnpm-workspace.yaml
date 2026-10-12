@@ -1,4 +1,5 @@
 packages:
+  - 'minoclimb'
   - 'pushline'
   - 'moleroam'
   - 'spotdiff'
