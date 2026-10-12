@@ -62,7 +62,11 @@ Repeat rounds of review → triage → fix. **At most 3 rounds.**
 Invoke the `code-review` skill (the same thing as `/code-review`), aimed at
 the scope above: `high` for round 1, `medium` for later rounds, which only
 look at the previous round's fix diff. Don't pass `--fix` or `--comment` —
-nothing gets changed or posted before the user has triaged.
+nothing gets changed or posted before the user has triaged — and say so in
+the arguments in words: "READ-ONLY: report findings, do NOT edit any
+file". Afterwards check `git status`: if files changed anyway, tell the
+user which findings were already applied (and let them keep or revert them)
+before showing the triage table.
 
 If `code-review` isn't available in this session, launch one fresh
 `general-purpose` agent (Agent tool) instead. Give it only: the game

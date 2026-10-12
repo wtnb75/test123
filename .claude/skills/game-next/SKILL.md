@@ -84,6 +84,11 @@ edits files itself — it only detects state and dispatches.
 
 ## Continuous mode
 
+When a stage skill's completion says to invoke `game-next` and this
+skill's text is already in the conversation (the Skill tool only answers
+"already loaded"), don't call the tool again: run steps 2–5 yourself
+(`task game:next PACKAGE=<game-dir>`, then invoke the stage's skill).
+
 A stage that needs nothing from the user (e.g. `impl` → `test` → `check`)
 shouldn't make the user type `game-next` again. Every stage skill's
 completion step hands back here instead of just telling the user the next
