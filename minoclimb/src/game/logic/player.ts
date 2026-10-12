@@ -89,9 +89,15 @@ export const reachedGoal = (pl: Player): boolean => feetY(pl) <= P.GOAL_ROW + P.
 export const heightOf = (pl: Player): number =>
     Math.max(0, Math.floor(P.ROWS - feetY(pl) + P.GOAL_TOL));
 
-/** Players above a cleared row ride the stack down one row per cleared row below their feet. */
-export const shiftForClears = (pl: Player, cleared: readonly number[]): Player => {
+/**
+ * After full rows were removed from `grid`: the player stays where they are (the stack drops under
+ * them and gravity does the rest), unless an overhang that fell down now overlaps their rectangle.
+ * Then they move down one cell per cleared row below their feet, like the stack above that row did.
+ * `grid` is the field after the clear.
+ */
+export const shiftForClears = (grid: Grid, pl: Player, cleared: readonly number[]): Player => {
     const feet = feetY(pl);
     const drop = cleared.filter((r) => feet <= r + P.GOAL_TOL).length;
-    return drop === 0 ? pl : { ...pl, y: pl.y + drop };
+    if (drop === 0 || !overlapsSolid(grid, pl.x, pl.y)) return pl;
+    return { ...pl, y: pl.y + drop };
 };
