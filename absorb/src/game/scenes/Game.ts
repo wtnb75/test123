@@ -134,7 +134,7 @@ function hasCounter(counters: readonly KillCounter[], id: number): boolean {
 type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'x' | 'enter' | 'space', Input.Keyboard.Key>;
 
 export class Game extends Scene {
-    private world: World;
+    protected world: World;
     private keys: Keys;
     private gfx: GameObjects.Graphics;
     private hudGfx: GameObjects.Graphics;
@@ -200,15 +200,16 @@ export class Game extends Scene {
     private releaseQueued = false;
     /** A release finger touched since the last update, so the button shows its feedback. */
     private touchPressQueued = false;
-    private readonly input_: WorldInput = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
+    protected readonly input_: WorldInput = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
     private pause = new PauseState();
     /** Seconds of unpaused play in this run, driving the boss spin. */
     private spinClock = 0;
     /** Veil and texts shown over everything while auto-paused. */
     private pauseLayer: GameObjects.Container;
 
-    constructor() {
-        super('Game');
+    /** `key` lets the title's demo scene (a subclass) register under its own name. */
+    constructor(key = 'Game') {
+        super(key);
     }
 
     create() {
@@ -219,6 +220,7 @@ export class Game extends Scene {
         this.cameras.main.setSize(size.width, size.height);
 
         this.world = new World(size);
+        this.startWorld();
         this.finished = false;
         this.shownScore = this.shownLives = this.shownStock = this.shownBossHp = -1;
         this.touchRoles.clear();
@@ -253,6 +255,16 @@ export class Game extends Scene {
 
         this.createHud(size.width, size.height);
         this.createPauseLayer(size.width, size.height);
+        this.setupControls();
+    }
+
+    /** What happens to a new world: the game lets it count down (ready); the title's demo overrides this. */
+    protected startWorld(): void {
+        // A real run starts in ready.
+    }
+
+    /** Keyboard, pointer and pause triggers; the demo has none of them. */
+    protected setupControls(): void {
         this.setupKeyboard();
         this.setupPointer();
         this.setupPauseTriggers();
@@ -394,7 +406,7 @@ export class Game extends Scene {
         if (this.pause.isPaused) return; // time stands still; the last frame stays on screen
         this.spinClock += dt;
         this.trackButton(dt);
-        this.readKeys();
+        this.readInput();
         this.world.step(dt, this.input_);
         this.input_.dragX = 0;
         this.input_.dragY = 0;
@@ -415,13 +427,32 @@ export class Game extends Scene {
         this.drawBossEffects();
         this.drawMultiKills();
         this.drawHitFlash();
-        this.drawHud();
-        this.drawStartText();
+        this.drawHudLayer();
         if (this.world.phase === 'over' && !this.finished) {
             this.finished = true;
-            // A copy, so the game-over screen never shares state with this run's world.
-            this.scene.start('GameOver', { score: this.world.score, breakdown: normalizeBreakdown(this.world.breakdown) });
+            this.onWorldOver();
         }
+    }
+
+    /** The HUD and the countdown text; the demo draws neither. */
+    protected drawHudLayer(): void {
+        if (import.meta.env.DEV) {
+            // QA only: a read-only view of the run (never part of the production bundle).
+            (window as unknown as { __qa?: unknown }).__qa = {
+                scene: 'Game',
+                phase: this.world.phase,
+                phaseTime: this.world.phaseTime,
+                score: this.world.score,
+                lives: this.world.player.lives
+            };
+        }
+        this.drawHud();
+        this.drawStartText();
+    }
+
+    /** The run ended: show the result. A copy of the breakdown, so the game-over screen never shares state with this run's world. */
+    protected onWorldOver(): void {
+        this.scene.start('GameOver', { score: this.world.score, breakdown: normalizeBreakdown(this.world.breakdown) });
     }
 
     /** Shows the pause layer while paused; when the pause begins, drops the input in flight. */
@@ -446,6 +477,11 @@ export class Game extends Scene {
         const press = this.touchPressQueued ? buttonPressKind(this.world.phase, this.world.stock) : null;
         this.touchPressQueued = false;
         this.buttonFx.update(dt, press);
+    }
+
+    /** Writes this frame's input into input_ (the demo's bot does it instead of the keys). */
+    protected readInput(): void {
+        this.readKeys();
     }
 
     private readKeys() {
@@ -584,7 +620,7 @@ export class Game extends Scene {
     }
 
     /** Rings from the player at each countdown digit and the big one at the start: the release rings' layer. */
-    private drawStartRings() {
+    protected drawStartRings() {
         const g = this.gfx;
         for (const r of this.startFx.rings) {
             const p = startRingProgress(r.age);

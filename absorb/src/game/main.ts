@@ -1,5 +1,7 @@
 import { Game as MainGame } from './scenes/Game';
 import { GameOver } from './scenes/GameOver';
+import { DemoGame } from './scenes/DemoGame';
+import { Title } from './scenes/Title';
 import { AUTO, Game, Scale, Types } from 'phaser';
 import { computeScreenSize } from './logic/screen';
 
@@ -18,9 +20,12 @@ const config: Types.Core.GameConfig = {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH
     },
+    // Title is first, so it starts the game; it launches Demo (the real game played by a bot) behind itself.
     scene: [
+        Title,
         MainGame,
-        GameOver
+        GameOver,
+        DemoGame
     ]
 };
 
