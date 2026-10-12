@@ -10,7 +10,7 @@ describe('the demo run clock', () => {
         expect(DEMO_RUN_GAME.play(null, 0)).toMatchObject({ moved: true, roundDone: true });
     });
 
-    it('closes the curtain at 40 s, rebuilds at 40.5 s and then repeats every 40.5 s', () => {
+    it('closes the curtain at 40 s, rebuilds at 40.5 s and then repeats every 41 s', () => {
         const runner = new TitleDemoRunner(DEMO_RUN_GAME, DEMO_RUN_OPTIONS);
         const events: [number, string][] = [];
         const opacity: Record<number, number> = {};
