@@ -1,25 +1,25 @@
-import { Game as MainGame } from './scenes/Game';
-import { AUTO, Game, Scale,Types } from 'phaser';
+import { AUTO, Game as PhaserGame, Scale, type Types } from 'phaser';
+import { HEIGHT, WIDTH } from './params';
+import { Game } from './scenes/Game';
+import { Result } from './scenes/Result';
 
-// Find out more information about the Game Config at:
-// https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
 const config: Types.Core.GameConfig = {
     type: AUTO,
-    width: 1024,
-    height: 768,
+    width: WIDTH,
+    height: HEIGHT,
     parent: 'game-container',
-    backgroundColor: '#028af8',
+    backgroundColor: '#10131c',
+    input: {
+        // Mouse + up to three simultaneous fingers.
+        activePointers: 3,
+    },
     scale: {
         mode: Scale.FIT,
-        autoCenter: Scale.CENTER_BOTH
+        autoCenter: Scale.CENTER_BOTH,
     },
-    scene: [
-        MainGame
-    ]
+    scene: [Game, Result],
 };
 
-const StartGame = (parent: string) => {
-    return new Game({ ...config, parent });
-}
+const StartGame = (parent: string) => new PhaserGame({ ...config, parent });
 
 export default StartGame;

@@ -1,0 +1,41 @@
+// Gameplay parameters (docs/spec.md "パラメータ表"). Keep every number with gameplay weight here.
+export const P = {
+    COLS: 10,
+    ROWS: 20,
+    CELL: 36,
+    GOAL_ROW: 5,
+    GOAL_TOL: 0.01,
+    TOP_OUT_ROW: 2,
+    PLAYER_W: 0.7,
+    PLAYER_H: 0.9,
+    WALK_SPEED: 5,
+    JUMP_V: 13.6,
+    GRAVITY: 40,
+    SUBSTEP_MAX: 0.5,
+    DROP_SPEED: 40,
+    TELEGRAPH_TIME: 0.9,
+    ROTATE_STEP: 0.2,
+    SPAWN_DELAY: 0.3,
+    AI_TOP_K: 2,
+    AI_HOLES_W: 8,
+    AI_BUMP_W: 1,
+    AI_LINES_W: 3,
+    AI_WELL_W: 1,
+    AI_MISTAKE_RATE: 0.2,
+    AI_MISTAKE_K: 6,
+    STICK_DEADZONE: 10,
+    STICK_RING_RADIUS: 40,
+    STICK_KNOB_RADIUS: 18,
+    RETRY_LOCKOUT: 0.5,
+    MAX_DT: 0.05,
+    HINT_TIME: 4,
+    HINT_FADE: 0.5,
+    LOCK_FLASH_TIME: 0.12,
+    CLEAR_FLASH_TIME: 0.2,
+    RESULT_SHAKE_TIME: 0.2,
+    RESULT_SHAKE_INTENSITY: 0.006,
+} as const;
+
+/** Logical canvas size in px. */
+export const WIDTH = P.COLS * P.CELL;
+export const HEIGHT = P.ROWS * P.CELL;
