@@ -49,12 +49,13 @@ export const addLabel = (
         .setOrigin(0.5);
 
 /** A tappable button (large enough for a finger). `onPress` runs on release. */
-export const addButton = (scene: Scene, x: number, y: number, label: string, onPress: () => void): void => {
+export const addButton = (scene: Scene, x: number, y: number, label: string, onPress: () => void, depth = 0): void => {
     const box = scene.add
         .rectangle(x, y, 380, 90, 0xffb300)
         .setStrokeStyle(4, 0xffffff)
+        .setDepth(depth)
         .setInteractive({ useHandCursor: true });
-    addLabel(scene, x, y, label, 40, '#3e2723');
+    addLabel(scene, x, y, label, 40, '#3e2723').setDepth(depth);
     box.on('pointerover', () => box.setFillStyle(0xffca28));
     box.on('pointerout', () => box.setFillStyle(0xffb300));
     box.on('pointerup', onPress);

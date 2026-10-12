@@ -63,4 +63,16 @@ export const PARAMS = {
     catFlyHeight: 160,
     ringMs: 300,
     retractMs: 150,
+    // Title demo (docs/spec/title-demo.md)
+    demoRunSeconds: 40,
+    demoFadeSeconds: 0.5,
+    titleVeilAlpha: 0.3,
+    demoScrollRatio: 0.6,
+    demoReactionMs: 250,
+    demoViewMarginRatio: 0.25,
+    demoRoamXRatio: 0.3,
+    demoRoamYRatio: 0.3,
+    demoRoamXPeriod: 11,
+    demoRoamYPeriod: 7,
+    demoRoamDeadzone: 40,
 } as const;

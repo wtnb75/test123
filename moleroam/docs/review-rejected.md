@@ -40,3 +40,8 @@
 - `src/game/logic/pointers.ts` PointerTracker: Phaser の `activePointers` と `maxTouchPointers` の上限が二重 — 理由: 仕様がトラッカー側の規則を求めている。同じ PARAMS の値を使い、両側にコメントを付けた
 - `src/game/logic/pointers.ts` release: 離しのイベントでは取りこぼしを片付けないため、取りこぼした指が次の押す／動くまで残る — 理由: 叩きに影響せず、次の押す／動くで直る。同時に離れた指をそれぞれ叩くための意図的なトレードオフで、仕様に書いてある
 - `src/game/scenes/Game.ts` isDown: `pointer.id` が `input.manager.pointers` の添字であることに依存する — 理由: Phaser のソース（InputManager）で id が添字そのものであることを確認済み
+- `src/game/scenes/Title.ts`: dev の `__qa` の `demoVisible` が常に `true` — 理由: spec が「常に `true`」と決めている（デモは常に背後で動き、置けない画面が無い）
+- `src/game/scenes/Game.ts`, `Title.ts`: 基底クラスが `'Demo'` のキーを知っている、`'Demo'` の文字列が複数ある — 理由: dev の QA 用の 1 か所と、Scene のキー。定数にしても得るものが無く、`Game` の差分が広がる
+- `src/game/logic/demoBot.play.test.ts`: 走りの性質テストが `Game.update` の順序を写した簡易シミュレーションで、`DemoGame.scrollStep` と食い違っても落ちない — 理由: Phaser なしで走りを進めるための仕様どおりの作り（実装裁量）。順序（叩き → スクロール）は単体テストと QA で確認する
+- `src/game/logic/titleLayout.test.ts`: 文字の高さの見積もり（48 / 17 / 65）が文字の大きさと結びついていない — 理由: 重なりの検査は、近似の配置を守るためのもの。手計算の値は別のテストが固定している
+- `src/game/scenes/DemoGame.ts`, `logic/demoBot.ts`: 毎フレームの小さな座標オブジェクトの生成 — 理由: 元の `Game.scrollStep` も同じ。実害がない

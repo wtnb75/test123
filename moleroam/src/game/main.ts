@@ -1,6 +1,7 @@
 import { AUTO, Game, Scale, Types } from 'phaser';
 import { PARAMS } from './params';
 import { pickLayout } from './logic/layout';
+import { DemoGame } from './scenes/DemoGame';
 import { Game as GameScene } from './scenes/Game';
 import { Result } from './scenes/Result';
 import { Title } from './scenes/Title';
@@ -21,7 +22,8 @@ const StartGame = (parent: string) => {
         // One Pointer object per touch finger the Game follows (the mouse has its own). Phaser normally
         // reports no finger beyond this; PointerTracker enforces the same PARAMS.maxTouchPointers on its own so its rule is testable.
         input: { activePointers: PARAMS.maxTouchPointers },
-        scene: [Title, GameScene, Result],
+        // Title is first and launches Demo (the real game played by a bot) behind itself.
+        scene: [Title, GameScene, Result, DemoGame],
     };
     return new Game(config);
 };
