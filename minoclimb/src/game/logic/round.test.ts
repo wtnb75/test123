@@ -202,20 +202,33 @@ describe('Round: clearing', () => {
         expect(round.loseReason).toBe('crushed');
     });
 
-    it('still clears when a line clear in the same frame moves the player back down', () => {
+    it('clears when the goal is reached in the same frame as a line clear', () => {
         const round = newRound();
         platform(round);
-        // Row 19 is full except columns 0-1; an O fixed there completes it and shifts everything down.
+        // Row 19 is full except columns 0-1; an O fixed there completes it and shifts the stack down.
         for (let c = 2; c < P.COLS; c++) round.grid[19][c] = 1;
         round.flow = { kind: 'drop', piece: piece(O, 0, 0, 17.9), plan: { kind: O, rot: 0, col: 0, row: 18 } };
         round.step(DT, NONE);
-        expect(feetY(round.player)).toBeGreaterThan(P.GOAL_ROW + 0.5); // it was moved down by the clear
+        expect(round.status).toBe('cleared');
+        expect(feetY(round.player)).toBeCloseTo(P.GOAL_ROW, 3); // the player did not jump anywhere
+    });
+
+    it('still clears when a fallen overhang pushes the player below the goal in the same frame', () => {
+        const round = newRound();
+        platform(round);
+        round.grid[3][4] = 1; // an overhang just above the climber's head (rows 4.1 .. 5.0)
+        for (let c = 2; c < P.COLS; c++) round.grid[19][c] = 1;
+        round.flow = { kind: 'drop', piece: piece(O, 0, 0, 17.9), plan: { kind: O, rot: 0, col: 0, row: 18 } };
+        round.step(DT, NONE);
+        // The overhang came down onto row 4 and the player was moved down with it, off the goal height...
+        expect(feetY(round.player)).toBeGreaterThan(P.GOAL_ROW + 0.5);
+        // ...but the goal had been reached earlier in the same frame.
         expect(round.status).toBe('cleared');
     });
 });
 
 describe('Round: line clears', () => {
-    it('removes a completed row and carries the standing player down with the stack', () => {
+    it('removes a completed row; the standing player stays put and then falls onto the lowered stack', () => {
         const round = newRound();
         for (let c = 2; c < P.COLS; c++) round.grid[19][c] = 1; // row 19 missing columns 0-1
         for (let c = 4; c <= 6; c++) round.grid[18][c] = 1; // the platform the player stands on
@@ -229,7 +242,14 @@ describe('Round: line clears', () => {
         expect(round.grid[18].every((v) => v === 0)).toBe(true);
         expect([0, 1, 4, 5, 6].every((c) => round.grid[19][c] !== 0)).toBe(true);
         expect(round.grid[19].filter((v) => v !== 0)).toHaveLength(5);
-        expect(feetY(round.player)).toBeCloseTo(before + 1, 6);
+        // No teleport: the player is still where they were, one cell above their (lowered) platform.
+        expect(feetY(round.player)).toBeCloseTo(before, 6);
+        expect(round.player.onGround).toBe(true);
+
+        // Gravity then lands them on the platform, which is now one row lower.
+        for (let i = 0; i < 20; i++) round.step(DT, NONE);
+        expect(feetY(round.player)).toBeCloseTo(before + 1, 3);
+        expect(round.player.onGround).toBe(true);
     });
 
     it('leaves a player who stands below the cleared row where they are', () => {

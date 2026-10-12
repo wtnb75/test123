@@ -243,47 +243,90 @@ describe('goal and height', () => {
     });
 });
 
-describe('shiftForClears', () => {
+describe('shiftForClears (the field is the one after the clear)', () => {
     const feet = 15;
 
-    it('moves a player standing above a cleared row down one cell', () => {
-        const pl = atFeet(feet);
-        expect(shiftForClears(pl, [16]).y).toBeCloseTo(pl.y + 1, 9);
+    it('leaves a standing player where they are: the stack drops and gravity does the rest', () => {
+        const pl = { ...atFeet(feet), onGround: true };
+        expect(shiftForClears(createGrid(), pl, [16])).toBe(pl);
+        expect(shiftForClears(createGrid(), pl, [16, 17])).toBe(pl);
     });
 
-    it('moves the player once per cleared row below the feet', () => {
-        const pl = atFeet(feet);
-        expect(shiftForClears(pl, [16, 17]).y).toBeCloseTo(pl.y + 2, 9);
-        expect(shiftForClears(pl, [14, 16]).y).toBeCloseTo(pl.y + 1, 9);
+    it('leaves an airborne player where they are, with their velocity', () => {
+        const pl: Player = { x: 4.65, y: 9, vy: -6, onGround: false };
+        expect(shiftForClears(createGrid(), pl, [16])).toBe(pl);
     });
 
-    it('leaves a player below the cleared row where it is', () => {
-        const pl = atFeet(feet);
-        expect(shiftForClears(pl, [10])).toBe(pl);
-        expect(shiftForClears(pl, [])).toBe(pl);
+    it('moves the player down when a fallen overhang would overlap them', () => {
+        const grid = createGrid();
+        block(grid, [10], [4]); // the overhang, now at row 10 (it was at row 9)
+        const pl: Player = { x: 4.65, y: 9.6, vy: 0, onGround: true }; // rows 9.6 .. 10.5
+        expect(shiftForClears(grid, pl, [16]).y).toBeCloseTo(10.6, 9);
     });
 
-    it('applies the tolerance at the boundary of the cleared row top edge', () => {
-        // Feet at the row top + 0.005 still counts as above (within GOAL_TOL); +0.02 does not.
-        expect(shiftForClears(atFeet(14.005), [14]).y).toBeCloseTo(14.005 - P.PLAYER_H + 1, 9);
-        const lower = atFeet(14.02);
-        expect(shiftForClears(lower, [14])).toBe(lower);
+    it('moves the player once per cleared row below their feet when an overhang overlaps', () => {
+        const grid = createGrid();
+        block(grid, [10], [4]);
+        const pl: Player = { x: 4.65, y: 9.6, vy: 0, onGround: false };
+        expect(shiftForClears(grid, pl, [16, 17]).y).toBeCloseTo(11.6, 9);
+        expect(shiftForClears(grid, pl, [5, 16]).y).toBeCloseTo(10.6, 9);
     });
 
-    it('brackets the exact tolerance: just inside shifts, just outside does not', () => {
-        const inside = atFeet(14 + P.GOAL_TOL - 1e-9);
+    it('does not move a player who is only touching a fallen cell', () => {
+        const grid = createGrid();
+        block(grid, [10], [4]); // top edge at y = 10
+        const pl = atFeet(10); // feet exactly on that edge
+        expect(shiftForClears(grid, pl, [16])).toBe(pl);
+    });
+
+    it('does not move a player whose head only touches a fallen overhang', () => {
+        const grid = createGrid();
+        block(grid, [9], [4]); // bottom edge at y = 10
+        const pl: Player = { x: 4.65, y: 10, vy: 0, onGround: false };
+        expect(shiftForClears(grid, pl, [16])).toBe(pl);
+        // 0.01 higher and the head is inside the cell.
+        const inside: Player = { x: 4.65, y: 9.99, vy: 0, onGround: false };
+        expect(shiftForClears(grid, inside, [16]).y).toBeCloseTo(10.99, 9);
+    });
+
+    it('does not move a player whose side only touches a fallen cell', () => {
+        const grid = createGrid();
+        block(grid, [10], [6]); // left edge at x = 6
+        const pl: Player = { x: 5.3, y: 9.6, vy: 0, onGround: false }; // right edge at x = 6.0
+        expect(shiftForClears(grid, pl, [16])).toBe(pl);
+        const inside: Player = { x: 5.31, y: 9.6, vy: 0, onGround: false };
+        expect(shiftForClears(grid, inside, [16]).y).toBeCloseTo(10.6, 9);
+    });
+
+    it('leaves a standing player alone when a platform is under them and an overhang stays clear', () => {
+        const grid = createGrid();
+        block(grid, [19], [4, 5]); // the platform, already lowered by the clear
+        block(grid, [16], [4]); // an overhang that fell and still has a gap above the head
+        const pl: Player = { x: 4.65, y: 18 - 0.9, vy: 0, onGround: true }; // rows 17.1 .. 18.0, platform top at 19
+        expect(shiftForClears(grid, pl, [19])).toBe(pl);
+    });
+
+    it('does not move a player who is below every cleared row, overlap or not', () => {
+        const grid = createGrid();
+        block(grid, [10], [4]);
+        const pl: Player = { x: 4.65, y: 9.6, vy: 0, onGround: false };
+        expect(shiftForClears(grid, pl, [5])).toBe(pl);
+        expect(shiftForClears(grid, pl, [])).toBe(pl);
+    });
+
+    it('brackets the tolerance on the cleared row top edge when an overhang overlaps', () => {
+        const grid = createGrid();
+        block(grid, [13], [4]);
+        const inside = atFeet(14 + P.GOAL_TOL - 1e-9); // rows 13.11 .. 14.01: overlaps the cell at row 13
         const outside = atFeet(14 + P.GOAL_TOL + 1e-9);
-        expect(shiftForClears(inside, [14]).y).toBeCloseTo(inside.y + 1, 9);
-        expect(shiftForClears(outside, [14])).toBe(outside);
+        expect(shiftForClears(grid, inside, [14]).y).toBeCloseTo(inside.y + 1, 9);
+        expect(shiftForClears(grid, outside, [14])).toBe(outside);
     });
 
-    it('moves a player whose feet are exactly on the cleared row top edge', () => {
-        const pl = atFeet(16);
-        expect(shiftForClears(pl, [16]).y).toBeCloseTo(pl.y + 1, 9);
-    });
-
-    it('keeps the other fields', () => {
-        const pl: Player = { x: 3, y: 10, vy: 2, onGround: true };
-        expect(shiftForClears(pl, [19])).toEqual({ x: 3, y: 11, vy: 2, onGround: true });
+    it('keeps the other fields when it moves the player', () => {
+        const grid = createGrid();
+        block(grid, [10], [4]);
+        const pl: Player = { x: 4.65, y: 9.6, vy: 2, onGround: true };
+        expect(shiftForClears(grid, pl, [19])).toEqual({ x: 4.65, y: 10.6, vy: 2, onGround: true });
     });
 });

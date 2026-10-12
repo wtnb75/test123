@@ -59,7 +59,7 @@ export class Round {
 
         this.advanceFlow(dt);
 
-        if (this.status === 'playing' && (reachedBeforeFlow || reachedGoal(this.player))) {
+        if (this.status === 'playing' && reachedBeforeFlow) {
             this.status = 'cleared';
         }
         this.maxHeight = Math.max(this.maxHeight, this.height);
@@ -107,7 +107,7 @@ export class Round {
         this.events.push({ kind: 'locked', cells: cellsAfterClear(absolute, cleared) });
         if (cleared.length > 0) {
             this.events.push({ kind: 'cleared', rows: cleared });
-            this.player = shiftForClears(this.player, cleared);
+            this.player = shiftForClears(this.grid, this.player, cleared);
         }
     }
 
