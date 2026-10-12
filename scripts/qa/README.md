@@ -17,6 +17,7 @@ scripts/qa/share.sh <game-dir> [port=5191]              # dev サーバーを Cl
 | `down.sh` | コンテナの削除とサーバー・トンネルの停止（dev サーバーも `--shared` の静的サーバーも `share.sh` のトンネルも）。残っていればエラーにする |
 | `share.sh` | `cloudflared tunnel --url` で dev サーバーを `https://*.trycloudflare.com` に公開し、URL を最後の行に出す。`<port>` で応答する dev サーバーがあればそれを使い、無ければ `127.0.0.1` で起動する。`cloudflared` が無ければエラーで止まる |
 | `lib.mjs` | シナリオ用ヘルパー（`launch` / `newPage` / `shot` / `burst` / `tap` / `setHidden` / `waitForQa` / `fps` / `report`） |
+| `title-viewports.mjs` | Title を、スマホ・PC の画面サイズ（iPhone SE の Safari の縦 375 × 550・横 667 × 310 を含む）に順に切り替えて撮り、`window.__qa.demoVisible` を確かめる。サイズごとの期待値は JSON（`title-cases.json`）で渡せる。`__qa` の形は `shared/title-demo/README.md` |
 | `smoke.mjs` | どのゲームにも使える最小の確認（デスクトップとスマホ、フレームレート、中央を1回タップ、コンソールエラーと 4xx/5xx のリクエスト）。失敗時は原因のリクエストを表示する |
 
 ## 共有ビルド（公開と同じ形）の確認
