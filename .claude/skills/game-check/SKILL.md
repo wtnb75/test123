@@ -41,7 +41,8 @@ Inside `<game-dir>`, run in order and capture each result:
 3. `npm run test`
 4. `npm run test:coverage` — statement/branch/function/line all ≥ 90%.
 5. `npm run build` — must produce static output with no Node-server-only
-   runtime dependency.
+   runtime dependency, and `rg -c __qa dist/assets/*.js` must print nothing
+   (the dev-only QA hook must not ship).
 
 ## On failure
 

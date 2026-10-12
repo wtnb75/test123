@@ -249,6 +249,10 @@ approves a spec that has already been through review.
 - **Internal consistency**: MVP範囲 matches コアループ/ルール (nothing core is
   also listed as non-MVP); every control in 操作仕様 is used in some Scene;
   numbers in the パラメータ表 match any numbers in the prose.
+- **Reachability**: for each rule, penalty and parameter, name a state in
+  which it takes effect. A rule that another rule makes unreachable (a
+  penalty for entering a hole of depth 3 when a rule forbids entering one)
+  is removed or reworded.
 - **No spec-lite leftovers** (first write after `game-proto`): the
   `> spec-lite:` banner and the `## プレイテストで固まったこと` section are
   gone, their content absorbed into the proper sections (ルール, パラメータ表,

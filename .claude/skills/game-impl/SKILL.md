@@ -87,6 +87,10 @@ treat them as limits on the delta.
   shutdown.
 - Assume static-site distribution only — no Node-server-only APIs, and
   asset paths must survive `vite build`.
+- Dev-only QA state (`window.__qa`): write it inline inside
+  `if (import.meta.env.DEV) { … }`, with its names and strings inside that
+  block only (a field or method holding them stays in the production
+  bundle). `game-check` verifies it.
 - Prefer what Phaser (or another library already in use) provides over
   hand-rolling the same behavior — camera shake, tweens, timers, text
   metrics. Keep only the game's own decisions (when, how much) in pure,

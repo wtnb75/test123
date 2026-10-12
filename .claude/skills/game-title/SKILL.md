@@ -71,6 +71,13 @@ Ask one question at a time. Recommend an answer for each.
    does not fit (hidden, or the layout changes). Text and the START button
    get small on the smallest screens: say how small, and that Space / Enter
    also start.
+   Keep the Title's texts and button and the demo in separate regions by
+   default (name on top, the demo shrunk into a framed window, START
+   below). Laying the demo behind the texts is only for a Title with little
+   text, and then the layout table gets a row "what overlaps the demo?"
+   with the answer. A Title that had only a name, a description and START
+   must not end up with text on top of a moving demo (minoclimb: the user
+   asked for a window after the background layout was built).
 4. **The bot** (methods 1 and 2). Rules of thumb from `shared/title-demo/
    README.md`: a pure function of the game's state; random numbers injected
    or none; it must look alive — not still, not repeating the same move
@@ -78,6 +85,11 @@ Ask one question at a time. Recommend an answer for each.
    games); a quality bar written as properties (survives the whole run,
    shows the key move N times, covers the screen) rather than a
    demonstration.
+   Before recommending a bot, try a first draft: a throwaway Vitest file
+   (not a deliverable; remove it with `git clean`) that plays the game's
+   pure logic for ~40 seeds and prints survival and the key counts. Put the
+   measured numbers into the summary. "This skill touches no files" means
+   no deliverable files.
 5. **Decide what must not change.** The game's rules, scoring, difficulty,
    controls and their feel; the existing transitions (Game → Result →
    Game); the time the player gets once START is pressed, however long they
