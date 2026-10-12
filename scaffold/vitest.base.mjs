@@ -3,6 +3,9 @@
 export default {
     test: {
         environment: 'node',
+        // The CI runs every game's tests in parallel on a small runner; the exhaustive and
+        // property tests take 1-3 s alone but can pass the default 5 s under that load.
+        testTimeout: 20000,
         include: ['src/**/*.test.ts'],
         coverage: {
             provider: 'v8',
