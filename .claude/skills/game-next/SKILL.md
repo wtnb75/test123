@@ -120,11 +120,17 @@ game's workflow has nothing pending, and offer the ways to continue:
   game, starting from the top card of `docs/backlog.md` (name it). It
   agrees the scope in conversation, then hands off to `game-spec`, which
   opens a new branch and restarts the chain from `impl`.
+- **`game-title`** — put a Title with a demo (a bot playing behind it, or a
+  replay-style board) onto the game, when it has none. A fixed set of
+  choices (method, small-screen layout, bot, what must not change), then
+  `game-spec`; always presentation-only. Offer it for a game with no
+  `docs/spec/title-demo.md`.
 - **`game-backlog`** — find new ideas (spec analysis, automated play, the
   user's own), and rank or prune the backlog. Lead with this one when the
   backlog is missing or empty.
 - **`game-balance`** — another tuning pass without new features.
 
 Also offer `task game:dashboard` to see every tracked game's status.
-`task game:next` never returns `extend`: `game-extend` records no status
-of its own, so it's reached only from here or when the user asks for it.
+`task game:next` never returns `extend` or `title`: `game-extend` and
+`game-title` record no status of their own, so they are reached only from
+here or when the user asks for them.

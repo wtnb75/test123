@@ -73,6 +73,7 @@ the change from the spec revision and the diff, and re-shoot accordingly:
 | What the change touches | Re-shoot |
 |---|---|
 | **Shared parts**: build config, `index.html`, canvas size / orientation / layout, Scene start-stop-restart, input handling, pause, anything every state goes through | Every Scene and state (the full set), checked against the regression conditions in 完了条件 |
+| **A Title / demo addition** (no rule, number or in-game screen changes; the first Scene and the start of the game do) | The Title at the sizes in the spec's layout table (`scripts/qa/title-viewports.mjs`; `"fresh": true` where the size is decided at Title start), the standard scenario (`scripts/qa/title-start.mjs`: START by Enter / Space / click after a long idle, the game starts from its start, the demo's cycle), plus one representative shot of each existing Scene and the Game → result → Game path. Offer a real-device check |
 | **A local change to rules or content**: generation, judging, scoring, a new kind of element, a tuning number | The states where the change shows (its own screens, bursts for effects), plus **one representative shot per Scene on both viewports** (`scripts/qa/smoke.mjs` covers title and first tap), plus only the 完了条件 regression items the change could reach (e.g. the result screen when scoring changed) |
 | **Wording only** (README, spec text, comments) | `scripts/qa/smoke.mjs` only |
 
