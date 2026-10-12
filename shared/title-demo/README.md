@@ -164,6 +164,42 @@ QA のスクリプト（`scripts/qa/title-viewports.mjs` など）が読む、de
 };
 ```
 
+## 本物のゲームを背景で動かす型（absorb）
+
+簡略描画のデモを作らず、ゲームの `Game` Scene そのものをボットの入力で動かして、Title の背後に流す形。見た目が実際のプレイと必ず一致し、デモ用の描画を別に持たなくてよいが、`Game` の Scene に差し替え用の hook が要る。absorb（`absorb/src/game/scenes/Title.ts`・`DemoGame.ts`・`logic/demoBot.ts`・`logic/demoRun.ts`）が参照実装。簡略描画に比べて工数が大きいので、採るかどうかは最初に決める（`game-title`）。
+
+### 構成
+
+- **Scene**: `Title`（最初の Scene）、`Demo`（`Game` を継承した別の Scene。key は別）、`Game`、`GameOver`。`main.ts` の Scene の並びは `[Title, Game, GameOver, Demo]`（先頭が自動で始まる）。
+- **Title**: `create` で `scene.launch('Demo')` して `scene.bringToTop()` で自分を前面に置く。暗幕（黒 + 低い不透明度）、黒い幕（走りの作り直し用）、文字・START は Title が持つ。START では `scene.stop('Demo')` してから `scene.start('Game')`。
+- **走りの作り直し**: `fade-in` イベント（画面が黒の瞬間）で `scene.stop('Demo')` + `scene.launch('Demo')`（`bringToTop` は最初の 1 回でよい）。黒い幕の不透明度は `1 - runner.opacity()`。
+- **`TitleDemoRunner`**: ラウンド 1・手順 1 つの何もしない `DemoGame`（`rounds` 1、`waitMs` = 走りの長さの半分、`fadeMs`、`plan` は `[0]`、`play` は `{ moved: true, roundDone: true }`）。幕が閉じ始めるのは最初が「走りの長さ」、以降は「走りの長さ + `fadeMs`」ごと。
+- **`Game` の hook**（通常の経路は変えない。`Game` の `private` のうち Demo が使うものを `protected` にする）:
+
+| hook | `Game` | `Demo` |
+|---|---|---|
+| `startWorld()`（World を作った直後） | 何もしない（`ready` から始まる） | `world.beginPlay()`（カウントダウンを飛ばす） |
+| `setupControls()` | キー・ポインタ・一時停止のトリガーを登録 | 何もしない（リスナーを持たない） |
+| `readInput()` | キーを読む | ボットの入力を書く |
+| `drawHudLayer()` | HUD・カウントダウンの文字 | 何もしない |
+| `onWorldOver()` | `GameOver` を始める | 何もしない（最後の画面で止まる） |
+
+### ボット
+
+- 乱数を使わない純関数（ゲームの状態 → 入力）にする。同じ状態なら同じ入力。テストは手計算の例と、シードを固定した走りの性質。
+- **動きに見栄えを持たせる**: 「定位置に留まる」だけだと、敵弾が近くに無いときに静止して見える。ゆっくり巡回する目標点（プレイ経過時間だけで決まる）を置いて、そこへ寄る項を足す（absorb の `DEMO_ROAM_*`）。
+- **品質は性質テストで測る**: 走りの長さ全体の生存率、解放などの「見せたい動き」の回数（ボットが押した数を数える。自動の解放を含めない）、画面の横断幅。閾値は spec に書く。
+
+### 落とし穴
+
+- **幕の矩形**: Phaser の `Rectangle` は、`setAlpha` が塗りの不透明度に掛かる。塗りを不透明度 0 で作って `setAlpha(1 - opacity)` すると、幕は一度も出ない（塗りは 1 で作り、`setAlpha(0)` から始める）。QA で幕の途中の `__qa.curtain` と画像を確かめる。
+- **`time.now`**: Title を挟むと、更新されなかった間の `time.now` が古いまま残る（calc1 で、最初のラウンドの持ち時間が削られた）。持ち時間・経過時間は delta か `game.loop.time` で数える。Title に何秒いても、START のあとのカウントダウンが通常どおり始まることを QA で確かめる。
+- **リスナー**: Demo は入力のリスナーを持たない。Title の Enter / Space と Space のキャプチャは、`shutdown` で解除する。Demo を何度作り直しても、リスナー・タイマーの数が増えないこと。
+- **画面サイズ**: Title の開始時に画面サイズを決めるゲームは、`scripts/qa/title-viewports.mjs` のケースに `"fresh": true` を付ける（リサイズでは配置が変わらないため）。
+- **配置と被写体の重なり**: 自機などが操作説明の行の上を通る。読めなくならないか、画面写真で確かめる（暗幕で下げる・説明の位置を変える）。
+- **ボスなどの予告文字・HUD**: Demo では描かない。spec の「Game との違い」に書く。
+- **`__qa`**: Title は上の形、Game は `{ scene: 'Game', phase, ... }`、Demo の World の値は別の dev 専用のグローバルにする。本番の bundle に残らないことを確かめる。
+
 ## Title のデモの spec のひな形
 
 `docs/spec/title-demo.md`（分割ファイル。必須の見出しは `game-spec` スキルの「Spec layout」）に、次を書く。digdle・primtris で毎回同じ項目を足したので、最初から入れておく。
@@ -175,13 +211,15 @@ QA のスクリプト（`scripts/qa/title-viewports.mjs` など）が読む、de
   - 見た目（色・枠・文字の大きさ）、描画順、リサイズでの扱い（走りは作り直さず、今の状態から描き直す。置けなくなっても進行は続ける）。
 - **状態**: `DemoDirector` との対応表（状態 `S`・ラウンド・`start`・`plan`・`play`・`advance`・`timing`）、時計の数え方（`TitleDemoRunner`）、開始の門、演出を捨てるイベント（`advance`・`fade-out`・`fade-in`）、透明化は盤面だけに掛けること。
 - **ボット**: 乱数を注入できること、手の選び方、同じ手を繰り返さないこと、ラウンドの終わり。
+  - 本物のゲームを背景で動かす型では、乱数を使わない純関数にし、動きの見栄え（巡回の目標点）と品質の閾値（走りの長さ全体の生存率・見せたい動きの回数・横断幅）を spec に書く。
+
 - **ルール**: ゲーム本体に影響しない。保存しない（`localStorage` を使わない）。
 - **パラメータ表**: 待ち・透明化・セルの大きさの上下限・余白など。値同士の制約（例: 待ち > 1 手の演出の長さ）も書く。
 - **テスト観点**: 配置の境界値（1 px 差）、ボットの性質テスト（空振りの検査つき: 勝ち・負けの両方を数える）、時刻列の手計算、負けの経路を固定した乱数で、リサイズでの配置の切り替え。
 - **完了条件**: 画面サイズごとのスクリーンショット（`scripts/qa/title-viewports.mjs`）、デモの再生中の入力（開始・モード切替）、置けない画面で Title が崩れないこと。
 - **実装裁量**: 純粋ロジックの置き場所、細かい演出（短い動き）、乱数の種。
 
-QA は `scripts/qa/title-viewports.mjs` を使う（画面サイズを順に切り替え、`__qa.demoVisible` を確かめ、スクリーンショットを撮る）。
+QA は `scripts/qa/title-viewports.mjs` を使う（画面サイズを順に切り替え、`__qa.demoVisible` を確かめ、スクリーンショットを撮る）。Title の開始時に画面サイズを決めるゲームは、ケースに `"fresh": true` を付ける。START・持ち時間・走りの作り直しは `scripts/qa/title-start.mjs`（標準シナリオ）で確かめる。
 
 ## ゲーム側の約束
 
