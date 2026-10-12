@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "phaser": "catalog:",
-    "terser": "catalog:"
+    "terser": "catalog:",
+    "title-demo": "workspace:*"
   },
   "index": {
     "title": "digdle",

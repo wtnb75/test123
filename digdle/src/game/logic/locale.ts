@@ -1,8 +1,6 @@
 export type Locale = 'ja' | 'en';
 
 export type TextKey =
-    | 'subtitle'
-    | 'selectHint'
     | 'clear'
     | 'gameOver'
     | 'reselectDigits'
@@ -11,8 +9,6 @@ export type TextKey =
     | 'hardMode';
 
 const JA: Record<TextKey, string> = {
-    subtitle: 'N桁の素数を当てよう',
-    selectHint: '2 / 3 / 4 / 5 / 6 を選択',
     clear: 'Clear',
     gameOver: 'GameOver',
     reselectDigits: '桁数を選び直す',
@@ -22,8 +18,6 @@ const JA: Record<TextKey, string> = {
 };
 
 const EN: Record<TextKey, string> = {
-    subtitle: 'Guess the N-digit prime',
-    selectHint: 'Choose 2 / 3 / 4 / 5 / 6',
     clear: 'Clear',
     gameOver: 'GameOver',
     reselectDigits: 'Choose digits again',

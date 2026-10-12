@@ -1,4 +1,7 @@
 import { Scene, type GameObjects, type Time } from 'phaser';
+import {
+    CELL_FILL, CELL_FONT_FAMILY, CELL_LABEL_COLOR, CELL_STROKE, CELL_STROKE_WIDTH, cellLabelSize, COLORS
+} from '../logic/boardStyle';
 import { applyGuess, createGame } from '../logic/game';
 import { isDigitOption, modeFromData } from '../logic/selectLayout';
 import type { DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData } from '../types';
@@ -35,12 +38,6 @@ interface LayoutMetrics {
     keyboardButtonWidth: number;
     keyboardGap: number;
 }
-
-const COLORS: Record<DigitStatus, number> = {
-    green: 0x16a34a,
-    yellow: 0xf59e0b,
-    gray: 0x6b7280
-};
 
 const KEY_PRIORITY: Record<DigitStatus, number> = {
     gray: 1,
@@ -311,7 +308,7 @@ export class Game extends Scene {
         const startX = this.layout.boardStartX;
         const startY = this.layout.boardStartY;
 
-        const labelSize = Math.max(20, Math.floor(cellSize * 0.5));
+        const labelSize = cellLabelSize(cellSize);
 
         for (let row = 0; row < rows; row += 1) {
             const rowCells: BoardCell[] = [];
@@ -319,13 +316,13 @@ export class Game extends Scene {
                 const x = startX + col * (cellSize + gap);
                 const y = startY + row * (cellSize + gap);
 
-                const box = this.add.rectangle(x, y, cellSize, cellSize, 0x1f2937)
+                const box = this.add.rectangle(x, y, cellSize, cellSize, CELL_FILL)
                     .setOrigin(0, 0)
-                    .setStrokeStyle(2, 0x4b5563);
+                    .setStrokeStyle(CELL_STROKE_WIDTH, CELL_STROKE);
                 const label = this.add.text(x + cellSize / 2, y + cellSize / 2, '', {
-                    fontFamily: 'monospace',
+                    fontFamily: CELL_FONT_FAMILY,
                     fontSize: labelSize,
-                    color: '#ffffff'
+                    color: CELL_LABEL_COLOR
                 }).setOrigin(0.5);
 
                 this.uiObjects.push(box, label);
@@ -592,7 +589,7 @@ export class Game extends Scene {
                     cell.label.setText('');
                 }
 
-                cell.box.setFillStyle(0x1f2937);
+                cell.box.setFillStyle(CELL_FILL);
             }
         }
     }
