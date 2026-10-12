@@ -173,7 +173,7 @@ QA のスクリプト（`scripts/qa/title-viewports.mjs` など）が読む、de
 - **Scene**: `Title`（最初の Scene）、`Demo`（`Game` を継承した別の Scene。key は別）、`Game`、`GameOver`。`main.ts` の Scene の並びは `[Title, Game, GameOver, Demo]`（先頭が自動で始まる）。
 - **Title**: `create` で `scene.launch('Demo')` して `scene.bringToTop()` で自分を前面に置く。暗幕（黒 + 低い不透明度）、黒い幕（走りの作り直し用）、文字・START は Title が持つ。START では `scene.stop('Demo')` してから `scene.start('Game')`。
 - **走りの作り直し**: `fade-in` イベント（画面が黒の瞬間）で `scene.stop('Demo')` + `scene.launch('Demo')`（`bringToTop` は最初の 1 回でよい）。黒い幕の不透明度は `1 - runner.opacity()`。
-- **`TitleDemoRunner`**: ラウンド 1・手順 1 つの何もしない `DemoGame`（`rounds` 1、`waitMs` = 走りの長さの半分、`fadeMs`、`plan` は `[0]`、`play` は `{ moved: true, roundDone: true }`）。幕が閉じ始めるのは最初が「走りの長さ」、以降は「走りの長さ + `fadeMs`」ごと。
+- **`TitleDemoRunner`**: ラウンド 1・手順 1 つの何もしない `DemoGame`（`rounds` 1、`waitMs` = 走りの長さの半分、`fadeMs`、`plan` は `[0]`、`play` は `{ moved: true, roundDone: true }`）。幕が閉じ始めるのは最初が「走りの長さ」、以降は「走りの長さ + 2 × `fadeMs`」ごと（幕が閉じる `fadeMs` と開く `fadeMs`、どちらも待ちに数えない）。
 - **`Game` の hook**（通常の経路は変えない。`Game` の `private` のうち Demo が使うものを `protected` にする）:
 
 | hook | `Game` | `Demo` |
