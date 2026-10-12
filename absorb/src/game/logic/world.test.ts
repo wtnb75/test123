@@ -70,6 +70,42 @@ describe('phases', () => {
         expect(w.phase).toBe('playing');
     });
 
+    it('beginPlay skips the countdown: ready -> playing at once, with the clocks at 0', () => {
+        const w = new World(S, () => 0.5);
+        steps(w, 1);
+        expect(w.phase).toBe('ready');
+        expect(w.phaseTime).toBeGreaterThan(0.9);
+        w.beginPlay();
+        expect(w.phase).toBe('playing');
+        expect(w.phaseTime).toBe(0);
+        expect(w.elapsed).toBe(0);
+        expect(w.stock).toBe(0);
+        expect(w.enemies).toHaveLength(0);
+    });
+
+    it('beginPlay lets enemies appear from the very next step', () => {
+        const w = new World(S, () => 0.5);
+        w.beginPlay();
+        w.step(DT, NONE);
+        expect(w.enemies).toHaveLength(1);
+    });
+
+    it('beginPlay changes nothing once play has begun or ended', () => {
+        const w = playingWorld();
+        steps(w, 1);
+        const phaseTime = w.phaseTime;
+        w.beginPlay();
+        expect(w.phase).toBe('playing');
+        expect(w.phaseTime).toBe(phaseTime);
+
+        w.phase = 'ending';
+        w.beginPlay();
+        expect(w.phase).toBe('ending');
+        w.phase = 'over';
+        w.beginPlay();
+        expect(w.phase).toBe('over');
+    });
+
     it('starts the player centered 85% down the screen', () => {
         const w = new World({ width: 768, height: 1536 });
         expect(w.player).toMatchObject({ x: 384, y: 1536 * 0.85, lives: 3 });

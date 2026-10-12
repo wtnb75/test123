@@ -293,3 +293,32 @@ export const BOSS_DEFEAT_RING_DELAY = 0.15;
 export const BOSS_DEFEAT_RING_MAX_RADIUS = 160;
 export const BOSS_SCORE_POPUP_DURATION = 1;
 export const BOSS_SCORE_POPUP_RISE = 40;
+
+// The title screen and its demo (docs/spec/title-demo.md).
+/** One run of the demo, in seconds: the curtain starts to close after this long (the rebuild follows DEMO_FADE later). */
+export const DEMO_RUN_SECONDS = 40;
+/** Seconds the black curtain takes to close, and again to open, between two runs. */
+export const DEMO_FADE = 0.5;
+export const TITLE_VEIL_ALPHA = 0.35;
+export const TITLE_NAME_SIZE = 72;
+export const TITLE_TAGLINE_SIZE = 30;
+export const TITLE_START_WIDTH = 320;
+export const TITLE_START_HEIGHT = 84;
+export const TITLE_START_SIZE = 40;
+export const TITLE_HINT_SIZE = 26;
+/** The bot's roaming centre height as a ratio of the screen height. */
+export const DEMO_HOME_Y_RATIO = 0.78;
+/** How far the bot roams: half the sweep as a ratio of the width / height, and seconds per round trip. */
+export const DEMO_ROAM_X_RATIO = 0.35;
+export const DEMO_ROAM_X_PERIOD = 9;
+export const DEMO_ROAM_Y_RATIO = 0.1;
+export const DEMO_ROAM_Y_PERIOD = 5.5;
+/** Seconds ahead at which the bot compares its nine moves. */
+export const DEMO_LOOKAHEAD = 0.25;
+export const DEMO_ENEMY_MARGIN = 80;
+export const DEMO_ENEMY_WEIGHT = 3;
+export const DEMO_BULLET_WEIGHT = 1;
+export const DEMO_HOME_WEIGHT = 40;
+export const DEMO_RELEASE_STOCK = 12;
+export const DEMO_RELEASE_MIN_STOCK = 4;
+export const DEMO_RELEASE_RANGE = 320;

@@ -269,6 +269,11 @@ export class World {
         }
     }
 
+    /** Skips the countdown: ready -> playing at once (the title's demo has no "3, 2, 1"). Does nothing in other phases. */
+    beginPlay(): void {
+        if (this.phase === 'ready') this.setPhase('playing');
+    }
+
     private setPhase(phase: Phase): void {
         this.phase = phase;
         this.phaseTime = 0;
