@@ -18,12 +18,12 @@ const LOW_TIME_COLOR = '#ff5252';
 type Phase = 'playing' | 'ending';
 
 export class Game extends Scene {
-    private phase: Phase = 'playing';
-    private elapsedMs = 0;
+    protected phase: Phase = 'playing';
+    protected elapsedMs = 0;
     private endingElapsedMs = 0;
     private nextSpawn = 0;
     private score = 0;
-    private live: PopView[] = [];
+    protected live: PopView[] = [];
     private arrows: GameObjects.Triangle[] = [];
     private scoreText!: GameObjects.Text;
     private timeText!: GameObjects.Text;
@@ -34,19 +34,20 @@ export class Game extends Scene {
     private veil!: GameObjects.Rectangle;
     private cursors!: Types.Input.Keyboard.CursorKeys;
     /** Follows the pressed pointers (mouse and fingers) from press to release. */
-    private readonly pointers = new PointerTracker((id) => this.input.manager.pointers[id]?.isDown ?? false);
+    protected readonly pointers = new PointerTracker((id) => this.input.manager.pointers[id]?.isDown ?? false);
     /** Last observed mouse position in canvas coordinates; null for touch or outside the canvas. */
     private mouse: Pt | null = null;
     /** The layout chosen when this Scene started; it never changes during the run. */
-    private layout: Layout = LANDSCAPE;
-    private readonly view: View = { x: 0, y: 0, w: LANDSCAPE.viewW, h: LANDSCAPE.viewH };
+    protected layout: Layout = LANDSCAPE;
+    protected readonly view: View = { x: 0, y: 0, w: LANDSCAPE.viewW, h: LANDSCAPE.viewH };
 
-    constructor() {
-        super('Game');
+    /** `key` lets the Title's demo scene (a subclass) register under its own name. */
+    constructor(key = 'Game') {
+        super(key);
     }
 
-    create() {
-        this.layout = applyLayout(this);
+    create(data?: unknown) {
+        this.layout = this.chooseLayout(data);
         this.view.w = this.layout.viewW;
         this.view.h = this.layout.viewH;
         this.phase = 'playing';
@@ -67,41 +68,62 @@ export class Game extends Scene {
         this.createHud();
         this.createArrows();
         this.veil = createCatVeil(this, this.layout);
-        fadeInScene(this);
+        this.beginScene();
         const start = startScroll(this.layout);
         this.cameras.main.setScroll(start.x, start.y);
-        this.cursors = this.input.keyboard!.createCursorKeys();
-        this.bindInput();
-        if (import.meta.env.DEV) this.exposeQa();
-        this.events.once('shutdown', () => {
-            this.unbindInput();
-            if (import.meta.env.DEV) delete (window as unknown as { __qa?: unknown }).__qa;
-        });
+        this.setupInput();
+        this.events.once('shutdown', () => this.teardownInput());
+        if (import.meta.env.DEV) {
+            // QA only, written inline so none of it reaches the production bundle: a read-only snapshot for the
+            // browser QA scripts (positions are canvas coordinates). The game publishes `__qa`, the demo `__qaDemo`.
+            const cam = this.cameras.main;
+            const key = this.sys.settings.key === 'Demo' ? '__qaDemo' : '__qa';
+            Object.defineProperty(window, key, {
+                configurable: true,
+                get: () => ({
+                    phase: this.phase,
+                    score: this.score,
+                    remainingMs: remainingMs(this.elapsedMs),
+                    layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
+                    camera: { w: cam.width, h: cam.height },
+                    scroll: { x: cam.scrollX, y: cam.scrollY },
+                    arrowsShown: this.arrows.filter((a) => a.visible).length,
+                    pops: this.live.map((v) => ({
+                        hole: v.pop.hole,
+                        kind: v.pop.kind,
+                        decoy: v.pop.decoy === true,
+                        state: popState(v.pop, this.elapsedMs),
+                        x: v.center.x - cam.scrollX,
+                        y: v.center.y - cam.scrollY,
+                    })),
+                }),
+            });
+            this.events.once('shutdown', () => {
+                delete (window as unknown as Record<string, unknown>)[key];
+            });
+        }
     }
 
-    /** Dev build only: a read-only snapshot for the browser QA scripts (positions are canvas coordinates). */
-    private exposeQa() {
-        const cam = this.cameras.main;
-        Object.defineProperty(window, '__qa', {
-            configurable: true,
-            get: () => ({
-                phase: this.phase,
-                score: this.score,
-                remainingMs: remainingMs(this.elapsedMs),
-                layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
-                camera: { w: cam.width, h: cam.height },
-                scroll: { x: cam.scrollX, y: cam.scrollY },
-                arrowsShown: this.arrows.filter((a) => a.visible).length,
-                pops: this.live.map((v) => ({
-                    hole: v.pop.hole,
-                    kind: v.pop.kind,
-                    decoy: v.pop.decoy === true,
-                    state: popState(v.pop, this.elapsedMs),
-                    x: v.center.x - cam.scrollX,
-                    y: v.center.y - cam.scrollY,
-                })),
-            }),
-        });
+    // --- hooks the Title's demo (a subclass) replaces; the game itself keeps these as they are ---
+
+    /** The layout for this run: picked from the window's shape when the Scene starts. */
+    protected chooseLayout(_data?: unknown): Layout {
+        return applyLayout(this);
+    }
+
+    /** A new Scene fades in from black. */
+    protected beginScene(): void {
+        fadeInScene(this);
+    }
+
+    /** Arrow keys, pointers and Space. */
+    protected setupInput(): void {
+        this.cursors = this.input.keyboard!.createCursorKeys();
+        this.bindInput();
+    }
+
+    protected teardownInput(): void {
+        this.unbindInput();
     }
 
     update(_time: number, delta: number) {
@@ -134,7 +156,7 @@ export class Game extends Scene {
         }
     }
 
-    private createHud() {
+    protected createHud() {
         this.scoreText = this.add.text(PARAMS.hudMargin, 12, '', HUD_STYLE).setScrollFactor(0).setDepth(DEPTH.hud);
         // right aligned, and scaled from its top-right corner so it never moves off the screen edge
         this.timeText = this.add
@@ -212,7 +234,7 @@ export class Game extends Scene {
         this.strike(at.x, at.y);
     }
 
-    private scrollStep(delta: number) {
+    protected scrollStep(delta: number) {
         const k = keyDelta(
             this.cursors.left.isDown,
             this.cursors.right.isDown,
@@ -224,7 +246,7 @@ export class Game extends Scene {
         this.scrollBy(k, e);
     }
 
-    private scrollBy(...deltas: Pt[]) {
+    protected scrollBy(...deltas: Pt[]) {
         const cam = this.cameras.main;
         const next = combineScrollIn(this.layout, { x: cam.scrollX, y: cam.scrollY }, deltas);
         cam.setScroll(next.x, next.y);
@@ -233,7 +255,7 @@ export class Game extends Scene {
     // --- play ---------------------------------------------------------------------------------
 
     /** A strike at canvas position (sx, sy). */
-    private strike(sx: number, sy: number) {
+    protected strike(sx: number, sy: number) {
         if (this.phase !== 'playing') return;
         const cam = this.cameras.main;
         const at = { x: cam.scrollX + sx, y: cam.scrollY + sy };
@@ -290,7 +312,7 @@ export class Game extends Scene {
         for (let i = used; i < this.arrows.length; i++) this.arrows[i].setVisible(false);
     }
 
-    private updateHud() {
+    protected updateHud() {
         if (this.score !== this.scoreShown) {
             this.scoreShown = this.score;
             this.scoreText.setText(`スコア ${this.score}`);
@@ -315,7 +337,7 @@ export class Game extends Scene {
 
     // --- ending -------------------------------------------------------------------------------
 
-    private enterEnding() {
+    protected enterEnding() {
         this.phase = 'ending';
         this.live.forEach((v) => v.destroy());
         this.live = [];
