@@ -13,6 +13,7 @@ import {
     handleLossLevelChoice,
     findShortestSolutionFromOptions,
 } from '../logic';
+import { C, FONT } from '../palette';
 
 function randomBetween(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -24,26 +25,6 @@ type RowButton = {
     bg: Phaser.GameObjects.Rectangle;
     txt: Phaser.GameObjects.Text;
 };
-
-const C = {
-    BG: 0x0f172a,
-    PANEL: 0x111827,
-    PANEL_ALT: 0x0b1220,
-    TEXT: '#e2e8f0',
-    SUB: '#94a3b8',
-    TIMER_OK: '#fde68a',
-    TIMER_WARN: '#f87171',
-    SELECTED: 0x2563eb,
-    UNSELECTED: 0x334155,
-    SKIP: 0x475569,
-    DISABLED: 0x1f2937,
-    SHORTEST: 0x16a34a,
-    WIN: '#4ade80',
-    LOSE: '#f87171',
-    BTN: 0x3b82f6,
-} as const;
-
-const FONT = 'Arial, sans-serif';
 
 export class Game extends Scene {
     private level = 1;
@@ -131,7 +112,7 @@ export class Game extends Scene {
         }
 
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
-        this.roundDeadline = this.time.now + ROUND_TIME_MS;
+        this.roundDeadline = this.game.loop.time + ROUND_TIME_MS;
         this.timerEvent = this.time.addEvent({
             delay: 50,
             callback: () => this.tickTimer(),
@@ -148,7 +129,12 @@ export class Game extends Scene {
         this.levelText.setText(`Lv. ${shownLevel}`);
         this.headerText.setText(`目標: ${this.targetValue}  初期値: ${this.initialValue}\n現在値: ${this.progress.currentValue}`);
 
-        const restMs = Math.max(0, this.roundDeadline - this.time.now);
+        const restMs = Math.max(0, this.roundDeadline - this.game.loop.time);
+
+        if (import.meta.env.DEV) {
+            // QA only: the time left in the round (never part of the production bundle).
+            (window as unknown as { __qa?: unknown }).__qa = { scene: 'Game', mode: this.mode, level: this.level, restMs };
+        }
         const restSec = (restMs / 1000).toFixed(1);
         const color = restMs <= 10000 ? C.TIMER_WARN : C.TIMER_OK;
         this.timerText.setText(`残り ${restSec} 秒`).setColor(color);
@@ -158,14 +144,14 @@ export class Game extends Scene {
         if (this.mode !== 'playing') return;
         this.refreshHeader();
 
-        if (this.time.now > this.roundDeadline) {
+        if (this.game.loop.time > this.roundDeadline) {
             this.finalizeRound(false, false);
         }
     }
 
     private onSelect(turnIndex: number, selected: Operation | null): void {
         if (this.mode !== 'playing') return;
-        if (this.time.now > this.roundDeadline) return;
+        if (this.game.loop.time > this.roundDeadline) return;
 
         this.slots[turnIndex].selected = selected;
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
