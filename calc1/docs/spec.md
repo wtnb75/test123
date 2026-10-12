@@ -8,6 +8,8 @@ status_check: done
 status_qa: done
 status_balance: done
 status_publish: done
+status_codereview: done
+status_polish: done
 ---
 
 # ゲーム仕様: Calc Rush (仮)
@@ -33,7 +35,7 @@ status_publish: done
 6. 目標未達のまま制限時間（60秒）を超えた場合に敗北とする。
 
 ## 操作仕様（入力デバイスと主要操作）
-- 対応入力: マウス（またはタッチ）のみ。
+- 対応入力: `Game` はマウス（またはタッチ）のみ。`Title` は START のタップ・クリックに加えて、`Enter`・`Space` でも始められる（[Title とデモ](spec/title-demo.md)）。
 - マウス/タッチ: 任意の手の候補ボタンをクリック/タップして選択を変更。
 - スキップ: 各手の「スキップ」候補をクリック/タップで選択。
 - 初期状態: 全手がスキップ選択済み。
@@ -44,7 +46,8 @@ status_publish: done
 - ゲームオーバー時: 「最初から」ボタンをクリック/タップで最初から、それ以外の場所をクリック/タップすると同じレベルをリトライ。
 
 ## 画面・Scene 構成
-- MVP は 1 Scene 構成（Game Scene）とする。
+- Scene は `Title` と `Game` の 2 つ。起動時は `Title` が最初に出て、START で `Game`（これまでどおり Lv.1 から）を始める（[Title とデモ](spec/title-demo.md)）。`Game` から `Title` へ戻る導線は無い。
+- キャンバスは固定の 480 × 960（`Scale.FIT`）。以下の「表示要素」「レイアウト方針」は `Game` Scene のもの。
 - 表示要素:
   - 現在レベル（例: Lv.3）
   - 目的の数字
@@ -118,6 +121,19 @@ status_publish: done
   - この仕様により、プレイヤーには「クリア可能性が常に存在する」ことを保証する。
   - ゲームオーバー時、その正解パターン（最短または推奨）を表示することで、プレイヤーに「実は解けていたかもしれない」を理解させ、再挑戦時の参考にできる。
 
+## パラメータ表
+
+| 名前 | 初期値 | 意味 |
+|---|---|---|
+| キャンバス | 480 × 960（`Scale.FIT`） | 固定。画面に合わせて縮小する |
+| `ROUND_TIME_MS` | 60000 ms | 1 プレイ（1 ラウンド）の制限時間 |
+| `OPTION_COUNT` | 4 | 各手の演算候補の数（このほかにスキップ） |
+| 難易度 | 「難易度テーブル」 | レベルごとの初期値・目標値の範囲と手数 |
+| 問題の作り直し | 最大 200 回 | 解が存在する問題を探す回数。見つからなければ、最初の手の最初の候補 1 つで目標値になる問題にする |
+| `LEVEL_STORAGE_KEY` | `calcRushLevel` | レベルを保存する `localStorage` のキー |
+| 盤面の幾何 | 行の高さ 50、ボタン 72 × 28、ボタンの中心 x = 40・120・200・280・360、色・文字の大きさは [Title とデモ](spec/title-demo.md) の「レイアウト」 | `Game` の表の現行の値。`Title` のデモは同じ値を使う（値の正は title-demo.md の「レイアウト」） |
+| タイマーの更新 | 50 ms ごと | 残り時間の表示の更新間隔（Phaser Time Event） |
+
 ## MVP 範囲（初版で作る範囲）
 - 目的の数字の提示。
 - 全手ぶんの演算選択列の提示（各手4候補 + スキップ）。
@@ -167,6 +183,9 @@ status_publish: done
 - ビルドは Vite（静的出力）を前提とする。
 - ESLint エラー 0 を維持する。
 - Vitest でロジックの単体テストを実装する（可能な限り純粋関数化）。
+- `Title` のデモは、共有パッケージ `title-demo`（`package.json` に `"title-demo": "workspace:*"`）の `DemoDirector` / `TitleDemoRunner` で進める。デモの問題・ボットの手・配置は `Phaser` に依存しない純関数にし、乱数は注入する。
+- dev ビルドだけ、`Title` が `window.__qa`（`{ scene: 'Title', demoVisible, demoPhase, demoRounds, demoRows, demoWrong }`）を、`Game` が `{ scene: 'Game', mode, level, restMs }`（残り時間）を公開してよい。`if (import.meta.env.DEV) { … }` の中に直接書き、本番の bundle に残らないことを確かめる。
+- `Title` は、`Scene` の終了時に、キーのリスナと `Space` のキャプチャを解除する（AGENTS.md 4.2）。
 
 ## テスト観点（最低限の単体テスト対象）
 - 演算適用ロジック:
@@ -196,3 +215,15 @@ status_publish: done
 - `npm run lint` / `npm run test` / `npm run test:coverage` / `npm run build` が成功する。
 - テストカバレッジが 90% 以上。
 - README に目的・ルール・操作方法が記載される。
+
+## 実装裁量
+
+- `Game` の既存の色・文字の大きさは変えない（値は [Title とデモ](spec/title-demo.md) の「レイアウト」が正）。まだ決めていない細部（結果表示の文字の色など）、フォント（Arial 系）の指定
+- 結果表示の演出（フラッシュ・シェイク・文字の拡大など）の細かい値。入力を妨げない
+- ロジック（演算・難易度・問題の生成・判定）をどのファイルに置くか、関数の名前と分け方
+- 問題の生成に使う乱数の種の扱い（テストでは注入する）
+- `Game` と `Title` で共有する定数・部品の置き場所（`Game` の見た目は変えない）
+
+## 拡張
+
+- [Title とデモ](spec/title-demo.md) — 起動時の `Title`（名前・一言・START）と、ボットが演算を選ぶ様子のデモ（presentation-only）
