@@ -14,11 +14,16 @@ import { browserStore, createSessionBest, currentHighScore, recordScore, safeGet
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 import {
     DEFAULT_STAGE_BUTTON_WIDTH,
+    HUD_BAND_ALPHA,
+    HUD_BAND_COLOR,
+    HUD_BAND_DEPTH,
     HUD_GAP,
     HUD_LEFT,
     HUD_LEGEND_FONT,
     HUD_MESSAGE_FONT,
     HUD_MESSAGE_Y,
+    HUD_TEXT_DEPTH,
+    hudBandHeight,
     LEGEND_TEXT,
     fitFontSize,
     flagMessage,
@@ -91,6 +96,8 @@ export class Game extends Scene
     statusText!: Phaser.GameObjects.Text;
     messageText!: Phaser.GameObjects.Text;
     legendText!: Phaser.GameObjects.Text;
+    /** Translucent band behind the HUD rows: keeps them readable when the board is scrolled under them. */
+    private hudBand!: Phaser.GameObjects.Rectangle;
     /** The last message shown, so the HUD can be laid out again on resize. */
     private hudMessage = '';
     /** What the HUD texts were last drawn with (width|text): an unchanged row is not drawn again. */
@@ -143,17 +150,23 @@ export class Game extends Scene
         this.camera.setBackgroundColor(0x0a1f2f);
         this.view = new BoardView(this, { originX: BOARD_ORIGIN_X, originY: BOARD_ORIGIN_Y, cell: CELL_SIZE });
 
+        this.hudBand = this.add.rectangle(0, 0, this.camera.width, 0, HUD_BAND_COLOR, HUD_BAND_ALPHA)
+            .setOrigin(0)
+            .setScrollFactor(0)
+            .setDepth(HUD_BAND_DEPTH)
+            .setVisible(false);
+
         this.messageText = this.add.text(HUD_LEFT, HUD_MESSAGE_Y, '', {
             fontFamily: 'monospace',
             fontSize: HUD_MESSAGE_FONT,
             color: '#c6deff'
-        }).setScrollFactor(0);
+        }).setScrollFactor(0).setDepth(HUD_TEXT_DEPTH);
 
         this.statusText = this.add.text(HUD_LEFT, 0, '', {
             fontFamily: 'monospace',
             fontSize: STATUS_FONT_MAX,
             color: '#ffffff'
-        }).setScrollFactor(0);
+        }).setScrollFactor(0).setDepth(HUD_TEXT_DEPTH);
 
         // Phaser reuses this instance on scene.start: the new Text objects have not been drawn with any key yet.
         this.messageKey = '';
@@ -163,7 +176,7 @@ export class Game extends Scene
             fontFamily: 'monospace',
             fontSize: HUD_LEGEND_FONT,
             color: '#c6deff'
-        }).setScrollFactor(0).setVisible(false);
+        }).setScrollFactor(0).setDepth(HUD_TEXT_DEPTH).setVisible(false);
 
         this.goalArrow = this.add.text(0, 0, '', {
             fontFamily: 'monospace',
@@ -623,6 +636,14 @@ export class Game extends Scene
             }
             this.legendText.setPosition(HUD_LEFT, Math.max(belowStatus, buttonBottom + HUD_GAP));
         }
+
+        // The band covers every visible row: it follows wraps, the legend row and resizes.
+        const bottoms = [this.messageText.y + this.messageText.height, this.statusText.y + this.statusText.height];
+        if (this.legendText.visible) {
+            bottoms.push(this.legendText.y + this.legendText.height);
+        }
+        const bandHeight = hudBandHeight(bottoms);
+        this.hudBand.setSize(this.camera.width, bandHeight).setVisible(bandHeight > 0);
     }
 
     private revealAllBombs (): void

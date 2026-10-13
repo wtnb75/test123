@@ -5,6 +5,7 @@ import {
     LEGEND_TEXT,
     diedMessage,
     fitFontSize,
+    hudBandHeight,
     flagMessage,
     flagModeMessage,
     hudRowWidth,
@@ -143,5 +144,26 @@ describe('input kind', () => {
         expect(inputKindOfKey()).toBe('keys');
         expect(inputKindOfPointer(false)).toBe('keys');
         expect(inputKindOfPointer(true)).toBe('touch');
+    });
+});
+
+describe('hudBandHeight', () => {
+    it('ends the band one padding below the lowest row', () => {
+        expect(hudBandHeight([25, 48], 6)).toBe(54);
+        expect(hudBandHeight([25, 48, 66], 6)).toBe(72);
+        expect(hudBandHeight([42, 66], 6)).toBe(72);
+    });
+
+    it('does not depend on the order of the rows', () => {
+        expect(hudBandHeight([66, 25, 48], 6)).toBe(72);
+    });
+
+    it('uses the spec padding (6 px) by default and draws no band without rows', () => {
+        expect(hudBandHeight([50])).toBe(56);
+        expect(hudBandHeight([])).toBe(0);
+    });
+
+    it('grows when a row grows (a wrapped message or the legend row appears)', () => {
+        expect(hudBandHeight([25, 48, 66], 6)).toBeGreaterThan(hudBandHeight([25, 48], 6));
     });
 });
