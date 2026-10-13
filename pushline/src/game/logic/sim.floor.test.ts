@@ -78,11 +78,11 @@ describe('playing 12 clears in a row with the floor', () => {
         // measured 6.8% (34 of 500 boards) with the spec's 3000 attempts; 10% is the spec's bound
         expect(miss / boards).toBeLessThanOrEqual(0.1);
         expect(singleMiss / boards).toBeLessThanOrEqual(0.1);
-        // the relocation path ran, and it does help: some relocated boards meet the floor (measured: about
-        // half of them; the share is not bounded)
+        // the relocation path ran (182 of the 1200 generations) and it helps: most relocated boards meet
+        // the floor (measured 161 of 182, 88%); the bound leaves room for a different random stream
         expect(relocatedGenerations).toBeGreaterThan(0);
-        expect(relocatedMet).toBeGreaterThan(0);
+        expect(relocatedMet / relocatedGenerations).toBeGreaterThanOrEqual(0.5);
         expect(relocatedBlocks).toBeLessThanOrEqual(relocatedGenerations * PARAMS.relocateMax * PARAMS.relocateCount);
-        expect(generations).toBeGreaterThan(boards);
+        expect(generations).toBe(SEEDS * ROUNDS); // one generation per clear, nothing skipped
     }, 600000);
 });

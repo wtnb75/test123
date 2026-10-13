@@ -178,15 +178,19 @@ function simpleArrangement(state: State, rng: Rng, thinned: Grid, avoid: LineRef
 /** Step 8: a candidate whose optimum `found` is longer than the best so far replaces it. */
 export const isHarder = (found: number, bestSoFar: number): boolean => found > bestSoFar;
 
-/** A judged candidate: where it ranks in "採用の優先順位" (docs/spec/board-generation.md). */
+/** Where a judged candidate ranks in "採用の優先順位" (docs/spec/board-generation.md). */
+const IDEAL = 0; // reaches the target and no single block clears alone
+const PASS = 1; // meets the floor, short of the target
+const FAIL = 2; // misses the floor
+type Klass = typeof IDEAL | typeof PASS | typeof FAIL;
+
 interface Judged {
     cand: Candidate;
     /** The fewest moves to a clear; `target` when the search found none within `target - 1`. */
     found: number;
     /** (B): no single movable block clears a line alone. */
     noSingle: boolean;
-    /** 0 = ideal, 1 = pass (meets the floor), 2 = fail. */
-    klass: 0 | 1 | 2;
+    klass: Klass;
     /** Order found in (earlier wins ties). */
     order: number;
 }
@@ -200,6 +204,98 @@ const beats = (a: Judged, b: Judged): boolean =>
 /** Best of the failed candidates: (B) first, then `beats`. */
 const beatsFailed = (a: Judged, b: Judged): boolean =>
     a.noSingle !== b.noSingle ? a.noSingle : beats(a, b);
+
+/** What one generation carries from round to round. */
+interface Search {
+    state: State;
+    rng: Rng;
+    avoid: LineRef[];
+    now: () => number;
+    target: number;
+    floor: number;
+    steps: number;
+    startedAt: number;
+    rounds: number;
+    /** The board the attempts start from: the real one, then the relocated ones. */
+    base: Grid;
+    /** Every fixed block moved so far, the cells they stand on now, and the cells they left. */
+    moves: Relocation[];
+    moved: Set<string>;
+    vacated: Set<string>;
+    /** Candidates that missed the floor, from every round. */
+    failed: Judged[];
+    order: number;
+    tried: number;
+    /** A clock reading that ended a round and is used for the next round's first attempt. */
+    reading: number | null;
+    /** A reading went past the time limit: no more attempts, no more rounds. */
+    cut: boolean;
+}
+
+/** Steps 8-9 for one candidate: how far it gets (docs/spec/board-generation.md "簡単さの下限"). */
+function judge(s: Search, cand: Candidate): Judged {
+    cand.moves = s.moves;
+    const found = minClearMoves(cand.grid, s.state.px, s.state.py, s.target - 1) ?? s.target;
+    const noSingle = !hasSingleBlockClear(cand.grid, s.state.px, s.state.py);
+    const passes = noSingle && found >= s.floor;
+    const klass: Klass = !passes ? FAIL : found >= s.target ? IDEAL : PASS;
+    return { cand, found, noSingle, klass, order: s.order++ };
+}
+
+/**
+ * Attempts of round `k` up to its cumulative cap and its deadline (the time limit scaled to the round).
+ * Returns the first ideal candidate, or else the round's best pass, or null. A reading past the round's
+ * deadline is kept in `s.reading` for the next round; one past the limit sets `s.cut`.
+ */
+function runRound(s: Search, k: number): Judged | null {
+    const cap = Math.floor((PARAMS.spawnAttempts * (k + 1)) / s.rounds);
+    const deadline = (PARAMS.spawnTimeLimitMs * (k + 1)) / s.rounds;
+    let bestPass: Judged | null = null;
+    while (s.tried < cap) {
+        const t: number = s.reading ?? s.now();
+        s.reading = null;
+        if (t - s.startedAt > PARAMS.spawnTimeLimitMs) {
+            s.cut = true;
+            break;
+        }
+        if (t - s.startedAt > deadline) {
+            s.reading = t;
+            break;
+        }
+        s.tried++;
+        const cand = attempt(s.state, s.base, s.rng, s.avoid, s.steps);
+        if (!cand) continue;
+        const j = judge(s, cand);
+        if (j.klass === IDEAL) return j;
+        if (j.klass === PASS) {
+            if (!bestPass || beats(j, bestPass)) bestPass = j;
+        } else {
+            s.failed.push(j);
+        }
+    }
+    return bestPass;
+}
+
+/**
+ * Relocates fixed blocks for the round after `k` and returns that round's index, or null when no round
+ * follows (cut, last round, or no block can be moved). Rounds whose deadline the carried reading already
+ * passed are skipped (their attempts would be zero); the reading is within the time limit (a larger one
+ * cut the generation), so the last round's deadline always stops the skipping.
+ */
+function startNextRound(s: Search, k: number): number | null {
+    if (s.cut || k + 1 >= s.rounds) return null;
+    let next = k + 1;
+    while (s.reading !== null && s.reading - s.startedAt > (PARAMS.spawnTimeLimitMs * (next + 1)) / s.rounds) next++;
+    const relocated = relocateFixed(s.base, s.state.px, s.state.py, s.rng, s.moved, s.vacated);
+    if (!relocated) return null;
+    s.base = relocated.grid;
+    s.moves = [...s.moves, ...relocated.moves];
+    relocated.moves.forEach((m) => {
+        s.moved.add(key(m.to.x, m.to.y));
+        s.vacated.add(key(m.from.x, m.from.y));
+    });
+    return next;
+}
 
 /**
  * Adds movable blocks to `state.grid` (and thins leftovers) so that forward play can clear a line.
@@ -220,82 +316,31 @@ export function generateBlocks(
     fresh: readonly Pt[] = [],
 ): SpawnResult {
     const target = targetSolve(state.score);
-    const steps = target + PARAMS.scrambleExtraSteps;
-    const floor = floorMoves(target);
-    const startedAt = now();
-    const rounds = 1 + PARAMS.relocateMax;
+    const search: Search = {
+        state, rng, avoid, now, target,
+        floor: floorMoves(target),
+        steps: target + PARAMS.scrambleExtraSteps,
+        startedAt: now(),
+        rounds: 1 + PARAMS.relocateMax,
+        base: state.grid,
+        moves: [],
+        moved: new Set(),
+        vacated: new Set(),
+        failed: [],
+        order: 0,
+        tried: 0,
+        reading: null,
+        cut: false,
+    };
 
-    let base: Grid = state.grid;
-    let moves: Relocation[] = [];
-    const moved = new Set<string>();
-    const vacated = new Set<string>();
-    const failed: Judged[] = [];
     let adopted: Judged | null = null;
-    let order = 0;
-    let tried = 0;
-    let reading: number | null = null; // a reading carried over a round boundary
-    let cut = false;
-
-    for (let k = 0; k < rounds && !adopted && !cut; ) {
-        const cap = Math.floor((PARAMS.spawnAttempts * (k + 1)) / rounds);
-        const deadline = (PARAMS.spawnTimeLimitMs * (k + 1)) / rounds;
-        let bestPass: Judged | null = null;
-        while (tried < cap) {
-            const t: number = reading ?? now();
-            reading = null;
-            if (t - startedAt > PARAMS.spawnTimeLimitMs) {
-                cut = true;
-                break;
-            }
-            if (t - startedAt > deadline) {
-                reading = t;
-                break;
-            }
-            tried++;
-            const cand = attempt(state, base, rng, avoid, steps);
-            if (!cand) continue;
-            cand.moves = moves;
-            const found = minClearMoves(cand.grid, state.px, state.py, target - 1) ?? target;
-            const noSingle = !hasSingleBlockClear(cand.grid, state.px, state.py);
-            const passes = noSingle && found >= floor;
-            const klass = passes ? (found >= target ? 0 : 1) : 2;
-            const j: Judged = { cand, found, noSingle, klass, order: order++ };
-            if (klass === 0) {
-                adopted = j;
-                break;
-            }
-            if (klass === 1) {
-                if (!bestPass || beats(j, bestPass)) bestPass = j;
-            } else {
-                failed.push(j);
-            }
-        }
-        if (adopted) break;
-        if (bestPass) {
-            adopted = bestPass;
-            break;
-        }
-        if (cut || k + 1 >= rounds) break;
-
-        // Relocate fixed blocks for the next round; rounds whose deadline the carried reading already
-        // passed are skipped (their attempts would be zero). The reading is within the time limit (a larger
-        // one cut the generation), so the last round's deadline always stops this loop.
-        let next = k + 1;
-        while (reading !== null && reading - startedAt > (PARAMS.spawnTimeLimitMs * (next + 1)) / rounds) next++;
-        const moved2 = relocateFixed(base, state.px, state.py, rng, moved, vacated);
-        if (!moved2) break;
-        base = moved2.grid;
-        moves = [...moves, ...moved2.moves];
-        moved2.moves.forEach((m) => {
-            moved.add(key(m.to.x, m.to.y));
-            vacated.add(key(m.from.x, m.from.y));
-        });
-        k = next;
+    for (let k: number | null = 0; k !== null && !adopted; k = adopted ? null : startNextRound(search, k)) {
+        adopted = runRound(search, k);
     }
 
     let chosen: Candidate | null = adopted?.cand ?? null;
-    if (!chosen && failed.length > 0) {
-        chosen = failed.reduce((best, j) => (beatsFailed(j, best) ? j : best)).cand;
+    if (!chosen && search.failed.length > 0) {
+        chosen = search.failed.reduce((best, j) => (beatsFailed(j, best) ? j : best)).cand;
     }
 
     if (!chosen) {

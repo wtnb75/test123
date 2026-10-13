@@ -96,24 +96,15 @@ export class BoardView {
         }
     }
 
-    /** Line clear: blocks shrink away. Relocated fixed blocks shrink at their old cell (they pop in at the new one with the spawns). Thinned leftovers: grey blink then fade. Spawns: pop in. */
+    /**
+     * Line clear: blocks shrink away. Relocated fixed blocks shrink at their old cell (they pop in at the
+     * new one with the spawns). Thinned leftovers: grey blink then fade. Spawns: pop in.
+     */
     playBlockEffects(res: MoveResult): void {
         const color = (kind: number) => (kind === FIXED ? COLORS.fixed : COLORS.movable);
-        res.cleared.forEach((p) => {
-            const r = this.blockRect(p, color(p.kind), DEPTH.fx);
-            this.scene.tweens.add({
-                targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
-                onComplete: () => this.release(r),
-            });
-        });
-        res.relocated.forEach((m) => {
-            // a fixed block moved by the board generation: it shrinks away here and pops in at its new cell
-            const r = this.blockRect({ ...m.from, kind: FIXED }, color(FIXED), DEPTH.fx);
-            this.scene.tweens.add({
-                targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
-                onComplete: () => this.release(r),
-            });
-        });
+        res.cleared.forEach((p) => this.shrinkAway(p, color(p.kind)));
+        // a fixed block moved by the board generation shrinks away here (it pops in at its new cell with the spawns)
+        res.relocated.forEach((m) => this.shrinkAway({ ...m.from, kind: FIXED }, color(FIXED)));
         res.pruned.forEach((p) => {
             const r = this.blockRect(p, COLORS.pruned, DEPTH.ghost);
             this.scene.tweens.add({
@@ -159,6 +150,15 @@ export class BoardView {
     private dispose(obj: GameObjects.GameObject): void {
         this.scene.tweens.killTweensOf(obj);
         this.release(obj);
+    }
+
+    /** A block that left the board: it shrinks and fades where it stood (the same for a cleared and a moved block). */
+    private shrinkAway(p: KindPt, fill: number): void {
+        const r = this.blockRect(p, fill, DEPTH.fx);
+        this.scene.tweens.add({
+            targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
+            onComplete: () => this.release(r),
+        });
     }
 
     private blockRect(p: KindPt, fill: number, depth: number): GameObjects.Rectangle {
