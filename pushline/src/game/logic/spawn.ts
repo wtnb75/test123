@@ -232,7 +232,10 @@ interface Search {
     cut: boolean;
 }
 
-/** Steps 8-9 for one candidate: how far it gets (docs/spec/board-generation.md "簡単さの下限"). */
+/**
+ * Steps 8-9 for one candidate: how far it gets (docs/spec/board-generation.md "簡単さの下限").
+ * It also fills `cand.moves` (the relocations so far) and advances `s.order`.
+ */
 function judge(s: Search, cand: Candidate): Judged {
     cand.moves = s.moves;
     const found = minClearMoves(cand.grid, s.state.px, s.state.py, s.target - 1) ?? s.target;
@@ -334,6 +337,8 @@ export function generateBlocks(
     };
 
     let adopted: Judged | null = null;
+    // After an adoption nothing is relocated: startNextRound would spend random numbers for a round
+    // that never runs, which changes the boards of every seed.
     for (let k: number | null = 0; k !== null && !adopted; k = adopted ? null : startNextRound(search, k)) {
         adopted = runRound(search, k);
     }

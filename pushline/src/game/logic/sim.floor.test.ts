@@ -83,6 +83,6 @@ describe('playing 12 clears in a row with the floor', () => {
         expect(relocatedGenerations).toBeGreaterThan(0);
         expect(relocatedMet / relocatedGenerations).toBeGreaterThanOrEqual(0.5);
         expect(relocatedBlocks).toBeLessThanOrEqual(relocatedGenerations * PARAMS.relocateMax * PARAMS.relocateCount);
-        expect(generations).toBe(SEEDS * ROUNDS); // one generation per clear, nothing skipped
+        expect(generations).toBe(SEEDS * ROUNDS); // one clearing move per plan, one generation per clear
     }, 600000);
 });
