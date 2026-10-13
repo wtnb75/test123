@@ -12,6 +12,29 @@ import { PressTracker, StageFlow, restartKeyAction } from '../core/flow';
 import { restartButtonAt, restartButtonLayout, type ButtonBox, type RestartButtonLayout, type RestartChoice } from '../core/restartButtons';
 import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
+import {
+    DEFAULT_STAGE_BUTTON_WIDTH,
+    HUD_GAP,
+    HUD_LEFT,
+    HUD_LEGEND_FONT,
+    HUD_MESSAGE_FONT,
+    HUD_MESSAGE_Y,
+    LEGEND_TEXT,
+    fitFontSize,
+    flagMessage,
+    flagModeMessage,
+    hudRowWidth,
+    initialInputKind,
+    inputKindOfKey,
+    inputKindOfPointer,
+    invalidStageMessage,
+    jumpMessage,
+    resultMessage,
+    stageStartMessage,
+    statusLine,
+    STATUS_FONT_MAX,
+    type InputKind
+} from '../core/hudText';
 
 const CELL_SIZE = REFERENCE_CELL;
 const BOARD_ORIGIN_X = 20;
@@ -26,6 +49,9 @@ const CLEAR_DELAY_MS = 250;
 
 // Best score of this page's session: lives outside the Scene so NEW GAME / RETRY keep it.
 const sessionBest = createSessionBest();
+
+// Last input kind of this page (keys / touch): outside the Scene so NEW GAME and Title keep it. Not stored.
+let sessionInputKind: InputKind | undefined;
 
 type JoystickState = {
     active: boolean;
@@ -62,8 +88,15 @@ type DragState = {
 export class Game extends Scene
 {
     camera!: Phaser.Cameras.Scene2D.Camera;
-    hudText!: Phaser.GameObjects.Text;
-    hintText!: Phaser.GameObjects.Text;
+    statusText!: Phaser.GameObjects.Text;
+    messageText!: Phaser.GameObjects.Text;
+    legendText!: Phaser.GameObjects.Text;
+    /** The last message shown, so the HUD can be laid out again on resize. */
+    private hudMessage = '';
+    /** What the HUD texts were last drawn with (width|text): an unchanged row is not drawn again. */
+    private messageKey = '';
+    private statusKey = '';
+    private legendKey = '';
     goalArrow!: Phaser.GameObjects.Text;
     view!: BoardView;
     stageData!: Stage;
@@ -110,17 +143,27 @@ export class Game extends Scene
         this.camera.setBackgroundColor(0x0a1f2f);
         this.view = new BoardView(this, { originX: BOARD_ORIGIN_X, originY: BOARD_ORIGIN_Y, cell: CELL_SIZE });
 
-        this.hudText = this.add.text(20, 20, '', {
+        this.messageText = this.add.text(HUD_LEFT, HUD_MESSAGE_Y, '', {
             fontFamily: 'monospace',
-            fontSize: 18,
+            fontSize: HUD_MESSAGE_FONT,
+            color: '#c6deff'
+        }).setScrollFactor(0);
+
+        this.statusText = this.add.text(HUD_LEFT, 0, '', {
+            fontFamily: 'monospace',
+            fontSize: STATUS_FONT_MAX,
             color: '#ffffff'
         }).setScrollFactor(0);
 
-        this.hintText = this.add.text(20, 46, '', {
+        // Phaser reuses this instance on scene.start: the new Text objects have not been drawn with any key yet.
+        this.messageKey = '';
+        this.statusKey = '';
+        this.legendKey = '';
+        this.legendText = this.add.text(HUD_LEFT, 0, LEGEND_TEXT, {
             fontFamily: 'monospace',
-            fontSize: 14,
+            fontSize: HUD_LEGEND_FONT,
             color: '#c6deff'
-        }).setScrollFactor(0);
+        }).setScrollFactor(0).setVisible(false);
 
         this.goalArrow = this.add.text(0, 0, '', {
             fontFamily: 'monospace',
@@ -177,7 +220,8 @@ export class Game extends Scene
         this.gameOverLogical = undefined;
         this.stageData = generateStage(stageNo);
         this.renderBoard();
-        this.refreshHud('Stage start');
+        this.legendText.setVisible(false);
+        this.refreshHud(stageStartMessage(this.inputKind(), this.stageData.stageNo));
         this.centerCameraOnPlayer(true);
     }
 
@@ -357,6 +401,9 @@ export class Game extends Scene
         this.stageSelectBg.setPosition(stageX, stageY).setSize(stageW, stageH);
         this.stageSelectLabel.setPosition(stageX, stageY).setFontSize(compact ? 11 : 12);
         this.stageSelectHitArea = new Phaser.Geom.Rectangle(stageX - stageW / 2, stageY - stageH / 2, stageW, stageH);
+
+        // The HUD rows stay left of the STAGE button: lay them out again with its size.
+        this.layoutHud();
     }
 
     private promptAndStartStage (): void
@@ -367,7 +414,7 @@ export class Game extends Scene
             return;
         }
         if (answer.kind === 'invalid') {
-            this.refreshHud(`Invalid stage (1-${STAGE_MAX})`);
+            this.refreshHud(invalidStageMessage(STAGE_MAX));
             return;
         }
 
@@ -377,7 +424,7 @@ export class Game extends Scene
         this.time.removeAllEvents();
         this.startStage(selected);
         safeSetItem(this.store, START_STAGE_KEY, String(selected));
-        this.refreshHud(`Jumped to stage ${selected}`);
+        this.refreshHud(jumpMessage(selected));
     }
 
     private updateJoystickThumb (px: number, py: number): void
@@ -437,7 +484,7 @@ export class Game extends Scene
             return;
         }
         this.joystickHasFired = true;
-        this.applyDirectionInput(this.joystickCurrentDir, this.flagMode, 'virtual-joystick');
+        this.applyDirectionInput(this.joystickCurrentDir, this.flagMode);
     }
 
     private cancelJoystickRepeat (): void
@@ -484,27 +531,37 @@ export class Game extends Scene
             // Tap → Chord
             const out = chordAtPlayer(this.stageData);
             if (out.result.status === 'alive' && out.stage === this.stageData) {
-                this.refreshHud(out.result.message ?? 'chord');
+                this.refreshHud(this.messageOf(out));
                 return;
             }
-            this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord', out.changedCellIndices);
+            this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
             return;
         }
 
         // Short drag released before first repeat: fire once
         const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
         const sector = Math.round(deg / 45) % 8;
-        this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode, 'virtual-joystick');
+        this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode);
     }
 
+    /** HUD wording of a move / chord result (spec "メッセージの文言"). */
+    private messageOf (out: { result: { status: 'alive' | 'dead' | 'goal'; message?: string }; changedCellIndices?: number[] }): string
+    {
+        return resultMessage(out.result.status, out.result.message, out.changedCellIndices?.length ?? 0, this.inputKind());
+    }
+
+    /** The input kind (keys / touch) the HUD wording follows; the first value comes from the device. */
+    private inputKind (): InputKind
+    {
+        sessionInputKind ??= initialInputKind(typeof navigator === 'undefined' ? undefined : navigator.maxTouchPoints);
+        return sessionInputKind;
+    }
+
+    /** Puts `message` on the message line and rebuilds the status line from the current stage and high score. */
     private refreshHud (message: string): void
     {
-        const score = this.stageData.stageNo - 1;
-        const highscore = currentHighScore(this.store, HIGHSCORE_KEY, sessionBest);
-        this.hudText.setText(`Stage ${this.stageData.stageNo}  Score ${score}  High ${highscore}`);
-        this.hintText.setText(
-            `${message} | Move: arrows/QWEA-XZDC/numpad  Flag: Shift+dir  Chord: S/Num5  Mobile: virtual pad`
-        );
+        this.hudMessage = message;
+        this.layoutHud();
 
         if (import.meta.env.DEV) {
             // QA only: a read-only view of the state (never part of the production bundle).
@@ -512,6 +569,8 @@ export class Game extends Scene
             const stage = this.stageData;
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
+                message,
+                status: this.statusText.text,
                 stage: stage.stageNo,
                 width: stage.width,
                 height: stage.height,
@@ -519,6 +578,50 @@ export class Game extends Scene
                 goal: { x: stage.goal.x, y: stage.goal.y },
                 bombs: stage.cells.map((cell) => cell.hasBomb)
             };
+        }
+    }
+
+    /**
+     * Lays the HUD rows out (spec "HUD のメッセージとステータス"): message, status, then the legend (game over).
+     * Message and status stay left of the STAGE button; the legend sits below the button.
+     */
+    private layoutHud (): void
+    {
+        const area = this.stageSelectHitArea;
+        const rowWidth = hudRowWidth(this.camera.width, area?.width ?? DEFAULT_STAGE_BUTTON_WIDTH);
+
+        // Redrawing a Text re-uploads its texture: only rows whose width or text changed are drawn again.
+        const messageKey = `${rowWidth}|${this.hudMessage}`;
+        if (messageKey !== this.messageKey) {
+            this.messageKey = messageKey;
+            this.messageText.setWordWrapWidth(rowWidth, true).setText(this.hudMessage);
+        }
+        this.messageText.setPosition(HUD_LEFT, HUD_MESSAGE_Y);
+
+        const highscore = currentHighScore(this.store, HIGHSCORE_KEY, sessionBest);
+        const status = statusLine(this.stageData.stageNo, highscore);
+        const statusKey = `${rowWidth}|${status}`;
+        if (statusKey !== this.statusKey) {
+            this.statusKey = statusKey;
+            this.statusText.setWordWrapWidth(0);
+            this.statusText.setText(status);
+            const fit = fitFontSize((size) => this.statusText.setFontSize(size).width, rowWidth);
+            this.statusText.setFontSize(fit.size);
+            if (fit.wrap) {
+                this.statusText.setWordWrapWidth(rowWidth, true);
+            }
+        }
+        this.statusText.setPosition(HUD_LEFT, this.messageText.y + this.messageText.height + HUD_GAP);
+
+        if (this.legendText.visible) {
+            const buttonBottom = area ? area.bottom : 0;
+            const belowStatus = this.statusText.y + this.statusText.height + HUD_GAP;
+            const legendKey = `${this.camera.width}`;
+            if (legendKey !== this.legendKey) {
+                this.legendKey = legendKey;
+                this.legendText.setWordWrapWidth(this.camera.width - 2 * HUD_LEFT, true);
+            }
+            this.legendText.setPosition(HUD_LEFT, Math.max(belowStatus, buttonBottom + HUD_GAP));
         }
     }
 
@@ -626,6 +729,7 @@ export class Game extends Scene
 
     private onKeyDown (event: KeyboardEvent): void
     {
+        sessionInputKind = inputKindOfKey();
         if (this.flow.awaitingRestart) {
             const action = restartKeyAction(event.code, event.repeat);
             if (action !== 'none') {
@@ -647,18 +751,18 @@ export class Game extends Scene
             if (event.code === 'KeyS' || event.code === 'Numpad5') {
                 const out = chordAtPlayer(this.stageData);
                 if (out.result.status === 'alive' && out.stage === this.stageData) {
-                    this.refreshHud(out.result.message ?? 'chord');
+                    this.refreshHud(this.messageOf(out));
                     return;
                 }
-                this.applyResult(out.stage, out.result.status, out.result.message ?? 'chord', out.changedCellIndices);
+                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
             }
             return;
         }
 
-        this.applyDirectionInput(direction, event.shiftKey, 'keyboard');
+        this.applyDirectionInput(direction, event.shiftKey);
     }
 
-    private applyDirectionInput (direction: Position, asFlag: boolean, moveSource: string): void
+    private applyDirectionInput (direction: Position, asFlag: boolean): void
     {
         if (asFlag) {
             const target = {
@@ -667,12 +771,13 @@ export class Game extends Scene
             };
             const nextStage = toggleFlag(this.stageData, target);
             const changedCellIndices = nextStage === this.stageData ? [] : [indexOf(this.stageData, target)];
-            this.applyResult(nextStage, 'alive', 'Flag toggled', changedCellIndices);
+            const after = nextStage === this.stageData ? null : nextStage.cells[indexOf(nextStage, target)].flagged;
+            this.applyResult(nextStage, 'alive', flagMessage(after), changedCellIndices);
             return;
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
-        this.applyResult(out.stage, out.result.status, out.result.message ?? moveSource, out.changedCellIndices);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
     }
 
     private mapDirection (code: string): Position | null
@@ -782,7 +887,8 @@ export class Game extends Scene
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer(true);
-            this.refreshHud('You died | 橙: 論理確定爆弾  緑: 論理確定安全  紫: 誤フラグ | R = 同じステージ再挑戦 / T = タイトルへ / 他のキーかボタンで新ゲーム');
+            this.legendText.setVisible(true);
+            this.refreshHud(resultMessage('dead', undefined, 0, this.inputKind()));
             this.time.delayedCall(DEATH_DELAY_MS, () => {
                 if (this.flow.showRestart()) {
                     this.showRestartButtons();
@@ -794,7 +900,7 @@ export class Game extends Scene
         if (status === 'goal') {
             this.flow.reachGoal();
             this.discardPointerState();
-            this.refreshHud('Stage clear');
+            this.refreshHud(resultMessage('goal', undefined, 0, this.inputKind()));
             this.time.delayedCall(CLEAR_DELAY_MS, () => this.startStage(this.stageData.stageNo + 1));
             return;
         }
@@ -873,6 +979,7 @@ export class Game extends Scene
 
     private onPointerDown (pointer: Phaser.Input.Pointer): void
     {
+        sessionInputKind = inputKindOfPointer(pointer.wasTouch);
         if (this.stageSelectHitArea && Phaser.Geom.Rectangle.Contains(this.stageSelectHitArea, pointer.x, pointer.y)) {
             this.presses.begin(pointer.id, 'button');
             this.promptAndStartStage();
@@ -894,7 +1001,7 @@ export class Game extends Scene
             this.presses.begin(pointer.id, 'button');
             this.flagMode = !this.flagMode;
             this.updateFlagButtonVisual();
-            this.refreshHud(this.flagMode ? 'Flag mode ON' : 'Flag mode OFF');
+            this.refreshHud(flagModeMessage(this.flagMode));
             return;
         }
 
@@ -1037,6 +1144,6 @@ export class Game extends Scene
         }
 
         const out = movePlayer(this.stageData, target);
-        this.applyResult(out.stage, out.result.status, out.result.message ?? 'tap-move', out.changedCellIndices);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
     }
 }
