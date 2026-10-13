@@ -1,21 +1,14 @@
 import * as Phaser from 'phaser';
+import {
+    cellAppearance, cellAppearanceKey, cellStateOf, changedCellIndices, glyphKey, GLYPH_OUTLINE_COLOR, sameBoardShape,
+    scaledDimension, scaledFont, type BoardShape, type CellGlyph
+} from '../core/cellAppearance';
 import type { LogicalAnalysis } from '../core/solver';
 import { REFERENCE_CELL } from '../core/title';
 import type { Position, Stage } from '../core/types';
 
-/** Text is never drawn smaller than this (px), also in the smallest demo cell. */
-export const MIN_FONT_PX = 8;
-
-const HINT_COLORS: Record<number, string> = {
-    1: '#4da3ff',
-    2: '#7bed9f',
-    3: '#ff6b81',
-    4: '#70a1ff',
-    5: '#ff9f43',
-    6: '#34e7e4',
-    7: '#f1f2f6',
-    8: '#ced6e0'
-};
+/** The cell rectangles are drawn into render textures of at most this many cells on a side (texture size limits). */
+const CHUNK_CELLS = 32;
 
 export type BoardViewLayout = {
     /** Top-left corner of cell (0, 0), in world px. */
@@ -25,74 +18,102 @@ export type BoardViewLayout = {
     cell: number;
 };
 
+type Chunk = {
+    texture: Phaser.GameObjects.RenderTexture;
+    /** Where the chunk's first cell starts inside its texture (the texture sits on a whole pixel). */
+    offsetX: number;
+    offsetY: number;
+};
+
 /**
  * Draws a stage: the cells (with hints and flags), the start / goal markers, the player's highlight and mark.
  * Shared by `Game` (cell 30) and the Title demo (a smaller cell). With the reference cell size the shapes are
  * exactly the ones `Game` always drew. `logical` is the game-over colouring (known bombs / safe cells), or none.
+ *
+ * The cells live in a few render textures: a changed cell is cleared and drawn again (its rectangle, then its
+ * glyphs: digit, flag, bomb, "!", "○", "×", stamped from one text object per distinct look). What a cell looks
+ * like is decided by `core/cellAppearance` (pure); only cells whose appearance changed are touched.
  */
 export class BoardView
 {
     private readonly scene: Phaser.Scene;
     private layout: BoardViewLayout;
     private boardLayer?: Phaser.GameObjects.Container;
-    private cellLayers: Array<Phaser.GameObjects.Container | undefined> = [];
+    private chunks: Chunk[] = [];
+    private chunkCols = 0;
+    private dirtyChunks = new Set<number>();
+    /** The appearance key each cell was last drawn with. */
+    private cellKeys: Array<string | undefined> = [];
+    /** Text objects (never on the display list) whose textures the glyph images share. */
+    private glyphStamps = new Map<string, Phaser.GameObjects.Text>();
+    private cellGlyphs: Array<Phaser.GameObjects.Image[] | undefined> = [];
+    private drawn?: BoardShape;
     private playerHighlight?: Phaser.GameObjects.Rectangle;
     private playerMarker?: Phaser.GameObjects.Text;
     private alpha = 1;
+
+    /** What was drawn last: the cells are redrawn from it when the WebGL context comes back. */
+    private lastStage?: Stage;
+    private lastLogical?: LogicalAnalysis;
+    private readonly renderer?: Phaser.Events.EventEmitter;
 
     constructor (scene: Phaser.Scene, layout: BoardViewLayout)
     {
         this.scene = scene;
         this.layout = { ...layout };
+        // A render texture loses its contents with the WebGL context (the old per-cell shapes did not).
+        this.renderer = scene.sys.game.renderer as unknown as Phaser.Events.EventEmitter | undefined;
+    }
+
+    /** Draws every cell again (the render textures were emptied by a lost WebGL context). */
+    private redrawAll (): void
+    {
+        const stage = this.lastStage;
+        if (!this.boardLayer || !stage) {
+            return;
+        }
+        this.cellKeys = new Array(stage.cells.length);
+        for (let idx = 0; idx < stage.cells.length; idx += 1) {
+            this.updateCell(stage, idx, this.lastLogical);
+        }
+        this.flush();
     }
 
     /** A dimension drawn at the reference size, scaled to this view's cell (at least 1 px). */
     private px (value: number): number
     {
-        return Math.max(1, Math.round(value * this.layout.cell / REFERENCE_CELL));
+        return scaledDimension(value, this.layout.cell);
     }
 
-    /** A font size scaled like `px`, but never under MIN_FONT_PX (the smallest cell must stay readable). */
+    /** A font size scaled like `px`, but never under the smallest readable size. */
     private font (value: number): number
     {
-        return Math.max(MIN_FONT_PX, this.px(value));
+        return scaledFont(value, this.layout.cell);
     }
 
-    /** Rebuilds everything for `stage`. */
+    /** Draws `stage`: the cells that differ from what is on screen are updated, or the board is built when its shape changed. */
     render (stage: Stage, logical?: LogicalAnalysis): void
     {
-        this.boardLayer?.destroy(true);
-        this.boardLayer = this.scene.add.container(0, 0);
-        this.boardLayer.setAlpha(this.alpha);
-        this.cellLayers = new Array(stage.cells.length);
-
-        for (let y = 0; y < stage.height; y += 1) {
-            for (let x = 0; x < stage.width; x += 1) {
-                const idx = y * stage.width + x;
-                const layer = this.createCellLayer(stage, x, y, idx, logical);
-                this.cellLayers[idx] = layer;
-                this.boardLayer.add(layer);
+        this.lastStage = stage;
+        this.lastLogical = logical;
+        if (this.boardLayer && this.drawn && sameBoardShape(this.drawn, stage)) {
+            for (const idx of changedCellIndices(this.cellKeys, stage, logical)) {
+                this.updateCell(stage, idx, logical);
             }
+            this.flush();
+        } else {
+            this.build(stage, logical);
         }
-
-        this.drawEdgeMarker(stage, stage.start, 0x7bed9f);
-        this.drawEdgeMarker(stage, stage.goal, 0xffa502);
         this.updatePlayer(stage);
     }
 
     /** True when only the cells in `changed` need redrawing from `prev` to `next`. */
-    canDiff (prev: Stage, next: Stage, logical?: LogicalAnalysis): boolean
+    canDiff (_prev: Stage, next: Stage, _logical?: LogicalAnalysis): boolean
     {
         return this.boardLayer != null &&
-            this.cellLayers.length === next.cells.length &&
-            prev.stageNo === next.stageNo &&
-            prev.width === next.width &&
-            prev.height === next.height &&
-            prev.start.x === next.start.x &&
-            prev.start.y === next.start.y &&
-            prev.goal.x === next.goal.x &&
-            prev.goal.y === next.goal.y &&
-            logical == null;
+            this.cellKeys.length === next.cells.length &&
+            this.drawn != null &&
+            sameBoardShape(this.drawn, next);
     }
 
     renderChanged (stage: Stage, changedIndices: number[], logical?: LogicalAnalysis): void
@@ -100,16 +121,18 @@ export class BoardView
         if (!this.boardLayer || changedIndices.length === 0) {
             return;
         }
+        if (!this.drawn || !sameBoardShape(this.drawn, stage) || stage.cells.length !== this.cellKeys.length) {
+            // Not the board that is drawn: a cell list for another board cannot be applied.
+            this.render(stage, logical);
+            return;
+        }
+        this.lastStage = stage;
+        this.lastLogical = logical;
 
         for (const idx of changedIndices) {
-            this.cellLayers[idx]?.destroy();
-
-            const x = idx % stage.width;
-            const y = Math.floor(idx / stage.width);
-            const layer = this.createCellLayer(stage, x, y, idx, logical);
-            this.cellLayers[idx] = layer;
-            this.boardLayer.add(layer);
+            this.updateCell(stage, idx, logical);
         }
+        this.flush();
     }
 
     /** Puts the highlight and the mark on the player's cell. */
@@ -158,6 +181,7 @@ export class BoardView
     {
         this.layout = { ...layout };
         // The highlight and the mark are sized for the old cell: rebuild them with the board.
+        this.disposeBoard();
         this.playerHighlight?.destroy();
         this.playerHighlight = undefined;
         this.playerMarker?.destroy();
@@ -166,120 +190,155 @@ export class BoardView
 
     destroy (): void
     {
-        this.boardLayer?.destroy(true);
-        this.boardLayer = undefined;
+        this.renderer?.off(Phaser.Renderer.Events.RESTORE_WEBGL, this.redrawAll, this);
+        this.lastStage = undefined;
+        this.lastLogical = undefined;
+        this.disposeBoard();
         this.playerHighlight?.destroy();
         this.playerHighlight = undefined;
         this.playerMarker?.destroy();
         this.playerMarker = undefined;
-        this.cellLayers = [];
     }
 
-    private createCellLayer (stage: Stage, x: number, y: number, idx: number, logical?: LogicalAnalysis): Phaser.GameObjects.Container
+    private disposeBoard (): void
     {
-        const cell = stage.cells[idx];
+        this.boardLayer?.destroy(true);
+        this.boardLayer = undefined;
+        this.chunks = [];
+        this.dirtyChunks.clear();
+        this.cellKeys = [];
+        this.cellGlyphs = [];
+        for (const stamp of this.glyphStamps.values()) {
+            stamp.destroy();
+        }
+        this.glyphStamps.clear();
+        this.drawn = undefined;
+    }
+
+    /** Builds the board layer from nothing: the render textures, every cell, the markers. */
+    private build (stage: Stage, logical?: LogicalAnalysis): void
+    {
+        this.disposeBoard();
+        // Registered per build (not in the constructor): destroy() removes it and a view may be built again after.
+        this.renderer?.off(Phaser.Renderer.Events.RESTORE_WEBGL, this.redrawAll, this);
+        this.renderer?.on(Phaser.Renderer.Events.RESTORE_WEBGL, this.redrawAll, this);
+        const layer = this.scene.add.container(0, 0);
+        layer.setAlpha(this.alpha);
+        this.boardLayer = layer;
+
+        const cell = this.layout.cell;
+        this.chunkCols = Math.ceil(stage.width / CHUNK_CELLS);
+        const chunkRows = Math.ceil(stage.height / CHUNK_CELLS);
+        for (let cy = 0; cy < chunkRows; cy += 1) {
+            for (let cx = 0; cx < this.chunkCols; cx += 1) {
+                const worldX = this.layout.originX + cx * CHUNK_CELLS * cell;
+                const worldY = this.layout.originY + cy * CHUNK_CELLS * cell;
+                const x = Math.floor(worldX);
+                const y = Math.floor(worldY);
+                const offsetX = worldX - x;
+                const offsetY = worldY - y;
+                const cols = Math.min(CHUNK_CELLS, stage.width - cx * CHUNK_CELLS);
+                const rows = Math.min(CHUNK_CELLS, stage.height - cy * CHUNK_CELLS);
+                const texture = this.scene.add.renderTexture(x, y, Math.ceil(cols * cell + offsetX), Math.ceil(rows * cell + offsetY))
+                    .setOrigin(0);
+                // Nearest: with a fractional camera scroll the cells keep the crisp edges the shapes had.
+                texture.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+                layer.add(texture);
+                this.chunks.push({ texture, offsetX, offsetY });
+            }
+        }
+
+        this.cellKeys = new Array(stage.cells.length);
+        this.cellGlyphs = new Array(stage.cells.length);
+        for (let idx = 0; idx < stage.cells.length; idx += 1) {
+            this.updateCell(stage, idx, logical);
+        }
+        this.flush();
+
+        this.drawEdgeMarker(stage, stage.start, 0x7bed9f);
+        this.drawEdgeMarker(stage, stage.goal, 0xffa502);
+        this.drawn = {
+            width: stage.width,
+            height: stage.height,
+            start: { x: stage.start.x, y: stage.start.y },
+            goal: { x: stage.goal.x, y: stage.goal.y }
+        };
+    }
+
+    /** Redraws cell `idx` when its appearance differs from what is drawn. */
+    private updateCell (stage: Stage, idx: number, logical?: LogicalAnalysis): void
+    {
+        const appearance = cellAppearance(cellStateOf(stage, idx, logical));
+        const key = cellAppearanceKey(appearance);
+        const previous = this.cellKeys[idx];
+        if (previous === key) {
+            return;
+        }
+        this.cellKeys[idx] = key;
+
         const size = this.layout.cell;
         const k = size / REFERENCE_CELL;
-        const px = this.layout.originX + x * size;
-        const py = this.layout.originY + y * size;
-        const layer = this.scene.add.container(px, py);
+        const x = idx % stage.width;
+        const y = Math.floor(idx / stage.width);
+        const chunkIndex = Math.floor(y / CHUNK_CELLS) * this.chunkCols + Math.floor(x / CHUNK_CELLS);
+        const chunk = this.chunks[chunkIndex];
+        const left = chunk.offsetX + (x % CHUNK_CELLS) * size;
+        const top = chunk.offsetY + (y % CHUNK_CELLS) * size;
+        // The fill is opaque and covers the same rectangle every time: no clearing is needed.
+        chunk.texture.fill(appearance.fill, 1, left, top, size - 2 * k, size - 2 * k);
+        this.dirtyChunks.add(chunkIndex);
 
-        const rect = this.scene.add.rectangle(0, 0, size - 2 * k, size - 2 * k, this.cellFillColor(stage, x, y, cell, logical)).setOrigin(0);
-        layer.add(rect);
-
-        if (cell.hasBomb && cell.revealed) {
-            const isDeducible = logical?.knownBombs.has(idx) ?? false;
-            const bomb = this.scene.add.text(size / 2, size / 2, '*', {
-                fontFamily: 'monospace',
-                fontSize: this.font(20),
-                fontStyle: 'bold',
-                color: isDeducible ? '#ffb347' : '#ff3b30',
-                stroke: '#0b1220',
-                strokeThickness: this.px(3)
-            }).setOrigin(0.5);
-            layer.add(bomb);
+        for (const image of this.cellGlyphs[idx] ?? []) {
+            image.destroy();
         }
-
-        if (!cell.hasBomb && cell.revealed) {
-            const text = this.scene.add.text(size / 2, size / 2, cell.hint === 0 ? '' : String(cell.hint), {
-                fontFamily: 'monospace',
-                fontSize: this.font(16),
-                fontStyle: 'bold',
-                color: HINT_COLORS[cell.hint] ?? '#ffffff',
-                stroke: '#0b1220',
-                strokeThickness: this.px(3)
-            }).setOrigin(0.5);
-            layer.add(text);
-        }
-
-        if (cell.flagged) {
-            const isWrongFlag = logical != null && !cell.hasBomb;
-            const flag = this.scene.add.text(5 * k, 3 * k, 'F', {
-                fontFamily: 'monospace',
-                fontSize: this.font(16),
-                fontStyle: isWrongFlag ? 'bold' : 'normal',
-                color: isWrongFlag ? '#a29bfe' : '#ff4757'
-            });
-            layer.add(flag);
-            if (isWrongFlag) {
-                const cross = this.scene.add.text(size / 2, size / 2, '×', {
-                    fontFamily: 'monospace',
-                    fontSize: this.font(18),
-                    fontStyle: 'bold',
-                    color: '#a29bfe',
-                    stroke: '#0b1220',
-                    strokeThickness: this.px(2)
-                }).setOrigin(0.5);
-                layer.add(cross);
-            }
-        }
-
-        if (logical && !cell.revealed && !cell.flagged) {
-            if (logical.knownBombs.has(idx)) {
-                const hint = this.scene.add.text(size / 2, size / 2, '!', {
-                    fontFamily: 'monospace',
-                    fontSize: this.font(16),
-                    fontStyle: 'bold',
-                    color: '#ffb347'
-                }).setOrigin(0.5);
-                layer.add(hint);
-            } else if (logical.knownSafe.has(idx)) {
-                const hint = this.scene.add.text(size / 2, size / 2, '○', {
-                    fontFamily: 'monospace',
-                    fontSize: this.font(12),
-                    color: '#7bed9f'
-                }).setOrigin(0.5);
-                layer.add(hint);
-            }
-        }
-
-        return layer;
+        const worldLeft = this.layout.originX + x * size;
+        const worldTop = this.layout.originY + y * size;
+        const images = appearance.glyphs.map((glyph) => {
+            const atCenter = glyph.anchor === 'center';
+            const image = this.scene.add.image(
+                worldLeft + (atCenter ? size / 2 : 5 * k),
+                worldTop + (atCenter ? size / 2 : 3 * k),
+                this.stampFor(glyph).texture
+            ).setOrigin(atCenter ? 0.5 : 0);
+            this.boardLayer?.add(image);
+            return image;
+        });
+        this.cellGlyphs[idx] = images.length > 0 ? images : undefined;
     }
 
-    private cellFillColor (stage: Stage, x: number, y: number, cell: Stage['cells'][number], logical?: LogicalAnalysis): number
+    /**
+     * The text object whose canvas is the picture of a glyph look. It is never shown itself: each cell shows
+     * an image that shares its texture, so a board of thousands of digits creates one text object per look
+     * (a few dozen), not one per cell.
+     */
+    private stampFor (glyph: CellGlyph): Phaser.GameObjects.Text
     {
-        if (logical) {
-            const idx = y * stage.width + x;
-            if (cell.hasBomb && cell.revealed) {
-                // A revealed bomb: amber when it was certain from the numbers, the plain colour otherwise
-                return logical.knownBombs.has(idx) ? 0x7d3800 : 0x2f3542;
+        const key = glyphKey(glyph);
+        let stamp = this.glyphStamps.get(key);
+        if (!stamp) {
+            const style: Phaser.Types.GameObjects.Text.TextStyle = {
+                fontFamily: 'monospace',
+                fontSize: this.font(glyph.size),
+                fontStyle: glyph.bold ? 'bold' : 'normal',
+                color: glyph.color
+            };
+            if (glyph.stroke > 0) {
+                style.stroke = GLYPH_OUTLINE_COLOR;
+                style.strokeThickness = this.px(glyph.stroke);
             }
-            if (!cell.revealed) {
-                if (cell.flagged && !cell.hasBomb) {
-                    return 0x3d1f6e; // A wrong flag (purple)
-                }
-                if (logical.knownBombs.has(idx)) {
-                    return 0x7d3800; // A certain bomb that is still closed
-                }
-                if (logical.knownSafe.has(idx)) {
-                    return 0x0d2b1a; // A certain safe cell
-                }
-            }
+            stamp = this.scene.make.text({ text: glyph.text, style }, false);
+            this.glyphStamps.set(key, stamp);
         }
-        if (cell.revealed) {
-            return 0x2f3542;
+        return stamp;
+    }
+
+    /** Executes the fills queued on the render textures that changed. */
+    private flush (): void
+    {
+        for (const index of this.dirtyChunks) {
+            this.chunks[index].texture.render();
         }
-        return 0x1e272e;
+        this.dirtyChunks.clear();
     }
 
     private drawEdgeMarker (stage: Stage, pos: Position, color: number): void

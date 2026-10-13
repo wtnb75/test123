@@ -165,13 +165,13 @@ describe('the start gate the Title uses', () => {
 
 describe('Title regression (docs/spec/title.md, title-demo.md: no storage, demo stages only)', () => {
   const sources = import.meta.glob(
-    ['../scenes/Title.ts', '../scenes/boardView.ts', './title.ts', './titleDemo.ts', './demoBot.ts'],
+    ['../scenes/Title.ts', '../scenes/boardView.ts', './cellAppearance.ts', './title.ts', './titleDemo.ts', './demoBot.ts'],
     { query: '?raw', import: 'default', eager: true }
   ) as Record<string, string>;
 
   it('reads every file the Title loads', () => {
     expect(Object.keys(sources).sort()).toEqual([
-      '../scenes/Title.ts', '../scenes/boardView.ts', './demoBot.ts', './title.ts', './titleDemo.ts'
+      '../scenes/Title.ts', '../scenes/boardView.ts', './cellAppearance.ts', './demoBot.ts', './title.ts', './titleDemo.ts'
     ]);
   });
 
