@@ -55,6 +55,12 @@ findings in this format, blockers first:
 
 and, when there are none, say `no findings` explicitly.
 
+A report is valid only if it also lists what was checked (a short
+"確認したこと": which files, compared with what). Ask for that section in
+the prompt. A one-word or empty answer ("placeholder", "done") is not
+`no findings`: send the same task again with the section required, and
+say in the review summary that the first answer was empty.
+
 ### Severity
 
 - **blocker** — the next stage would have to invent a player-visible

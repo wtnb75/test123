@@ -76,6 +76,12 @@ the body — see "Spec layout" below), and a branch slug. When writing it:
 - Don't record history in the spec ("added in v2", changelogs). The spec
   always describes the current game; the why lives in the PR description
   and git history.
+- A ratio or count threshold written into 完了条件 must come from a
+  measurement with this spec's own numbers (a throwaway harness over
+  seeded runs), not from a guess or from a probe that used other numbers.
+  Put the measured value next to the threshold (in the parameter's
+  meaning column or the condition), so `game-impl` can tell a regression
+  from a miss.
 - Update `<game-dir>/docs/backlog.md` in the same branch (create it if
   missing): remove the card this revision implements, and add the
   candidates the summary lists as "left for later" that aren't there yet,
@@ -147,6 +153,11 @@ For each effect, write down (or delegate in 実装裁量, explicitly):
 - **Numbers in the パラメータ表** and **test points with hand-worked
   boundary values** (start, midpoint, exactly D), plus the regression
   conditions from the extension's "must not change" list.
+- **Test seam**: through which data the effect is checked (the fields of
+  the per-move result the Scene receives, a layout table, a timeline
+  function). Don't write "a pure function" unless the implementation will
+  have one; an effect drawn inside a Scene is checked through the data it
+  is fed, and by QA.
 
 ## Spec layout: `docs/spec.md` plus linked files
 

@@ -91,7 +91,9 @@ A throwaway harness, never committed:
 - Put a `*.test.ts` file under `<game-dir>/src/game/logic/` (vitest
   already resolves it there), run it with `npx vitest run <file>`, then
   remove it with `git clean -f <file>`. Keep the source in the scratchpad
-  so it can be rerun.
+  so it can be rerun. Vitest does not show a test's `console.log` here:
+  write the numbers to a file in the scratchpad (`writeFileSync`) and read
+  it afterwards.
 - Build the game's logic entry point (e.g. its `World`) with a seeded rng;
   drive it at a fixed dt with a bot that plays plausibly but simply (flee
   close threats, stay near the player's usual area, release/act on a
