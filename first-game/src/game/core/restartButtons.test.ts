@@ -47,6 +47,51 @@ describe('restartButtonLayout', () => {
   });
 });
 
+// Hand-worked: after a resize the buttons are the same function of the new size (docs/spec.md, same テスト観点).
+describe('restartButtonLayout after a resize', () => {
+  it('390x844 -> 844x390: RETRY (344, 280.8), NEW GAME (500, 280.8), TITLE (422, 340.8) with the bottom at 362.8', () => {
+    const l = restartButtonLayout(844, 390);
+    expect([l.retry.x, l.newGame.x, l.title.x]).toEqual([344, 500, 422]);
+    expect(l.retry.y).toBeCloseTo(280.8, 9);
+    expect(l.newGame.y).toBeCloseTo(280.8, 9);
+    expect(l.title.y).toBeCloseTo(340.8, 9);
+    expect(l.title.y + l.title.height / 2).toBeCloseTo(362.8, 9);
+    expect(l.title.y + l.title.height / 2).toBeLessThan(390);
+  });
+
+  it('320x568 -> 568x320: the TITLE bottom is 0.72 * 320 + 60 + 22 = 312.4, still under 320', () => {
+    const l = restartButtonLayout(568, 320);
+    expect(l.title.y + l.title.height / 2).toBeCloseTo(312.4, 9);
+    expect(l.title.y + l.title.height / 2).toBeLessThan(320);
+    expect(l.retry.x - l.retry.width / 2).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps size and gaps through a resize, and the old layout is not mutated', () => {
+    const before = restartButtonLayout(390, 844);
+    const snapshot = JSON.parse(JSON.stringify(before));
+    const after = restartButtonLayout(844, 390);
+    expect(before).toEqual(snapshot);
+    for (const b of [after.retry, after.newGame, after.title]) {
+      expect([b.width, b.height]).toEqual([140, 44]);
+    }
+    expect(after.newGame.x - after.retry.x).toBe(156);
+    expect(after.title.y - after.retry.y).toBeCloseTo(60, 9);
+  });
+
+  it('judges a release against the layout of the new size: (422, 340.8) is TITLE after the turn, a new game before it', () => {
+    const portrait = restartButtonLayout(390, 844);
+    const landscape = restartButtonLayout(844, 390);
+    expect(restartButtonAt(landscape, 422, 340.8)).toBe('title');
+    expect(restartButtonAt(portrait, 422, 340.8)).toBe('new');
+    // the old TITLE / RETRY spots are outside every landscape box, so they fall through to a new game
+    expect(restartButtonAt(portrait, 195, 667.68)).toBe('title');
+    expect(restartButtonAt(landscape, 195, 667.68)).toBe('new');
+    expect(restartButtonAt(portrait, 117, 607.68)).toBe('retry');
+    expect(restartButtonAt(landscape, 117, 607.68)).toBe('new');
+    expect(restartButtonAt(landscape, 344, 280.8)).toBe('retry');
+  });
+});
+
 describe('restartButtonAt', () => {
   const l = restartButtonLayout(1024, 720);
 

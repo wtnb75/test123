@@ -92,8 +92,8 @@ export class Game extends Scene
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
     /** The game-over buttons (backgrounds and labels) while they are on screen. */
-    restartObjects: Phaser.GameObjects.GameObject[] = [];
-    /** Where the game-over buttons were put when they appeared (they do not move on resize). */
+    restartButtons?: Record<keyof RestartButtonLayout, { bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }>;
+    /** Where the game-over buttons are now (set when they appear, redone on every resize while shown). */
     restartLayout?: RestartButtonLayout;
 
     constructor ()
@@ -162,7 +162,7 @@ export class Game extends Scene
             this.joystickCurrentDir = undefined;
             this.joystickHasFired = false;
             this.view.destroy();
-            this.restartObjects = [];
+            this.restartButtons = undefined;
             this.restartLayout = undefined;
         });
     }
@@ -236,6 +236,7 @@ export class Game extends Scene
         this.centerCameraOnPlayer(true);
         this.updateGoalArrow();
         this.layoutVirtualControls();
+        this.relayoutRestartButtons(gameSize.width, gameSize.height);
     }
 
     private createVirtualControls (): void
@@ -792,12 +793,34 @@ export class Game extends Scene
     {
         const layout = restartButtonLayout(this.camera.width, this.camera.height);
         this.restartLayout = layout;
-        this.makeRestartButton(layout.retry, 'RETRY [R]', 0x1e3a5f, 0x60a5fa, '#93c5fd');
-        this.makeRestartButton(layout.newGame, 'NEW GAME', 0x1a1a2e, 0x6b7280, '#9ca3af');
-        this.makeRestartButton(layout.title, 'TITLE [T]', 0x1a1a2e, 0x6b7280, '#9ca3af');
+        this.restartButtons = {
+            retry: this.makeRestartButton(layout.retry, 'RETRY [R]', 0x1e3a5f, 0x60a5fa, '#93c5fd'),
+            newGame: this.makeRestartButton(layout.newGame, 'NEW GAME', 0x1a1a2e, 0x6b7280, '#9ca3af'),
+            title: this.makeRestartButton(layout.title, 'TITLE [T]', 0x1a1a2e, 0x6b7280, '#9ca3af')
+        };
     }
 
-    private makeRestartButton (box: ButtonBox, text: string, fill: number, stroke: number, color: string): void
+    /**
+     * Moves the shown game-over buttons for the new screen size; does nothing while they are not shown
+     * (before `DeathDelay` ends, or after they were taken away).
+     */
+    private relayoutRestartButtons (width: number, height: number): void
+    {
+        const buttons = this.restartButtons;
+        if (!buttons) {
+            return;
+        }
+        const layout = restartButtonLayout(width, height);
+        this.restartLayout = layout;
+        for (const key of ['retry', 'newGame', 'title'] as const) {
+            buttons[key].bg.setPosition(layout[key].x, layout[key].y);
+            buttons[key].label.setPosition(layout[key].x, layout[key].y);
+        }
+    }
+
+    private makeRestartButton (
+        box: ButtonBox, text: string, fill: number, stroke: number, color: string
+    ): { bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }
     {
         const bg = this.add.rectangle(box.x, box.y, box.width, box.height, fill, 0.95)
             .setStrokeStyle(2, stroke)
@@ -805,15 +828,18 @@ export class Game extends Scene
         const label = this.add.text(box.x, box.y, text, {
             fontFamily: 'monospace', fontSize: 15, fontStyle: 'bold', color
         }).setScrollFactor(0).setDepth(51).setOrigin(0.5, 0.5);
-        this.restartObjects.push(bg, label);
+        return { bg, label };
     }
 
     private hideRestartButtons (): void
     {
-        for (const object of this.restartObjects) {
-            object.destroy();
+        if (this.restartButtons) {
+            for (const { bg, label } of Object.values(this.restartButtons)) {
+                bg.destroy();
+                label.destroy();
+            }
         }
-        this.restartObjects = [];
+        this.restartButtons = undefined;
         this.restartLayout = undefined;
     }
 
