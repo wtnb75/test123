@@ -73,6 +73,11 @@ Ask one question at a time.
 5. **Decide what must not change.** List the existing controls feel,
    rules, scoring and difficulty this extension must leave alone. Anything
    existing that *will* change is agreed explicitly as an intended change.
+   If the extension changes how hard the game is (generation, spawn,
+   scoring, recovery), compare the old and the new with a bot over seeded
+   runs before asking for approval, and say which "unchanged" numbers the
+   result puts in doubt: they are an intended retune now, not a surprise
+   in `game-balance`.
 6. **Check the size.** If it doesn't fit one PR (e.g. a new mode plus a
    stage set plus new UI at once), cut it down to the smallest step, as
    `game-idea` does for an MVP. If existing code has to be restructured to

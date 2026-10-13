@@ -37,6 +37,17 @@ but when writing code reveals one, don't guess silently and don't stall:
   revision before implementing that part. Parts of the spec that aren't
   affected can be implemented meanwhile.
 
+### Completion criteria that are measured
+
+When 完了条件 / テスト観点 holds a threshold on a ratio or a count
+("下限を満たさない盤面は 10% 以下"), measure it with the spec's own numbers
+as soon as the build works (a throwaway harness in the scratchpad; remove
+anything you put in the tree with `git clean`), and put the result in the
+completion summary. If it misses, do not change a number from the
+パラメータ表 (attempts, probabilities, limits) in the code alone: show the
+user a table of the measured results for the candidate values and route
+the change through `game-spec`, like any other player-visible gap.
+
 ### If `src/proto/` exists (first implementation after `game-proto`)
 
 That is the throwaway prototype, not code to build on. Read it for what the
