@@ -36,3 +36,5 @@
 - `src/game/scenes/boardView.ts`（差分更新の経路で見た目の決定を 2 回計算する）— 理由: 呼び出し単体はステージ 100 で約 10 ms で、spec の目標（20 ms 以下）内
 - `src/game/scenes/boardView.ts`（チャンクの計算に単体テストが無い）— 理由: Phaser に依存する描画。QA のステージ 50・100 の画素比較で確認する
 - `src/game/core/cellAppearance.test.ts`（参照モデルを旧コードから手で転記している）— 理由: 旧コードは Phaser に依存し Vitest で動かせない。二重のレビューで旧コードと照合済み
+- `src/game/scenes/Game.ts`（HUD の幅とテキストが同時に変わると Text を 2 回描く。ジャンプでメッセージ行を 2 回描く）— 理由: リサイズ直後とジャンプ時だけで頻度が低く、1 回数 ms。キーによる再描画の省略は入れてある
+- `src/game/core/hudText.test.ts`（凡例の幅のテストが 0.6 em の仮定の計算値で、余裕が 6 px）— 理由: 文言を足したときに落ちる意図した安全網。実描画の切れは QA（幅 320 px）で確認する
