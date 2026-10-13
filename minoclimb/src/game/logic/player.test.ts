@@ -164,9 +164,10 @@ describe('stepPlayer: jumping', () => {
 });
 
 describe('stepPlayer: climbing steps', () => {
-    // Walk right and hop for 2 s, then stop hopping and let the player settle for 1 s.
+    // Walk right with jump held for 2 s (re-jumps on every landing), then let the player settle for 1 s.
+    // Re-pressing in the air next to the step would be a wall kick (and bars the way back to that wall).
     const walkAndJump = (grid: Grid): Player =>
-        run(grid, createPlayer(), 60 * 3, (f) => ({ left: false, right: true, jump: f < 120 && f % 2 === 0 }));
+        run(grid, createPlayer(), 60 * 3, (f) => ({ left: false, right: true, jump: f < 120 }));
 
     it('can jump onto a 2-high step', () => {
         const grid = createGrid();
