@@ -74,6 +74,9 @@ export class Game extends Scene
     presses = new PressTracker();
     store = browserStore();
     dragState: DragState = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
+    /** The part of the drag distance under one pixel that has not scrolled the camera yet (it is carried over). */
+    dragCarryX = 0;
+    dragCarryY = 0;
     virtualControlLayer?: Phaser.GameObjects.Container;
     joystickBase?: Phaser.GameObjects.Ellipse;
     joystickThumb?: Phaser.GameObjects.Ellipse;
@@ -555,7 +558,17 @@ export class Game extends Scene
         const clampedY = Math.min(maxY, Math.max(minY, py));
 
         this.camera.centerOn(clampedX, clampedY);
+        this.roundCameraScroll();
         this.updateGoalArrow();
+    }
+
+    /**
+     * Keeps the camera on whole pixels: an odd screen width puts the scroll on a half pixel, which shifts
+     * the cell edges of the board's render textures against the rest of the picture (docs/spec/board-render.md).
+     */
+    private roundCameraScroll (): void
+    {
+        this.camera.setScroll(Math.round(this.camera.scrollX), Math.round(this.camera.scrollY));
     }
 
     private updateGoalArrow (): void
@@ -933,13 +946,21 @@ export class Game extends Scene
 
         if (!this.dragState.active && distance >= SCROLL_THRESHOLD) {
             this.dragState.active = true;
+            this.dragCarryX = 0;
+            this.dragCarryY = 0;
         }
 
         if (this.dragState.active) {
-            const dx = pointer.x - this.dragState.lastX;
-            const dy = pointer.y - this.dragState.lastY;
-            this.camera.scrollX -= dx;
-            this.camera.scrollY -= dy;
+            // Whole pixels only (see roundCameraScroll); the fraction of a pointer move is carried to the next one.
+            this.dragCarryX += pointer.x - this.dragState.lastX;
+            this.dragCarryY += pointer.y - this.dragState.lastY;
+            const stepX = Math.trunc(this.dragCarryX);
+            const stepY = Math.trunc(this.dragCarryY);
+            this.dragCarryX -= stepX;
+            this.dragCarryY -= stepY;
+            this.camera.scrollX -= stepX;
+            this.camera.scrollY -= stepY;
+            this.roundCameraScroll();
             this.updateGoalArrow();
         }
 

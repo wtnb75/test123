@@ -392,3 +392,4 @@ Z X C        1 2 3
 
 - [Title 画面](spec/title.md) — ゲームを開いたときに最初に出る画面（ゲーム名・デモ・Start）
 - [Title のデモ](spec/title-demo.md) — Title の中央で、ボットが推理してステージ 1〜3 を自動プレイする（presentation-only）
+- [盤面の描画](spec/board-render.md) — `Game` と `Title` のデモが共有する盤面の描画を、大きいステージでも軽くする（presentation-only）

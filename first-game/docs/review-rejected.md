@@ -32,3 +32,7 @@
 - `src/game/scenes/Game.ts`（`restartLayout` の有無が「出ている」判定を兼ね、`restartButtons` と二重管理）— 理由: 出入口は `showRestartButtons` / `hideRestartButtons` に集約され、全ての出口が両方を空にする。元の構造
 - `src/game/scenes/Game.ts`（`onResize` の前の呼び出しが例外を投げるとボタンの置き直しが飛ぶ）— 理由: その場合は盤面・パッドも止まり、画面ごと壊れる。推測の域
 - `src/game/scenes/Game.ts`（置き直しのキー一覧 `['retry','newGame','title']` が型と別に書いてある。型リテラルが 3 箇所）— 理由: ボタンは spec で 3 つに固定。足すなら spec の改訂が先で、そのときに直せば足りる。見た目の nit
+- `src/game/scenes/boardView.ts`（差分更新で足した文字の Image が、盤面の外のマーカーより手前になる）— 理由: マーカーは盤面の外側でマスの文字と重ならず、見た目は同じ
+- `src/game/scenes/boardView.ts`（差分更新の経路で見た目の決定を 2 回計算する）— 理由: 呼び出し単体はステージ 100 で約 10 ms で、spec の目標（20 ms 以下）内
+- `src/game/scenes/boardView.ts`（チャンクの計算に単体テストが無い）— 理由: Phaser に依存する描画。QA のステージ 50・100 の画素比較で確認する
+- `src/game/core/cellAppearance.test.ts`（参照モデルを旧コードから手で転記している）— 理由: 旧コードは Phaser に依存し Vitest で動かせない。二重のレビューで旧コードと照合済み
