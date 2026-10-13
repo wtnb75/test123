@@ -112,7 +112,7 @@ describe('move: pushing', () => {
 });
 
 describe('move: line clears', () => {
-    it('clears a completed row, scores 1 and recovers 12 moves', () => {
+    it('clears a completed row, scores 1 and recovers 14 moves', () => {
         const s = board(ROW_CLEAR);
         const res = move(s, 'down', depsOf(7));
         expect(res.clearedRows).toEqual([5]);
@@ -120,7 +120,7 @@ describe('move: line clears', () => {
         expect(res.cleared.map(key).sort()).toEqual(['0,5', '1,5', '2,5', '3,5', '4,5']);
         expect(res.cleared.every((p) => p.kind === MOVABLE)).toBe(true);
         expect(s.score).toBe(1);
-        expect(s.moves).toBe(20 - 1 + 12);
+        expect(s.moves).toBe(20 - 1 + 14);
         expect(s.over).toBe(false);
     });
 
@@ -145,7 +145,10 @@ describe('move: line clears', () => {
         const s = board(['xxxxx', '.....', '.....', '....@', '....o', 'oooo.']);
         const res = move(s, 'down', depsOf(7));
         expect(res.clearedRows).toEqual([5]);
-        expect(s.grid[0].every((c) => c === FIXED)).toBe(true);
+        // spec change: the generation may move fixed blocks, so row 0 is judged by what the clear removed
+        expect(res.clearedCols).toEqual([]);
+        expect(res.cleared.every((p) => p.y === 5)).toBe(true);
+        expect(s.score).toBe(1);
     });
 
     it('a push along a row that only moves a block inside it clears nothing (the vacated cell stays a gap)', () => {
@@ -164,15 +167,15 @@ describe('move: line clears', () => {
     });
 
     it('recovers exactly up to the maximum without going over', () => {
-        const s = board(ROW_CLEAR, { moves: 29 });
+        const s = board(ROW_CLEAR, { moves: 27 });
         move(s, 'down', depsOf(7));
-        expect(s.moves).toBe(40); // 29 - 1 + 12 = 40
+        expect(s.moves).toBe(40); // 27 - 1 + 14 = 40
     });
 
     it('survives with one move left when that move clears a line', () => {
         const s = board(ROW_CLEAR, { moves: 1 });
         move(s, 'down', depsOf(7));
-        expect(s.moves).toBe(12);
+        expect(s.moves).toBe(14);
         expect(s.over).toBe(false);
     });
 
@@ -188,10 +191,10 @@ describe('move: line clears', () => {
 });
 
 describe('move: moves recovered by a clear (the "+N" shown to the player)', () => {
-    it('is the full 12 when there is room', () => {
+    it('is the full 14 when there is room', () => {
         const s = board(ROW_CLEAR, { moves: 20 });
-        expect(move(s, 'down', depsOf(7)).recovered).toBe(12);
-        expect(s.moves).toBe(31);
+        expect(move(s, 'down', depsOf(7)).recovered).toBe(14);
+        expect(s.moves).toBe(33);
     });
 
     it('is the part that fits under the cap: 35 -> 34 after the step -> 40 gives 6', () => {
@@ -205,9 +208,9 @@ describe('move: moves recovered by a clear (the "+N" shown to the player)', () =
         expect(move(s, 'down', depsOf(7)).recovered).toBe(1);
     });
 
-    it('is exactly 12 when the result lands on the cap (29 -> 28 -> 40)', () => {
-        const s = board(ROW_CLEAR, { moves: 29 });
-        expect(move(s, 'down', depsOf(7)).recovered).toBe(12);
+    it('is exactly 14 when the result lands on the cap (27 -> 26 -> 40)', () => {
+        const s = board(ROW_CLEAR, { moves: 27 });
+        expect(move(s, 'down', depsOf(7)).recovered).toBe(14);
     });
 
     it('is 0 for a move that clears nothing', () => {

@@ -13,6 +13,12 @@ export interface Pt {
     y: number;
 }
 
+/** One fixed block moved by the board generation. */
+export interface Relocation {
+    from: Pt;
+    to: Pt;
+}
+
 export interface KindPt extends Pt {
     kind: Cell;
 }
@@ -55,6 +61,12 @@ export interface MoveResult {
     pruned: KindPt[];
     /** Blocks that newly appeared (fixed top-up and spawned movable blocks). */
     spawned: KindPt[];
+    /**
+     * Fixed blocks that were moved to another cell by the board generation, from their cell before this
+     * clear to the new one. The new cell is also in `spawned`; a block placed by this clear's top-up and
+     * moved again is not listed here (it just appears at the new cell).
+     */
+    relocated: Relocation[];
     /** Moves actually gained by this move's line clears (after the cap); 0 when nothing was cleared. */
     recovered: number;
 }
