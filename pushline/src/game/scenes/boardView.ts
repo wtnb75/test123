@@ -96,11 +96,19 @@ export class BoardView {
         }
     }
 
-    /** Line clear: blocks shrink away. Thinned leftovers: grey blink then fade. Spawns: pop in. */
+    /** Line clear: blocks shrink away. Relocated fixed blocks shrink at their old cell (they pop in at the new one with the spawns). Thinned leftovers: grey blink then fade. Spawns: pop in. */
     playBlockEffects(res: MoveResult): void {
         const color = (kind: number) => (kind === FIXED ? COLORS.fixed : COLORS.movable);
         res.cleared.forEach((p) => {
             const r = this.blockRect(p, color(p.kind), DEPTH.fx);
+            this.scene.tweens.add({
+                targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
+                onComplete: () => this.release(r),
+            });
+        });
+        res.relocated.forEach((m) => {
+            // a fixed block moved by the board generation: it shrinks away here and pops in at its new cell
+            const r = this.blockRect({ ...m.from, kind: FIXED }, color(FIXED), DEPTH.fx);
             this.scene.tweens.add({
                 targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
                 onComplete: () => this.release(r),

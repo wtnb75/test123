@@ -1,15 +1,21 @@
 // Board generation ("盤面の生成", docs/spec.md): add movable blocks so that a line can always be cleared
 // by walking and pushing, and the optimum is not shorter than the score-based target.
 import { PARAMS } from '../params';
+import { floorMoves, hasSingleBlockClear, relocateFixed } from './floor';
 import { cloneGrid, DIR_LIST, DIRS, fullLineExists, inBounds, key, pick, reachableFrom } from './grid';
 import { minClearMoves, targetSolve } from './solve';
-import { EMPTY, FIXED, MOVABLE, type Grid, type KindPt, type LineRef, type Pt, type Rng, type State } from './types';
+import {
+    EMPTY, FIXED, MOVABLE,
+    type Grid, type KindPt, type LineRef, type Pt, type Relocation, type Rng, type State,
+} from './types';
 
 export interface SpawnResult {
-    /** Cells that hold a block afterwards and were empty before. */
+    /** Cells that hold a block afterwards and were empty before (or whose block was replaced). */
     added: KindPt[];
     /** Movable blocks that were on the board and are gone afterwards (thinned out). */
     removed: KindPt[];
+    /** Fixed blocks moved to another cell (blocks the caller listed as fresh are left out). */
+    relocated: Relocation[];
 }
 
 export interface Line extends LineRef {
@@ -48,10 +54,12 @@ function thin(grid: Grid, rng: Rng): KindPt[] {
     return removed;
 }
 
-/** A finished candidate board together with the leftovers thinned out to make it. */
+/** A finished candidate board together with the leftovers thinned out and the fixed blocks moved to make it. */
 interface Candidate {
     grid: Grid;
     removed: KindPt[];
+    /** Every fixed block moved before this candidate was made (all rounds so far). */
+    moves: Relocation[];
 }
 
 /** The geometry of one attempt: target line, the missing cell `c`, the feeder and the pusher start. */
@@ -73,8 +81,8 @@ function makePlan(grid: Grid, line: Line, c: Pt, s: 1 | -1): Plan | null {
 }
 
 /** Steps 1-7 of one attempt. Returns the resulting candidate, or null when the attempt is discarded. */
-function attempt(state: State, rng: Rng, avoid: LineRef[], steps: number): Candidate | null {
-    const g = cloneGrid(state.grid);
+function attempt(state: State, base: Grid, rng: Rng, avoid: LineRef[], steps: number): Candidate | null {
+    const g = cloneGrid(base);
     const removed = thin(g, rng);
 
     const lines = eligibleLines(state, avoid);
@@ -144,7 +152,7 @@ function attempt(state: State, rng: Rng, avoid: LineRef[], steps: number): Candi
     }
     if (pulls < PARAMS.scrambleMinPulls || g[state.py][state.px] !== EMPTY) return null;
     if (!reachableFrom(g, state.px, state.py).has(key(vx, vy))) return null;
-    return { grid: g, removed };
+    return { grid: g, removed, moves: [] };
 }
 
 /** Step 10: every single-push arrangement, one picked at random (no decoys, no reverse play). */
@@ -170,52 +178,150 @@ function simpleArrangement(state: State, rng: Rng, thinned: Grid, avoid: LineRef
 /** Step 8: a candidate whose optimum `found` is longer than the best so far replaces it. */
 export const isHarder = (found: number, bestSoFar: number): boolean => found > bestSoFar;
 
+/** A judged candidate: where it ranks in "採用の優先順位" (docs/spec/board-generation.md). */
+interface Judged {
+    cand: Candidate;
+    /** The fewest moves to a clear; `target` when the search found none within `target - 1`. */
+    found: number;
+    /** (B): no single movable block clears a line alone. */
+    noSingle: boolean;
+    /** 0 = ideal, 1 = pass (meets the floor), 2 = fail. */
+    klass: 0 | 1 | 2;
+    /** Order found in (earlier wins ties). */
+    order: number;
+}
+
+/** True when `a` is the better of two candidates of the same class (more moves, then fewer relocations, then earlier). */
+const beats = (a: Judged, b: Judged): boolean =>
+    a.found !== b.found ? isHarder(a.found, b.found)
+        : a.cand.moves.length !== b.cand.moves.length ? a.cand.moves.length < b.cand.moves.length
+            : a.order < b.order;
+
+/** Best of the failed candidates: (B) first, then `beats`. */
+const beatsFailed = (a: Judged, b: Judged): boolean =>
+    a.noSingle !== b.noSingle ? a.noSingle : beats(a, b);
+
 /**
  * Adds movable blocks to `state.grid` (and thins leftovers) so that forward play can clear a line.
- * `avoid` lists the lines that were just cleared; they are not chosen as the next target.
+ * `avoid` lists the lines that were just cleared; they are not chosen as the next target. `fresh` lists
+ * the fixed blocks the same clear's top-up just placed: if one of them is relocated it is not reported
+ * in `relocated` (the caller shows it appearing at its final cell only).
+ *
+ * Candidates are judged as ideal (reaches the target, no single block clears alone), pass (meets the
+ * floor) or fail. The attempts are split into `1 + relocateMax` rounds (cumulative caps and deadlines,
+ * the clock is read once at the start and once before each attempt); when a round ends with no ideal
+ * and no pass candidate, fixed blocks are relocated and the next round starts from that board.
  */
-export function generateBlocks(state: State, rng: Rng, avoid: LineRef[], now: () => number): SpawnResult {
+export function generateBlocks(
+    state: State,
+    rng: Rng,
+    avoid: LineRef[],
+    now: () => number,
+    fresh: readonly Pt[] = [],
+): SpawnResult {
     const target = targetSolve(state.score);
     const steps = target + PARAMS.scrambleExtraSteps;
+    const floor = floorMoves(target);
     const startedAt = now();
+    const rounds = 1 + PARAMS.relocateMax;
 
-    let chosen: Candidate | null = null;
-    let best: Candidate | null = null;
-    let bestMoves = -1;
-    for (let i = 0; i < PARAMS.spawnAttempts && now() - startedAt <= PARAMS.spawnTimeLimitMs; i++) {
-        const cand = attempt(state, rng, avoid, steps);
-        if (!cand) continue;
-        const found = minClearMoves(cand.grid, state.px, state.py, target - 1);
-        if (found === null) {
-            chosen = cand;
+    let base: Grid = state.grid;
+    let moves: Relocation[] = [];
+    const moved = new Set<string>();
+    const vacated = new Set<string>();
+    const failed: Judged[] = [];
+    let adopted: Judged | null = null;
+    let order = 0;
+    let tried = 0;
+    let reading: number | null = null; // a reading carried over a round boundary
+    let cut = false;
+
+    for (let k = 0; k < rounds && !adopted && !cut; ) {
+        const cap = Math.floor((PARAMS.spawnAttempts * (k + 1)) / rounds);
+        const deadline = (PARAMS.spawnTimeLimitMs * (k + 1)) / rounds;
+        let bestPass: Judged | null = null;
+        while (tried < cap) {
+            const t: number = reading ?? now();
+            reading = null;
+            if (t - startedAt > PARAMS.spawnTimeLimitMs) {
+                cut = true;
+                break;
+            }
+            if (t - startedAt > deadline) {
+                reading = t;
+                break;
+            }
+            tried++;
+            const cand = attempt(state, base, rng, avoid, steps);
+            if (!cand) continue;
+            cand.moves = moves;
+            const found = minClearMoves(cand.grid, state.px, state.py, target - 1) ?? target;
+            const noSingle = !hasSingleBlockClear(cand.grid, state.px, state.py);
+            const passes = noSingle && found >= floor;
+            const klass = passes ? (found >= target ? 0 : 1) : 2;
+            const j: Judged = { cand, found, noSingle, klass, order: order++ };
+            if (klass === 0) {
+                adopted = j;
+                break;
+            }
+            if (klass === 1) {
+                if (!bestPass || beats(j, bestPass)) bestPass = j;
+            } else {
+                failed.push(j);
+            }
+        }
+        if (adopted) break;
+        if (bestPass) {
+            adopted = bestPass;
             break;
         }
-        if (isHarder(found, bestMoves)) {
-            best = cand;
-            bestMoves = found;
-        }
+        if (cut || k + 1 >= rounds) break;
+
+        // Relocate fixed blocks for the next round; rounds whose deadline the carried reading already
+        // passed are skipped (their attempts would be zero). The reading is within the time limit (a larger
+        // one cut the generation), so the last round's deadline always stops this loop.
+        let next = k + 1;
+        while (reading !== null && reading - startedAt > (PARAMS.spawnTimeLimitMs * (next + 1)) / rounds) next++;
+        const moved2 = relocateFixed(base, state.px, state.py, rng, moved, vacated);
+        if (!moved2) break;
+        base = moved2.grid;
+        moves = [...moves, ...moved2.moves];
+        moved2.moves.forEach((m) => {
+            moved.add(key(m.to.x, m.to.y));
+            vacated.add(key(m.from.x, m.from.y));
+        });
+        k = next;
     }
-    chosen = chosen ?? best;
+
+    let chosen: Candidate | null = adopted?.cand ?? null;
+    if (!chosen && failed.length > 0) {
+        chosen = failed.reduce((best, j) => (beatsFailed(j, best) ? j : best)).cand;
+    }
 
     if (!chosen) {
         // Steps 10-12: thin once, then try the single-push arrangement; otherwise only the thinning stays.
         const thinned = cloneGrid(state.grid);
         const removed = thin(thinned, rng);
-        chosen = { grid: simpleArrangement(state, rng, thinned, avoid) ?? thinned, removed };
+        chosen = { grid: simpleArrangement(state, rng, thinned, avoid) ?? thinned, removed, moves: [] };
     }
-    return commit(state, chosen);
+    return commit(state, chosen, fresh);
 }
 
 /**
  * Writes the chosen board into the state. `removed` is what thinning took away (a cell that is
- * filled again by the new blocks still counts as removed and as added, so both effects play).
+ * filled again by the new blocks still counts as removed and as added, so both effects play). A cell a
+ * fixed block was moved from counts as added when another block now stands there.
  */
-function commit(state: State, next: Candidate): SpawnResult {
+function commit(state: State, next: Candidate, fresh: readonly Pt[]): SpawnResult {
     const thinned = new Set(next.removed.map((p) => key(p.x, p.y)));
+    const vacated = new Set(next.moves.map((m) => key(m.from.x, m.from.y)));
     const added: KindPt[] = [];
     next.grid.forEach((row, y) => row.forEach((cell, x) => {
-        if (cell !== EMPTY && (state.grid[y][x] === EMPTY || thinned.has(key(x, y)))) added.push({ x, y, kind: cell });
+        const k = key(x, y);
+        if (cell !== EMPTY && (state.grid[y][x] === EMPTY || thinned.has(k) || vacated.has(k))) added.push({ x, y, kind: cell });
         state.grid[y][x] = cell;
     }));
-    return { added, removed: next.removed };
+    const freshKeys = new Set(fresh.map((p) => key(p.x, p.y)));
+    const relocated = next.moves.filter((m) => !freshKeys.has(key(m.from.x, m.from.y)));
+    return { added, removed: next.removed, relocated };
 }

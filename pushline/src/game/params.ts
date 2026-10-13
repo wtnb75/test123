@@ -26,11 +26,16 @@ export const PARAMS = {
     scrambleMinPulls: 4,
     scrambleRetryFactor: 6,
     scramblePullProb: 0.85,
-    spawnAttempts: 300,
+    spawnAttempts: 3000,
     spawnTimeLimitMs: 100,
     solveNodeCap: 60000,
     decoys: 2,
     keepLeftover: 2,
+    // easy-board floor and relocation of fixed blocks (docs/spec/board-generation.md)
+    floorMin: 5,
+    floorGap: 2,
+    relocateCount: 2,
+    relocateMax: 2,
 
     // input
     swipeMinPx: 24,

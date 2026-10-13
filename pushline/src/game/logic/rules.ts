@@ -35,7 +35,7 @@ const snapshot = (state: State): Snapshot => ({
 /** Moves one cell (pushing a movable block when it is in the way). Blocked moves change nothing. */
 export function move(state: State, dir: Dir, deps: Deps): MoveResult {
     const res: MoveResult = {
-        moved: false, pushed: false, clearedRows: [], clearedCols: [], cleared: [], pruned: [], spawned: [], recovered: 0,
+        moved: false, pushed: false, clearedRows: [], clearedCols: [], cleared: [], pruned: [], spawned: [], relocated: [], recovered: 0,
     };
     if (state.over) return res;
     const { grid } = state;
@@ -96,9 +96,12 @@ function clearLines(state: State, dest: { x: number; y: number }, res: MoveResul
         ...res.clearedCols.map((index) => ({ horizontal: false, index })),
     ];
     res.spawned.push(...topUpFixed(state, deps.rng));
-    const spawn = generateBlocks(state, deps.rng, avoid, deps.now);
+    const spawn = generateBlocks(state, deps.rng, avoid, deps.now, res.spawned);
     res.spawned.push(...spawn.added);
     res.pruned.push(...spawn.removed);
+    res.relocated.push(...spawn.relocated);
+    // a block of this top-up that the generation moved away again appears only at its final cell
+    res.spawned = res.spawned.filter((p) => grid[p.y][p.x] === p.kind);
 }
 
 /** Whether Undo can do anything: there is a step to go back and the run is not over. */
