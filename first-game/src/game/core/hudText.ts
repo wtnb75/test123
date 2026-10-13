@@ -17,6 +17,13 @@ export const HUD_BUTTON_MARGIN = 20;
 export const HUD_BUTTON_GAP = 8;
 /** STAGE button width used until the button is laid out. */
 export const DEFAULT_STAGE_BUTTON_WIDTH = 90;
+/** The band behind the HUD rows (docs/spec.md パラメータ表): padding in px, colour, opacity. */
+export const HUD_BAND_PADDING = 6;
+export const HUD_BAND_COLOR = 0x0a1f2f;
+export const HUD_BAND_ALPHA = 0.7;
+/** Draw order: the board's player highlight (5) and "@" (6) < band < HUD texts < GOAL arrow (10). */
+export const HUD_BAND_DEPTH = 7;
+export const HUD_TEXT_DEPTH = 8;
 
 export const KEY_HINT = 'Move: arrows/QWEA-XZDC  Flag: Shift+dir  Chord: S';
 export const LEGEND_TEXT = 'Orange=mine Green=safe Purple=bad flag';
@@ -111,6 +118,10 @@ export const fitFontSize = (
     }
     return { size: min, wrap: true };
 };
+
+/** Height of the HUD band: the lowest row bottom plus `padding`; 0 (no band) when there is no row. */
+export const hudBandHeight = (rowBottoms: number[], padding: number = HUD_BAND_PADDING): number =>
+    rowBottoms.length === 0 ? 0 : Math.max(...rowBottoms) + padding;
 
 /** Width the message and status rows may use: left of the STAGE button (its width + right margin + gap). */
 export const hudRowWidth = (screenWidth: number, stageButtonWidth: number): number =>

@@ -9,6 +9,9 @@ import type { Position, Stage } from '../core/types';
 
 /** The cell rectangles are drawn into render textures of at most this many cells on a side (texture size limits). */
 const CHUNK_CELLS = 32;
+/** The player's highlight and "@" are part of the board: both sit behind the HUD band (docs/spec.md "HUD のメッセージとステータス"). */
+const PLAYER_HIGHLIGHT_DEPTH = 5;
+const PLAYER_MARKER_DEPTH = 6;
 
 export type BoardViewLayout = {
     /** Top-left corner of cell (0, 0), in world px. */
@@ -148,7 +151,7 @@ export class BoardView
             this.playerHighlight = this.scene.add.rectangle(0, 0, size, size, 0x57606f, 0.32)
                 .setOrigin(0)
                 .setStrokeStyle(this.px(2), 0xdfe4ea, 0.75)
-                .setDepth(5);
+                .setDepth(PLAYER_HIGHLIGHT_DEPTH);
             this.playerHighlight.setAlpha(this.alpha);
         }
         this.playerHighlight.setPosition(left, top);
@@ -158,7 +161,7 @@ export class BoardView
                 fontFamily: 'monospace',
                 fontSize: this.font(12),
                 color: '#ffffff'
-            }).setOrigin(0.5).setDepth(12);
+            }).setOrigin(0.5).setDepth(PLAYER_MARKER_DEPTH);
             this.playerMarker.setAlpha(this.alpha);
         }
         this.playerMarker.setPosition(left + cell / 2 - 9 * k, top + cell / 2 - 8 * k);
