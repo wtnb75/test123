@@ -9,8 +9,8 @@ status_check: done
 status_codereview: done
 status_qa: done
 status_polish: done
-status_balance: pending
-status_publish: pending
+status_balance: done
+status_publish: done
 ---
 
 # pushline（仮称）
