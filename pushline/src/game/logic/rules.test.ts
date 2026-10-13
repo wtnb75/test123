@@ -145,7 +145,10 @@ describe('move: line clears', () => {
         const s = board(['xxxxx', '.....', '.....', '....@', '....o', 'oooo.']);
         const res = move(s, 'down', depsOf(7));
         expect(res.clearedRows).toEqual([5]);
-        expect(s.grid[0].every((c) => c === FIXED)).toBe(true);
+        // spec change: the generation may move fixed blocks, so row 0 is judged by what the clear removed
+        expect(res.clearedCols).toEqual([]);
+        expect(res.cleared.every((p) => p.y === 5)).toBe(true);
+        expect(s.score).toBe(1);
     });
 
     it('a push along a row that only moves a block inside it clears nothing (the vacated cell stays a gap)', () => {

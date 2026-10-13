@@ -40,16 +40,33 @@ describe('generateBlocks: what it guarantees', () => {
         }
     });
 
-    it('leaves the fixed blocks exactly where they were', () => {
-        for (let seed = 1; seed <= 30; seed++) {
+    // Spec change (docs/spec/board-generation.md "押せないブロックの置き直し"): fixed blocks no longer
+    // stay put unconditionally; the generation may move them, and then it reports exactly what it moved.
+    it('keeps the number of fixed blocks and moves them only through a relocation it reports', () => {
+        let relocations = 0;
+        for (let seed = 1; seed <= 150; seed++) {
             const s = board(EMPTY_ROWS, { score: 6 });
             const rng = seeded(seed);
             topUpFixed(s, rng);
             const before = renderGrid(s.grid).map((r) => r.replace(/o/g, '.'));
-            generateBlocks(s, rng, [], frozenClock);
+            const result = generateBlocks(s, rng, [], frozenClock);
             const after = renderGrid(s.grid).map((r) => r.replace(/o/g, '.'));
-            expect(after).toEqual(before);
+            expect(after.join('').split('x').length).toBe(before.join('').split('x').length); // the same number of x
+            const moved = new Set(result.relocated.map((m) => `${m.from.x},${m.from.y}`));
+            const arrived = new Set(result.relocated.map((m) => `${m.to.x},${m.to.y}`));
+            after.forEach((row, y) => [...row].forEach((ch, x) => {
+                const k = `${x},${y}`;
+                if (ch === before[y][x]) return;
+                // a cell whose fixed block changed is exactly a reported source or destination
+                if (!(ch === 'x' ? arrived.has(k) : moved.has(k))) expect.fail(`seed ${seed}: cell ${k} changed without a record`);
+            }));
+            // every record is a real move: a fixed block was at the source and is at the destination
+            for (const m of result.relocated) {
+                if (before[m.from.y][m.from.x] !== 'x' || after[m.to.y][m.to.x] !== 'x') expect.fail(`seed ${seed}: a record that is not a move`);
+            }
+            relocations += result.relocated.length;
         }
+        expect(relocations).toBeGreaterThan(0); // the case is not vacuous
     });
 
     it('is deterministic for the same random source', () => {
@@ -281,11 +298,13 @@ describe('generateBlocks: time limit, attempt budget and fallbacks', () => {
         expect(fullLineExists(s.grid)).toBe(false);
     });
 
-    it('spends at most the attempt budget when no candidate can be made (one read per attempt)', () => {
+    // Spec change (手順 9): the attempts are split over the rounds, and with no fixed block to move there is
+    // no second round, so only the first round's share is spent.
+    it('spends only the first round when no candidate can be made and nothing can be relocated (one read per attempt)', () => {
         const clock = countingClock();
         const avoid = [...rowsOf([0, 1, 2, 3, 4]), ...colsOf([0, 1, 2, 3, 4])]; // nothing to aim at
         generateBlocks(board(EMPTY_ROWS), seeded(1), avoid, clock.now);
-        expect(clock.readings()).toBe(1 + PARAMS.spawnAttempts);
+        expect(clock.readings()).toBe(1 + Math.floor(PARAMS.spawnAttempts / (1 + PARAMS.relocateMax)));
     });
 
     it('adds nothing but still thins when no arrangement exists at all', () => {

@@ -147,3 +147,18 @@ export const oracleMin = (rows: string[], limit: number, cap = 200000, strict = 
 /** `oracleMin` for a state. */
 export const oracleMinOf = (s: State, limit: number, cap?: number, strict?: boolean): number | null =>
     oracleMin(render(s), limit, cap, strict);
+
+/**
+ * Independent check for the floor's (B): some ONE movable block, with every other block turned into a
+ * wall, can clear a line (found by the string-based `oracleMin`, not by the production search).
+ */
+export function singleClearOracle(rows: string[]): boolean {
+    const width = rows[0].length;
+    const blocks: number[] = [];
+    rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === 'o') blocks.push(y * width + x); }));
+    return blocks.some((keep) => {
+        const walled = rows.map((row, y) =>
+            [...row].map((ch, x) => (ch === 'o' && y * width + x !== keep ? 'x' : ch)).join(''));
+        return oracleMin(walled, 60, 200000) !== null;
+    });
+}
