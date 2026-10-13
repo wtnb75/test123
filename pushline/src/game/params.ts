@@ -11,7 +11,7 @@ export const PARAMS = {
     // moves
     startMoves: 30,
     maxMoves: 40,
-    movesPerLine: 12,
+    movesPerLine: 14,
 
     // fixed blocks
     initialFixed: 3,
