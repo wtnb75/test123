@@ -10,19 +10,20 @@ import { REFERENCE_CELL } from '../core/title';
 import { BoardView } from './boardView';
 import { PressTracker, StageFlow, gameOverKeyAction } from '../core/flow';
 import {
+    GRAVE_ART_FONT,
     GRAVE_DIM_ALPHA,
     GRAVE_DIM_COLOR,
     GRAVE_DIM_DEPTH,
-    GRAVE_PANEL_DEPTH,
-    GRAVE_PANEL_FILL,
-    GRAVE_PANEL_FILL_ALPHA,
-    GRAVE_PANEL_STROKE,
+    GRAVE_PLATE_ALPHA,
+    GRAVE_PLATE_COLOR,
+    GRAVE_PLATE_DEPTH,
     GRAVE_RECORD_COLOR,
     GRAVE_TEXT_COLOR,
-    GRAVE_PANEL_TEXT_DEPTH,
+    GRAVE_TEXT_DEPTH,
     graveCauseOf,
     graveLocked,
     gravePanelLayout,
+    gravePlateWidth,
     isNewRecord,
     type GraveInfo
 } from '../core/gravePanel';
@@ -989,14 +990,14 @@ export class Game extends Scene
         this.graveDim = this.add.rectangle(0, 0, this.camera.width, this.camera.height, GRAVE_DIM_COLOR, GRAVE_DIM_ALPHA)
             .setOrigin(0).setScrollFactor(0).setDepth(GRAVE_DIM_DEPTH);
         this.gravePanel = {
-            bg: this.add.rectangle(0, 0, 1, 1, GRAVE_PANEL_FILL, GRAVE_PANEL_FILL_ALPHA)
-                .setStrokeStyle(2, GRAVE_PANEL_STROKE).setScrollFactor(0).setDepth(GRAVE_PANEL_DEPTH),
+            bg: this.add.rectangle(0, 0, 1, 1, GRAVE_PLATE_COLOR, GRAVE_PLATE_ALPHA)
+                .setScrollFactor(0).setDepth(GRAVE_PLATE_DEPTH),
             rows: []
         };
         this.layoutGravePanel();
     }
 
-    /** Sizes the dim to the screen and puts the panel and its rows where the layout function says. */
+    /** Sizes the dim to the screen and puts the tombstone art (rows of one monospace font) and its plate where the layout says. */
     private layoutGravePanel (): void
     {
         const panel = this.gravePanel;
@@ -1006,16 +1007,19 @@ export class Game extends Scene
         }
         this.graveDim.setSize(this.camera.width, this.camera.height);
         const layout = gravePanelLayout(this.camera.width, this.camera.height, this.hudBand.height, info);
-        panel.bg.setSize(layout.width, layout.height).setPosition(layout.centerX, layout.top + layout.height / 2);
         for (const text of panel.rows) {
             text.destroy();
         }
         panel.rows = layout.rows.map((row, i) => this.add.text(layout.centerX, layout.rowCenterY[i], row.text, {
             fontFamily: 'monospace',
-            fontSize: row.fontSize,
-            fontStyle: row.bold ? 'bold' : 'normal',
+            fontSize: GRAVE_ART_FONT,
             color: row.highlight ? GRAVE_RECORD_COLOR : GRAVE_TEXT_COLOR
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_PANEL_TEXT_DEPTH));
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_TEXT_DEPTH));
+        // Every row has the same number of characters, so one measured row gives the width of one character.
+        const first = panel.rows[0];
+        const charWidth = first && first.text.length > 0 ? first.width / first.text.length : 0;
+        panel.bg.setSize(gravePlateWidth(layout.rows, charWidth), layout.height)
+            .setPosition(layout.centerX, layout.top + layout.height / 2);
     }
 
     private hideGravePanel (): void
