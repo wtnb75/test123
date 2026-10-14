@@ -1,6 +1,6 @@
 import { cloneStage, inBounds, indexOf, neighbors8, revealZeros } from './board';
 import { HEADING_VECTOR } from './floorLayout';
-import { doorCellOf } from './walls';
+import { roomDoors } from './walls';
 import type { MoveResult, Position, Stage } from './types';
 
 export type RuleOutput = {
@@ -31,17 +31,17 @@ const eqPos = (a: Position, b: Position): boolean => a.x === b.x && a.y === b.y;
 
 /** What a move that lands on `pos` (and did not die) is: the down-stairs end the stage (`goal`), anything else is a plain move. */
 const landingStatus = (stage: Stage, pos: Position): MoveResult['status'] =>
-  stage.goalKind !== 'door' && eqPos(pos, stage.goal) ? 'goal' : 'alive';
+  (stage.goalKind === undefined || stage.goalKind === 'down') && eqPos(pos, stage.goal) ? 'goal' : 'alive';
 
-/** True when moving to `pos` (outside the board) goes out through the room's door from the cell next to it. */
-const isDoorMove = (stage: Stage, pos: Position): boolean => {
-  const door = doorCellOf(stage);
-  if (!door || !stage.doorSide || !eqPos(stage.player, door)) {
-    return false;
-  }
-  const way = HEADING_VECTOR[stage.doorSide];
-  return pos.x === door.x + way.x && pos.y === door.y + way.y;
-};
+/**
+ * The index of the door the move to `pos` (outside the board) goes through: from the cell next to that door, one
+ * cell in the door's direction. -1 when it is no door move.
+ */
+const doorMoveIndex = (stage: Stage, pos: Position): number =>
+  roomDoors(stage).findIndex((door) => {
+    const way = HEADING_VECTOR[door.side];
+    return eqPos(stage.player, door.cell) && pos.x === door.cell.x + way.x && pos.y === door.cell.y + way.y;
+  });
 
 const ensureWritableCell = (stage: Stage, originalCells: Stage['cells'], idx: number) => {
   if (stage.cells[idx] === originalCells[idx]) {
@@ -215,8 +215,9 @@ export const toggleFlag = (stage: Stage, pos: Position): Stage => {
 
 export const movePlayer = (stage: Stage, pos: Position): RuleOutput => {
   if (!inBounds(stage, pos)) {
-    if (isDoorMove(stage, pos)) {
-      return { stage, result: { status: 'door' }, changedCellIndices: [] };
+    const doorIndex = doorMoveIndex(stage, pos);
+    if (doorIndex >= 0) {
+      return { stage, result: { status: 'door', doorIndex }, changedCellIndices: [] };
     }
     return { stage, result: { status: 'alive', message: 'out-of-bounds' } };
   }
