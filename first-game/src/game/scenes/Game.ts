@@ -168,7 +168,7 @@ export class Game extends Scene
     stageSelectLabel?: Phaser.GameObjects.Text;
     stageSelectHitArea?: Phaser.Geom.Rectangle;
     flagMode = false;
-    /** The lit sector of the pad (drawn between the base and the thumb) and the FLAG circle's size without its frame. */
+    /** The lit sector of the pad (drawn over the base and the thumb) and the FLAG circle's size without its frame. */
     padSectorGraphics?: Phaser.GameObjects.Graphics;
     flagBaseSize = 52;
     gameOverLogical?: LogicalAnalysis;
@@ -361,8 +361,8 @@ export class Game extends Scene
             .setScrollFactor(0)
             .setDepth(31);
 
-        // --- Lit sector of the pad (between the base and the thumb) ---
-        this.padSectorGraphics = this.add.graphics().setScrollFactor(0).setDepth(32);
+        // --- Lit sector of the pad (over the base and the thumb: the thumb would hide most of it) ---
+        this.padSectorGraphics = this.add.graphics().setScrollFactor(0).setDepth(34);
 
         // --- Joystick thumb ---
         this.joystickThumb = this.add.ellipse(0, 0, JOYSTICK_THUMB_RADIUS * 2, JOYSTICK_THUMB_RADIUS * 2, 0x2563eb, 0.92)
@@ -387,8 +387,8 @@ export class Game extends Scene
         }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
 
         this.virtualControlLayer.add(this.joystickBase);
-        this.virtualControlLayer.add(this.padSectorGraphics);
         this.virtualControlLayer.add(this.joystickThumb);
+        this.virtualControlLayer.add(this.padSectorGraphics);
         this.virtualControlLayer.add(this.flagBg);
         this.virtualControlLayer.add(this.flagLabel);
 
