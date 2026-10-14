@@ -31,7 +31,7 @@ export const restartKeyAction = (code: string, repeat: boolean): RestartAction =
  * created again (`Game.create` calls `reset`; `Title` never looks at this flow). `restarting` is the moment between
  * choosing a restart or leaving and the next Scene. Only `play` accepts board input.
  */
-export type FlowPhase = 'play' | 'clearing' | 'dying' | 'gameover' | 'grave' | 'restarting';
+export type FlowPhase = 'play' | 'clearing' | 'corridor' | 'dying' | 'gameover' | 'grave' | 'restarting';
 
 export class StageFlow {
   phase: FlowPhase = 'play';
@@ -60,6 +60,31 @@ export class StageFlow {
     }
     this.phase = 'clearing';
     return true;
+  }
+
+  /** A door was reached: the corridor walk starts. True only from `play`. */
+  enterCorridor (): boolean
+  {
+    if (this.phase !== 'play') {
+      return false;
+    }
+    this.phase = 'corridor';
+    return true;
+  }
+
+  /** The walk is over: the other room takes input. True only from `corridor`. */
+  leaveCorridor (): boolean
+  {
+    if (this.phase !== 'corridor') {
+      return false;
+    }
+    this.phase = 'play';
+    return true;
+  }
+
+  get inCorridor (): boolean
+  {
+    return this.phase === 'corridor';
   }
 
   /** The player died. True only when this call started the ending. */

@@ -1,4 +1,5 @@
-import type { Cell, Position, Stage, StageParams } from './types';
+import type { Cell, Heading, Position, Stage, StageParams } from './types';
+import { oppositeHeading } from './floorLayout';
 import type { Rng } from './random';
 import { randInt } from './random';
 
@@ -43,8 +44,8 @@ export const STAIRS_MARGIN = 1;
 /** The goal is at least `ceil((min(width, height) - 3) * this)` cells (Chebyshev) from the start. */
 export const STAIRS_MIN_DISTANCE_RATIO = 0.9;
 
-export const stairsMinDistance = (width: number, height: number): number =>
-  Math.max(1, Math.ceil((Math.min(width, height) - 3) * STAIRS_MIN_DISTANCE_RATIO));
+export const stairsMinDistance = (width: number, height: number, ratio = STAIRS_MIN_DISTANCE_RATIO): number =>
+  Math.max(1, Math.ceil((Math.min(width, height) - 3) * ratio));
 
 /** The interior range of one axis: `STAIRS_MARGIN` from each edge (smaller only on boards too small for it). */
 const interiorRange = (size: number): { lo: number; hi: number } => {
@@ -54,48 +55,99 @@ const interiorRange = (size: number): { lo: number; hi: number } => {
 
 const chebyshev = (a: Position, b: Position): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
-/**
- * Start: uniform over the interior. Goal: uniform over the interior cells at least `stairsMinDistance` from the
- * start; when there are none, the interior corner farthest from the start (ties: top, then left).
- */
-export const chooseStartGoal = (
-  width: number,
-  height: number,
-  rng: Rng
-): { start: Position; goal: Position } => {
-  const xs = interiorRange(width);
-  const ys = interiorRange(height);
-  const start: Position = {
-    x: xs.lo + randInt(rng, xs.hi - xs.lo + 1),
-    y: ys.lo + randInt(rng, ys.hi - ys.lo + 1)
-  };
-  const minDistance = stairsMinDistance(width, height);
+/** The two rooms of a floor: A holds the up-stairs and door A, B holds door B and the down-stairs. */
+export type RoomRole = 'A' | 'B';
 
-  const candidates: Position[] = [];
-  for (let y = ys.lo; y <= ys.hi; y += 1) {
-    for (let x = xs.lo; x <= xs.hi; x += 1) {
-      if (chebyshev({ x, y }, start) >= minDistance) {
-        candidates.push({ x, y });
+/** The cells that touch the wall on `side`, in reading order (top row first, left to right). */
+export const wallCells = (width: number, height: number, side: Heading): Position[] => {
+  const cells: Position[] = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const touches =
+        (side === 'E' && x === width - 1) ||
+        (side === 'W' && x === 0) ||
+        (side === 'S' && y === height - 1) ||
+        (side === 'N' && y === 0);
+      if (touches) {
+        cells.push({ x, y });
       }
     }
   }
-  if (candidates.length > 0) {
-    return { start, goal: candidates[randInt(rng, candidates.length)] };
+  return cells;
+};
+
+const interiorCells = (width: number, height: number): Position[] => {
+  const xs = interiorRange(width);
+  const ys = interiorRange(height);
+  const cells: Position[] = [];
+  for (let y = ys.lo; y <= ys.hi; y += 1) {
+    for (let x = xs.lo; x <= xs.hi; x += 1) {
+      cells.push({ x, y });
+    }
+  }
+  return cells;
+};
+
+/** Uniform over the cells at least `minDistance` from `from`; none: the first (reading order) of the farthest of `fallback`. */
+const pickFar = (
+  candidates: Position[],
+  fallback: Position[],
+  from: Position,
+  minDistance: number,
+  rng: Rng
+): Position => {
+  const far = candidates.filter((cell) => chebyshev(cell, from) >= minDistance);
+  if (far.length > 0) {
+    return far[randInt(rng, far.length)];
+  }
+  let best = fallback[0];
+  for (const cell of fallback) {
+    if (chebyshev(cell, from) > chebyshev(best, from)) {
+      best = cell;
+    }
+  }
+  return best;
+};
+
+/**
+ * Where a room's start and goal go (docs/spec/rooms-and-floors.md "ルール"). `heading` is the floor's heading.
+ * Room A: the start (up-stairs) is uniform over the interior, the goal (the cell next to door A, on the `heading`
+ * wall) a wall cell far enough from it; none: the farthest wall cell, the first in reading order. Room B: the start
+ * (the cell next to door B, on the opposite wall) is uniform over that wall's cells, the goal (down-stairs) an
+ * interior cell far enough from it; none: the interior corner farthest from it (ties: top, then left).
+ */
+export const chooseRoomAnchors = (
+  width: number,
+  height: number,
+  role: RoomRole,
+  heading: Heading,
+  rng: Rng,
+  ratio = STAIRS_MIN_DISTANCE_RATIO
+): { start: Position; goal: Position } => {
+  const minDistance = stairsMinDistance(width, height, ratio);
+
+  if (role === 'A') {
+    const xs = interiorRange(width);
+    const ys = interiorRange(height);
+    const start: Position = {
+      x: xs.lo + randInt(rng, xs.hi - xs.lo + 1),
+      y: ys.lo + randInt(rng, ys.hi - ys.lo + 1)
+    };
+    const wall = wallCells(width, height, heading);
+    return { start, goal: pickFar(wall, wall, start, minDistance, rng) };
   }
 
+  const wall = wallCells(width, height, oppositeHeading(heading));
+  const start = wall[randInt(rng, wall.length)];
+  const xs = interiorRange(width);
+  const ys = interiorRange(height);
   const corners: Position[] = [
     { x: xs.lo, y: ys.lo },
     { x: xs.hi, y: ys.lo },
     { x: xs.lo, y: ys.hi },
     { x: xs.hi, y: ys.hi }
   ];
-  let goal = corners[0];
-  for (const corner of corners) {
-    if (chebyshev(corner, start) > chebyshev(goal, start)) {
-      goal = corner;
-    }
-  }
-  return { start, goal };
+  return { start, goal: pickFar(interiorCells(width, height), corners, start, minDistance, rng) };
 };
 
 const forbiddenCells = (stage: Pick<Stage, 'width' | 'height'>, start: Position, goal: Position): Set<number> => {
@@ -167,10 +219,15 @@ export const revealZeros = (stage: Stage, origin: Position): void => {
   }
 };
 
-export const createRandomStage = (params: StageParams, rng: Rng): Stage => {
+export const createRandomStage = (
+  params: StageParams,
+  rng: Rng,
+  role: RoomRole = 'A',
+  heading: Heading = 'E'
+): Stage => {
   const { width, height, bombCount, stageNo, depthTarget } = params;
   const cells = createCells(width, height);
-  const { start, goal } = chooseStartGoal(width, height, rng);
+  const { start, goal } = chooseRoomAnchors(width, height, role, heading, rng);
   const stage: Stage = {
     width,
     height,
@@ -179,6 +236,9 @@ export const createRandomStage = (params: StageParams, rng: Rng): Stage => {
     player: { ...start },
     start,
     goal,
+    startKind: role === 'A' ? 'up' : 'door',
+    goalKind: role === 'A' ? 'door' : 'down',
+    doorSide: role === 'A' ? heading : oppositeHeading(heading),
     generation: {
       retries: 0,
       depthTarget,
