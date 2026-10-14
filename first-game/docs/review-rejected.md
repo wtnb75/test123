@@ -48,3 +48,12 @@
 - `src/game/core/generator.floor.test.ts`（距離の確認が `>= min(最小距離, 3)` と弱い）— 理由: 部屋 A の扉は候補が無いとき最遠のマスに落ちるので、生成物では最小距離を保証できない。正確な規則は `board.test.ts` の手計算と多数シードで固定済み。生成側は「近すぎない」の統合確認
 - `src/game/core/walls.ts` と `src/game/core/cellAppearance.ts`（`DOOR_COLOR` と `WALL_COLOR` が 2 ファイルに分かれる）— 理由: どちらも見た目の定数で 1 箇所ずつにまとまっている。移すだけで、テストも書き換わる
 - `src/game/scenes/Game.ts`（通路の処理が約 1570 行の Scene の中の塊になっている。別クラスへ切り出す）— 理由: 必須ではない。無関係なリファクタを同じ変更に混ぜない（AGENTS.md 4.1）ため、別の変更にする
+- `src/game/core/floorLayout.ts`（`placeFloor` が入力を検証しない: 通路の形の数・扉の番号・両端の扉の向きの反対・空の形）— 理由: 呼び出し元はジェネレータ（`floorMap`）だけで、通路の形は常に `CorridorLength` 個。木の前提（輪・未到達）だけをエラーにした
+- `src/game/core/generator.ts`（`starGraph(3)` が `floorMap` の内部と二重）— 理由: 3 部屋のジェネレータは固定で同じ値。`more-rooms` でグラフを 1 つ作る形に直す
+- `src/game/core/floorLayout.ts`（`floorFitsApart` が星型グラフを仮定）— 理由: 3 部屋の `floorMap` 専用のラッパーと明記済み。一般形の `placementFitsApart` はグラフを受け取る
+- `src/game/core/floorGraph.ts`（`floorDoors` が本番で未使用）— 理由: spec の「扉のリスト」に対応する導出。テストで使い、`more-rooms` で使う
+- `src/game/scenes/Game.ts`（dev の `__qa.room` が `'ABC'[roomIndex]` で、4 部屋目は未定義）— 理由: 3 部屋のジェネレータでは未定義にならない。部屋が増える拡張（`more-rooms`）で直す
+- `src/game/scenes/Game.ts`（`FloorState.route` の例外を `startCorridor` が受けず、フローが通路状態で止まる）— 理由: 生成したフロアでは使われない扉・通路の無い扉は無く起きない。手組みのグラフで黙って別の部屋へ移るより、例外で止める方がよい
+- `src/game/core/floor.ts`（範囲外の扉の番号を最後の扉に丸める）— 理由: 元の実装の挙動を保っている。変えると「挙動は変えない」に反する
+- `src/game/core/floorLayout.ts`（子→親の向きで書いた通路が「到達しない」エラーになる）— 理由: spec は始点の扉から木をたどる形だけが範囲。向きの規則は `more-rooms` 以降に決める
+- `src/game/core/exits.ts`（部屋 A でも goalKind が `down`/`none` なら DOOR でなく GOAL・DOOR の別の表示になる）— 理由: 生成したフロアでは同値。旧形（goalKind 無し）は従来どおり roomIndex 0 で DOOR

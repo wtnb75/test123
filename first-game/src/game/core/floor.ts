@@ -1,27 +1,32 @@
+import { corridorFrom, doorCountOf, starGraph, type FloorGraph } from './floorGraph';
 import type { Stage } from './types';
 
 /** Which corridor a door leads into, in which direction, and which room is at its other end. */
 export type DoorRoute = {
-  /** 0: corridor 1 (room A - room B), 1: corridor 2 (room A - room C). */
-  corridor: 0 | 1;
-  /** True from room A to the other room (first cell to last cell), false on the way back. */
+  /** The corridor's index in the floor's graph and map (0: corridor 1, 1: corridor 2 ...). */
+  corridor: number;
+  /** True from the corridor's first door to its last (first cell to last cell), false on the way back. */
   forward: boolean;
-  /** The room the walk ends in: 0 for room A, 1 for room B, 2 for room C. */
+  /** The room the walk ends in (0 for room A, 1 for room B, 2 for room C). */
   to: number;
 };
 
 /**
- * The three rooms of a floor and which one the player is in (docs/spec/rooms-and-floors.md). A room keeps its
- * opened cells, flags and the player's position while the player is in another one; crossing a door always
- * leaves a room from its door cell, so the player is on that cell when they come back.
+ * The rooms of a floor and which one the player is in (docs/spec/rooms-and-floors.md). A room keeps its opened
+ * cells, flags and the player's position while the player is in another one; crossing a door always leaves a room
+ * from its door cell, so the player is on that cell when they come back. How the rooms are joined is the floor's
+ * graph (default: the start room's door `i` leads to room `i + 1`, the three-room floor).
  */
 export class FloorState {
   private readonly rooms: Stage[];
-  private index = 0;
+  private readonly graph: FloorGraph;
+  private index: number;
 
-  constructor (rooms: readonly Stage[])
+  constructor (rooms: readonly Stage[], graph: FloorGraph = starGraph(rooms.length))
   {
     this.rooms = [...rooms];
+    this.graph = graph;
+    this.index = graph.startRoom;
   }
 
   /** 0 for room A, 1 for room B, 2 for room C. */
@@ -36,16 +41,17 @@ export class FloorState {
   }
 
   /**
-   * The walk a door of the current room starts. Room A's door `doorIndex` (0 = A1, 1 = A2) leads to room
-   * `doorIndex + 1`; room B and room C have one door, back to room A.
+   * The walk a door of the current room starts: the corridor that has this door at one end, walked towards the
+   * other end. A door index past the room's last used door is the last one; a door no corridor joins throws.
    */
   route (doorIndex = 0): DoorRoute
   {
-    if (this.index === 0) {
-      const to = Math.min(2, Math.max(0, doorIndex)) + 1;
-      return { corridor: (to - 1) as 0 | 1, forward: true, to };
+    const door = Math.min(doorCountOf(this.graph, this.index) - 1, Math.max(0, doorIndex));
+    const walk = corridorFrom(this.graph, { room: this.index, door });
+    if (!walk) {
+      throw new Error(`Door ${door} of room ${this.index} joins no corridor.`);
     }
-    return { corridor: (this.index - 1) as 0 | 1, forward: false, to: 0 };
+    return { corridor: walk.corridor, forward: walk.forward, to: walk.to.room };
   }
 
   /** Stores the state of the room the player is in (the one `current` returned, after the moves made in it). */

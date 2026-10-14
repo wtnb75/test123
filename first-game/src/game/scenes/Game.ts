@@ -315,9 +315,10 @@ export class Game extends Scene
         this.cancelCorridor();
         this.destroyViews();
         const floor = generateFloor(stageNo);
-        this.floorState = new FloorState(floor.rooms);
+        this.floorState = new FloorState(floor.rooms, floor.graph);
         this.layout = floor.layout;
-        this.views = [this.makeView(0), undefined, undefined];
+        this.views = floor.rooms.map(() => undefined);
+        this.views[this.floorState.roomIndex] = this.makeView(this.floorState.roomIndex);
         this.view.setPlayerGlyph('@');
         this.stageData = this.floorState.current;
         this.renderBoard();
