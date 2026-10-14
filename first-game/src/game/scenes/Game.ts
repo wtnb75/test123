@@ -24,6 +24,7 @@ import {
     graveLocked,
     gravePanelLayout,
     gravePlateWidth,
+    graveRowParts,
     isNewRecord,
     type GraveInfo
 } from '../core/gravePanel';
@@ -1088,11 +1089,21 @@ export class Game extends Scene
         for (const text of panel.rows) {
             text.destroy();
         }
-        panel.rows = layout.rows.map((row, i) => this.add.text(layout.centerX, layout.rowCenterY[i], row.text, {
+        // A row with "New record!" is two lines of equal length drawn over each other (body colour, accent words),
+        // so the walls beside the words keep the body colour. `rows` keeps every Text, the base of row 0 first.
+        const drawLine = (text: string, y: number, color: string): Phaser.GameObjects.Text => this.add.text(layout.centerX, y, text, {
             fontFamily: 'monospace',
             fontSize: GRAVE_ART_FONT,
-            color: row.highlight ? GRAVE_RECORD_COLOR : GRAVE_TEXT_COLOR
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_TEXT_DEPTH));
+            color
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_TEXT_DEPTH);
+        panel.rows = [];
+        layout.rows.forEach((row, i) => {
+            const parts = graveRowParts(row);
+            panel.rows.push(drawLine(parts.base, layout.rowCenterY[i], GRAVE_TEXT_COLOR));
+            if (parts.accent !== null) {
+                panel.rows.push(drawLine(parts.accent, layout.rowCenterY[i], GRAVE_RECORD_COLOR));
+            }
+        });
         // Every row has the same number of characters, so one measured row gives the width of one character.
         const first = panel.rows[0];
         const charWidth = first && first.text.length > 0 ? first.width / first.text.length : 0;
