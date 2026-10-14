@@ -260,7 +260,9 @@ before the downstream reset below overwrites it:
   rather than assuming — don't hardcode a fixed list, this varies by game.
   If that branch name already exists, don't reuse or overwrite it silently
   (same reasoning as `game-init`) — pick a different slug or append `-2`,
-  `-3`, ... and tell the user.
+  `-3`, ... and tell the user. Then
+  `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=in_progress`
+  before drafting (the downstream reset happens at completion).
 
 ### Any revision resets downstream stages — this skill's job, not the caller's
 
