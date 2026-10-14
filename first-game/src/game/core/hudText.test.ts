@@ -60,8 +60,8 @@ describe('resultMessage', () => {
     });
 
     it('reports reaching the goal without a cell count', () => {
-        expect(resultMessage('goal', undefined, 5, 'keys')).toBe('You reach the goal.');
-        expect(GOAL_MESSAGE).toBe('You reach the goal.');
+        expect(resultMessage('goal', undefined, 5, 'keys')).toBe('You descend the stairs.');
+        expect(GOAL_MESSAGE).toBe('You descend the stairs.');
     });
 
     it('lets a death win over a goal-or-open count in the same result', () => {

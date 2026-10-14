@@ -29,8 +29,6 @@ export const neighbors8 = (stage: Pick<Stage, 'width' | 'height'>, pos: Position
   return result;
 };
 
-const eqPos = (a: Position, b: Position): boolean => a.x === b.x && a.y === b.y;
-
 const createCells = (width: number, height: number): Cell[] => {
   return Array.from({ length: width * height }, () => ({
     hasBomb: false,
@@ -40,24 +38,64 @@ const createCells = (width: number, height: number): Cell[] => {
   }));
 };
 
-const chooseStartGoal = (
+/** Start (up-stairs) and goal (down-stairs) stay at least this many cells away from every edge (docs/spec.md). */
+export const STAIRS_MARGIN = 1;
+/** The goal is at least `ceil((min(width, height) - 3) * this)` cells (Chebyshev) from the start. */
+export const STAIRS_MIN_DISTANCE_RATIO = 0.9;
+
+export const stairsMinDistance = (width: number, height: number): number =>
+  Math.max(1, Math.ceil((Math.min(width, height) - 3) * STAIRS_MIN_DISTANCE_RATIO));
+
+/** The interior range of one axis: `STAIRS_MARGIN` from each edge (smaller only on boards too small for it). */
+const interiorRange = (size: number): { lo: number; hi: number } => {
+  const lo = Math.min(STAIRS_MARGIN, Math.floor((size - 1) / 2));
+  return { lo, hi: size - 1 - lo };
+};
+
+const chebyshev = (a: Position, b: Position): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+
+/**
+ * Start: uniform over the interior. Goal: uniform over the interior cells at least `stairsMinDistance` from the
+ * start; when there are none, the interior corner farthest from the start (ties: top, then left).
+ */
+export const chooseStartGoal = (
   width: number,
   height: number,
   rng: Rng
 ): { start: Position; goal: Position } => {
-  const horizontal = rng() < 0.5;
+  const xs = interiorRange(width);
+  const ys = interiorRange(height);
+  const start: Position = {
+    x: xs.lo + randInt(rng, xs.hi - xs.lo + 1),
+    y: ys.lo + randInt(rng, ys.hi - ys.lo + 1)
+  };
+  const minDistance = stairsMinDistance(width, height);
 
-  if (horizontal) {
-    return {
-      start: { x: randInt(rng, width), y: 0 },
-      goal: { x: randInt(rng, width), y: height - 1 }
-    };
+  const candidates: Position[] = [];
+  for (let y = ys.lo; y <= ys.hi; y += 1) {
+    for (let x = xs.lo; x <= xs.hi; x += 1) {
+      if (chebyshev({ x, y }, start) >= minDistance) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+  if (candidates.length > 0) {
+    return { start, goal: candidates[randInt(rng, candidates.length)] };
   }
 
-  return {
-    start: { x: 0, y: randInt(rng, height) },
-    goal: { x: width - 1, y: randInt(rng, height) }
-  };
+  const corners: Position[] = [
+    { x: xs.lo, y: ys.lo },
+    { x: xs.hi, y: ys.lo },
+    { x: xs.lo, y: ys.hi },
+    { x: xs.hi, y: ys.hi }
+  ];
+  let goal = corners[0];
+  for (const corner of corners) {
+    if (chebyshev(corner, start) > chebyshev(goal, start)) {
+      goal = corner;
+    }
+  }
+  return { start, goal };
 };
 
 const forbiddenCells = (stage: Pick<Stage, 'width' | 'height'>, start: Position, goal: Position): Set<number> => {
@@ -169,11 +207,6 @@ export const createRandomStage = (params: StageParams, rng: Rng): Stage => {
   computeHints(stage);
   stage.cells[indexOf(stage, start)].revealed = true;
   revealZeros(stage, start);
-
-  // Goal is visible marker but not auto-opened for pathing risk.
-  if (eqPos(start, goal)) {
-    stage.goal = { x: width - 1 - goal.x, y: height - 1 - goal.y };
-  }
 
   return stage;
 };

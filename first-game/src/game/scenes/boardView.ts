@@ -7,7 +7,7 @@ import {
 } from '../core/cellAppearance';
 import type { LogicalAnalysis } from '../core/solver';
 import { REFERENCE_CELL } from '../core/title';
-import type { Position, Stage } from '../core/types';
+import type { Stage } from '../core/types';
 
 /** The cell rectangles are drawn into render textures of at most this many cells on a side (texture size limits). */
 const CHUNK_CELLS = 32;
@@ -31,7 +31,7 @@ type Chunk = {
 };
 
 /**
- * Draws a stage: the cells (with hints and flags), the start / goal markers, the player's highlight and mark.
+ * Draws a stage: the cells (with hints, flags and the stairs), the player's highlight and mark.
  * Shared by `Game` (cell 30) and the Title demo (a smaller cell). With the reference cell size the shapes are
  * exactly the ones `Game` always drew. `logical` is the game-over colouring (known bombs / safe cells), or none.
  *
@@ -241,7 +241,7 @@ export class BoardView
         this.drawn = undefined;
     }
 
-    /** Builds the board layer from nothing: the render textures, every cell, the markers. */
+    /** Builds the board layer from nothing: the render textures, every cell. */
     private build (stage: Stage, logical?: LogicalAnalysis): void
     {
         this.disposeBoard();
@@ -281,8 +281,6 @@ export class BoardView
         }
         this.flush();
 
-        this.drawEdgeMarker(stage, stage.start, 0x7bed9f);
-        this.drawEdgeMarker(stage, stage.goal, 0xffa502);
         this.drawn = {
             width: stage.width,
             height: stage.height,
@@ -388,41 +386,5 @@ export class BoardView
             this.chunks[index].texture.render();
         }
         this.dirtyChunks.clear();
-    }
-
-    private drawEdgeMarker (stage: Stage, pos: Position, color: number): void
-    {
-        const cell = this.layout.cell;
-        const k = cell / REFERENCE_CELL;
-        const thickness = this.px(Math.max(8, Math.floor(REFERENCE_CELL * 0.35)));
-        const along = cell - 2 * k;
-        let px = this.layout.originX + pos.x * cell;
-        let py = this.layout.originY + pos.y * cell;
-        let markerWidth: number;
-        let markerHeight: number;
-
-        if (pos.y === 0) {
-            markerWidth = along;
-            markerHeight = thickness;
-            py = this.layout.originY - markerHeight;
-        } else if (pos.y === stage.height - 1) {
-            markerWidth = along;
-            markerHeight = thickness;
-            py = this.layout.originY + stage.height * cell;
-        } else if (pos.x === 0) {
-            markerWidth = thickness;
-            markerHeight = along;
-            px = this.layout.originX - markerWidth;
-        } else {
-            markerWidth = thickness;
-            markerHeight = along;
-            px = this.layout.originX + stage.width * cell;
-        }
-
-        const marker = this.scene.add.rectangle(px, py, markerWidth, markerHeight, color)
-            .setOrigin(0)
-            .setStrokeStyle(this.px(2), 0xf1f2f6);
-
-        this.boardLayer?.add(marker);
     }
 }

@@ -14,10 +14,12 @@ export const scaledDimension = (value: number, cell: number): number =>
 /** A font size scaled like `scaledDimension`, but never under MIN_FONT_PX. */
 export const scaledFont = (value: number, cell: number): number => Math.max(MIN_FONT_PX, scaledDimension(value, cell));
 
+export type CellStairs = 'none' | 'up' | 'down';
+
 /** What the game-over analysis says about a cell. `none` is "nothing certain" and also "no analysis". */
 export type CellKnowledge = 'bomb' | 'safe' | 'none';
 
-/** What decides whether a drawn board can be updated in place: the same size and the same markers. */
+/** What decides whether a drawn board can be updated in place: the same size and the same start / goal. */
 export type BoardShape = { width: number; height: number; start: Position; goal: Position };
 
 export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
@@ -27,6 +29,13 @@ export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
   a.start.y === b.start.y &&
   a.goal.x === b.goal.x &&
   a.goal.y === b.goal.y;
+
+const stairsOf = (stage: Stage, idx: number): CellStairs => {
+  if (stage.start.y * stage.width + stage.start.x === idx) {
+    return 'up';
+  }
+  return stage.goal.y * stage.width + stage.goal.x === idx ? 'down' : 'none';
+};
 
 /** The state of cell `idx` of `stage`; `logical` is the game-over analysis (none while playing). */
 export const cellStateOf = (stage: Stage, idx: number, logical?: LogicalAnalysis): CellState => {
@@ -45,7 +54,8 @@ export const cellStateOf = (stage: Stage, idx: number, logical?: LogicalAnalysis
     flagged: cell.flagged,
     hint: cell.hint,
     gameOver: logical != null,
-    knowledge
+    knowledge,
+    stairs: stairsOf(stage, idx)
   };
 };
 
@@ -58,6 +68,8 @@ export type CellState = {
   /** True while the game-over colouring is shown (the analysis exists). */
   gameOver: boolean;
   knowledge: CellKnowledge;
+  /** The up-stairs (the start) or the down-stairs (the goal) stand on this cell. */
+  stairs: CellStairs;
 };
 
 export type CellGlyph = {
@@ -109,6 +121,10 @@ export const HINT_COLORS: Record<number, string> = {
 };
 
 export const GLYPH_OUTLINE_COLOR = '#0b1220';
+
+/** The colours of the stairs glyphs: the up-stairs (the start) and the down-stairs (the goal). */
+export const STAIRS_UP_COLOR = '#7bed9f';
+export const STAIRS_DOWN_COLOR = '#ffa502';
 
 /** The flag figure at the reference cell: a pole and a pennant (docs/spec/board-render.md "マスの見た目"). */
 export const FLAG_POLE_COLOR = 0xf1f2f6;
@@ -185,7 +201,19 @@ export const cellAppearance = (s: CellState): CellAppearance => {
     }
   }
 
-  if (s.gameOver && !s.revealed && !s.flagged) {
+  // The stairs: a flag on the down-stairs hides it (only the flag is drawn); the "○" never covers it.
+  if (s.stairs === 'up' || (s.stairs === 'down' && !s.flagged)) {
+    glyphs.push({
+      text: s.stairs === 'up' ? '▲' : '▼',
+      anchor: 'center',
+      color: s.stairs === 'up' ? STAIRS_UP_COLOR : STAIRS_DOWN_COLOR,
+      bold: true,
+      size: 16,
+      stroke: 3
+    });
+  }
+
+  if (s.gameOver && !s.revealed && !s.flagged && s.stairs !== 'down') {
     if (s.knowledge === 'bomb') {
       glyphs.push({ text: '!', anchor: 'center', color: '#ffb347', bold: true, size: 16, stroke: 0 });
     } else if (s.knowledge === 'safe') {
