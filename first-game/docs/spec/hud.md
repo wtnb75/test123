@@ -14,7 +14,7 @@
 
 ### HUD のメッセージとステータス
 
-画面の左上に、上から次の行を、左端 20 px から左揃えで積む。どの行も `scrollFactor` 0 で、盤面のスクロールでは動かない。HUD の裏には半透明の「帯」（下の「帯」）を敷き、帯と文字は盤面より手前に描く。奥から: 盤面（マスの四角・文字・スタート・ゴールのマーカー）→ プレイヤーの強調 → 「@」の印 → 帯 → HUD の文字 → GOAL の矢印 → 仮想パッド・FLAG・STAGE → ゲームオーバーのボタン。プレイヤーの強調と「@」は盤面の一部として帯の奥に入る（盤面の中の前後は変更前と同じ）。GOAL の矢印・仮想パッド・FLAG・STAGE・ゲームオーバーのボタンの前後と描画の層は、変更前のまま（HUD の文字と帯が、盤面側の部品と GOAL の矢印の間に入る）。帯と HUD の文字の `depth`、プレイヤーの強調・「@」の `depth` は、名前のある定数にする（値の意味を即値にしない。置き場所は実装裁量）。
+画面の左上に、上から次の行を、左端 20 px から左揃えで積む。どの行も `scrollFactor` 0 で、盤面のスクロールでは動かない。HUD の裏には半透明の「帯」（下の「帯」）を敷き、帯と文字は盤面より手前に描く。奥から: 盤面（マスの四角・文字・スタート・ゴールのマーカー）→ プレイヤーの強調 → 「@」の印 → 帯 → HUD の文字 → GOAL の矢印 → 仮想パッド・FLAG・STAGE → ゲームオーバーのボタン。2 段目（墓石画面）の暗幕（盤面の手前・帯の奥）と墓石のパネル（仮想パッド・FLAG・STAGE の手前・ボタンの奥）の層は [game-over.md](game-over.md) に書く。プレイヤーの強調と「@」は盤面の一部として帯の奥に入る（盤面の中の前後は変更前と同じ）。GOAL の矢印・仮想パッド・FLAG・STAGE・ゲームオーバーのボタンの前後と描画の層は、変更前のまま（HUD の文字と帯が、盤面側の部品と GOAL の矢印の間に入る）。帯と HUD の文字の `depth`、プレイヤーの強調・「@」の `depth` は、名前のある定数にする（値の意味を即値にしない。置き場所は実装裁量）。
 
 | 行 | 内容 | 文字 | 位置（上端） |
 |---|---|---|---|
@@ -55,7 +55,7 @@ HUD の文言は、「いまの入力の種類」で 2 通りになる（ステ�
 | コード操作が確定できなかった（`not-enough-info`） | `You can't tell yet.` |
 | コード操作の実行条件に当てはまらない（`chord-not-available`） | `Nothing to chord here.` |
 | コード操作で、周囲のフラグが数字より多い（`flag-overflow`） | `Too many flags around you.` |
-| 死亡（移動・コード操作を問わず、結果の status が dead になったとき。爆弾を旗なしで踏んだ・誤った旗を踏んだ・コード操作で開いたマスが爆弾だった、のどれも同じ文言） | キー: `You died. [R]etry [T]itle, any key: new game` / タッチ: `You died.` |
+| 死亡（移動・コード操作を問わず、結果の status が dead になったとき。爆弾を旗なしで踏んだ・誤った旗を踏んだ・コード操作で開いたマスが爆弾だった、のどれも同じ文言） | キー: `You died. [R]etry [T]itle` / タッチ: `You died.` |
 
 - 優先: 1 回の入力は、上の行のうち 1 つだけの文言を出す（同じ入力で複数当てはまるときは、死亡 > ゴール > ジャンプ > それ以外の順）。
 - 同じ文言が続けて出ても、そのまま置き換える（回数は付けない）。
@@ -81,7 +81,7 @@ HUD の文言は、「いまの入力の種類」で 2 通りになる（ステ�
   - 移動で開いたマス: `k = 1` → `You open 1 cell.`、`k = 2` → `You open 2 cells.`、`k = 0`（開示済みのマスへ）→ `You move.`
   - コード操作: `auto-opened` で `k = 3` → `You open 3 cells.`、`k = 0` → `Nothing to chord here.`、`auto-flagged` で `k = 1` → `You flag 1 mine.`、`k = 2` → `You flag 2 mines.`。`not-enough-info` → `You can't tell yet.`、`chord-not-available` → `Nothing to chord here.`、`flag-overflow` → `Too many flags around you.`
   - 盤面の外 → `There is a wall there.`。フラグ操作: 立てた → `You flag the cell.`、外した → `You unflag the cell.`、変わらなかった → `You can't flag there.`
-  - ステージの開始: キー → `Move: arrows/QWEA-XZDC  Flag: Shift+dir  Chord: S`、タッチ → `You enter stage 7.`（`n = 7`）。死亡: キー → `You died. [R]etry [T]itle, any key: new game`、タッチ → `You died.`。ゴール → `You reach the goal.`。ジャンプ（`n = 12`）→ `You jump to stage 12.`。範囲外（`StageMax` = 100）→ `Stage must be 1-100.`。フラグモード → `Flag mode on.` / `Flag mode off.`
+  - ステージの開始: キー → `Move: arrows/QWEA-XZDC  Flag: Shift+dir  Chord: S`、タッチ → `You enter stage 7.`（`n = 7`）。死亡: キー → `You died. [R]etry [T]itle`、タッチ → `You died.`。ゴール → `You reach the goal.`。ジャンプ（`n = 12`）→ `You jump to stage 12.`。範囲外（`StageMax` = 100）→ `Stage must be 1-100.`。フラグモード → `Flag mode on.` / `Flag mode off.`
   - ステータス行: ステージ 5・ハイスコア 9 → `Stage:5  Score:4  High:9`、ステージ 1・ハイスコア 0 → `Stage:1  Score:0  High:0`、ステージ 100 → `Stage:100  Score:99  High:<h>`
   - 入力の種類: 初期値（タッチ対応の端末 → タッチ、そうでなければ キー）、キー押下 → キー、タッチの押し始め → タッチ、マウスの押し始め → キー。切り替えは、すでに決まった文言を変えない
   - 行の幅: 幅 390（コンパクト、STAGE ボタンの幅 82）→ `390 − 20 − 110 = 260`、幅 1280（STAGE ボタンの幅 90）→ `1280 − 20 − 118 = 1142`、幅 320（コンパクト）→ `320 − 20 − 110 = 190`
