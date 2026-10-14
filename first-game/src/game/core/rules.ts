@@ -1,4 +1,6 @@
 import { cloneStage, inBounds, indexOf, neighbors8, revealZeros } from './board';
+import { HEADING_VECTOR } from './floorLayout';
+import { doorCellOf } from './walls';
 import type { MoveResult, Position, Stage } from './types';
 
 export type RuleOutput = {
@@ -26,6 +28,20 @@ export const finalizeRuleOutput = (
 };
 
 const eqPos = (a: Position, b: Position): boolean => a.x === b.x && a.y === b.y;
+
+/** What a move that lands on `pos` (and did not die) is: the down-stairs end the stage (`goal`), anything else is a plain move. */
+const landingStatus = (stage: Stage, pos: Position): MoveResult['status'] =>
+  stage.goalKind !== 'door' && eqPos(pos, stage.goal) ? 'goal' : 'alive';
+
+/** True when moving to `pos` (outside the board) goes out through the room's door from the cell next to it. */
+const isDoorMove = (stage: Stage, pos: Position): boolean => {
+  const door = doorCellOf(stage);
+  if (!door || !stage.doorSide || !eqPos(stage.player, door)) {
+    return false;
+  }
+  const way = HEADING_VECTOR[stage.doorSide];
+  return pos.x === door.x + way.x && pos.y === door.y + way.y;
+};
 
 const ensureWritableCell = (stage: Stage, originalCells: Stage['cells'], idx: number) => {
   if (stage.cells[idx] === originalCells[idx]) {
@@ -199,6 +215,9 @@ export const toggleFlag = (stage: Stage, pos: Position): Stage => {
 
 export const movePlayer = (stage: Stage, pos: Position): RuleOutput => {
   if (!inBounds(stage, pos)) {
+    if (isDoorMove(stage, pos)) {
+      return { stage, result: { status: 'door' }, changedCellIndices: [] };
+    }
     return { stage, result: { status: 'alive', message: 'out-of-bounds' } };
   }
 
@@ -231,18 +250,10 @@ export const movePlayer = (stage: Stage, pos: Position): RuleOutput => {
       revealZerosCopyOnWrite(next, pos, originalCells, changed);
     }
 
-    if (eqPos(pos, next.goal)) {
-      return { stage: next, result: { status: 'goal' }, changedCellIndices: [...changed] };
-    }
-
-    return { stage: next, result: { status: 'alive' }, changedCellIndices: [...changed] };
+    return { stage: next, result: { status: landingStatus(next, pos) }, changedCellIndices: [...changed] };
   }
 
-  if (eqPos(pos, next.goal)) {
-    return { stage: next, result: { status: 'goal' } };
-  }
-
-  return { stage: next, result: { status: 'alive' } };
+  return { stage: next, result: { status: landingStatus(next, pos) } };
 };
 
 export const moveByDelta = (

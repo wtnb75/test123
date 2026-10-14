@@ -61,7 +61,14 @@ export const flagMessage = (after: boolean | null): string => {
     return after ? 'You flag the cell.' : 'You unflag the cell.';
 };
 
-export type ResultStatus = 'alive' | 'dead' | 'goal';
+export type ResultStatus = 'alive' | 'dead' | 'goal' | 'door';
+
+/** The word of the off-screen arrow: the door of room A, or the down-stairs (docs/spec/rooms-and-floors.md). */
+export const exitLabel = (goalKind: 'down' | 'door' | undefined): 'DOOR' | 'GOAL' => (goalKind === 'door' ? 'DOOR' : 'GOAL');
+
+/** The corridor starts (a door was reached) / the walk is over (a room is entered). */
+export const DOOR_MESSAGE = 'You walk down the corridor.';
+export const ENTER_ROOM_MESSAGE = 'You enter a room.';
 
 /**
  * Message of a move or a chord result. `ruleMessage` is the rule's own tag (undefined for a plain move),
@@ -78,6 +85,9 @@ export const resultMessage = (
     }
     if (status === 'goal') {
         return GOAL_MESSAGE;
+    }
+    if (status === 'door') {
+        return DOOR_MESSAGE;
     }
     switch (ruleMessage) {
         case 'out-of-bounds':

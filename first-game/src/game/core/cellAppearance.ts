@@ -20,7 +20,15 @@ export type CellStairs = 'none' | 'up' | 'down';
 export type CellKnowledge = 'bomb' | 'safe' | 'none';
 
 /** What decides whether a drawn board can be updated in place: the same size and the same start / goal. */
-export type BoardShape = { width: number; height: number; start: Position; goal: Position };
+export type BoardShape = {
+  width: number;
+  height: number;
+  start: Position;
+  goal: Position;
+  startKind?: Stage['startKind'];
+  goalKind?: Stage['goalKind'];
+  doorSide?: Stage['doorSide'];
+};
 
 export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
   a.width === b.width &&
@@ -28,13 +36,19 @@ export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
   a.start.x === b.start.x &&
   a.start.y === b.start.y &&
   a.goal.x === b.goal.x &&
-  a.goal.y === b.goal.y;
+  a.goal.y === b.goal.y &&
+  a.startKind === b.startKind &&
+  a.goalKind === b.goalKind &&
+  a.doorSide === b.doorSide;
 
 const stairsOf = (stage: Stage, idx: number): CellStairs => {
   if (stage.start.y * stage.width + stage.start.x === idx) {
-    return 'up';
+    return stage.startKind === 'door' ? 'none' : 'up';
   }
-  return stage.goal.y * stage.width + stage.goal.x === idx ? 'down' : 'none';
+  if (stage.goal.y * stage.width + stage.goal.x === idx) {
+    return stage.goalKind === 'door' ? 'none' : 'down';
+  }
+  return 'none';
 };
 
 /** The state of cell `idx` of `stage`; `logical` is the game-over analysis (none while playing). */
@@ -68,7 +82,7 @@ export type CellState = {
   /** True while the game-over colouring is shown (the analysis exists). */
   gameOver: boolean;
   knowledge: CellKnowledge;
-  /** The up-stairs (the start) or the down-stairs (the goal) stand on this cell. */
+  /** The up-stairs (the start) or the down-stairs (the goal) stand on this cell (a door cell has none). */
   stairs: CellStairs;
 };
 
@@ -125,6 +139,7 @@ export const GLYPH_OUTLINE_COLOR = '#0b1220';
 /** The colours of the stairs glyphs: the up-stairs (the start) and the down-stairs (the goal). */
 export const STAIRS_UP_COLOR = '#7bed9f';
 export const STAIRS_DOWN_COLOR = '#ffa502';
+export const DOOR_COLOR = '#74b9ff';
 
 /** The flag figure at the reference cell: a pole and a pennant (docs/spec/board-render.md "マスの見た目"). */
 export const FLAG_POLE_COLOR = 0xf1f2f6;

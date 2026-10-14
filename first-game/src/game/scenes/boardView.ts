@@ -2,11 +2,12 @@ import * as Phaser from 'phaser';
 import {
     cellAppearance, cellAppearanceKey, cellStateOf, changedCellIndices, glyphKey, GLYPH_OUTLINE_COLOR, sameBoardShape,
     scaledDimension, scaledFont, scaledShape, shapeKey, HIGHLIGHT_FILL, HIGHLIGHT_FILL_ALPHA, HIGHLIGHT_STROKE, HIGHLIGHT_STROKE_ALPHA,
-    HIGHLIGHT_STROKE_COLOR, PLAYER_MARK_CENTER, PLAYER_MARK_SIZE, PLAYER_MARK_STROKE,
+    HIGHLIGHT_STROKE_COLOR, PLAYER_MARK_CENTER, PLAYER_MARK_SIZE, PLAYER_MARK_STROKE, DOOR_COLOR,
     type BoardShape, type CellGlyph, type CellShape
 } from '../core/cellAppearance';
 import type { LogicalAnalysis } from '../core/solver';
 import { REFERENCE_CELL } from '../core/title';
+import { DOOR_FRAME_COLOR, WALL_COLOR, doorCellOf, roomWalls } from '../core/walls';
 import type { Stage } from '../core/types';
 
 /** The cell rectangles are drawn into render textures of at most this many cells on a side (texture size limits). */
@@ -57,6 +58,7 @@ export class BoardView
     private drawn?: BoardShape;
     private playerHighlight?: Phaser.GameObjects.Rectangle;
     private playerMarker?: Phaser.GameObjects.Text;
+    private playerShown = true;
     /** What the player's mark shows: "@", or "†" after a death (docs/spec/game-over.md). */
     private playerGlyph = '@';
     private alpha = 1;
@@ -174,6 +176,8 @@ export class BoardView
             this.playerMarker.setAlpha(this.alpha);
         }
         this.playerMarker.setPosition(left + PLAYER_MARK_CENTER.x * k, top + PLAYER_MARK_CENTER.y * k);
+        this.playerHighlight.setVisible(this.playerShown);
+        this.playerMarker.setVisible(this.playerShown);
     }
 
     /** Changes what the player's mark shows ("†" from the death on, "@" again when a stage starts). */
@@ -184,6 +188,14 @@ export class BoardView
         }
         this.playerGlyph = glyph;
         this.playerMarker?.setText(glyph);
+    }
+
+    /** Shows or hides the player's highlight and mark (only the room the player is in has them). */
+    setPlayerVisible (visible: boolean): void
+    {
+        this.playerHighlight?.setVisible(visible);
+        this.playerMarker?.setVisible(visible);
+        this.playerShown = visible;
     }
 
     /** Opacity of the whole board (the fade of the Title demo). */
@@ -280,13 +292,46 @@ export class BoardView
             this.updateCell(stage, idx, logical);
         }
         this.flush();
+        this.drawWalls(stage, layer);
 
         this.drawn = {
             width: stage.width,
             height: stage.height,
             start: { x: stage.start.x, y: stage.start.y },
-            goal: { x: stage.goal.x, y: stage.goal.y }
+            goal: { x: stage.goal.x, y: stage.goal.y },
+            startKind: stage.startKind,
+            goalKind: stage.goalKind,
+            doorSide: stage.doorSide
         };
+    }
+
+    /** The wall around the room, with a gap and a "+" where the door is (docs/spec/rooms-and-floors.md). */
+    private drawWalls (stage: Stage, layer: Phaser.GameObjects.Container): void
+    {
+        const walls = roomWalls(stage.width, stage.height, this.layout.cell, stage.doorSide, doorCellOf(stage));
+        const graphics = this.scene.add.graphics();
+        graphics.fillStyle(WALL_COLOR, 1);
+        for (const bar of walls.bars) {
+            graphics.fillRect(this.layout.originX + bar.x, this.layout.originY + bar.y, bar.width, bar.height);
+        }
+        layer.add(graphics);
+        if (walls.door) {
+            const frame = this.scene.add.graphics();
+            frame.fillStyle(DOOR_FRAME_COLOR, 1);
+            for (const post of walls.posts ?? []) {
+                frame.fillRect(this.layout.originX + post.x, this.layout.originY + post.y, post.width, post.height);
+            }
+            layer.add(frame);
+            const mark = this.scene.add.text(this.layout.originX + walls.door.x, this.layout.originY + walls.door.y, '+', {
+                fontFamily: 'monospace',
+                fontSize: this.font(24),
+                fontStyle: 'bold',
+                color: DOOR_COLOR,
+                stroke: GLYPH_OUTLINE_COLOR,
+                strokeThickness: this.px(3)
+            }).setOrigin(0.5);
+            layer.add(mark);
+        }
     }
 
     /** Redraws cell `idx` when its appearance differs from what is drawn. */

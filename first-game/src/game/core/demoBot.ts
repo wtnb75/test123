@@ -31,7 +31,10 @@ export const applyDemoAction = (stage: Stage, action: DemoAction): DemoStep => {
   if (out.result.status === 'dead') {
     return { stage: out.stage, status: 'dead', changed: out.changedCellIndices ?? [] };
   }
-  return { stage: out.stage, status: out.result.status === 'goal' ? 'goal' : 'alive', changed: out.changedCellIndices ?? [] };
+  // A room's door cell is the goal by position: standing on it counts, whatever the rules reported.
+  const { player, goal } = out.stage;
+  const atGoal = out.result.status === 'goal' || (player.x === goal.x && player.y === goal.y);
+  return { stage: out.stage, status: atGoal ? 'goal' : 'alive', changed: out.changedCellIndices ?? [] };
 };
 
 // Breadth-first order of neighbours: (+1, 0), (+1, +1), (0, +1), (-1, +1), (-1, 0), (-1, -1), (0, -1), (+1, -1).

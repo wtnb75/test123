@@ -43,3 +43,8 @@
 - `src/game/core/padFeedback.test.ts`（`flagCircleSize` のテストが実装の式の言い換えで、Phaser の枠の描き方に依存する）— 理由: 枠が円の内側に描かれて外形が変わらないことは、QA で実機の外形を確かめる（spec の完了条件）。単体テストは計算の前提だけを見る
 - `src/game/scenes/boardView.ts`（デモの小さいセル（k < 0.5）で、柱の 1 px の下限により柱が旗の三角形の左端と 1 px 重なる）— 理由: 同系色の 1 px の重なりで見えない。spec の「柱は 1 px 未満にならない」を優先する
 - `core/cellAppearance.ts`: the stairs glyph size 16 / stroke 3 are literals — 理由: the other glyphs (e.g. "!") are literals too; extracting constants is a separate tidy-up
+- `src/game/scenes/Game.ts`（狭い縦画面で HUD の帯が 80 px を超えると、通路の最上行と「@」が帯に隠れるかもしれない）— 理由: 通路のメッセージは 27 文字で 1 行に収まる見込み。折り返しで帯が伸びるのは既存 spec が許容した長い文言のときだけ。QA（375x550・667x310）で確認し、重なれば spec に例外を書く
+- `src/game/scenes/Game.ts`（通路を抜けるたびに盤面全体を作り直し、大きい盤面で 1 フレーム重い。生成も 2 部屋分）— 理由: spec の実装裁量と完了条件で許容済み（作り直し・差分は任意、生成時間は最大 2 倍と明記）。QA でステージ 30 を測る
+- `src/game/core/generator.floor.test.ts`（距離の確認が `>= min(最小距離, 3)` と弱い）— 理由: 部屋 A の扉は候補が無いとき最遠のマスに落ちるので、生成物では最小距離を保証できない。正確な規則は `board.test.ts` の手計算と多数シードで固定済み。生成側は「近すぎない」の統合確認
+- `src/game/core/walls.ts` と `src/game/core/cellAppearance.ts`（`DOOR_COLOR` と `WALL_COLOR` が 2 ファイルに分かれる）— 理由: どちらも見た目の定数で 1 箇所ずつにまとまっている。移すだけで、テストも書き換わる
+- `src/game/scenes/Game.ts`（通路の処理が約 1570 行の Scene の中の塊になっている。別クラスへ切り出す）— 理由: 必須ではない。無関係なリファクタを同じ変更に混ぜない（AGENTS.md 4.1）ため、別の変更にする
