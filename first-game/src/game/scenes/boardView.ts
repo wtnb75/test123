@@ -53,6 +53,8 @@ export class BoardView
     private drawn?: BoardShape;
     private playerHighlight?: Phaser.GameObjects.Rectangle;
     private playerMarker?: Phaser.GameObjects.Text;
+    /** What the player's mark shows: "@", or "†" after a death (docs/spec/game-over.md). */
+    private playerGlyph = '@';
     private alpha = 1;
 
     /** What was drawn last: the cells are redrawn from it when the WebGL context comes back. */
@@ -157,7 +159,7 @@ export class BoardView
         this.playerHighlight.setPosition(left, top);
 
         if (!this.playerMarker) {
-            this.playerMarker = this.scene.add.text(0, 0, '@', {
+            this.playerMarker = this.scene.add.text(0, 0, this.playerGlyph, {
                 fontFamily: 'monospace',
                 fontSize: this.font(12),
                 color: '#ffffff'
@@ -165,6 +167,16 @@ export class BoardView
             this.playerMarker.setAlpha(this.alpha);
         }
         this.playerMarker.setPosition(left + cell / 2 - 9 * k, top + cell / 2 - 8 * k);
+    }
+
+    /** Changes what the player's mark shows ("†" from the death on, "@" again when a stage starts). */
+    setPlayerGlyph (glyph: string): void
+    {
+        if (glyph === this.playerGlyph) {
+            return;
+        }
+        this.playerGlyph = glyph;
+        this.playerMarker?.setText(glyph);
     }
 
     /** Opacity of the whole board (the fade of the Title demo). */

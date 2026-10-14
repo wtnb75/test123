@@ -47,7 +47,7 @@ export const jumpMessage = (stageNo: number): string => `You jump to stage ${sta
 export const invalidStageMessage = (stageMax: number): string => `Stage must be 1-${stageMax}.`;
 
 export const diedMessage = (input: InputKind): string =>
-    input === 'keys' ? 'You died. [R]etry [T]itle, any key: new game' : 'You died.';
+    input === 'keys' ? 'You died. [R]etry [T]itle' : 'You died.';
 
 export const GOAL_MESSAGE = 'You reach the goal.';
 

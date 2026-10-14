@@ -8,7 +8,24 @@ import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
 import { REFERENCE_CELL } from '../core/title';
 import { BoardView } from './boardView';
-import { PressTracker, StageFlow, restartKeyAction } from '../core/flow';
+import { PressTracker, StageFlow, gameOverKeyAction } from '../core/flow';
+import {
+    GRAVE_DIM_ALPHA,
+    GRAVE_DIM_COLOR,
+    GRAVE_DIM_DEPTH,
+    GRAVE_PANEL_DEPTH,
+    GRAVE_PANEL_FILL,
+    GRAVE_PANEL_FILL_ALPHA,
+    GRAVE_PANEL_STROKE,
+    GRAVE_RECORD_COLOR,
+    GRAVE_TEXT_COLOR,
+    GRAVE_PANEL_TEXT_DEPTH,
+    graveCauseOf,
+    graveLocked,
+    gravePanelLayout,
+    isNewRecord,
+    type GraveInfo
+} from '../core/gravePanel';
 import { restartButtonAt, restartButtonLayout, type ButtonBox, type RestartButtonLayout, type RestartChoice } from '../core/restartButtons';
 import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
@@ -138,6 +155,12 @@ export class Game extends Scene
     restartButtons?: Record<keyof RestartButtonLayout, { bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }>;
     /** Where the game-over buttons are now (set when they appear, redone on every resize while shown). */
     restartLayout?: RestartButtonLayout;
+    /** What the gravestone panel says (set at the death), and the objects of the gravestone screen while it is shown. */
+    graveInfo?: GraveInfo;
+    graveDim?: Phaser.GameObjects.Rectangle;
+    gravePanel?: { bg: Phaser.GameObjects.Rectangle; rows: Phaser.GameObjects.Text[] };
+    /** When the gravestone screen appeared (`time.now`): the inputs of the first `GRAVE_INPUT_LOCK_MS` are ignored. */
+    graveEnteredAt = 0;
 
     constructor ()
     {
@@ -223,6 +246,9 @@ export class Game extends Scene
             this.view.destroy();
             this.restartButtons = undefined;
             this.restartLayout = undefined;
+            this.graveDim = undefined;
+            this.gravePanel = undefined;
+            this.graveInfo = undefined;
         });
     }
 
@@ -231,6 +257,8 @@ export class Game extends Scene
         this.flow.reset();
         this.presses.clear();
         this.gameOverLogical = undefined;
+        this.graveInfo = undefined;
+        this.view.setPlayerGlyph('@');
         this.stageData = generateStage(stageNo);
         this.renderBoard();
         this.legendText.setVisible(false);
@@ -547,7 +575,7 @@ export class Game extends Scene
                 this.refreshHud(this.messageOf(out));
                 return;
             }
-            this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
+            this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
             return;
         }
 
@@ -752,8 +780,13 @@ export class Game extends Scene
     {
         sessionInputKind = inputKindOfKey();
         if (this.flow.awaitingRestart) {
-            const action = restartKeyAction(event.code, event.repeat);
-            if (action !== 'none') {
+            if (this.flow.onGrave && graveLocked(this.time.now, this.graveEnteredAt)) {
+                return;
+            }
+            const action = gameOverKeyAction(this.flow.onGrave ? 'grave' : 'gameover', event.code, event.repeat);
+            if (action === 'grave') {
+                this.enterGrave();
+            } else if (action !== 'none') {
                 this.doRestart(action);
             }
             return;
@@ -775,7 +808,7 @@ export class Game extends Scene
                     this.refreshHud(this.messageOf(out));
                     return;
                 }
-                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
+                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
             }
             return;
         }
@@ -798,7 +831,7 @@ export class Game extends Scene
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
-        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
     }
 
     private mapDirection (code: string): Position | null
@@ -875,7 +908,8 @@ export class Game extends Scene
         nextStage: Stage,
         status: 'alive' | 'dead' | 'goal',
         message: string,
-        changedCellIndices?: number[]
+        changedCellIndices?: number[],
+        ruleMessage?: string
     ): void
     {
         if (!this.flow.playing) {
@@ -903,17 +937,25 @@ export class Game extends Scene
             this.flow.die();
             this.discardPointerState();
             this.gameOverStageNo = this.stageData.stageNo;
-            recordScore(this.store, HIGHSCORE_KEY, sessionBest, this.stageData.stageNo - 1);
+            const score = this.stageData.stageNo - 1;
+            const previousHigh = currentHighScore(this.store, HIGHSCORE_KEY, sessionBest);
+            recordScore(this.store, HIGHSCORE_KEY, sessionBest, score);
+            this.graveInfo = {
+                stageNo: this.stageData.stageNo,
+                cause: graveCauseOf(ruleMessage),
+                high: currentHighScore(this.store, HIGHSCORE_KEY, sessionBest),
+                record: isNewRecord(score, previousHigh)
+            };
+            this.view.setPlayerGlyph('†');
             this.gameOverLogical = analyzeCurrentState(this.stageData);
             this.revealAllBombs();
             this.renderBoard();
             this.centerCameraOnPlayer(true);
             this.legendText.setVisible(true);
             this.refreshHud(resultMessage('dead', undefined, 0, this.inputKind()));
+            // After DeathDelay the revealed bombs take input; the buttons come with the gravestone screen.
             this.time.delayedCall(DEATH_DELAY_MS, () => {
-                if (this.flow.showRestart()) {
-                    this.showRestartButtons();
-                }
+                this.flow.showRestart();
             });
             return;
         }
@@ -927,6 +969,64 @@ export class Game extends Scene
         }
 
         this.refreshHud(message);
+    }
+
+    /** Second stage of the game over: dims the board, puts the panel over it and shows the three buttons. */
+    private enterGrave (): void
+    {
+        if (!this.flow.showGrave()) {
+            return;
+        }
+        // A finger that went down on the revealed bombs does nothing when it lifts (spec: only presses after this one act).
+        this.presses.clear();
+        this.graveEnteredAt = this.time.now;
+        this.showGravePanel();
+        this.showRestartButtons();
+    }
+
+    private showGravePanel (): void
+    {
+        this.graveDim = this.add.rectangle(0, 0, this.camera.width, this.camera.height, GRAVE_DIM_COLOR, GRAVE_DIM_ALPHA)
+            .setOrigin(0).setScrollFactor(0).setDepth(GRAVE_DIM_DEPTH);
+        this.gravePanel = {
+            bg: this.add.rectangle(0, 0, 1, 1, GRAVE_PANEL_FILL, GRAVE_PANEL_FILL_ALPHA)
+                .setStrokeStyle(2, GRAVE_PANEL_STROKE).setScrollFactor(0).setDepth(GRAVE_PANEL_DEPTH),
+            rows: []
+        };
+        this.layoutGravePanel();
+    }
+
+    /** Sizes the dim to the screen and puts the panel and its rows where the layout function says. */
+    private layoutGravePanel (): void
+    {
+        const panel = this.gravePanel;
+        const info = this.graveInfo;
+        if (!panel || !info || !this.graveDim) {
+            return;
+        }
+        this.graveDim.setSize(this.camera.width, this.camera.height);
+        const layout = gravePanelLayout(this.camera.width, this.camera.height, this.hudBand.height, info);
+        panel.bg.setSize(layout.width, layout.height).setPosition(layout.centerX, layout.top + layout.height / 2);
+        for (const text of panel.rows) {
+            text.destroy();
+        }
+        panel.rows = layout.rows.map((row, i) => this.add.text(layout.centerX, layout.rowCenterY[i], row.text, {
+            fontFamily: 'monospace',
+            fontSize: row.fontSize,
+            fontStyle: row.bold ? 'bold' : 'normal',
+            color: row.highlight ? GRAVE_RECORD_COLOR : GRAVE_TEXT_COLOR
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_PANEL_TEXT_DEPTH));
+    }
+
+    private hideGravePanel (): void
+    {
+        this.graveDim?.destroy();
+        this.graveDim = undefined;
+        this.gravePanel?.bg.destroy();
+        for (const text of this.gravePanel?.rows ?? []) {
+            text.destroy();
+        }
+        this.gravePanel = undefined;
     }
 
     private showRestartButtons (): void
@@ -946,6 +1046,7 @@ export class Game extends Scene
      */
     private relayoutRestartButtons (width: number, height: number): void
     {
+        this.layoutGravePanel();
         const buttons = this.restartButtons;
         if (!buttons) {
             return;
@@ -981,6 +1082,7 @@ export class Game extends Scene
         }
         this.restartButtons = undefined;
         this.restartLayout = undefined;
+        this.hideGravePanel();
     }
 
     private doRestart (choice: RestartChoice): void
@@ -1008,8 +1110,10 @@ export class Game extends Scene
         }
 
         if (this.flow.awaitingRestart) {
-            // Only a press that starts after the buttons appeared can pick one.
-            this.presses.begin(pointer.id, 'restart');
+            // Only a press that starts after the screen took input (and after the gravestone lock) can act.
+            if (!this.flow.onGrave || !graveLocked(this.time.now, this.graveEnteredAt)) {
+                this.presses.begin(pointer.id, 'restart');
+            }
             return;
         }
 
@@ -1120,6 +1224,11 @@ export class Game extends Scene
             if (!this.flow.awaitingRestart) {
                 return;
             }
+            if (!this.flow.onGrave) {
+                // A release on the revealed bombs goes on to the gravestone screen, wherever it is.
+                this.enterGrave();
+                return;
+            }
             // The release position chooses: TITLE, RETRY, or (anywhere else, NEW GAME included) a new game.
             if (this.restartLayout) {
                 this.doRestart(restartButtonAt(this.restartLayout, pointer.x, pointer.y));
@@ -1165,6 +1274,6 @@ export class Game extends Scene
         }
 
         const out = movePlayer(this.stageData, target);
-        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
     }
 }
