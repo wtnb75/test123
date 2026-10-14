@@ -40,3 +40,4 @@
 - `src/game/core/hudText.test.ts`（凡例の幅のテストが 0.6 em の仮定の計算値で、余裕が 6 px）— 理由: 文言を足したときに落ちる意図した安全網。実描画の切れは QA（幅 320 px）で確認する
 - `src/game/core/hudText.ts` と `src/game/scenes/boardView.ts`（描画順の `depth` 定数が 2 ファイルに分かれ、順序を守るテストがない）— 理由: 順序は spec に書いてあり、QA（盤面を HUD の位置へスクロールした状態）で確認する。`boardView.ts` は Phaser に依存し、定数のためだけにテストへ取り込むのは重い。値の変更は spec が先
 - `src/game/core/hudText.ts`（`HUD_BAND_COLOR` がカメラの背景色と同じ値の別リテラル）— 理由: spec が色の共有を実装裁量に委ねている。帯は背景に溶ける色であれば足りる
+- `src/game/core/padFeedback.test.ts`（`flagCircleSize` のテストが実装の式の言い換えで、Phaser の枠の描き方に依存する）— 理由: 枠が円の内側に描かれて外形が変わらないことは、QA で実機の外形を確かめる（spec の完了条件）。単体テストは計算の前提だけを見る

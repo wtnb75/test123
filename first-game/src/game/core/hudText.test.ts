@@ -8,6 +8,7 @@ import {
     hudBandHeight,
     flagMessage,
     flagModeMessage,
+    hudLegendTop,
     hudRowWidth,
     initialInputKind,
     inputKindOfKey,
@@ -130,6 +131,12 @@ describe('hudRowWidth', () => {
         expect(hudRowWidth(1280, 90)).toBe(1142);
         expect(hudRowWidth(320, 82)).toBe(190);
     });
+
+    it('uses the whole width minus both side margins when there is no STAGE button (production)', () => {
+        expect(hudRowWidth(390, null)).toBe(350);
+        expect(hudRowWidth(1280, null)).toBe(1240);
+        expect(hudRowWidth(320, null)).toBe(280);
+    });
 });
 
 describe('input kind', () => {
@@ -165,5 +172,17 @@ describe('hudBandHeight', () => {
 
     it('grows when a row grows (a wrapped message or the legend row appears)', () => {
         expect(hudBandHeight([25, 48, 66], 6)).toBeGreaterThan(hudBandHeight([25, 48], 6));
+    });
+});
+
+describe('hudLegendTop', () => {
+    it('is below the status row when there is no STAGE button (production)', () => {
+        expect(hudLegendTop(50, null, 2)).toBe(52);
+    });
+
+    it('is below whichever is lower, the status row or the STAGE button (dev)', () => {
+        expect(hudLegendTop(50, 54, 2)).toBe(56);
+        expect(hudLegendTop(70, 54, 2)).toBe(72);
+        expect(hudLegendTop(54, 52, 2)).toBe(56);
     });
 });
