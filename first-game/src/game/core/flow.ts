@@ -2,8 +2,17 @@
 
 import type { RestartChoice } from './restartButtons';
 
-/** What a key does on the game-over screen: R retries, T goes to the title, any other key starts a new game, a held key does nothing. */
+/** What a key does on the gravestone screen: R retries, T goes to the title, any other key starts a new game, a held key does nothing. */
 export type RestartAction = RestartChoice | 'none';
+
+/** The two stages of the game-over screen: the bombs revealed, then the gravestone screen (docs/spec/game-over.md). */
+export type GameOverStage = 'gameover' | 'grave';
+
+/** What a key does at a stage: on `gameover` R and T act at once, any other key goes on to the gravestone screen. */
+export const gameOverKeyAction = (stage: GameOverStage, code: string, repeat: boolean): RestartAction | 'grave' => {
+  const action = restartKeyAction(code, repeat);
+  return stage === 'gameover' && action === 'new' ? 'grave' : action;
+};
 
 export const restartKeyAction = (code: string, repeat: boolean): RestartAction => {
   if (repeat) {
@@ -17,11 +26,12 @@ export const restartKeyAction = (code: string, repeat: boolean): RestartAction =
 
 /**
  * `play` -> (goal) `clearing` -> next stage starts -> `play`; `play` -> (death) `dying` -> (after DeathDelay)
- * `gameover` -> RETRY / STAGE jump -> `play`; `gameover` -> NEW GAME / TITLE -> `restarting` until the Scene is
+ * `gameover` (the revealed bombs) -> input -> `grave` (the gravestone screen); `gameover` / `grave` -> RETRY /
+ * STAGE jump -> `play`; `gameover` (R, T) / `grave` -> NEW GAME / TITLE -> `restarting` until the Scene is
  * created again (`Game.create` calls `reset`; `Title` never looks at this flow). `restarting` is the moment between
  * choosing a restart or leaving and the next Scene. Only `play` accepts board input.
  */
-export type FlowPhase = 'play' | 'clearing' | 'dying' | 'gameover' | 'restarting';
+export type FlowPhase = 'play' | 'clearing' | 'dying' | 'gameover' | 'grave' | 'restarting';
 
 export class StageFlow {
   phase: FlowPhase = 'play';
@@ -31,9 +41,15 @@ export class StageFlow {
     return this.phase === 'play';
   }
 
+  /** The game-over screen takes input: the revealed bombs (`gameover`) or the gravestone screen (`grave`). */
   get awaitingRestart (): boolean
   {
-    return this.phase === 'gameover';
+    return this.phase === 'gameover' || this.phase === 'grave';
+  }
+
+  get onGrave (): boolean
+  {
+    return this.phase === 'grave';
   }
 
   /** The goal was reached. True only the first time: the caller then schedules the one next-stage start. */
@@ -56,7 +72,7 @@ export class StageFlow {
     return true;
   }
 
-  /** DeathDelay is over: RETRY / NEW GAME are offered. Only valid right after a death. */
+  /** DeathDelay is over: the game-over screen takes input. Only valid right after a death. */
   showRestart (): boolean
   {
     if (this.phase !== 'dying') {
@@ -66,10 +82,20 @@ export class StageFlow {
     return true;
   }
 
-  /** RETRY / NEW GAME was chosen. True only once, so a second input cannot start another restart. */
-  beginRestart (): boolean
+  /** An input on the revealed bombs goes on to the gravestone screen. True only once. */
+  showGrave (): boolean
   {
     if (this.phase !== 'gameover') {
+      return false;
+    }
+    this.phase = 'grave';
+    return true;
+  }
+
+  /** RETRY / NEW GAME / TITLE was chosen. True only once, so a second input cannot start another restart. */
+  beginRestart (): boolean
+  {
+    if (!this.awaitingRestart) {
       return false;
     }
     this.phase = 'restarting';

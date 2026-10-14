@@ -53,7 +53,7 @@ describe('resultMessage', () => {
 
     it('reports a death by any cause with the same sentence, by input kind', () => {
         for (const tag of ['bomb-without-flag', 'false-flag', undefined]) {
-            expect(resultMessage('dead', tag, 0, 'keys')).toBe('You died. [R]etry [T]itle, any key: new game');
+            expect(resultMessage('dead', tag, 0, 'keys')).toBe('You died. [R]etry [T]itle');
             expect(resultMessage('dead', tag, 0, 'touch')).toBe('You died.');
         }
     });
