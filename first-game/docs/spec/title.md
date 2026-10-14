@@ -79,7 +79,7 @@ Scene 名は `Title`。ゲームを開くと最初にこの Scene が始まり�
 - 幅 390px の縦長の画面で、ゲーム名とボタンが画面内に収まる。ウィンドウの大きさを変えると、配置し直される。
 - `npm run lint`・`npm run test`・`npm run test:coverage`（90% 以上）・`npm run build` がすべて成功し、単体ビルドと共有ビルドの両方で `Title` から `Game` へ進める。
 - `first-game/package.json` に `"title-demo": "workspace:*"` の依存を足し（共有パッケージ `shared/title-demo` の `StartGate` を使う。AGENTS.md 2.1 の `shared/` の規約）、`pnpm-lock.yaml` を更新する。単体ビルドと共有ビルドの両方で解決され、`pnpm install --frozen-lockfile` が通る。
-- `?stage=5` を付けて開くと、Title で Start を押した後、HUD のステータス行が `Stage:5` で始まる。「STAGE」ボタン・移動・フラグ・コード操作・スクロール・死亡・RETRY / NEW GAME / TITLE・ハイスコアの保存が動く（QA で確認する）。
+- `?stage=5` を付けて開くと、Title で Start を押した後、HUD のステータス行が `Stage:5` で始まる。「STAGE」ボタン（dev のみ）・移動・フラグ・コード操作・スクロール・死亡・RETRY / NEW GAME / TITLE・ハイスコアの保存が動く（QA で確認する）。
 - 公開の一覧（`Taskfile.yml` の `GAMES`）と `task build` の成果物の構成は変わらない（共有パッケージは `ALL_GAMES` に混ざらない）。
 - `README.md` に、最初に Title が出ることと Start の操作（タップ・Enter・Space）を書く。
 
