@@ -31,6 +31,21 @@ import { restartButtonAt, restartButtonLayout, type ButtonBox, type RestartButto
 import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 import {
+    FLAG_OFF_STROKE_WIDTH,
+    FLAG_ON_STROKE_WIDTH,
+    FLAG_ON_FILL,
+    FLAG_ON_LABEL_COLOR,
+    FLAG_ON_STROKE,
+    PAD_COLORS,
+    PAD_DIRECTION_THRESHOLD,
+    flagCircleSize,
+    padSectorAlpha,
+    padSectorArc,
+    padSectorOf,
+    padThemeOf,
+    sectorOfAngle
+} from '../core/padFeedback';
+import {
     DEFAULT_STAGE_BUTTON_WIDTH,
     HUD_BAND_ALPHA,
     HUD_BAND_COLOR,
@@ -46,6 +61,7 @@ import {
     fitFontSize,
     flagMessage,
     flagModeMessage,
+    hudLegendTop,
     hudRowWidth,
     initialInputKind,
     inputKindOfKey,
@@ -69,6 +85,8 @@ const HIGHSCORE_KEY = 'minefield-rogue-highscore';
 const START_STAGE_KEY = 'minefield-rogue-start-stage';
 const DEATH_DELAY_MS = 600;
 const CLEAR_DELAY_MS = 250;
+/** The STAGE button (and its prompt) exists only on the dev server, never in the production build. */
+const STAGE_BUTTON_ENABLED = import.meta.env.DEV;
 
 // Best score of this page's session: lives outside the Scene so NEW GAME / RETRY keep it.
 const sessionBest = createSessionBest();
@@ -85,7 +103,7 @@ type JoystickState = {
 
 const JOYSTICK_BASE_RADIUS = 52;
 const JOYSTICK_THUMB_RADIUS = 20;
-const JOYSTICK_TAP_THRESHOLD = 14;
+const JOYSTICK_TAP_THRESHOLD = PAD_DIRECTION_THRESHOLD;
 const JOYSTICK_REPEAT_DELAY = 380;  // ms until first repeat
 const JOYSTICK_REPEAT_INTERVAL = 180; // ms between subsequent repeats
 
@@ -150,6 +168,9 @@ export class Game extends Scene
     stageSelectLabel?: Phaser.GameObjects.Text;
     stageSelectHitArea?: Phaser.Geom.Rectangle;
     flagMode = false;
+    /** The lit sector of the pad (drawn over the base and the thumb) and the FLAG circle's size without its frame. */
+    padSectorGraphics?: Phaser.GameObjects.Graphics;
+    flagBaseSize = 52;
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
     /** The game-over buttons (backgrounds and labels) while they are on screen. */
@@ -240,6 +261,7 @@ export class Game extends Scene
             this.stageSelectBg = undefined;
             this.stageSelectLabel = undefined;
             this.stageSelectHitArea = undefined;
+            this.padSectorGraphics = undefined;
             this.joystickState = { active: false, pointerId: -1, startX: 0, startY: 0 };
             this.cancelJoystickRepeat();
             this.joystickCurrentDir = undefined;
@@ -339,6 +361,9 @@ export class Game extends Scene
             .setScrollFactor(0)
             .setDepth(31);
 
+        // --- Lit sector of the pad (over the base and the thumb: the thumb would hide most of it) ---
+        this.padSectorGraphics = this.add.graphics().setScrollFactor(0).setDepth(34);
+
         // --- Joystick thumb ---
         this.joystickThumb = this.add.ellipse(0, 0, JOYSTICK_THUMB_RADIUS * 2, JOYSTICK_THUMB_RADIUS * 2, 0x2563eb, 0.92)
             .setStrokeStyle(2, 0x93c5fd, 0.95)
@@ -361,27 +386,31 @@ export class Game extends Scene
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
 
-        this.stageSelectBg = this.add.rectangle(0, 0, 90, 34, 0x071a33, 0.88)
-            .setStrokeStyle(2, 0xf59e0b, 0.95)
-            .setScrollFactor(0)
-            .setDepth(31);
-
-        this.stageSelectLabel = this.add.text(0, 0, 'STAGE', {
-            fontFamily: 'monospace',
-            fontSize: 12,
-            fontStyle: 'bold',
-            color: '#fbbf24',
-            stroke: '#0b1220',
-            strokeThickness: 3,
-            align: 'center'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-
         this.virtualControlLayer.add(this.joystickBase);
         this.virtualControlLayer.add(this.joystickThumb);
+        this.virtualControlLayer.add(this.padSectorGraphics);
         this.virtualControlLayer.add(this.flagBg);
         this.virtualControlLayer.add(this.flagLabel);
-        this.virtualControlLayer.add(this.stageSelectBg);
-        this.virtualControlLayer.add(this.stageSelectLabel);
+
+        if (STAGE_BUTTON_ENABLED) {
+            this.stageSelectBg = this.add.rectangle(0, 0, 90, 34, 0x071a33, 0.88)
+                .setStrokeStyle(2, 0xf59e0b, 0.95)
+                .setScrollFactor(0)
+                .setDepth(31);
+
+            this.stageSelectLabel = this.add.text(0, 0, 'STAGE', {
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontStyle: 'bold',
+                color: '#fbbf24',
+                stroke: '#0b1220',
+                strokeThickness: 3,
+                align: 'center'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+
+            this.virtualControlLayer.add(this.stageSelectBg);
+            this.virtualControlLayer.add(this.stageSelectLabel);
+        }
 
         this.updateFlagButtonVisual();
         this.layoutVirtualControls();
@@ -393,19 +422,59 @@ export class Game extends Scene
             return;
         }
         if (this.flagMode) {
-            this.flagBg.setFillStyle(0x14532d, 0.92);
-            this.flagBg.setStrokeStyle(3, 0x4ade80, 1.0);
-            this.flagLabel.setText('FLAG\nON').setColor('#4ade80');
+            this.flagBg.setFillStyle(FLAG_ON_FILL, 1);
+            this.flagBg.setStrokeStyle(FLAG_ON_STROKE_WIDTH, FLAG_ON_STROKE, 1.0);
+            this.flagLabel.setText('FLAG\nON').setColor(FLAG_ON_LABEL_COLOR).setStroke('#0b1220', 0);
         } else {
             this.flagBg.setFillStyle(0x071a33, 0.82);
-            this.flagBg.setStrokeStyle(2, 0x22c55e, 0.9);
-            this.flagLabel.setText('FLAG').setColor('#86efac');
+            this.flagBg.setStrokeStyle(FLAG_OFF_STROKE_WIDTH, 0x22c55e, 0.9);
+            this.flagLabel.setText('FLAG').setColor('#86efac').setStroke('#0b1220', 3);
         }
+        // The frame is drawn inside the circle, so the outline (and the hit area) stays the same.
+        const size = flagCircleSize(this.flagBaseSize, this.flagMode);
+        this.flagBg.setSize(size, size);
+        this.applyPadTheme();
+    }
+
+    /** Pad frame and thumb: blue while FLAG is off, green while it is on; the lit sector follows. */
+    private applyPadTheme (): void
+    {
+        const colors = PAD_COLORS[padThemeOf(this.flagMode)];
+        this.joystickBase?.setStrokeStyle(2, colors.frame, 0.65);
+        this.joystickThumb?.setFillStyle(colors.thumbFill, 0.92);
+        this.joystickThumb?.setStrokeStyle(2, colors.thumbStroke, 0.95);
+        this.drawPadSector();
+    }
+
+    /** Lights the sector of the held direction (thin until the first repeat fired, thick after); clears it otherwise. */
+    private drawPadSector (): void
+    {
+        const g = this.padSectorGraphics;
+        const base = this.joystickBase;
+        if (!g || !base) {
+            return;
+        }
+        g.clear();
+        const dir = this.joystickCurrentDir;
+        if (!this.joystickState.active || !dir) {
+            return;
+        }
+        const sector = JOYSTICK_DIRS.findIndex((d) => d.x === dir.x && d.y === dir.y);
+        if (sector < 0) {
+            return;
+        }
+        const arc = padSectorArc(sector);
+        g.fillStyle(PAD_COLORS[padThemeOf(this.flagMode)].sector, padSectorAlpha(this.joystickHasFired));
+        g.beginPath();
+        g.moveTo(base.x, base.y);
+        g.arc(base.x, base.y, base.width / 2, arc.start, arc.end);
+        g.closePath();
+        g.fillPath();
     }
 
     private layoutVirtualControls (): void
     {
-        if (!this.joystickBase || !this.joystickThumb || !this.flagBg || !this.flagLabel || !this.stageSelectBg || !this.stageSelectLabel) {
+        if (!this.joystickBase || !this.joystickThumb || !this.flagBg || !this.flagLabel) {
             return;
         }
 
@@ -417,7 +486,7 @@ export class Game extends Scene
         const baseR = compact ? Math.round(JOYSTICK_BASE_RADIUS * 0.78) : JOYSTICK_BASE_RADIUS;
         const thumbR = compact ? Math.round(JOYSTICK_THUMB_RADIUS * 0.78) : JOYSTICK_THUMB_RADIUS;
         const flagSize = compact ? 44 : 52;
-        const flagFontSize = compact ? 10 : 11;
+        const flagFontSize = 11;
 
         // Joystick: bottom-left
         const jsX = margin + baseR;
@@ -432,24 +501,33 @@ export class Game extends Scene
         // FLAG button: bottom-right
         const flagX = W - margin - flagSize / 2;
         const flagY = H - margin - flagSize / 2;
-        this.flagBg.setPosition(flagX, flagY).setSize(flagSize, flagSize);
+        this.flagBaseSize = flagSize;
+        this.flagBg.setPosition(flagX, flagY);
         this.flagLabel.setPosition(flagX, flagY).setFontSize(flagFontSize);
         this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, flagSize / 2 + 10);
 
-        const stageW = compact ? 82 : 90;
-        const stageH = compact ? 30 : 34;
-        const stageX = W - margin - stageW / 2;
-        const stageY = margin + stageH / 2;
-        this.stageSelectBg.setPosition(stageX, stageY).setSize(stageW, stageH);
-        this.stageSelectLabel.setPosition(stageX, stageY).setFontSize(compact ? 11 : 12);
-        this.stageSelectHitArea = new Phaser.Geom.Rectangle(stageX - stageW / 2, stageY - stageH / 2, stageW, stageH);
+        if (this.stageSelectBg && this.stageSelectLabel) {
+            const stageW = compact ? 82 : 90;
+            const stageH = compact ? 30 : 34;
+            const stageX = W - margin - stageW / 2;
+            const stageY = margin + stageH / 2;
+            this.stageSelectBg.setPosition(stageX, stageY).setSize(stageW, stageH);
+            this.stageSelectLabel.setPosition(stageX, stageY).setFontSize(compact ? 11 : 12);
+            this.stageSelectHitArea = new Phaser.Geom.Rectangle(stageX - stageW / 2, stageY - stageH / 2, stageW, stageH);
+        }
 
-        // The HUD rows stay left of the STAGE button: lay them out again with its size.
+        // The FLAG circle (its frame is inside it), the pad colours and the lit sector follow the new layout.
+        this.updateFlagButtonVisual();
+
+        // The HUD rows stay left of the STAGE button (when there is one): lay them out again with its size.
         this.layoutHud();
     }
 
     private promptAndStartStage (): void
     {
+        if (!STAGE_BUTTON_ENABLED) {
+            return;
+        }
         const current = Math.min(this.stageData?.stageNo ?? 1, STAGE_MAX);
         const answer = parseStagePrompt(window.prompt(`Start stage number (1-${STAGE_MAX})`, String(current)));
         if (answer.kind === 'cancel') {
@@ -486,9 +564,8 @@ export class Game extends Scene
         );
 
         // Repeat input when stick is held in a direction
-        if (dist >= JOYSTICK_TAP_THRESHOLD) {
-            const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
-            const sector = Math.round(deg / 45) % 8;
+        const sector = padSectorOf(dx, dy);
+        if (sector !== null) {
             const dir = JOYSTICK_DIRS[sector];
             const dirChanged = !this.joystickCurrentDir ||
                 this.joystickCurrentDir.x !== dir.x ||
@@ -518,6 +595,7 @@ export class Game extends Scene
             this.cancelJoystickRepeat();
             this.joystickCurrentDir = undefined;
         }
+        this.drawPadSector();
     }
 
     private fireJoystickDirection (): void
@@ -526,6 +604,7 @@ export class Game extends Scene
             return;
         }
         this.joystickHasFired = true;
+        this.drawPadSector();
         this.applyDirectionInput(this.joystickCurrentDir, this.flagMode);
     }
 
@@ -552,6 +631,7 @@ export class Game extends Scene
         if (this.joystickBase && this.joystickThumb) {
             this.joystickThumb.setPosition(this.joystickBase.x, this.joystickBase.y);
         }
+        this.drawPadSector();
     }
 
     private resolveJoystick (upX: number, upY: number): void
@@ -581,8 +661,7 @@ export class Game extends Scene
         }
 
         // Short drag released before first repeat: fire once
-        const deg = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
-        const sector = Math.round(deg / 45) % 8;
+        const sector = sectorOfAngle((Math.atan2(dy, dx) * 180) / Math.PI);
         this.applyDirectionInput(JOYSTICK_DIRS[sector], this.flagMode);
     }
 
@@ -630,7 +709,7 @@ export class Game extends Scene
     private layoutHud (): void
     {
         const area = this.stageSelectHitArea;
-        const rowWidth = hudRowWidth(this.camera.width, area?.width ?? DEFAULT_STAGE_BUTTON_WIDTH);
+        const rowWidth = hudRowWidth(this.camera.width, STAGE_BUTTON_ENABLED ? (area?.width ?? DEFAULT_STAGE_BUTTON_WIDTH) : null);
 
         // Redrawing a Text re-uploads its texture: only rows whose width or text changed are drawn again.
         const messageKey = `${rowWidth}|${this.hudMessage}`;
@@ -656,14 +735,13 @@ export class Game extends Scene
         this.statusText.setPosition(HUD_LEFT, this.messageText.y + this.messageText.height + HUD_GAP);
 
         if (this.legendText.visible) {
-            const buttonBottom = area ? area.bottom : 0;
-            const belowStatus = this.statusText.y + this.statusText.height + HUD_GAP;
+            const statusBottom = this.statusText.y + this.statusText.height;
             const legendKey = `${this.camera.width}`;
             if (legendKey !== this.legendKey) {
                 this.legendKey = legendKey;
                 this.legendText.setWordWrapWidth(this.camera.width - 2 * HUD_LEFT, true);
             }
-            this.legendText.setPosition(HUD_LEFT, Math.max(belowStatus, buttonBottom + HUD_GAP));
+            this.legendText.setPosition(HUD_LEFT, hudLegendTop(statusBottom, area ? area.bottom : null, HUD_GAP));
         }
 
         // The band covers every visible row: it follows wraps, the legend row and resizes.

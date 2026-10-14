@@ -123,6 +123,15 @@ export const fitFontSize = (
 export const hudBandHeight = (rowBottoms: number[], padding: number = HUD_BAND_PADDING): number =>
     rowBottoms.length === 0 ? 0 : Math.max(...rowBottoms) + padding;
 
-/** Width the message and status rows may use: left of the STAGE button (its width + right margin + gap). */
-export const hudRowWidth = (screenWidth: number, stageButtonWidth: number): number =>
-    screenWidth - HUD_LEFT - (stageButtonWidth + HUD_BUTTON_MARGIN + HUD_BUTTON_GAP);
+/** Top of the legend row: below the status row, and below the STAGE button when there is one (dev). */
+export const hudLegendTop = (statusBottom: number, stageButtonBottom: number | null, gap: number = HUD_GAP): number =>
+    Math.max(statusBottom + gap, stageButtonBottom === null ? 0 : stageButtonBottom + gap);
+
+/**
+ * Width the message and status rows may use: left of the STAGE button (its width + right margin + gap), or
+ * the whole width minus both side margins when there is no STAGE button (the production build).
+ */
+export const hudRowWidth = (screenWidth: number, stageButtonWidth: number | null): number =>
+    stageButtonWidth === null
+        ? screenWidth - 2 * HUD_LEFT
+        : screenWidth - HUD_LEFT - (stageButtonWidth + HUD_BUTTON_MARGIN + HUD_BUTTON_GAP);
