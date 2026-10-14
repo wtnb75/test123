@@ -5,6 +5,7 @@ import {
   graveArt,
   graveArtHeight,
   graveCauseOf,
+  graveRowParts,
   graveLocked,
   gravePanelLayout,
   gravePlateWidth,
@@ -111,9 +112,9 @@ describe('graveArt', () => {
     ]);
   });
 
-  it('marks only the New record! row to be drawn in the accent colour', () => {
+  it('marks only the New record! row, and only the words in it, for the accent colour', () => {
     const rows = graveArt('A', info({ record: true }));
-    expect(rows.filter((r) => r.highlight).map((r) => r.text.trim())).toEqual(['|     New record!      |']);
+    expect(rows.filter((r) => r.accent !== null).map((r) => r.text.trim())).toEqual(['|     New record!      |']);
   });
 
   it('pads every row to 32 characters, and widens the art when a row reaches past that', () => {
@@ -213,5 +214,45 @@ describe('gravePanelLayout', () => {
     const tight = gravePanelLayout(390, 844, 560, info({ record: true }));
     expect(tight.variant).toBe('C');
     expect(tight.bottom).toBe(roomy.bottom);
+  });
+});
+
+describe('the accent colour covers only the words "New record!"', () => {
+  const recordRow = (variant: 'A' | 'B' | 'C'): ReturnType<typeof graveArt>[number] => {
+    const row = graveArt(variant, info({ record: true })).find((r) => r.accent !== null);
+    if (!row) {
+      throw new Error('no record row');
+    }
+    return row;
+  };
+
+  it('is columns 10 to 20 of the variant A row (the 11 characters), not the walls', () => {
+    const row = recordRow('A');
+    expect(row.accent).toEqual({ start: 10, end: 21 });
+    expect(row.text.slice(10, 21)).toBe('New record!');
+    expect(row.text[4]).toBe('|');
+    expect(row.text[27]).toBe('|');
+  });
+
+  it('splits the row into a body line without the words and an accent line with only them, of equal length', () => {
+    const parts = graveRowParts(recordRow('A'));
+    expect(parts.base).toBe('    |                      |    ');
+    expect(parts.accent).toBe(`${' '.repeat(10)}New record!${' '.repeat(11)}`);
+    expect(parts.accent?.length).toBe(parts.base.length);
+  });
+
+  it('has no accent line for the other rows, which keep their text', () => {
+    for (const row of graveArt('A', info({ record: true }))) {
+      if (row.accent === null) {
+        expect(graveRowParts(row)).toEqual({ base: row.text, accent: null });
+      }
+    }
+  });
+
+  it('puts the accent on the words in every variant', () => {
+    for (const variant of ['A', 'B', 'C'] as const) {
+      const row = recordRow(variant);
+      expect(row.text.slice(row.accent!.start, row.accent!.end)).toBe('New record!');
+    }
   });
 });

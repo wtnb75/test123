@@ -23,7 +23,7 @@ export const GRAVE_TOP_MARGIN = 8;
 export const GRAVE_PLATE_PAD_X = 8;
 export const GRAVE_PLATE_COLOR = 0x0a1f2f;
 export const GRAVE_PLATE_ALPHA = 0.85;
-/** Colours (delegated by the spec): the art, and the "New record!" row. */
+/** Colours (delegated by the spec): the art, and the words "New record!" (not the walls around them). */
 export const GRAVE_TEXT_COLOR = '#e5e7eb';
 export const GRAVE_RECORD_COLOR = '#fbbf24';
 
@@ -38,8 +38,8 @@ export type GraveVariant = 'A' | 'B' | 'C';
 export type GraveRow = {
   /** The row, padded on the right so that every row of the art is equally long. */
   text: string;
-  /** The "New record!" row. */
-  highlight: boolean;
+  /** Where "New record!" stands in `text` (start inclusive, end exclusive), drawn in the accent colour; none elsewhere. */
+  accent: { start: number; end: number } | null;
 };
 
 export type GraveInfo = {
@@ -76,8 +76,9 @@ const SIDE_GROUND = '_'.repeat(GRAVE_GROUND_EXTRA);
 /** A stone row: shifted right by the ground's overhang, so the stone sits in the middle of the ground. */
 const stone = (row: string): string => MARGIN + row;
 const wall = (s: string): string => stone(`|${centerText(s, GRAVE_INNER)}|`);
+const RECORD_TEXT = 'New record!';
 
-/** The rows of a variant, top to bottom, before padding: [text, is the "New record!" row]. */
+/** The rows of a variant, top to bottom, before padding. */
 const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean]> => {
   const mine = info.cause === 'mine';
   const cause1 = mine ? 'killed by a' : 'stepped on a';
@@ -89,7 +90,7 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
   };
   const record = (): void => {
     if (info.record) {
-      add(wall('New record!'), true);
+      add(wall(RECORD_TEXT), true);
     }
   };
 
@@ -129,12 +130,32 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
 export const graveArt = (variant: GraveVariant, info: GraveInfo): GraveRow[] => {
   const rows = artRows(variant, info);
   const width = Math.max(GRAVE_ART_WIDTH, ...rows.map(([text]) => text.length));
-  return rows.map(([text, highlight]) => ({ text: text.padEnd(width), highlight }));
+  return rows.map(([text, highlight]) => {
+    const start = highlight ? text.indexOf(RECORD_TEXT) : -1;
+    return { text: text.padEnd(width), accent: start >= 0 ? { start, end: start + RECORD_TEXT.length } : null };
+  });
 };
 
 /** Width of the rectangle behind the art: every row is equally long; `charWidth` is one character's width (px). */
 export const gravePlateWidth = (rows: GraveRow[], charWidth: number): number =>
   (rows[0]?.text.length ?? 0) * charWidth + 2 * GRAVE_PLATE_PAD_X;
+
+/**
+ * A row split in two lines of equal length: `base` in the body colour (the accent words blanked out) and
+ * `accent` with only those words (everything else blank), to be drawn over each other: with a monospace font
+ * the columns line up, so the walls beside "New record!" keep the body colour. `accent` is null for other rows.
+ */
+export const graveRowParts = (row: GraveRow): { base: string; accent: string | null } => {
+  if (!row.accent) {
+    return { base: row.text, accent: null };
+  }
+  const { start, end } = row.accent;
+  const blank = (s: string): string => s.replace(/./g, ' ');
+  return {
+    base: row.text.slice(0, start) + blank(row.text.slice(start, end)) + row.text.slice(end),
+    accent: blank(row.text.slice(0, start)) + row.text.slice(start, end) + blank(row.text.slice(end))
+  };
+};
 
 /** Height of the art (px): rows x row height. */
 export const graveArtHeight = (rows: GraveRow[]): number => rows.length * GRAVE_ART_ROW_HEIGHT;
