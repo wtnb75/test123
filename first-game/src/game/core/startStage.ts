@@ -22,17 +22,33 @@ export type StartStage = {
 };
 
 /**
- * `queryValue` is the value of the `stage` URL parameter (null when missing), `stored` the saved start stage.
- * The query wins when it is >= 1; otherwise the stored value when it is >= 1; otherwise 1. Both are capped at `STAGE_MAX`.
+ * What a game start knows besides the two texts: `first` is true for the first game since the page was opened (only
+ * then does `?stage=` count), `useSaved` is true on the dev server (only there is the saved start stage read).
  */
-export const resolveStartStage = (queryValue: string | null, stored: string | null): StartStage => {
-  const fromQuery = parseLeadingInteger(queryValue);
-  if (fromQuery !== null && fromQuery >= 1) {
-    return { stage: Math.min(STAGE_MAX, fromQuery), fromQuery: true };
+export type StartStageContext = { first: boolean; useSaved: boolean };
+
+/**
+ * `queryValue` is the value of the `stage` URL parameter (null when missing), `stored` the saved start stage.
+ * The first game of the page: the query wins when it is >= 1; otherwise (dev only) the stored value when it is >= 1;
+ * otherwise 1. Later games (NEW GAME, back from the title) ignore the query; they use the stored value on dev, else 1.
+ * Both are capped at `STAGE_MAX`.
+ */
+export const resolveStartStage = (
+  queryValue: string | null,
+  stored: string | null,
+  context: StartStageContext
+): StartStage => {
+  if (context.first) {
+    const fromQuery = parseLeadingInteger(queryValue);
+    if (fromQuery !== null && fromQuery >= 1) {
+      return { stage: Math.min(STAGE_MAX, fromQuery), fromQuery: true };
+    }
   }
-  const fromStorage = parseLeadingInteger(stored);
-  if (fromStorage !== null && fromStorage >= 1) {
-    return { stage: Math.min(STAGE_MAX, fromStorage), fromQuery: false };
+  if (context.useSaved) {
+    const fromStorage = parseLeadingInteger(stored);
+    if (fromStorage !== null && fromStorage >= 1) {
+      return { stage: Math.min(STAGE_MAX, fromStorage), fromQuery: false };
+    }
   }
   return { stage: 1, fromQuery: false };
 };

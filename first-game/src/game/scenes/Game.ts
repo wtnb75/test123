@@ -89,6 +89,9 @@ const CLEAR_DELAY_MS = 250;
 /** The STAGE button (and its prompt) exists only on the dev server, never in the production build. */
 const STAGE_BUTTON_ENABLED = import.meta.env.DEV;
 
+// True until the first Game of this page is created: only that game reads `?stage=` (docs/spec.md "開始ステージの決め方").
+let firstGameOfPage = true;
+
 // Best score of this page's session: lives outside the Scene so NEW GAME / RETRY keep it.
 const sessionBest = createSessionBest();
 
@@ -292,13 +295,17 @@ export class Game extends Scene
 
     private startFirstStage (): void
     {
+        // `?stage=` counts for the first game of the page only; the saved start stage is read (and written) on dev only.
+        const first = firstGameOfPage;
+        firstGameOfPage = false;
         const start = resolveStartStage(
             new URLSearchParams(window.location.search).get('stage'),
-            safeGetItem(this.store, START_STAGE_KEY)
+            STAGE_BUTTON_ENABLED ? safeGetItem(this.store, START_STAGE_KEY) : null,
+            { first, useSaved: STAGE_BUTTON_ENABLED }
         );
         this.startStage(start.stage);
         // Saved only once the stage has started, so an oversized value can never block later launches.
-        if (start.fromQuery) {
+        if (start.fromQuery && STAGE_BUTTON_ENABLED) {
             safeSetItem(this.store, START_STAGE_KEY, String(start.stage));
         }
     }
