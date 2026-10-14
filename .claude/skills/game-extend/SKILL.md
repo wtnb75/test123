@@ -50,7 +50,10 @@ Ask one question at a time.
    ideas, run `game-backlog` first and come back. If they want several,
    split them and say which ones are left for later cycles (AGENTS.md: one
    change, one purpose; one PR per game change).
-3. **Pin it down**, one question at a time. A backlog card's 狙い,
+3. **Pin it down**, one question at a time (a question that depends on
+   the previous answer). Independent design choices that the user can
+   decide in any order (up to four) may go in one batch, each with a
+   recommendation. A backlog card's 狙い,
    コアループへの効き方, 種別 and 規模 are the starting draft — confirm or
    revise them rather than asking from scratch:
    - what is added, concretely;
@@ -78,6 +81,15 @@ Ask one question at a time.
    runs before asking for approval, and say which "unchanged" numbers the
    result puts in doubt: they are an intended retune now, not a surprise
    in `game-balance`.
+   If the extension joins two places in the game's space (leaving one
+   area through an edge, door or portal and arriving in another; maps,
+   levels, screens or scroll regions that link up), also work the join
+   out by hand before asking for approval: pick at least two exit
+   directions or edges, write the cell/position the player leaves from
+   and the one they arrive at, and show the arrival is where the walk
+   leads (the same edge or the matching one, the same facing). Put that
+   small example in the summary at step 10; `game-spec` copies it into
+   テスト観点. Skip this when nothing joins places.
 6. **Check the size.** If it doesn't fit one PR (e.g. a new mode plus a
    stage set plus new UI at once), cut it down to the smallest step, as
    `game-idea` does for an MVP. If existing code has to be restructured to

@@ -143,6 +143,9 @@ Before summarizing the agreed extension to the user:
 - Is it classified presentation-only or gameplay?
 - Were candidates offered from `docs/backlog.md` top-down (if it exists), and
   are the ones left for later listed in the summary for `game-spec` to record?
+- If it joins places in the game's space, is the join shown with a
+  hand-worked example for at least two exits or edges, with the
+  arrival where the walk leads?
 
 ## STAGE=title (self) — consumer: game-spec
 
@@ -276,6 +279,10 @@ approves a spec that has already been through review.
   テスト観点 / 完了条件 / 実装裁量, 「なし」 allowed).
 - **Regression conditions** (extension revision): every "must not change"
   item in the change summary appears in 完了条件 and テスト観点.
+- **Spatial continuity** (only when the spec joins places in space):
+  redo the hand-worked example for two exits or edges from the rules
+  and check that the arrival lands where the walk leads; list any
+  rule the example needs that the spec does not state.
 
 Don't flag:
 - anything the 実装裁量 section explicitly delegates;
