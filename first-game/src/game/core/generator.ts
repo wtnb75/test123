@@ -1,5 +1,6 @@
 import { createRandomStage, type RoomOptions, type RoomRole } from './board';
 import { corridorShape } from './corridor';
+import { starGraph, type FloorGraph } from './floorGraph';
 import { floorFitsApart, floorMap, headingPairFromDraw, oppositeHeading, type FloorMap } from './floorLayout';
 import { createRng } from './random';
 import { analyzeSolvability } from './solver';
@@ -141,6 +142,8 @@ export type Floor = {
   downRoom: 1 | 2;
   /** Where the rooms and the corridors sit on the floor's grid. */
   layout: FloorMap;
+  /** Which doors the corridors join and which room the player starts in. */
+  graph: FloorGraph;
 };
 
 type RoomSet = { roomA: Stage; roomB: Stage; roomC: Stage };
@@ -185,5 +188,5 @@ export const generateFloor = (stageNo: number, options?: Omit<GenerateOptions, '
     set = build(second, set.roomB);
     layout = mapOf(set, second);
   }
-  return { stageNo, rooms: [set.roomA, set.roomB, set.roomC], downRoom: downInB ? 1 : 2, layout };
+  return { stageNo, rooms: [set.roomA, set.roomB, set.roomC], downRoom: downInB ? 1 : 2, layout, graph: starGraph(3) };
 };

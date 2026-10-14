@@ -1,4 +1,6 @@
-import type { Heading, Position } from './types';
+import type { FloorDoorRef, FloorGraph } from './floorGraph';
+import { starGraph } from './floorGraph';
+import type { Heading, Position, StageDoor } from './types';
 
 /** The unit vector of each heading, and its right-hand side (the heading turned 90° clockwise; y is down). */
 export const HEADING_VECTOR: Record<Heading, Position> = {
@@ -106,54 +108,81 @@ export const exitArrowDirection = (dx: number, dy: number): (typeof ARROWS)[numb
   return ARROWS[Math.round(degrees / 45) % 8];
 };
 
-/** Where everything of a three-room floor sits on the floor's grid (cells), with the top-left of the floor at (0, 0). */
-export type FloorMap = {
-  /** The heading of door A1 and of door A2. */
-  headings: [Heading, Heading];
-  /** The grid cell of the top-left cell of room A, room B and room C. */
-  roomOrigin: [Position, Position, Position];
-  /** Corridor 1 (room A - room B) and corridor 2 (room A - room C): cells from the room A end to the other. */
-  corridors: [Position[], Position[]];
+/** A room of the floor as the placement sees it: its size and its doors (the cell next to each and the wall it is in). */
+export type PlacedRoom = { width: number; height: number; doors: readonly StageDoor[] };
+
+/** Where the rooms and the corridors of a floor sit on its grid (cells), with the top-left of the floor at (0, 0). */
+export type FloorPlacement = {
+  /** The grid cell of the top-left cell of each room, in room order. */
+  roomOrigin: Position[];
+  /** Each corridor's cells from its first door's end to its last, in corridor order. */
+  corridors: Position[][];
   /** Size of the rectangle around the rooms and the corridors, in cells. */
   cols: number;
   rows: number;
 };
 
 /**
- * The map of a floor of three rooms of `width` x `height` (docs/spec/rooms-and-floors.md "フロアの座標"). `doorsA`
- * are the cells next to door A1 and A2 in room A; `entries` the cells next to the door of room B and room C in their
- * own coordinates; `shapes` the two corridors in corridor coordinates.
+ * Puts a floor on one grid (docs/spec/rooms-and-floors.md "フロアの座標"). The start room's top-left is (0, 0) first;
+ * each corridor, taken in list order from a room that already has a place, starts one cell outside its first door
+ * and runs along `shapes[k]` (`x` forward, `y` to the right of the door's heading); the room at its other end is put
+ * so that its door cell is the cell just past the corridor's last cell. Everything is then moved so the top-left of
+ * the whole is (0, 0). The floor must be a tree reached from the start room through the corridors' first doors.
  */
-export const floorMap = (
-  headings: [Heading, Heading],
-  width: number,
-  height: number,
-  doorsA: [Position, Position],
-  entries: [Position, Position],
-  shapes: [readonly Position[], readonly Position[]]
-): FloorMap => {
-  const parts = [0, 1].map((k) => {
-    const layout = floorLayout(headings[k], width, height, doorsA[k], entries[k], shapes[k]);
-    // floorLayout moved everything so its own top-left is (0, 0); put room A back at (0, 0).
-    const home = layout.roomOrigin[0];
-    return {
-      room: { x: layout.roomOrigin[1].x - home.x, y: layout.roomOrigin[1].y - home.y },
-      corridor: layout.corridor.map((cell) => ({ x: cell.x - home.x, y: cell.y - home.y }))
-    };
-  });
-  const rooms: Position[] = [{ x: 0, y: 0 }, parts[0].room, parts[1].room];
+export const placeFloor = (
+  rooms: readonly PlacedRoom[],
+  graph: FloorGraph,
+  shapes: readonly (readonly Position[])[]
+): FloorPlacement => {
+  const origins: (Position | undefined)[] = rooms.map(() => undefined);
+  origins[graph.startRoom] = { x: 0, y: 0 };
+  const cells: Position[][] = graph.corridors.map(() => []);
+  const doorOf = (ref: FloorDoorRef): StageDoor => rooms[ref.room].doors[ref.door];
+
+  const done = new Set<number>();
+  let placed = true;
+  while (placed) {
+    placed = false;
+    graph.corridors.forEach((link, k) => {
+      const from = origins[link.from.room];
+      if (!from || done.has(k)) {
+        return;
+      }
+      if (origins[link.to.room]) {
+        throw new Error(`Corridor ${k} leads to a room that already has a place (the floor must be a tree).`);
+      }
+      const door = doorOf(link.from);
+      const entry = doorOf(link.to);
+      const d = HEADING_VECTOR[door.side];
+      const n = RIGHT_VECTOR[door.side];
+      cells[k] = shapes[k].map((cell) => ({
+        x: from.x + door.cell.x + d.x * (1 + cell.x) + n.x * cell.y,
+        y: from.y + door.cell.y + d.y * (1 + cell.x) + n.y * cell.y
+      }));
+      const last = cells[k][cells[k].length - 1];
+      origins[link.to.room] = { x: last.x + d.x - entry.cell.x, y: last.y + d.y - entry.cell.y };
+      done.add(k);
+      placed = true;
+    });
+  }
+  if (origins.some((origin) => origin === undefined)) {
+    throw new Error('A room of the floor is not reached from the start room by a corridor.');
+  }
+
+  const roomOrigin = origins as Position[];
   const all = [
-    ...rooms.flatMap((room) => [room, { x: room.x + width - 1, y: room.y + height - 1 }]),
-    ...parts[0].corridor,
-    ...parts[1].corridor
+    ...roomOrigin.flatMap((origin, i) => [
+      origin,
+      { x: origin.x + rooms[i].width - 1, y: origin.y + rooms[i].height - 1 }
+    ]),
+    ...cells.flat()
   ];
   const minX = Math.min(...all.map((cell) => cell.x));
   const minY = Math.min(...all.map((cell) => cell.y));
   const shift = (cell: Position): Position => ({ x: cell.x - minX, y: cell.y - minY });
   return {
-    headings,
-    roomOrigin: [shift(rooms[0]), shift(rooms[1]), shift(rooms[2])],
-    corridors: [parts[0].corridor.map(shift), parts[1].corridor.map(shift)],
+    roomOrigin: roomOrigin.map(shift),
+    corridors: cells.map((corridor) => corridor.map(shift)),
     cols: Math.max(...all.map((cell) => cell.x)) - minX + 1,
     rows: Math.max(...all.map((cell) => cell.y)) - minY + 1
   };
@@ -162,11 +191,15 @@ export const floorMap = (
 /**
  * True when the floor's parts keep apart (docs/spec/rooms-and-floors.md "配置の条件"): no two rooms touch (an empty
  * row or column between them, diagonals too); a corridor cell is in no room and not next to a room other than the
- * two it joins; the two corridors share no cell and no side.
+ * two it joins; no two corridors share a cell or a side.
  */
-export const floorFitsApart = (map: FloorMap, width: number, height: number): boolean => {
-  const rects = map.roomOrigin.map((origin) => ({
-    x0: origin.x, y0: origin.y, x1: origin.x + width - 1, y1: origin.y + height - 1
+export const placementFitsApart = (
+  placement: FloorPlacement,
+  rooms: readonly { width: number; height: number }[],
+  graph: FloorGraph
+): boolean => {
+  const rects = placement.roomOrigin.map((origin, i) => ({
+    x0: origin.x, y0: origin.y, x1: origin.x + rooms[i].width - 1, y1: origin.y + rooms[i].height - 1
   }));
   const apart = (a: (typeof rects)[number], b: (typeof rects)[number]): boolean =>
     a.x1 + 1 < b.x0 || b.x1 + 1 < a.x0 || a.y1 + 1 < b.y0 || b.y1 + 1 < a.y0;
@@ -180,19 +213,60 @@ export const floorFitsApart = (map: FloorMap, width: number, height: number): bo
 
   const near = (cell: Position, r: (typeof rects)[number], margin: number): boolean =>
     cell.x >= r.x0 - margin && cell.x <= r.x1 + margin && cell.y >= r.y0 - margin && cell.y <= r.y1 + margin;
-  for (let k = 0; k < 2; k += 1) {
-    const stranger = rects[k === 0 ? 2 : 1];
-    for (const cell of map.corridors[k]) {
-      if (rects.some((r) => near(cell, r, 0)) || near(cell, stranger, 1)) {
+  for (let k = 0; k < placement.corridors.length; k += 1) {
+    const joined = [graph.corridors[k].from.room, graph.corridors[k].to.room];
+    for (const cell of placement.corridors[k]) {
+      const crossed = rects.some((r) => near(cell, r, 0));
+      const crowded = rects.some((r, i) => !joined.includes(i) && near(cell, r, 1));
+      if (crossed || crowded) {
         return false;
       }
     }
   }
 
-  return !map.corridors[0].some((p) =>
-    map.corridors[1].some((q) => Math.abs(p.x - q.x) + Math.abs(p.y - q.y) <= 1)
-  );
+  for (let a = 0; a < placement.corridors.length; a += 1) {
+    for (let b = a + 1; b < placement.corridors.length; b += 1) {
+      const touching = placement.corridors[a].some((p) =>
+        placement.corridors[b].some((q) => Math.abs(p.x - q.x) + Math.abs(p.y - q.y) <= 1)
+      );
+      if (touching) {
+        return false;
+      }
+    }
+  }
+  return true;
 };
+
+/** Where everything of a three-room floor sits on the floor's grid (cells), with the top-left of the floor at (0, 0). */
+export type FloorMap = FloorPlacement & {
+  /** The heading of door A1 and of door A2. */
+  headings: [Heading, Heading];
+};
+
+/**
+ * The map of a floor of three rooms of `width` x `height` (docs/spec/rooms-and-floors.md "フロアの座標"), placed
+ * with `placeFloor` on the star graph. `doorsA` are the cells next to door A1 and A2 in room A; `entries` the cells
+ * next to the door of room B and room C in their own coordinates; `shapes` the two corridors in corridor coordinates.
+ */
+export const floorMap = (
+  headings: [Heading, Heading],
+  width: number,
+  height: number,
+  doorsA: [Position, Position],
+  entries: [Position, Position],
+  shapes: [readonly Position[], readonly Position[]]
+): FloorMap => {
+  const rooms: PlacedRoom[] = [
+    { width, height, doors: [{ cell: doorsA[0], side: headings[0] }, { cell: doorsA[1], side: headings[1] }] },
+    { width, height, doors: [{ cell: entries[0], side: oppositeHeading(headings[0]) }] },
+    { width, height, doors: [{ cell: entries[1], side: oppositeHeading(headings[1]) }] }
+  ];
+  return { headings, ...placeFloor(rooms, starGraph(3), shapes) };
+};
+
+/** `placementFitsApart` for the three-room map made by `floorMap` (all rooms `width` x `height`). */
+export const floorFitsApart = (map: FloorMap, width: number, height: number): boolean =>
+  placementFitsApart(map, map.roomOrigin.map(() => ({ width, height })), starGraph(map.roomOrigin.length));
 
 /** An exit the player may look for: its centre on the floor's grid in px and the word of its arrow. */
 export type ExitTarget = { x: number; y: number; label: 'DOOR' | 'GOAL' };
