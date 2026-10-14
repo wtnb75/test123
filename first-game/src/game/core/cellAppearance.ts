@@ -62,8 +62,8 @@ export type CellState = {
 
 export type CellGlyph = {
   text: string;
-  /** `center`: centred on the cell; `top-left`: the flag, at (5, 3) from the cell's corner (reference px). */
-  anchor: 'center' | 'top-left';
+  /** Glyphs are centred on the cell (the flag is a figure now, see `CellShape`). */
+  anchor: 'center';
   color: string;
   bold: boolean;
   /** Font size at the reference cell. */
@@ -72,14 +72,27 @@ export type CellGlyph = {
   stroke: number;
 };
 
+/**
+ * A drawn figure (the flag), in reference px from the cell's top-left corner.
+ * `rect`: [x, y, width, height]; `triangle`: [x1, y1, x2, y2, x3, y3].
+ */
+export type CellShape = {
+  kind: 'rect' | 'triangle';
+  points: number[];
+  color: number;
+};
+
 export type CellAppearance = {
   fill: number;
   /** Bottom to top. */
   glyphs: CellGlyph[];
+  /** Figures, drawn under the glyphs (a wrong flag's "×" goes over its flag). */
+  shapes: CellShape[];
 };
 
-export const COLOR_CLOSED = 0x1e272e;
-export const COLOR_OPEN = 0x2f3542;
+/** Closed cells are lighter (raised), open ones darker (sunken): the board reads against the 0x0a1f2f background. */
+export const COLOR_CLOSED = 0x3d4f63;
+export const COLOR_OPEN = 0x243341;
 export const COLOR_KNOWN_BOMB = 0x7d3800;
 export const COLOR_KNOWN_SAFE = 0x0d2b1a;
 export const COLOR_WRONG_FLAG = 0x3d1f6e;
@@ -96,6 +109,23 @@ export const HINT_COLORS: Record<number, string> = {
 };
 
 export const GLYPH_OUTLINE_COLOR = '#0b1220';
+
+/** The flag figure at the reference cell: a pole and a pennant (docs/spec/board-render.md "マスの見た目"). */
+export const FLAG_POLE_COLOR = 0xf1f2f6;
+export const FLAG_COLOR = 0xff6b6b;
+export const FLAG_WRONG_COLOR = 0xa29bfe;
+export const FLAG_POLE = [8, 5, 2, 18];
+export const FLAG_PENNANT = [10, 5, 20, 11, 10, 17];
+
+/** The player's mark ("@") and highlight: the mark's size, outline and centre, and the highlight's frame and fill. */
+export const PLAYER_MARK_SIZE = 14;
+export const PLAYER_MARK_STROKE = 2;
+export const PLAYER_MARK_CENTER = { x: 6, y: 7 };
+export const HIGHLIGHT_STROKE = 3;
+export const HIGHLIGHT_STROKE_COLOR = 0xdfe4ea;
+export const HIGHLIGHT_STROKE_ALPHA = 0.95;
+export const HIGHLIGHT_FILL = 0x7fb2ff;
+export const HIGHLIGHT_FILL_ALPHA = 0.4;
 
 const fillColor = (s: CellState): number => {
   if (s.gameOver) {
@@ -120,6 +150,7 @@ const fillColor = (s: CellState): number => {
 
 export const cellAppearance = (s: CellState): CellAppearance => {
   const glyphs: CellGlyph[] = [];
+  const shapes: CellShape[] = [];
 
   if (s.hasBomb && s.revealed) {
     glyphs.push({
@@ -145,14 +176,10 @@ export const cellAppearance = (s: CellState): CellAppearance => {
 
   if (s.flagged) {
     const wrong = s.gameOver && !s.hasBomb;
-    glyphs.push({
-      text: 'F',
-      anchor: 'top-left',
-      color: wrong ? '#a29bfe' : '#ff4757',
-      bold: wrong,
-      size: 16,
-      stroke: 0
-    });
+    shapes.push(
+      { kind: 'rect', points: FLAG_POLE, color: FLAG_POLE_COLOR },
+      { kind: 'triangle', points: FLAG_PENNANT, color: wrong ? FLAG_WRONG_COLOR : FLAG_COLOR }
+    );
     if (wrong) {
       glyphs.push({ text: '×', anchor: 'center', color: '#a29bfe', bold: true, size: 18, stroke: 2 });
     }
@@ -166,7 +193,7 @@ export const cellAppearance = (s: CellState): CellAppearance => {
     }
   }
 
-  return { fill: fillColor(s), glyphs };
+  return { fill: fillColor(s), glyphs, shapes };
 };
 
 /** Equal keys mean equal appearances: the view redraws a cell only when its key changed. */
@@ -175,8 +202,27 @@ export const cellAppearanceKey = (a: CellAppearance): string => {
   for (const g of a.glyphs) {
     key += `|${glyphKey(g)}`;
   }
+  for (const s of a.shapes) {
+    key += `|${shapeKey(s)}`;
+  }
   return key;
 };
+
+/**
+ * A figure at the cell size `cell`: every coordinate scaled by `cell / 30`, kept fractional. A pole (`rect`) is never
+ * thinner than one pixel, however small the cell (docs/spec/board-render.md "マスの見た目").
+ */
+export const scaledShape = (shape: CellShape, cell: number): CellShape => {
+  const k = cell / REFERENCE_CELL;
+  const points = shape.points.map((v) => v * k);
+  if (shape.kind === 'rect') {
+    points[2] = Math.max(1, points[2]);
+  }
+  return { kind: shape.kind, points, color: shape.color };
+};
+
+/** Equal keys mean the same figure. */
+export const shapeKey = (s: CellShape): string => `${s.kind},${s.points.join(',')},${s.color}`;
 
 /** Equal keys mean the same picture: one sample text (and its texture) serves every cell with that glyph look. */
 export const glyphKey = (g: CellGlyph): string =>

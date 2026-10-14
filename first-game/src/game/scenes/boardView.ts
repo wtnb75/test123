@@ -1,7 +1,9 @@
 import * as Phaser from 'phaser';
 import {
     cellAppearance, cellAppearanceKey, cellStateOf, changedCellIndices, glyphKey, GLYPH_OUTLINE_COLOR, sameBoardShape,
-    scaledDimension, scaledFont, type BoardShape, type CellGlyph
+    scaledDimension, scaledFont, scaledShape, shapeKey, HIGHLIGHT_FILL, HIGHLIGHT_FILL_ALPHA, HIGHLIGHT_STROKE, HIGHLIGHT_STROKE_ALPHA,
+    HIGHLIGHT_STROKE_COLOR, PLAYER_MARK_CENTER, PLAYER_MARK_SIZE, PLAYER_MARK_STROKE,
+    type BoardShape, type CellGlyph, type CellShape
 } from '../core/cellAppearance';
 import type { LogicalAnalysis } from '../core/solver';
 import { REFERENCE_CELL } from '../core/title';
@@ -49,6 +51,8 @@ export class BoardView
     private cellKeys: Array<string | undefined> = [];
     /** Text objects (never on the display list) whose textures the glyph images share. */
     private glyphStamps = new Map<string, Phaser.GameObjects.Text>();
+    /** Graphics objects (never on the display list) the figures of a cell are drawn into the cell's texture from. */
+    private shapeStamps = new Map<string, Phaser.GameObjects.Graphics>();
     private cellGlyphs: Array<Phaser.GameObjects.Image[] | undefined> = [];
     private drawn?: BoardShape;
     private playerHighlight?: Phaser.GameObjects.Rectangle;
@@ -150,9 +154,9 @@ export class BoardView
 
         if (!this.playerHighlight) {
             const size = cell - 2 * k;
-            this.playerHighlight = this.scene.add.rectangle(0, 0, size, size, 0x57606f, 0.32)
+            this.playerHighlight = this.scene.add.rectangle(0, 0, size, size, HIGHLIGHT_FILL, HIGHLIGHT_FILL_ALPHA)
                 .setOrigin(0)
-                .setStrokeStyle(this.px(2), 0xdfe4ea, 0.75)
+                .setStrokeStyle(this.px(HIGHLIGHT_STROKE), HIGHLIGHT_STROKE_COLOR, HIGHLIGHT_STROKE_ALPHA)
                 .setDepth(PLAYER_HIGHLIGHT_DEPTH);
             this.playerHighlight.setAlpha(this.alpha);
         }
@@ -161,12 +165,15 @@ export class BoardView
         if (!this.playerMarker) {
             this.playerMarker = this.scene.add.text(0, 0, this.playerGlyph, {
                 fontFamily: 'monospace',
-                fontSize: this.font(12),
-                color: '#ffffff'
+                fontSize: this.font(PLAYER_MARK_SIZE),
+                fontStyle: 'bold',
+                color: '#ffffff',
+                stroke: GLYPH_OUTLINE_COLOR,
+                strokeThickness: this.px(PLAYER_MARK_STROKE)
             }).setOrigin(0.5).setDepth(PLAYER_MARKER_DEPTH);
             this.playerMarker.setAlpha(this.alpha);
         }
-        this.playerMarker.setPosition(left + cell / 2 - 9 * k, top + cell / 2 - 8 * k);
+        this.playerMarker.setPosition(left + PLAYER_MARK_CENTER.x * k, top + PLAYER_MARK_CENTER.y * k);
     }
 
     /** Changes what the player's mark shows ("†" from the death on, "@" again when a stage starts). */
@@ -227,6 +234,10 @@ export class BoardView
             stamp.destroy();
         }
         this.glyphStamps.clear();
+        for (const stamp of this.shapeStamps.values()) {
+            stamp.destroy();
+        }
+        this.shapeStamps.clear();
         this.drawn = undefined;
     }
 
@@ -301,6 +312,10 @@ export class BoardView
         const top = chunk.offsetY + (y % CHUNK_CELLS) * size;
         // The fill is opaque and covers the same rectangle every time: no clearing is needed.
         chunk.texture.fill(appearance.fill, 1, left, top, size - 2 * k, size - 2 * k);
+        // Figures (the flag) are stamped over the fill; the next fill of this cell covers them again.
+        for (const shape of appearance.shapes) {
+            chunk.texture.draw(this.shapeStamp(shape), left, top);
+        }
         this.dirtyChunks.add(chunkIndex);
 
         for (const image of this.cellGlyphs[idx] ?? []) {
@@ -309,12 +324,11 @@ export class BoardView
         const worldLeft = this.layout.originX + x * size;
         const worldTop = this.layout.originY + y * size;
         const images = appearance.glyphs.map((glyph) => {
-            const atCenter = glyph.anchor === 'center';
             const image = this.scene.add.image(
-                worldLeft + (atCenter ? size / 2 : 5 * k),
-                worldTop + (atCenter ? size / 2 : 3 * k),
+                worldLeft + size / 2,
+                worldTop + size / 2,
                 this.stampFor(glyph).texture
-            ).setOrigin(atCenter ? 0.5 : 0);
+            ).setOrigin(0.5);
             this.boardLayer?.add(image);
             return image;
         });
@@ -343,6 +357,26 @@ export class BoardView
             }
             stamp = this.scene.make.text({ text: glyph.text, style }, false);
             this.glyphStamps.set(key, stamp);
+        }
+        return stamp;
+    }
+
+    /** The Graphics holding one figure at this view's cell size (shared by every cell with that figure). */
+    private shapeStamp (shape: CellShape): Phaser.GameObjects.Graphics
+    {
+        const key = `${shapeKey(shape)}@${this.layout.cell}`;
+        let stamp = this.shapeStamps.get(key);
+        if (!stamp) {
+            const g = this.scene.make.graphics({}, false);
+            const { kind, points: p, color } = scaledShape(shape, this.layout.cell);
+            g.fillStyle(color, 1);
+            if (kind === 'rect') {
+                g.fillRect(p[0], p[1], p[2], p[3]);
+            } else {
+                g.fillTriangle(p[0], p[1], p[2], p[3], p[4], p[5]);
+            }
+            stamp = g;
+            this.shapeStamps.set(key, stamp);
         }
         return stamp;
     }

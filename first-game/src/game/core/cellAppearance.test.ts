@@ -5,10 +5,18 @@ import {
   cellStateOf,
   changedCellIndices,
   glyphKey,
+  HIGHLIGHT_FILL_ALPHA,
+  HIGHLIGHT_STROKE,
+  HIGHLIGHT_STROKE_ALPHA,
   MIN_FONT_PX,
+  PLAYER_MARK_CENTER,
+  PLAYER_MARK_SIZE,
+  PLAYER_MARK_STROKE,
   sameBoardShape,
   scaledDimension,
   scaledFont,
+  scaledShape,
+  shapeKey,
   type CellGlyph,
   type CellKnowledge,
   type CellState
@@ -16,9 +24,9 @@ import {
 import type { LogicalAnalysis } from './solver';
 import type { Cell, Stage } from './types';
 
-// docs/spec/board-render.md "マスの見た目の決定": values are the ones the view drew before the drawing was
-// rewritten (its createCellLayer / cellFillColor), written down by hand — a characterization table, plus the
-// old rules transcribed as a reference model to compare every combination against.
+// docs/spec/board-render.md "マスの見た目の決定" and "マスの見た目": the unchanged rows are the values the view
+// drew before the drawing was rewritten (a characterization table); the closed / open fills and the flag figure are
+// the values of the spec table, written by hand. A reference model of the rules is compared against every combination.
 
 const state = (over: Partial<CellState> = {}): CellState => ({
   revealed: false,
@@ -38,13 +46,16 @@ const glyph = (g: Partial<CellGlyph> & Pick<CellGlyph, 'text' | 'color'>): CellG
   ...g
 });
 
+const POLE = { kind: 'rect', points: [8, 5, 2, 18], color: 0xf1f2f6 } as const;
+const pennant = (color: number) => ({ kind: 'triangle', points: [10, 5, 20, 11, 10, 17], color }) as const;
+
 describe('cellAppearance: while playing', () => {
   it('a closed cell is the dark fill with no glyph', () => {
-    expect(cellAppearance(state())).toEqual({ fill: 0x1e272e, glyphs: [] });
+    expect(cellAppearance(state())).toEqual({ fill: 0x3d4f63, glyphs: [], shapes: [] });
   });
 
   it('an open cell with no bombs around is the light fill with no glyph (0 is not written)', () => {
-    expect(cellAppearance(state({ revealed: true, hint: 0 }))).toEqual({ fill: 0x2f3542, glyphs: [] });
+    expect(cellAppearance(state({ revealed: true, hint: 0 }))).toEqual({ fill: 0x243341, glyphs: [], shapes: [] });
   });
 
   it.each([
@@ -58,8 +69,9 @@ describe('cellAppearance: while playing', () => {
     [8, '#ced6e0']
   ])('an open cell with %i bombs around writes the digit in %s, bold 16 with a 3 px outline', (hint, color) => {
     expect(cellAppearance(state({ revealed: true, hint }))).toEqual({
-      fill: 0x2f3542,
-      glyphs: [glyph({ text: String(hint), color, size: 16, stroke: 3 })]
+      fill: 0x243341,
+      glyphs: [glyph({ text: String(hint), color, size: 16, stroke: 3 })],
+      shapes: []
     });
   });
 
@@ -69,15 +81,17 @@ describe('cellAppearance: while playing', () => {
 
   it('a revealed bomb outside game over is red on the light fill', () => {
     expect(cellAppearance(state({ revealed: true, hasBomb: true }))).toEqual({
-      fill: 0x2f3542,
-      glyphs: [glyph({ text: '*', color: '#ff3b30', size: 20, stroke: 3 })]
+      fill: 0x243341,
+      glyphs: [glyph({ text: '*', color: '#ff3b30', size: 20, stroke: 3 })],
+      shapes: []
     });
   });
 
-  it('a flag sits at the top-left, regular weight, red, on the dark fill', () => {
+  it('a flag is a pole and a red pennant (no letter) on the closed fill', () => {
     expect(cellAppearance(state({ flagged: true }))).toEqual({
-      fill: 0x1e272e,
-      glyphs: [glyph({ text: 'F', color: '#ff4757', anchor: 'top-left', bold: false, size: 16, stroke: 0 })]
+      fill: 0x3d4f63,
+      glyphs: [],
+      shapes: [POLE, pennant(0xff6b6b)]
     });
   });
 });
@@ -86,76 +100,83 @@ describe('cellAppearance: game-over colouring', () => {
   it('a revealed bomb that was certain from the numbers is amber on the amber fill', () => {
     expect(cellAppearance(state({ gameOver: true, revealed: true, hasBomb: true, knowledge: 'bomb' }))).toEqual({
       fill: 0x7d3800,
-      glyphs: [glyph({ text: '*', color: '#ffb347', size: 20, stroke: 3 })]
+      glyphs: [glyph({ text: '*', color: '#ffb347', size: 20, stroke: 3 })],
+      shapes: []
     });
   });
 
   it('a revealed bomb that was not certain stays red on the light fill', () => {
     expect(cellAppearance(state({ gameOver: true, revealed: true, hasBomb: true }))).toEqual({
-      fill: 0x2f3542,
-      glyphs: [glyph({ text: '*', color: '#ff3b30', size: 20, stroke: 3 })]
+      fill: 0x243341,
+      glyphs: [glyph({ text: '*', color: '#ff3b30', size: 20, stroke: 3 })],
+      shapes: []
     });
   });
 
   it('a flag on a safe cell is purple with a cross on the purple fill', () => {
     expect(cellAppearance(state({ gameOver: true, flagged: true }))).toEqual({
       fill: 0x3d1f6e,
-      glyphs: [
-        glyph({ text: 'F', color: '#a29bfe', anchor: 'top-left', bold: true, size: 16, stroke: 0 }),
-        glyph({ text: '×', color: '#a29bfe', size: 18, stroke: 2 })
-      ]
+      glyphs: [glyph({ text: '×', color: '#a29bfe', size: 18, stroke: 2 })],
+      shapes: [POLE, pennant(0xa29bfe)]
     });
   });
 
-  it('a flag on a bomb is an ordinary flag (no cross) on the dark fill', () => {
+  it('a flag on a bomb is an ordinary flag (no cross) on the closed fill', () => {
     expect(cellAppearance(state({ gameOver: true, flagged: true, hasBomb: true }))).toEqual({
-      fill: 0x1e272e,
-      glyphs: [glyph({ text: 'F', color: '#ff4757', anchor: 'top-left', bold: false, size: 16, stroke: 0 })]
+      fill: 0x3d4f63,
+      glyphs: [],
+      shapes: [POLE, pennant(0xff6b6b)]
     });
   });
 
   it('a closed cell certain to be a bomb gets "!" on the amber fill', () => {
     expect(cellAppearance(state({ gameOver: true, knowledge: 'bomb', hasBomb: true }))).toEqual({
       fill: 0x7d3800,
-      glyphs: [glyph({ text: '!', color: '#ffb347', size: 16, stroke: 0 })]
+      glyphs: [glyph({ text: '!', color: '#ffb347', size: 16, stroke: 0 })],
+      shapes: []
     });
   });
 
   it('a closed cell certain to be safe gets a regular-weight "○" 12 on the green fill', () => {
     expect(cellAppearance(state({ gameOver: true, knowledge: 'safe' }))).toEqual({
       fill: 0x0d2b1a,
-      glyphs: [glyph({ text: '○', color: '#7bed9f', bold: false, size: 12, stroke: 0 })]
+      glyphs: [glyph({ text: '○', color: '#7bed9f', bold: false, size: 12, stroke: 0 })],
+      shapes: []
     });
   });
 
   it('a flagged cell certain to be a bomb keeps its flag and the amber fill but gets no "!"', () => {
     const a = cellAppearance(state({ gameOver: true, flagged: true, hasBomb: true, knowledge: 'bomb' }));
     expect(a.fill).toBe(0x7d3800);
-    expect(a.glyphs.map((g) => g.text)).toEqual(['F']);
+    expect(a.glyphs).toEqual([]);
+    expect(a.shapes).toEqual([POLE, pennant(0xff6b6b)]);
   });
 
   it('a wrong flag wins over "certain safe": purple fill, flag and cross, no "○"', () => {
     const a = cellAppearance(state({ gameOver: true, flagged: true, knowledge: 'safe' }));
     expect(a.fill).toBe(0x3d1f6e);
-    expect(a.glyphs.map((g) => g.text)).toEqual(['F', '×']);
+    expect(a.glyphs.map((g) => g.text)).toEqual(['×']);
+    expect(a.shapes).toEqual([POLE, pennant(0xa29bfe)]);
   });
 
   it('an open number keeps its digit and light fill in game over', () => {
     expect(cellAppearance(state({ gameOver: true, revealed: true, hint: 3 }))).toEqual({
-      fill: 0x2f3542,
-      glyphs: [glyph({ text: '3', color: '#ff6b81', size: 16, stroke: 3 })]
+      fill: 0x243341,
+      glyphs: [glyph({ text: '3', color: '#ff6b81', size: 16, stroke: 3 })],
+      shapes: []
     });
   });
 });
 
 /**
- * The previous drawing's rules (createCellLayer / cellFillColor of `first-game/src/game/scenes/boardView.ts` at
- * commit c97c0df, before the drawing was rewritten), transcribed as an independent reference.
+ * The drawing's rules (createCellLayer / cellFillColor of `first-game/src/game/scenes/boardView.ts` at commit
+ * c97c0df, with the closed / open fills and the flag figure of docs/spec/board-render.md "マスの見た目"),
+ * transcribed as an independent reference.
  */
 const referenceFill = (s: CellState): number => {
   if (s.gameOver) {
     if (s.hasBomb && s.revealed) {
-      return s.knowledge === 'bomb' ? 0x7d3800 : 0x2f3542;
+      return s.knowledge === 'bomb' ? 0x7d3800 : 0x243341;
     }
     if (!s.revealed) {
       if (s.flagged && !s.hasBomb) return 0x3d1f6e;
@@ -163,7 +184,7 @@ const referenceFill = (s: CellState): number => {
       if (s.knowledge === 'safe') return 0x0d2b1a;
     }
   }
-  return s.revealed ? 0x2f3542 : 0x1e272e;
+  return s.revealed ? 0x243341 : 0x3d4f63;
 };
 
 const REFERENCE_HINT_COLORS = ['', '#4da3ff', '#7bed9f', '#ff6b81', '#70a1ff', '#ff9f43', '#34e7e4', '#f1f2f6', '#ced6e0'];
@@ -178,7 +199,6 @@ const referenceGlyphs = (s: CellState): CellGlyph[] => {
   }
   if (s.flagged) {
     const wrong = s.gameOver && !s.hasBomb;
-    out.push({ text: 'F', anchor: 'top-left', color: wrong ? '#a29bfe' : '#ff4757', bold: wrong, size: 16, stroke: 0 });
     if (wrong) out.push({ text: '×', anchor: 'center', color: '#a29bfe', bold: true, size: 18, stroke: 2 });
   }
   if (s.gameOver && !s.revealed && !s.flagged) {
@@ -188,7 +208,15 @@ const referenceGlyphs = (s: CellState): CellGlyph[] => {
   return out;
 };
 
-describe('cellAppearance: every combination against the previous rules', () => {
+const referenceShapes = (s: CellState): unknown[] =>
+  s.flagged
+    ? [
+        { kind: 'rect', points: [8, 5, 2, 18], color: 0xf1f2f6 },
+        { kind: 'triangle', points: [10, 5, 20, 11, 10, 17], color: s.gameOver && !s.hasBomb ? 0xa29bfe : 0xff6b6b }
+      ]
+    : [];
+
+describe('cellAppearance: every combination against the rules', () => {
   const knowledges: CellKnowledge[] = ['none', 'bomb', 'safe'];
   const states: CellState[] = [];
   let excluded = 0;
@@ -217,7 +245,7 @@ describe('cellAppearance: every combination against the previous rules', () => {
     expect(states.length + excluded).toBe(2 * 2 * 2 * 9 * 2 * 3);
   });
 
-  it('fill, and every attribute of every glyph, equal the previous drawing for all states', () => {
+  it('fill, every attribute of every glyph, and the figures equal the reference for all states', () => {
     const fills = new Set<number>();
     let withGlyph = 0;
     let withTwoGlyphs = 0;
@@ -227,11 +255,14 @@ describe('cellAppearance: every combination against the previous rules', () => {
       if (JSON.stringify(a.glyphs) !== JSON.stringify(referenceGlyphs(s))) {
         expect.fail(`glyphs differ for ${JSON.stringify(s)}: ${JSON.stringify(a.glyphs)} vs ${JSON.stringify(referenceGlyphs(s))}`);
       }
+      if (JSON.stringify(a.shapes) !== JSON.stringify(referenceShapes(s))) {
+        expect.fail(`shapes differ for ${JSON.stringify(s)}`);
+      }
       fills.add(a.fill);
       if (a.glyphs.length > 0) withGlyph += 1;
       if (a.glyphs.length > 1) withTwoGlyphs += 1;
     }
-    expect([...fills].sort()).toEqual([0x0d2b1a, 0x1e272e, 0x2f3542, 0x3d1f6e, 0x7d3800].sort());
+    expect([...fills].sort()).toEqual([0x0d2b1a, 0x3d4f63, 0x243341, 0x3d1f6e, 0x7d3800].sort());
     expect(withGlyph).toBeGreaterThan(100);
     expect(withTwoGlyphs).toBeGreaterThan(0);
   });
@@ -257,10 +288,31 @@ describe('glyphKey', () => {
   it('is equal for equal glyph looks and differs when any field differs', () => {
     expect(glyphKey({ ...base })).toBe(glyphKey(base));
     for (const change of [
-      { text: '2' }, { anchor: 'top-left' as const }, { color: '#000000' }, { bold: false }, { size: 12 }, { stroke: 2 }
+      { text: '2' }, { color: '#000000' }, { bold: false }, { size: 12 }, { stroke: 2 }
     ]) {
       expect(glyphKey({ ...base, ...change })).not.toBe(glyphKey(base));
     }
+  });
+});
+
+describe('shapeKey', () => {
+  it('is equal for equal figures and differs when the kind, a point or the colour differs', () => {
+    const a = { kind: 'triangle', points: [10, 5, 20, 11, 10, 17], color: 0xff6b6b } as const;
+    expect(shapeKey({ ...a })).toBe(shapeKey(a));
+    expect(shapeKey({ ...a, kind: 'rect' })).not.toBe(shapeKey(a));
+    expect(shapeKey({ ...a, points: [10, 5, 20, 11, 10, 18] })).not.toBe(shapeKey(a));
+    expect(shapeKey({ ...a, color: 0xa29bfe })).not.toBe(shapeKey(a));
+  });
+});
+
+describe('the player marks', () => {
+  it('has the spec values: a 14 px mark with a 2 px outline centred at (6, 7), a 3 px frame at 0.95 and a 0.4 fill', () => {
+    expect(PLAYER_MARK_SIZE).toBe(14);
+    expect(PLAYER_MARK_STROKE).toBe(2);
+    expect(PLAYER_MARK_CENTER).toEqual({ x: 6, y: 7 });
+    expect(HIGHLIGHT_STROKE).toBe(3);
+    expect(HIGHLIGHT_STROKE_ALPHA).toBe(0.95);
+    expect(HIGHLIGHT_FILL_ALPHA).toBe(0.4);
   });
 });
 
@@ -429,5 +481,31 @@ describe('scaling to a smaller cell (reference cell 30)', () => {
     expect(scaledFont(20, 10)).toBe(8); // 6.67 -> 7 -> 8
     expect(scaledFont(16, 20)).toBe(11); // 10.67 -> 11, above the minimum
     expect(scaledFont(20, 14)).toBe(9); // 9.33 -> 9
+  });
+});
+
+describe('scaledShape (the flag at the demo and game cell sizes)', () => {
+  const pole = { kind: 'rect', points: [8, 5, 2, 18], color: 0xf1f2f6 } as const;
+  const pennant = { kind: 'triangle', points: [10, 5, 20, 11, 10, 17], color: 0xff6b6b } as const;
+
+  it('at the reference cell (30 px) keeps every coordinate', () => {
+    expect(scaledShape(pole, 30).points).toEqual([8, 5, 2, 18]);
+    expect(scaledShape(pennant, 30).points).toEqual([10, 5, 20, 11, 10, 17]);
+  });
+
+  it('at a 15 px cell halves every coordinate and keeps them fractional: the pole is (4, 2.5, 1 x 9)', () => {
+    expect(scaledShape(pole, 15).points).toEqual([4, 2.5, 1, 9]);
+    expect(scaledShape(pennant, 15).points).toEqual([5, 2.5, 10, 5.5, 5, 8.5]);
+  });
+
+  it('never makes the pole thinner than one pixel, however small the cell', () => {
+    expect(scaledShape(pole, 8).points[2]).toBe(1);
+    expect(scaledShape(pole, 3).points[2]).toBe(1);
+    // the pennant has no such floor
+    expect(scaledShape(pennant, 3).points[2]).toBeCloseTo(2, 6);
+  });
+
+  it('keeps the kind and the colour', () => {
+    expect(scaledShape(pennant, 15)).toMatchObject({ kind: 'triangle', color: 0xff6b6b });
   });
 });
