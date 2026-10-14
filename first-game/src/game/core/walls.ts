@@ -1,4 +1,4 @@
-import type { Heading, Position, Stage } from './types';
+import type { Heading, Position, Stage, StageDoor } from './types';
 import { scaledDimension } from './cellAppearance';
 
 /** The wall around a room (docs/spec/rooms-and-floors.md "壁と扉の見た目"): thickness at the reference cell, colour. */
@@ -30,19 +30,33 @@ export type RoomWalls = {
 /** The wall's thickness for a cell size: scaled from the reference cell, never under one pixel. */
 export const wallThickness = (cell: number): number => scaledDimension(WALL_THICKNESS, cell);
 
+/** A door's frame: where its "+" is centred and the two posts (relative to the top-left of the room's first cell). */
+export type DoorMark = { center: Position; posts: WallRect[] };
+
+/** The doors of a room, first door first: the `doors` list, or the one door the `goal`/`start` kinds describe. */
+export const roomDoors = (
+  stage: Pick<Stage, 'goal' | 'start' | 'goalKind' | 'startKind' | 'doorSide' | 'doors'>
+): StageDoor[] => {
+  if (stage.doors) {
+    return stage.doors;
+  }
+  const cell = doorCellOf(stage);
+  return cell && stage.doorSide ? [{ cell, side: stage.doorSide }] : [];
+};
+
 /**
- * The bars of the wall around a `width` x `height` room of cells of `cell` px, with a gap one cell wide where the
- * door is (`doorCell` is the cell next to the door, `side` the wall it is in). The top and bottom bars run the full
- * width (corners included); the left bar and the right bar fill the rest. Left and top lie outside the cells (in
- * the 2 px before the first cell), right and bottom in the gap after the last cell.
+ * The bars of the wall around a `width` x `height` room of cells of `cell` px, with a gap one cell wide at each door
+ * (a door's `cell` is the cell next to it, `side` the wall it is in), and the mark of each door. The top and bottom
+ * bars run the full width (corners included); the left bar and the right bar fill the rest. Left and top lie
+ * outside the cells (in the 2 px before the first cell), right and bottom in the gap after the last cell. A door
+ * at the end of a wall leaves no bar on that side. Door marks come in the order of `doors`.
  */
-export const roomWalls = (
+export const roomWallsFor = (
   width: number,
   height: number,
   cell: number,
-  side?: Heading,
-  doorCell?: Position
-): RoomWalls => {
+  doors: readonly StageDoor[]
+): { bars: WallRect[]; doors: DoorMark[] } => {
   const t = wallThickness(cell);
   const w = width * cell;
   const h = height * cell;
@@ -52,50 +66,63 @@ export const roomWalls = (
       bars.push(bar);
     }
   };
+  const gapsOn = (side: Heading): number[] =>
+    doors
+      .filter((door) => door.side === side)
+      .map((door) => (side === 'N' || side === 'S' ? door.cell.x : door.cell.y))
+      .sort((a, b) => a - b);
 
-  // A bar along x (top or bottom) or along y (left or right), minus the door's gap when it is in this wall
-  // (a door at the end of a wall leaves no bar on that side).
-  const horizontal = (y: number, gapAt?: number): void => {
-    if (gapAt === undefined) {
-      add({ x: -t, y, width: w + t, height: t });
-      return;
+  // A bar along x (top or bottom) or along y (left or right), cut at each door's gap.
+  const horizontal = (y: number, gaps: number[]): void => {
+    let cursor = -t;
+    for (const gap of gaps) {
+      add({ x: cursor, y, width: gap * cell - cursor, height: t });
+      cursor = gap * cell + cell;
     }
-    const gapStart = gapAt * cell;
-    add({ x: -t, y, width: gapStart + t, height: t });
-    add({ x: gapStart + cell, y, width: w - gapStart - cell, height: t });
+    add({ x: cursor, y, width: w - cursor, height: t });
   };
-  const vertical = (x: number, gapAt?: number): void => {
-    if (gapAt === undefined) {
-      add({ x, y: 0, width: t, height: h });
-      return;
+  const vertical = (x: number, gaps: number[]): void => {
+    let cursor = 0;
+    for (const gap of gaps) {
+      add({ x, y: cursor, width: t, height: gap * cell - cursor });
+      cursor = gap * cell + cell;
     }
-    const gapStart = gapAt * cell;
-    add({ x, y: 0, width: t, height: gapStart });
-    add({ x, y: gapStart + cell, width: t, height: h - gapStart - cell });
+    add({ x, y: cursor, width: t, height: h - cursor });
   };
 
-  const hasDoor = side !== undefined && doorCell !== undefined;
-  horizontal(-t, hasDoor && side === 'N' ? doorCell.x : undefined);
-  horizontal(h - t, hasDoor && side === 'S' ? doorCell.x : undefined);
-  vertical(-t, hasDoor && side === 'W' ? doorCell.y : undefined);
-  vertical(w - t, hasDoor && side === 'E' ? doorCell.y : undefined);
+  horizontal(-t, gapsOn('N'));
+  horizontal(h - t, gapsOn('S'));
+  vertical(-t, gapsOn('W'));
+  vertical(w - t, gapsOn('E'));
 
-  if (!hasDoor) {
-    return { bars };
-  }
-  const centre = {
-    N: { x: doorCell.x * cell + cell / 2, y: -t / 2 },
-    S: { x: doorCell.x * cell + cell / 2, y: h - t / 2 },
-    W: { x: -t / 2, y: doorCell.y * cell + cell / 2 },
-    E: { x: w - t / 2, y: doorCell.y * cell + cell / 2 }
-  }[side];
   const long = scaledDimension(DOOR_POST_LENGTH, cell);
-  const gapStart = (side === 'N' || side === 'S' ? doorCell.x : doorCell.y) * cell;
-  const gapEnds = [gapStart, gapStart + cell - t];
-  const posts = gapEnds.map((at): WallRect => (
-    side === 'N' || side === 'S'
-      ? { x: at, y: centre.y - long / 2, width: t, height: long }
-      : { x: centre.x - long / 2, y: at, width: long, height: t }
-  ));
-  return { bars, door: centre, posts };
+  const marks = doors.map(({ cell: door, side }): DoorMark => {
+    const center = {
+      N: { x: door.x * cell + cell / 2, y: -t / 2 },
+      S: { x: door.x * cell + cell / 2, y: h - t / 2 },
+      W: { x: -t / 2, y: door.y * cell + cell / 2 },
+      E: { x: w - t / 2, y: door.y * cell + cell / 2 }
+    }[side];
+    const gapStart = (side === 'N' || side === 'S' ? door.x : door.y) * cell;
+    const posts = [gapStart, gapStart + cell - t].map((at): WallRect => (
+      side === 'N' || side === 'S'
+        ? { x: at, y: center.y - long / 2, width: t, height: long }
+        : { x: center.x - long / 2, y: at, width: long, height: t }
+    ));
+    return { center, posts };
+  });
+  return { bars, doors: marks };
+};
+
+/** `roomWallsFor` for a room with at most one door (`side` is the wall of `doorCell`). */
+export const roomWalls = (
+  width: number,
+  height: number,
+  cell: number,
+  side?: Heading,
+  doorCell?: Position
+): RoomWalls => {
+  const hasDoor = side !== undefined && doorCell !== undefined;
+  const { bars, doors } = roomWallsFor(width, height, cell, hasDoor ? [{ cell: doorCell, side }] : []);
+  return doors.length === 0 ? { bars } : { bars, door: doors[0].center, posts: doors[0].posts };
 };

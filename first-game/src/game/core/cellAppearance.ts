@@ -28,7 +28,12 @@ export type BoardShape = {
   startKind?: Stage['startKind'];
   goalKind?: Stage['goalKind'];
   doorSide?: Stage['doorSide'];
+  doors?: Stage['doors'];
 };
+
+const sameDoors = (a: BoardShape['doors'], b: BoardShape['doors']): boolean =>
+  (a?.length ?? 0) === (b?.length ?? 0) &&
+  (a ?? []).every((door, i) => door.side === b![i].side && door.cell.x === b![i].cell.x && door.cell.y === b![i].cell.y);
 
 export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
   a.width === b.width &&
@@ -39,14 +44,15 @@ export const sameBoardShape = (a: BoardShape, b: BoardShape): boolean =>
   a.goal.y === b.goal.y &&
   a.startKind === b.startKind &&
   a.goalKind === b.goalKind &&
-  a.doorSide === b.doorSide;
+  a.doorSide === b.doorSide &&
+  sameDoors(a.doors, b.doors);
 
 const stairsOf = (stage: Stage, idx: number): CellStairs => {
   if (stage.start.y * stage.width + stage.start.x === idx) {
     return stage.startKind === 'door' ? 'none' : 'up';
   }
   if (stage.goal.y * stage.width + stage.goal.x === idx) {
-    return stage.goalKind === 'door' ? 'none' : 'down';
+    return stage.goalKind === 'door' || stage.goalKind === 'none' ? 'none' : 'down';
   }
   return 'none';
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StageFlow } from './flow';
-import { DOOR_MESSAGE, ENTER_ROOM_MESSAGE, exitLabel, resultMessage } from './hudText';
+import { DOOR_MESSAGE, ENTER_ROOM_MESSAGE, resultMessage } from './hudText';
 
 describe('the corridor phase of the flow', () => {
   it('starts only from play, once, and takes no board input while it lasts', () => {
@@ -42,14 +42,6 @@ describe('the corridor phase of the flow', () => {
 
     expect(goalFlow.enterCorridor()).toBe(false);
     expect(deadFlow.enterCorridor()).toBe(false);
-  });
-});
-
-describe('the word of the off-screen arrow', () => {
-  it('is DOOR for room A\'s door and GOAL for the down-stairs (and for a stage that says nothing)', () => {
-    expect(exitLabel('door')).toBe('DOOR');
-    expect(exitLabel('down')).toBe('GOAL');
-    expect(exitLabel(undefined)).toBe('GOAL');
   });
 });
 

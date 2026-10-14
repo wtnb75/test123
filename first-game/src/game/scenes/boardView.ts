@@ -7,7 +7,7 @@ import {
 } from '../core/cellAppearance';
 import type { LogicalAnalysis } from '../core/solver';
 import { REFERENCE_CELL } from '../core/title';
-import { DOOR_FRAME_COLOR, WALL_COLOR, doorCellOf, roomWalls } from '../core/walls';
+import { DOOR_FRAME_COLOR, WALL_COLOR, roomDoors, roomWallsFor } from '../core/walls';
 import type { Stage } from '../core/types';
 
 /** The cell rectangles are drawn into render textures of at most this many cells on a side (texture size limits). */
@@ -301,28 +301,29 @@ export class BoardView
             goal: { x: stage.goal.x, y: stage.goal.y },
             startKind: stage.startKind,
             goalKind: stage.goalKind,
-            doorSide: stage.doorSide
+            doorSide: stage.doorSide,
+            doors: stage.doors?.map((door) => ({ cell: { ...door.cell }, side: door.side }))
         };
     }
 
-    /** The wall around the room, with a gap and a "+" where the door is (docs/spec/rooms-and-floors.md). */
+    /** The wall around the room, with a gap and a "+" at each door (docs/spec/rooms-and-floors.md). */
     private drawWalls (stage: Stage, layer: Phaser.GameObjects.Container): void
     {
-        const walls = roomWalls(stage.width, stage.height, this.layout.cell, stage.doorSide, doorCellOf(stage));
+        const walls = roomWallsFor(stage.width, stage.height, this.layout.cell, roomDoors(stage));
         const graphics = this.scene.add.graphics();
         graphics.fillStyle(WALL_COLOR, 1);
         for (const bar of walls.bars) {
             graphics.fillRect(this.layout.originX + bar.x, this.layout.originY + bar.y, bar.width, bar.height);
         }
         layer.add(graphics);
-        if (walls.door) {
+        for (const door of walls.doors) {
             const frame = this.scene.add.graphics();
             frame.fillStyle(DOOR_FRAME_COLOR, 1);
-            for (const post of walls.posts ?? []) {
+            for (const post of door.posts) {
                 frame.fillRect(this.layout.originX + post.x, this.layout.originY + post.y, post.width, post.height);
             }
             layer.add(frame);
-            const mark = this.scene.add.text(this.layout.originX + walls.door.x, this.layout.originY + walls.door.y, '+', {
+            const mark = this.scene.add.text(this.layout.originX + door.center.x, this.layout.originY + door.center.y, '+', {
                 fontFamily: 'monospace',
                 fontSize: this.font(24),
                 fontStyle: 'bold',

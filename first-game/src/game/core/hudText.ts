@@ -63,8 +63,6 @@ export const flagMessage = (after: boolean | null): string => {
 
 export type ResultStatus = 'alive' | 'dead' | 'goal' | 'door';
 
-/** The word of the off-screen arrow: the door of room A, or the down-stairs (docs/spec/rooms-and-floors.md). */
-export const exitLabel = (goalKind: 'down' | 'door' | undefined): 'DOOR' | 'GOAL' => (goalKind === 'door' ? 'DOOR' : 'GOAL');
 
 /** The corridor starts (a door was reached) / the walk is over (a room is entered). */
 export const DOOR_MESSAGE = 'You walk down the corridor.';

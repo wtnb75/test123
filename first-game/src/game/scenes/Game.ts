@@ -2,12 +2,13 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateFloor } from '../core/generator';
 import { CORRIDOR_GLYPH, CORRIDOR_LENGTH, CORRIDOR_STEP_MS, advanceCorridor, corridorCellAt, corridorState } from '../core/corridor';
-import { cameraBounds, cellAtWorld, exitArrowDirection, type FloorLayout } from '../core/floorLayout';
-import { FloorState } from '../core/floor';
+import { cameraBounds, cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
+import { FloorState, type DoorRoute } from '../core/floor';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR } from '../core/cellAppearance';
+import { roomExits } from '../core/exits';
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
 import { REFERENCE_CELL } from '../core/title';
@@ -53,7 +54,6 @@ import {
 import {
     DEFAULT_STAGE_BUTTON_WIDTH,
     ENTER_ROOM_MESSAGE,
-    exitLabel,
     HUD_BAND_ALPHA,
     HUD_BAND_COLOR,
     HUD_BAND_DEPTH,
@@ -155,15 +155,19 @@ export class Game extends Scene
     private statusKey = '';
     private legendKey = '';
     goalArrow!: Phaser.GameObjects.Text;
+    /** The second exit arrow (room A has two doors). */
+    goalArrow2!: Phaser.GameObjects.Text;
     /** The board drawings: room A from the start, room B once the player has entered it (each room keeps its own). */
     private views: Array<BoardView | undefined> = [];
-    /** Where the rooms and the corridor sit on the floor's grid. */
-    private layout!: FloorLayout;
+    /** Where the rooms and the corridors sit on the floor's grid. */
+    private layout!: FloorMap;
     stageData!: Stage;
-    /** The two rooms of the floor (A, then B) and the one the player is in (docs/spec/rooms-and-floors.md). */
+    /** The three rooms of the floor (A, B, C) and the one the player is in (docs/spec/rooms-and-floors.md). */
     floorState = new FloorState([]);
-    /** The corridor's "#" marks (made at the first walk of the floor), the time walked and which way. */
-    private corridorMarks: Phaser.GameObjects.Text[] = [];
+    /** The "#" marks of each corridor (made at the first walk through it), the time walked and which way. */
+    private corridorMarks: Array<Phaser.GameObjects.Text[] | undefined> = [];
+    /** The walk in progress: which corridor, which way and which door of the room it started from. */
+    private corridorRoute: DoorRoute & { doorIndex: number } = { corridor: 0, forward: true, to: 1, doorIndex: 0 };
     private corridorElapsed = 0;
     /** The cell of the walk the player is drawn on (`-1`: none yet), so an unchanged cell is not drawn again. */
     private corridorDrawn = -1;
@@ -247,7 +251,7 @@ export class Game extends Scene
             color: '#c6deff'
         }).setScrollFactor(0).setDepth(HUD_TEXT_DEPTH).setVisible(false);
 
-        this.goalArrow = this.add.text(0, 0, '', {
+        const makeArrow = (): Phaser.GameObjects.Text => this.add.text(0, 0, '', {
             fontFamily: 'monospace',
             fontSize: 20,
             fontStyle: 'bold',
@@ -255,6 +259,8 @@ export class Game extends Scene
             stroke: '#0b1220',
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
+        this.goalArrow = makeArrow();
+        this.goalArrow2 = makeArrow();
 
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
@@ -311,7 +317,7 @@ export class Game extends Scene
         const floor = generateFloor(stageNo);
         this.floorState = new FloorState(floor.rooms);
         this.layout = floor.layout;
-        this.views = [this.makeView(0), undefined];
+        this.views = [this.makeView(0), undefined, undefined];
         this.view.setPlayerGlyph('@');
         this.stageData = this.floorState.current;
         this.renderBoard();
@@ -728,7 +734,7 @@ export class Game extends Scene
                 this.refreshHud(this.messageOf(out));
                 return;
             }
-            this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
+            this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
             return;
         }
 
@@ -763,8 +769,10 @@ export class Game extends Scene
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
                 message,
-                room: this.floorState.roomIndex === 0 ? 'A' : 'B',
+                room: 'ABC'[this.floorState.roomIndex],
                 doorSide: stage.doorSide,
+                doors: (stage.doors ?? []).map((door) => ({ x: door.cell.x, y: door.cell.y, side: door.side })),
+                goalKind: stage.goalKind,
                 status: this.statusText.text,
                 stage: stage.stageNo,
                 width: stage.width,
@@ -883,58 +891,36 @@ export class Game extends Scene
         this.camera.setScroll(Math.round(this.camera.scrollX), Math.round(this.camera.scrollY));
     }
 
+    /** The exits to point at from the room the player is in (docs/spec/rooms-and-floors.md "画面外の出口の矢印"). */
+    private exitTargets (): ExitTarget[]
+    {
+        return roomExits(this.stageData, this.floorState.roomIndex, this.roomOriginPx(this.floorState.roomIndex), CELL_SIZE);
+    }
+
     private updateGoalArrow (): void
     {
         if (!this.stageData) {
             return;
         }
-        if (this.flow.inCorridor) {
-            this.goalArrow.setText('');
-            return;
-        }
-
-        const goal = this.stageData.goal;
-        const origin = this.roomOriginPx(this.floorState.roomIndex);
-        const gx = origin.x + goal.x * CELL_SIZE + CELL_SIZE / 2;
-        const gy = origin.y + goal.y * CELL_SIZE + CELL_SIZE / 2;
-
-        const camLeft = this.camera.scrollX;
-        const camTop = this.camera.scrollY;
-        const camRight = camLeft + this.camera.width;
-        const camBottom = camTop + this.camera.height;
-
-        const visible = gx >= camLeft && gx <= camRight && gy >= camTop && gy <= camBottom;
-        if (visible) {
-            this.goalArrow.setText('');
-            return;
-        }
-
-        const PAD = 30;
-        const screenW = this.camera.width;
-        const screenH = this.camera.height;
-
-        // Direction from screen center to goal in screen-space
-        const goalScreenX = gx - camLeft;
-        const goalScreenY = gy - camTop;
-        const dx = goalScreenX - screenW / 2;
-        const dy = goalScreenY - screenH / 2;
-
-        const arrow = exitArrowDirection(dx, dy);
-
-        // Intersect ray from screen center toward goal with screen border
-        const tx = dx !== 0
-            ? (dx > 0 ? (screenW - PAD - screenW / 2) / dx : (PAD - screenW / 2) / dx)
-            : Infinity;
-        const ty = dy !== 0
-            ? (dy > 0 ? (screenH - PAD - screenH / 2) / dy : (PAD - screenH / 2) / dy)
-            : Infinity;
-        const t = Math.min(tx, ty);
-
-        const edgeX = Math.min(screenW - PAD, Math.max(PAD, screenW / 2 + dx * t));
-        const edgeY = Math.min(screenH - PAD, Math.max(PAD, screenH / 2 + dy * t));
-
-        this.goalArrow.setText(`${exitLabel(this.stageData.goalKind)} ${arrow}`);
-        this.goalArrow.setPosition(edgeX, edgeY).setOrigin(0.5);
+        const arrows = [this.goalArrow, this.goalArrow2];
+        const markers = this.flow.inCorridor
+            ? []
+            : exitMarkers(
+                this.exitTargets(),
+                { left: this.camera.scrollX, top: this.camera.scrollY, width: this.camera.width, height: this.camera.height }
+            );
+        arrows.forEach((arrow, i) => {
+            const marker = markers[i];
+            if (!marker) {
+                arrow.setText('');
+                return;
+            }
+            arrow.setText(marker.text);
+            // The word is centred on the point: keep the whole word on the screen (a few px from the border).
+            const half = arrow.width / 2 + 4;
+            const x = Math.min(this.camera.width - half, Math.max(half, marker.x));
+            arrow.setPosition(x, marker.y).setOrigin(0.5);
+        });
     }
 
     private onKeyDown (event: KeyboardEvent): void
@@ -969,7 +955,7 @@ export class Game extends Scene
                     this.refreshHud(this.messageOf(out));
                     return;
                 }
-                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
+                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
             }
             return;
         }
@@ -992,7 +978,7 @@ export class Game extends Scene
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
-        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
     }
 
     private mapDirection (code: string): Position | null
@@ -1070,7 +1056,8 @@ export class Game extends Scene
         status: 'alive' | 'dead' | 'goal' | 'door',
         message: string,
         changedCellIndices?: number[],
-        ruleMessage?: string
+        ruleMessage?: string,
+        doorIndex?: number
     ): void
     {
         if (!this.flow.playing) {
@@ -1132,7 +1119,7 @@ export class Game extends Scene
         }
 
         if (status === 'door') {
-            this.startCorridor(message);
+            this.startCorridor(message, doorIndex ?? 0);
             return;
         }
 
@@ -1140,17 +1127,21 @@ export class Game extends Scene
     }
 
     /** The player went out through a door: the room is kept as it is and the player walks the corridor to the other room. */
-    private startCorridor (message: string): void
+    private startCorridor (message: string, doorIndex: number): void
     {
         this.flow.enterCorridor();
         this.discardPointerState();
         this.floorState.commit(this.stageData);
-        this.corridorForward = this.floorState.roomIndex === 0;
+        this.corridorRoute = { ...this.floorState.route(doorIndex), doorIndex };
+        this.corridorForward = this.corridorRoute.forward;
         this.corridorElapsed = 0;
         this.corridorDrawn = -1;
-        if (this.corridorMarks.length === 0) {
-            for (const cell of this.layout.corridor) {
-                this.corridorMarks.push(
+        const walked = this.corridorRoute.corridor;
+        if (!this.corridorMarks[walked]) {
+            const marks: Phaser.GameObjects.Text[] = [];
+            this.corridorMarks[walked] = marks;
+            for (const cell of this.layout.corridors[walked]) {
+                marks.push(
                     this.add.text(
                         BOARD_ORIGIN_X + cell.x * CELL_SIZE + CELL_SIZE / 2,
                         BOARD_ORIGIN_Y + cell.y * CELL_SIZE + CELL_SIZE / 2,
@@ -1189,10 +1180,16 @@ export class Game extends Scene
         this.followCorridor(this.corridorElapsed);
     }
 
+    /** The cells of the corridor being walked, on the floor's grid. */
+    private get walkedCorridor (): Position[]
+    {
+        return this.layout.corridors[this.corridorRoute.corridor];
+    }
+
     /** The world position (px) of the centre of the `index`-th cell of the walk. */
     private corridorPointPx (index: number): Position
     {
-        const cell = corridorCellAt(this.layout.corridor, index, this.corridorForward);
+        const cell = corridorCellAt(this.walkedCorridor, index, this.corridorForward);
         return { x: BOARD_ORIGIN_X + cell.x * CELL_SIZE + CELL_SIZE / 2, y: BOARD_ORIGIN_Y + cell.y * CELL_SIZE + CELL_SIZE / 2 };
     }
 
@@ -1203,7 +1200,7 @@ export class Game extends Scene
             return;
         }
         this.corridorDrawn = index;
-        const cell = corridorCellAt(this.layout.corridor, index, this.corridorForward);
+        const cell = corridorCellAt(this.walkedCorridor, index, this.corridorForward);
         const origin = this.layout.roomOrigin[this.floorState.roomIndex];
         this.view.updatePlayer({ ...this.stageData, player: { x: cell.x - origin.x, y: cell.y - origin.y } });
     }
@@ -1226,7 +1223,7 @@ export class Game extends Scene
             return;
         }
         this.view.setPlayerVisible(false);
-        this.stageData = this.floorState.cross();
+        this.stageData = this.floorState.cross(this.corridorRoute.doorIndex);
         const index = this.floorState.roomIndex;
         if (!this.views[index]) {
             this.views[index] = this.makeView(index);
@@ -1240,8 +1237,10 @@ export class Game extends Scene
     /** Drops a corridor walk in progress and the marks (a new floor starts, or the Scene ends). */
     private cancelCorridor (): void
     {
-        for (const mark of this.corridorMarks) {
-            mark.destroy();
+        for (const marks of this.corridorMarks) {
+            for (const mark of marks ?? []) {
+                mark.destroy();
+            }
         }
         this.corridorMarks = [];
         this.corridorElapsed = 0;
@@ -1562,6 +1561,6 @@ export class Game extends Scene
         }
 
         const out = movePlayer(this.stageData, target);
-        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
     }
 }

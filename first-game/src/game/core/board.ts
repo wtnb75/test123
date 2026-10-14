@@ -1,4 +1,4 @@
-import type { Cell, Heading, Position, Stage, StageParams } from './types';
+import type { Cell, Heading, Position, Stage, StageDoor, StageParams } from './types';
 import { oppositeHeading } from './floorLayout';
 import type { Rng } from './random';
 import { randInt } from './random';
@@ -55,8 +55,18 @@ const interiorRange = (size: number): { lo: number; hi: number } => {
 
 const chebyshev = (a: Position, b: Position): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
-/** The two rooms of a floor: A holds the up-stairs and door A, B holds door B and the down-stairs. */
+/**
+ * The kinds of room of a floor: A holds the up-stairs and door(s) A; B (rooms B and C) holds its door and, unless
+ * it is a dead end, the down-stairs.
+ */
 export type RoomRole = 'A' | 'B';
+
+/** Options of the room anchors: room A's second door (on the `heading2` wall); a room B without down-stairs. */
+export type RoomOptions = {
+  heading2?: Heading;
+  /** `false`: a dead-end room (no down-stairs). Default `true`. */
+  withDown?: boolean;
+};
 
 /** The cells that touch the wall on `side`, in reading order (top row first, left to right). */
 export const wallCells = (width: number, height: number, side: Heading): Position[] => {
@@ -122,8 +132,9 @@ export const chooseRoomAnchors = (
   role: RoomRole,
   heading: Heading,
   rng: Rng,
-  ratio = STAIRS_MIN_DISTANCE_RATIO
-): { start: Position; goal: Position } => {
+  ratio = STAIRS_MIN_DISTANCE_RATIO,
+  options: RoomOptions = {}
+): { start: Position; goal: Position; goal2?: Position } => {
   const minDistance = stairsMinDistance(width, height, ratio);
 
   if (role === 'A') {
@@ -134,11 +145,20 @@ export const chooseRoomAnchors = (
       y: ys.lo + randInt(rng, ys.hi - ys.lo + 1)
     };
     const wall = wallCells(width, height, heading);
-    return { start, goal: pickFar(wall, wall, start, minDistance, rng) };
+    const goal = pickFar(wall, wall, start, minDistance, rng);
+    if (options.heading2 === undefined) {
+      return { start, goal };
+    }
+    // The second door: another cell (never the first door's cell) on its own wall, as far from the start.
+    const wall2 = wallCells(width, height, options.heading2).filter((cell) => !(cell.x === goal.x && cell.y === goal.y));
+    return { start, goal, goal2: pickFar(wall2, wall2, start, minDistance, rng) };
   }
 
   const wall = wallCells(width, height, oppositeHeading(heading));
   const start = wall[randInt(rng, wall.length)];
+  if (options.withDown === false) {
+    return { start, goal: { ...start } };
+  }
   const xs = interiorRange(width);
   const ys = interiorRange(height);
   const corners: Position[] = [
@@ -150,7 +170,7 @@ export const chooseRoomAnchors = (
   return { start, goal: pickFar(interiorCells(width, height), corners, start, minDistance, rng) };
 };
 
-const forbiddenCells = (stage: Pick<Stage, 'width' | 'height'>, start: Position, goal: Position): Set<number> => {
+const forbiddenCells = (stage: Pick<Stage, 'width' | 'height'>, anchors: Position[]): Set<number> => {
   const forbid = new Set<number>();
   const mark = (pos: Position): void => {
     forbid.add(indexOf(stage, pos));
@@ -159,8 +179,7 @@ const forbiddenCells = (stage: Pick<Stage, 'width' | 'height'>, start: Position,
     }
   };
 
-  mark(start);
-  mark(goal);
+  anchors.forEach(mark);
 
   return forbid;
 };
@@ -223,11 +242,16 @@ export const createRandomStage = (
   params: StageParams,
   rng: Rng,
   role: RoomRole = 'A',
-  heading: Heading = 'E'
+  heading: Heading = 'E',
+  options: RoomOptions = {}
 ): Stage => {
   const { width, height, bombCount, stageNo, depthTarget } = params;
   const cells = createCells(width, height);
-  const { start, goal } = chooseRoomAnchors(width, height, role, heading, rng);
+  const { start, goal, goal2 } = chooseRoomAnchors(width, height, role, heading, rng, STAIRS_MIN_DISTANCE_RATIO, options);
+  const deadEnd = role === 'B' && options.withDown === false;
+  const doors: StageDoor[] = role === 'A'
+    ? [{ cell: goal, side: heading }, ...(goal2 && options.heading2 ? [{ cell: goal2, side: options.heading2 }] : [])]
+    : [{ cell: start, side: oppositeHeading(heading) }];
   const stage: Stage = {
     width,
     height,
@@ -237,8 +261,9 @@ export const createRandomStage = (
     start,
     goal,
     startKind: role === 'A' ? 'up' : 'door',
-    goalKind: role === 'A' ? 'door' : 'down',
+    goalKind: role === 'A' ? 'door' : deadEnd ? 'none' : 'down',
     doorSide: role === 'A' ? heading : oppositeHeading(heading),
+    doors,
     generation: {
       retries: 0,
       depthTarget,
@@ -247,7 +272,7 @@ export const createRandomStage = (
     }
   };
 
-  const forbidden = forbiddenCells(stage, start, goal);
+  const forbidden = forbiddenCells(stage, goal2 ? [start, goal, goal2] : [start, goal]);
   const candidateIndices: number[] = [];
   for (let i = 0; i < cells.length; i += 1) {
     if (!forbidden.has(i)) {
@@ -277,6 +302,7 @@ export const cloneStage = (stage: Stage): Stage => {
     player: { ...stage.player },
     start: { ...stage.start },
     goal: { ...stage.goal },
+    ...(stage.doors ? { doors: stage.doors.map((door) => ({ cell: { ...door.cell }, side: door.side })) } : {}),
     generation: { ...stage.generation },
     cells: stage.cells.map((cell) => ({ ...cell }))
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  HEADING_VECTOR, cameraBounds, cellAtWorld, exitArrowDirection, floorLayout, headingFromDraw, oppositeHeading
+  HEADING_VECTOR, cameraBounds, cellAtWorld, exitArrowDirection, floorLayout, oppositeHeading
 } from './floorLayout';
 
 // Worked by hand from docs/spec/rooms-and-floors.md ("フロアの座標"). Rooms are 8 x 8. A corridor cell is
@@ -8,8 +8,7 @@ import {
 const STRAIGHT_E_SES = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 2 }];
 
 describe('headings', () => {
-  it('the draw picks right, down, left, up in quarters, and the opposite is across', () => {
-    expect([0, 0.24, 0.25, 0.5, 0.75, 0.99].map(headingFromDraw)).toEqual(['E', 'E', 'S', 'W', 'N', 'N']);
+  it('the opposite heading is across', () => {
     expect(oppositeHeading('E')).toBe('W');
     expect(oppositeHeading('S')).toBe('N');
     expect(oppositeHeading('W')).toBe('E');
