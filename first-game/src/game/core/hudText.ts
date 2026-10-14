@@ -49,7 +49,7 @@ export const invalidStageMessage = (stageMax: number): string => `Stage must be 
 export const diedMessage = (input: InputKind): string =>
     input === 'keys' ? 'You died. [R]etry [T]itle' : 'You died.';
 
-export const GOAL_MESSAGE = 'You reach the goal.';
+export const GOAL_MESSAGE = 'You descend the stairs.';
 
 export const flagModeMessage = (on: boolean): string => `Flag mode ${on ? 'on' : 'off'}.`;
 

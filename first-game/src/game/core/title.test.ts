@@ -132,7 +132,7 @@ describe('demoLayout', () => {
     expect(l.visible).toBe(false);
   });
 
-  it('keeps the board (10 x 10 cells) and its edge markers on the canvas and clear of the name and button', () => {
+  it('keeps the board (10 x 10 cells) on the canvas and clear of the name and button', () => {
     for (const width of [240, 320, 390, 768, 1024, 1920]) {
       for (const height of [320, 480, 768, 1080]) {
         const d = demoLayout(width, height);
@@ -141,13 +141,12 @@ describe('demoLayout', () => {
           continue;
         }
         const half = (10 * d.cell) / 2;
-        const marker = Math.max(1, Math.round(10 * (d.cell / 30)));
         const nameBottom = t.nameY + t.fontSize / 2;
         const buttonTop = t.buttonY - t.buttonHeight / 2;
-        if (d.centerY - half - marker < nameBottom || d.centerY + half + marker > buttonTop) {
+        if (d.centerY - half < nameBottom || d.centerY + half > buttonTop) {
           expect.fail(`demo touches the name or the button at ${width}x${height}`);
         }
-        if (d.centerX - half - marker < 0 || d.centerX + half + marker > width) {
+        if (d.centerX - half < 0 || d.centerX + half > width) {
           expect.fail(`demo is cut off at ${width}x${height}`);
         }
       }

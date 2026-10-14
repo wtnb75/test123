@@ -42,3 +42,4 @@
 - `src/game/core/hudText.ts`（`HUD_BAND_COLOR` がカメラの背景色と同じ値の別リテラル）— 理由: spec が色の共有を実装裁量に委ねている。帯は背景に溶ける色であれば足りる
 - `src/game/core/padFeedback.test.ts`（`flagCircleSize` のテストが実装の式の言い換えで、Phaser の枠の描き方に依存する）— 理由: 枠が円の内側に描かれて外形が変わらないことは、QA で実機の外形を確かめる（spec の完了条件）。単体テストは計算の前提だけを見る
 - `src/game/scenes/boardView.ts`（デモの小さいセル（k < 0.5）で、柱の 1 px の下限により柱が旗の三角形の左端と 1 px 重なる）— 理由: 同系色の 1 px の重なりで見えない。spec の「柱は 1 px 未満にならない」を優先する
+- `core/cellAppearance.ts`: the stairs glyph size 16 / stroke 3 are literals — 理由: the other glyphs (e.g. "!") are literals too; extracting constants is a separate tidy-up

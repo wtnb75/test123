@@ -35,6 +35,7 @@ const state = (over: Partial<CellState> = {}): CellState => ({
   hint: 0,
   gameOver: false,
   knowledge: 'none',
+  stairs: 'none',
   ...over
 });
 
@@ -93,6 +94,41 @@ describe('cellAppearance: while playing', () => {
       glyphs: [],
       shapes: [POLE, pennant(0xff6b6b)]
     });
+  });
+});
+
+describe('cellAppearance: the stairs (docs/spec/board-render.md "マスの見た目")', () => {
+  const up = glyph({ text: '▲', color: '#7bed9f', size: 16, stroke: 3 });
+  const down = glyph({ text: '▼', color: '#ffa502', size: 16, stroke: 3 });
+
+  it('the start is a revealed cell with a green ▲ in the middle', () => {
+    expect(cellAppearance(state({ revealed: true, stairs: 'up' }))).toEqual({ fill: 0x243341, glyphs: [up], shapes: [] });
+  });
+
+  it('the goal is a closed cell with an orange ▼, visible from the start', () => {
+    expect(cellAppearance(state({ stairs: 'down' }))).toEqual({ fill: 0x3d4f63, glyphs: [down], shapes: [] });
+  });
+
+  it('a goal opened by the start\'s chain is an open cell with ▼', () => {
+    expect(cellAppearance(state({ revealed: true, stairs: 'down' }))).toEqual({ fill: 0x243341, glyphs: [down], shapes: [] });
+  });
+
+  it('a flag on the goal draws only the flag', () => {
+    const a = cellAppearance(state({ flagged: true, stairs: 'down' }));
+    expect(a.glyphs).toEqual([]);
+    expect(a.shapes).toHaveLength(2);
+  });
+
+  it('in game over the goal keeps ▼ and the green fill, with no "○"', () => {
+    const a = cellAppearance(state({ gameOver: true, knowledge: 'safe', stairs: 'down' }));
+    expect(a.fill).toBe(0x0d2b1a);
+    expect(a.glyphs).toEqual([down]);
+  });
+
+  it('a wrong flag on the goal in game over is the purple flag and the cross, with no ▼', () => {
+    const a = cellAppearance(state({ gameOver: true, flagged: true, stairs: 'down' }));
+    expect(a.fill).toBe(0x3d1f6e);
+    expect(a.glyphs.map((g) => g.text)).toEqual(['×']);
   });
 });
 
@@ -201,7 +237,10 @@ const referenceGlyphs = (s: CellState): CellGlyph[] => {
     const wrong = s.gameOver && !s.hasBomb;
     if (wrong) out.push({ text: '×', anchor: 'center', color: '#a29bfe', bold: true, size: 18, stroke: 2 });
   }
-  if (s.gameOver && !s.revealed && !s.flagged) {
+  if (s.stairs === 'up' || (s.stairs === 'down' && !s.flagged)) {
+    out.push({ text: s.stairs === 'up' ? '▲' : '▼', anchor: 'center', color: s.stairs === 'up' ? '#7bed9f' : '#ffa502', bold: true, size: 16, stroke: 3 });
+  }
+  if (s.gameOver && !s.revealed && !s.flagged && s.stairs !== 'down') {
     if (s.knowledge === 'bomb') out.push({ text: '!', anchor: 'center', color: '#ffb347', bold: true, size: 16, stroke: 0 });
     else if (s.knowledge === 'safe') out.push({ text: '○', anchor: 'center', color: '#7bed9f', bold: false, size: 12, stroke: 0 });
   }
@@ -231,7 +270,9 @@ describe('cellAppearance: every combination against the rules', () => {
                 excluded += 1;
                 continue;
               }
-              states.push({ revealed, hasBomb, flagged, hint, gameOver, knowledge });
+              for (const stairs of ['none', 'up', 'down'] as const) {
+                states.push({ revealed, hasBomb, flagged, hint, gameOver, knowledge, stairs });
+              }
             }
           }
         }
@@ -240,9 +281,9 @@ describe('cellAppearance: every combination against the rules', () => {
   }
 
   it('the enumeration keeps every possible state: kept + excluded is all combinations', () => {
-    expect(states.length).toBe(2 * 2 * 2 * 9 * (3 + 1));
+    expect(states.length).toBe(2 * 2 * 2 * 9 * (3 + 1) * 3);
     expect(excluded).toBe(2 * 2 * 2 * 9 * 2);
-    expect(states.length + excluded).toBe(2 * 2 * 2 * 9 * 2 * 3);
+    expect(states.length + excluded * 3).toBe(2 * 2 * 2 * 9 * 2 * 3 * 3);
   });
 
   it('fill, every attribute of every glyph, and the figures equal the reference for all states', () => {
@@ -347,8 +388,18 @@ describe('cellStateOf', () => {
   ]);
 
   it('without an analysis, copies the cell and is not game over', () => {
-    expect(cellStateOf(stage, 0)).toEqual({ revealed: true, hasBomb: false, flagged: false, hint: 2, gameOver: false, knowledge: 'none' });
-    expect(cellStateOf(stage, 1)).toEqual({ revealed: false, hasBomb: true, flagged: true, hint: 0, gameOver: false, knowledge: 'none' });
+    expect(cellStateOf(stage, 0)).toEqual({ revealed: true, hasBomb: false, flagged: false, hint: 2, gameOver: false, knowledge: 'none', stairs: 'up' });
+    expect(cellStateOf(stage, 1)).toEqual({ revealed: false, hasBomb: true, flagged: true, hint: 0, gameOver: false, knowledge: 'none', stairs: 'none' });
+    expect(cellStateOf(stage, 2).stairs).toBe('down');
+  });
+
+  it('finds the stairs by row and column, not by the transposed index (width 4: start (1, 0) is index 1, goal (3, 1) is index 7)', () => {
+    const wide = makeStage(new Array(8).fill({}), 4);
+    wide.start = { x: 1, y: 0 };
+    wide.goal = { x: 3, y: 1 };
+    expect(cellStateOf(wide, 1).stairs).toBe('up');
+    expect(cellStateOf(wide, 7).stairs).toBe('down');
+    expect(cellStateOf(wide, 4).stairs).toBe('none');
   });
 
   it('with an analysis, reports bomb / safe / none by index and is game over', () => {
