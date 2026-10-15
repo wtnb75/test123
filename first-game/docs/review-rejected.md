@@ -73,3 +73,7 @@
 - `core/generator.ts` 置き直した部屋の fallback が altStarts を満たす候補を優先しない: 仕様手順 10 は「そのとき得た最も深い候補」。上限に届くのはステージ 40 以降 — 理由: 仕様どおり。変えるなら仕様の改訂（`generator-reliability` で扱う）
 - `core/generator.loops.test.ts` 置き直しの要否の式が実装と二重: 仕様に書かれた規則をそのまま書いたもの。`enterableDoors` の手計算の例と fixture が別に固定している — 理由: 仕様の独立した記述である
 - `core/generator.loops.test.ts` 「置き直した部屋は plain と違う」が `some` で弱い: 置き直しが走ったことは `remade > 10` の別のテストが見ている — 理由: 重複しており、弱さは別のテストが補う
+- `scenes/Game.ts` 全体図の `mapKey` が文字列で実質 boolean: 動作に影響しない整理で、差分が増える — 理由: 整理だけ
+- `scenes/Game.ts` 全体図の表示中に HUD の帯が変わると、図の上端と帯が数 px ずれる: 仕様が「押したフレームで決め、表示中は変えない」と定めている — 理由: 仕様どおり
+- `scenes/Game.ts` MAP ボタンの色・線幅・depth の直書き: 周囲の FLAG・STAGE のコードと同じ書き方で、仕様の実装裁量 — 理由: 周囲に揃えている
+- `scenes/Game.ts` 墓石画面で M を押すと NEW GAME になる: 仕様どおり（R・T 以外のキー。`game-over.md`）— 理由: 仕様どおり
