@@ -81,6 +81,20 @@ export const corridorState = (
   };
 };
 
+/**
+ * Where the camera glides to between two cells of a walk over `length` cells: the cell it has reached (`index`, at
+ * most `length - 2`, so `index + 1` is a cell) and how far towards the next one (`fraction`, 0 to 1).
+ */
+export const corridorReach = (
+  elapsedMs: number,
+  length: number = CORRIDOR_LENGTH,
+  stepMs: number = CORRIDOR_STEP_MS
+): { index: number; fraction: number } => {
+  const reached = Math.min(length - 1, Math.max(0, elapsedMs) / stepMs);
+  const index = Math.min(length - 2, Math.floor(reached));
+  return { index, fraction: reached - index };
+};
+
 /** The walk's clock after one frame of `deltaMs`: at most `CORRIDOR_MAX_FRAME_MS` is added, never a negative time. */
 export const advanceCorridor = (elapsedMs: number, deltaMs: number): number =>
   elapsedMs + Math.min(Math.max(0, deltaMs), CORRIDOR_MAX_FRAME_MS);

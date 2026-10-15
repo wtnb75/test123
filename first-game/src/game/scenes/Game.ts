@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateFloor } from '../core/generator';
-import { CORRIDOR_GLYPH, CORRIDOR_LENGTH, CORRIDOR_STEP_MS, advanceCorridor, corridorCellAt, corridorState } from '../core/corridor';
+import { CORRIDOR_GLYPH, advanceCorridor, corridorCellAt, corridorReach, corridorState } from '../core/corridor';
 import { cameraBounds, cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
 import { FloorState, type DoorRoute } from '../core/floor';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
@@ -96,6 +96,9 @@ const DEATH_DELAY_MS = 600;
 const CLEAR_DELAY_MS = 250;
 /** The corridor's "#" marks sit above the board layers and under the player's highlight (depth 5). */
 const CORRIDOR_MARK_DEPTH = 3;
+/** Exit arrows: how many at most (a branching room's entry and two exits), and the gap below the HUD band (spec `ExitArrowTopGap`). */
+const EXIT_ARROW_COUNT = 3;
+const EXIT_ARROW_TOP_GAP = 18;
 /** The STAGE button (and its prompt) exists only on the dev server, never in the production build. */
 const STAGE_BUTTON_ENABLED = import.meta.env.DEV;
 
@@ -154,9 +157,8 @@ export class Game extends Scene
     private messageKey = '';
     private statusKey = '';
     private legendKey = '';
-    goalArrow!: Phaser.GameObjects.Text;
-    /** The second exit arrow (room A has two doors). */
-    goalArrow2!: Phaser.GameObjects.Text;
+    /** The exit arrows (docs/spec/rooms-and-floors.md: up to three, a branching room's entry and two exits). */
+    exitArrows: Phaser.GameObjects.Text[] = [];
     /** The board drawings: room A from the start, room B once the player has entered it (each room keeps its own). */
     private views: Array<BoardView | undefined> = [];
     /** Where the rooms and the corridors sit on the floor's grid. */
@@ -259,8 +261,7 @@ export class Game extends Scene
             stroke: '#0b1220',
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
-        this.goalArrow = makeArrow();
-        this.goalArrow2 = makeArrow();
+        this.exitArrows = Array.from({ length: EXIT_ARROW_COUNT }, makeArrow);
 
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
@@ -770,9 +771,12 @@ export class Game extends Scene
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
                 message,
-                room: 'ABC'[this.floorState.roomIndex],
+                room: String.fromCharCode(65 + this.floorState.roomIndex),
                 doorSide: stage.doorSide,
                 doors: (stage.doors ?? []).map((door) => ({ x: door.cell.x, y: door.cell.y, side: door.side })),
+                corridorLengths: this.layout.corridors.map((cells) => cells.length),
+                hudBandHeight: this.hudBand.height,
+                arrows: this.exitArrows.filter((arrow) => arrow.text !== '').map((arrow) => ({ text: arrow.text, x: arrow.x, y: arrow.y })),
                 goalKind: stage.goalKind,
                 status: this.statusText.text,
                 stage: stage.stageNo,
@@ -834,6 +838,8 @@ export class Game extends Scene
         }
         const bandHeight = hudBandHeight(bottoms);
         this.hudBand.setSize(this.camera.width, bandHeight).setVisible(bandHeight > 0);
+        // The arrows keep below the band: a band that grew (the HUD wrapped) moves them.
+        this.updateGoalArrow();
     }
 
     private revealAllBombs (): void
@@ -903,14 +909,16 @@ export class Game extends Scene
         if (!this.stageData) {
             return;
         }
-        const arrows = [this.goalArrow, this.goalArrow2];
         const markers = this.flow.inCorridor
             ? []
             : exitMarkers(
                 this.exitTargets(),
-                { left: this.camera.scrollX, top: this.camera.scrollY, width: this.camera.width, height: this.camera.height }
+                { left: this.camera.scrollX, top: this.camera.scrollY, width: this.camera.width, height: this.camera.height },
+                undefined,
+                // Below the HUD band (it grows when the HUD wraps): the arrows never sit on the status line.
+                this.hudBand.height > 0 ? this.hudBand.height + EXIT_ARROW_TOP_GAP : 0
             );
-        arrows.forEach((arrow, i) => {
+        this.exitArrows.forEach((arrow, i) => {
             const marker = markers[i];
             if (!marker) {
                 arrow.setText('');
@@ -1165,14 +1173,14 @@ export class Game extends Scene
         this.refreshHud(message);
     }
 
-    /** The walk's progress: the player moves one corridor cell per `CORRIDOR_STEP_MS`, then the other room is entered. */
+    /** The walk's progress: one corridor cell per `CORRIDOR_STEP_MS` (the walk takes as long as the corridor is long), then the other room is entered. */
     update (_time: number, delta: number): void
     {
         if (!this.flow.inCorridor) {
             return;
         }
         this.corridorElapsed = advanceCorridor(this.corridorElapsed, delta);
-        const state = corridorState(this.corridorElapsed);
+        const state = corridorState(this.corridorElapsed, this.walkedCorridor.length);
         if (state.done) {
             this.finishCorridor();
             return;
@@ -1209,9 +1217,7 @@ export class Game extends Scene
     /** The camera glides along the corridor: its centre is on the point the walk has reached between two cells. */
     private followCorridor (elapsedMs: number): void
     {
-        const reached = Math.min(CORRIDOR_LENGTH - 1, elapsedMs / CORRIDOR_STEP_MS);
-        const index = Math.min(CORRIDOR_LENGTH - 2, Math.floor(reached));
-        const fraction = reached - index;
+        const { index, fraction } = corridorReach(elapsedMs, this.walkedCorridor.length);
         const from = this.corridorPointPx(index);
         const to = this.corridorPointPx(index + 1);
         this.centerCameraOnPoint(from.x + (to.x - from.x) * fraction, from.y + (to.y - from.y) * fraction);

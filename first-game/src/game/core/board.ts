@@ -56,16 +56,20 @@ const interiorRange = (size: number): { lo: number; hi: number } => {
 const chebyshev = (a: Position, b: Position): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 /**
- * The kinds of room of a floor: A holds the up-stairs and door(s) A; B (rooms B and C) holds its door and, unless
- * it is a dead end, the down-stairs.
+ * The kinds of room of a floor: A holds the up-stairs and door(s) A; B (a leaf) holds its entry door and, unless
+ * it is a dead end, the down-stairs; C (a branching room) holds its entry door and one or two exit doors.
  */
-export type RoomRole = 'A' | 'B';
+export type RoomRole = 'A' | 'B' | 'C';
 
-/** Options of the room anchors: room A's second door (on the `heading2` wall); a room B without down-stairs. */
+/**
+ * Options of the room anchors: room A's second door (on the `heading2` wall); a leaf without down-stairs; the walls
+ * of a branching room's exits (in child order, one or two).
+ */
 export type RoomOptions = {
   heading2?: Heading;
   /** `false`: a dead-end room (no down-stairs). Default `true`. */
   withDown?: boolean;
+  exits?: Heading[];
 };
 
 /** The cells that touch the wall on `side`, in reading order (top row first, left to right). */
@@ -120,7 +124,9 @@ const pickFar = (
 };
 
 /**
- * Where a room's start and goal go (docs/spec/rooms-and-floors.md "ルール"). `heading` is the floor's heading.
+ * Where a room's start and goal go (docs/spec/rooms-and-floors.md "ルール"). `heading` is the wall of the door
+ * the room is reached through (room A: door A1). Role `C` (a branching room): the start is the entry, `goal` and
+ * `goal2` are its one or two exits on the `options.exits` walls.
  * Room A: the start (up-stairs) is uniform over the interior, the goal (the cell next to door A, on the `heading`
  * wall) a wall cell far enough from it; none: the farthest wall cell, the first in reading order. Room B: the start
  * (the cell next to door B, on the opposite wall) is uniform over that wall's cells, the goal (down-stairs) an
@@ -156,6 +162,19 @@ export const chooseRoomAnchors = (
 
   const wall = wallCells(width, height, oppositeHeading(heading));
   const start = wall[randInt(rng, wall.length)];
+  if (role === 'C') {
+    // A branching room: the entry is the start; the exits sit like room A's doors, as far from the start, on their
+    // own walls and never on a cell another door uses.
+    const taken: Position[] = [start];
+    const picked: Position[] = [];
+    for (const side of options.exits ?? []) {
+      const cells = wallCells(width, height, side).filter((cell) => !taken.some((t) => t.x === cell.x && t.y === cell.y));
+      const exit = pickFar(cells, cells, start, minDistance, rng);
+      taken.push(exit);
+      picked.push(exit);
+    }
+    return { start, goal: picked[0] ?? { ...start }, ...(picked[1] ? { goal2: picked[1] } : {}) };
+  }
   if (options.withDown === false) {
     return { start, goal: { ...start } };
   }
@@ -249,9 +268,15 @@ export const createRandomStage = (
   const cells = createCells(width, height);
   const { start, goal, goal2 } = chooseRoomAnchors(width, height, role, heading, rng, STAIRS_MIN_DISTANCE_RATIO, options);
   const deadEnd = role === 'B' && options.withDown === false;
+  const exits = options.exits ?? [];
   const doors: StageDoor[] = role === 'A'
     ? [{ cell: goal, side: heading }, ...(goal2 && options.heading2 ? [{ cell: goal2, side: options.heading2 }] : [])]
-    : [{ cell: start, side: oppositeHeading(heading) }];
+    : role === 'C'
+      ? [
+        { cell: start, side: oppositeHeading(heading) },
+        ...[goal, goal2].flatMap((cell, i) => (cell && exits[i] ? [{ cell, side: exits[i] }] : []))
+      ]
+      : [{ cell: start, side: oppositeHeading(heading) }];
   const stage: Stage = {
     width,
     height,
@@ -261,7 +286,7 @@ export const createRandomStage = (
     start,
     goal,
     startKind: role === 'A' ? 'up' : 'door',
-    goalKind: role === 'A' ? 'door' : deadEnd ? 'none' : 'down',
+    goalKind: role === 'A' || role === 'C' ? 'door' : deadEnd ? 'none' : 'down',
     doorSide: role === 'A' ? heading : oppositeHeading(heading),
     doors,
     generation: {
