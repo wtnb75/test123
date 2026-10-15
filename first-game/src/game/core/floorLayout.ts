@@ -237,6 +237,60 @@ export const placementFitsApart = (
   return true;
 };
 
+/** A corridor shape with `extension` straight cells added in front: (0,0)..(x-1,0), then the shape moved `x` forward. */
+export const extendShape = (shape: readonly Position[], extension: number): Position[] => [
+  ...Array.from({ length: extension }, (_, i) => ({ x: i, y: 0 })),
+  ...shape.map((cell) => ({ x: cell.x + extension, y: cell.y }))
+];
+
+/** The result of `layoutTree`: the placement and each corridor's shape, or the corridor that could not be placed. */
+export type TreeLayout =
+  | { ok: true; placement: FloorPlacement; shapes: Position[][]; extensions: number[] }
+  | { ok: false; failedCorridor: number };
+
+/**
+ * Lays a tree of rooms out corridor by corridor (docs/spec/rooms-and-floors.md "通路の長さの伸ばし方"). Corridor `j`
+ * must lead to room `j + 1` from a room with a smaller index. For each one: its base shape (`baseShapes[j]`) is tried
+ * with 0, 1, .. `maxExtension` straight cells in front, and the first that keeps the parts apart (against the rooms
+ * and corridors placed so far) is used; if none does, a new shape is drawn with `redraw`, up to `retries` times.
+ */
+export const layoutTree = (
+  rooms: readonly PlacedRoom[],
+  graph: FloorGraph,
+  baseShapes: readonly (readonly Position[])[],
+  redraw: () => Position[],
+  maxExtension: number,
+  retries: number
+): TreeLayout => {
+  const shapes: Position[][] = [];
+  const extensions: number[] = [];
+  let placement = placeFloor(rooms.slice(0, 1), { startRoom: graph.startRoom, corridors: [] }, []);
+
+  for (let j = 0; j < graph.corridors.length; j += 1) {
+    const child = graph.corridors[j].to.room;
+    const roomsSoFar = rooms.slice(0, child + 1);
+    const sub: FloorGraph = { startRoom: graph.startRoom, corridors: graph.corridors.slice(0, j + 1) };
+    let found = false;
+    for (let attempt = 0; attempt <= retries && !found; attempt += 1) {
+      const base = attempt === 0 ? baseShapes[j] : redraw();
+      for (let x = 0; x <= maxExtension && !found; x += 1) {
+        const shape = x === 0 ? base : extendShape(base, x);
+        const tried = placeFloor(roomsSoFar, sub, [...shapes, shape]);
+        if (placementFitsApart(tried, roomsSoFar, sub)) {
+          placement = tried;
+          shapes.push(shape);
+          extensions.push(x);
+          found = true;
+        }
+      }
+    }
+    if (!found) {
+      return { ok: false, failedCorridor: j };
+    }
+  }
+  return { ok: true, placement, shapes, extensions };
+};
+
 /** Where everything of a three-room floor sits on the floor's grid (cells), with the top-left of the floor at (0, 0). */
 export type FloorMap = FloorPlacement & {
   /** The heading of door A1 and of door A2. */
@@ -283,25 +337,30 @@ export type ExitMarker = { text: string; x: number; y: number };
 export const exitMarkers = (
   exits: readonly ExitTarget[],
   camera: { left: number; top: number; width: number; height: number },
-  pad = 30
+  pad = 30,
+  topInset = 0
 ): ExitMarker[] => {
+  // The top of the area the player can see (below the HUD band and a gap), kept above the screen's middle so a
+  // short screen with a tall band still points the right way; arrows sit `pad` from the border, or at that top.
+  const top = Math.max(0, Math.min(topInset, camera.height / 2 - 1));
+  const padTop = Math.max(pad, top);
   const half = { x: camera.width / 2, y: camera.height / 2 };
   const kept = new Map<string, { marker: ExitMarker; distance: number }>();
   for (const exit of exits) {
     const sx = exit.x - camera.left;
     const sy = exit.y - camera.top;
-    if (sx >= 0 && sx <= camera.width && sy >= 0 && sy <= camera.height) {
+    if (sx >= 0 && sx <= camera.width && sy >= top && sy <= camera.height) {
       continue;
     }
     const dx = sx - half.x;
     const dy = sy - half.y;
     const tx = dx !== 0 ? (dx > 0 ? (camera.width - pad - half.x) / dx : (pad - half.x) / dx) : Infinity;
-    const ty = dy !== 0 ? (dy > 0 ? (camera.height - pad - half.y) / dy : (pad - half.y) / dy) : Infinity;
+    const ty = dy !== 0 ? (dy > 0 ? (camera.height - pad - half.y) / dy : (padTop - half.y) / dy) : Infinity;
     const t = Math.min(tx, ty);
     const marker: ExitMarker = {
       text: `${exit.label} ${exitArrowDirection(dx, dy)}`,
       x: Math.min(camera.width - pad, Math.max(pad, half.x + dx * t)),
-      y: Math.min(camera.height - pad, Math.max(pad, half.y + dy * t))
+      y: Math.min(camera.height - pad, Math.max(padTop, half.y + dy * t))
     };
     const distance = Math.hypot(dx, dy);
     const same = kept.get(marker.text);

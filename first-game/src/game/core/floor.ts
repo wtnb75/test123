@@ -7,7 +7,7 @@ export type DoorRoute = {
   corridor: number;
   /** True from the corridor's first door to its last (first cell to last cell), false on the way back. */
   forward: boolean;
-  /** The room the walk ends in (0 for room A, 1 for room B, 2 for room C). */
+  /** The room the walk ends in (its index: 0 for room A, 1 for room B, 2 for room C, ...). */
   to: number;
 };
 
@@ -15,7 +15,8 @@ export type DoorRoute = {
  * The rooms of a floor and which one the player is in (docs/spec/rooms-and-floors.md). A room keeps its opened
  * cells, flags and the player's position while the player is in another one; crossing a door always leaves a room
  * from its door cell, so the player is on that cell when they come back. How the rooms are joined is the floor's
- * graph (default: the start room's door `i` leads to room `i + 1`, the three-room floor).
+ * graph (default, for tests only: the start room's door `i` leads to room `i + 1`; a generated floor passes its own
+ * `graph`, which is a tree of any shape).
  */
 export class FloorState {
   private readonly rooms: Stage[];
@@ -29,7 +30,7 @@ export class FloorState {
     this.index = graph.startRoom;
   }
 
-  /** 0 for room A, 1 for room B, 2 for room C. */
+  /** The index of the room the player is in (0 for room A, 1 for room B, ...). */
   get roomIndex (): number
   {
     return this.index;

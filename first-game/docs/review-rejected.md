@@ -57,3 +57,15 @@
 - `src/game/core/floor.ts`（範囲外の扉の番号を最後の扉に丸める）— 理由: 元の実装の挙動を保っている。変えると「挙動は変えない」に反する
 - `src/game/core/floorLayout.ts`（子→親の向きで書いた通路が「到達しない」エラーになる）— 理由: spec は始点の扉から木をたどる形だけが範囲。向きの規則は `more-rooms` 以降に決める
 - `src/game/core/exits.ts`（部屋 A でも goalKind が `down`/`none` なら DOOR でなく GOAL・DOOR の別の表示になる）— 理由: 生成したフロアでは同値。旧形（goalKind 無し）は従来どおり roomIndex 0 で DOOR
+- `src/game/core/board.ts`（枝分かれの部屋の 2 つ目の出口が、ソルバーで検証されない）— 理由: spec の保証は盤面全体の確定（全爆弾が確定できれば出口にも推理だけで着ける）。ソルバーは開始位置から全爆弾の確定を見る
+- `src/game/core/generator.ts`（配置が決まる前に部屋の中身を作るので、失敗分の生成が無駄になる）— 理由: 「フロアの開始時に全部屋を作る」はユーザーの選択。配置を先に決める形は、部屋の中身の分布と fixture に触る別の変更（`docs/backlog.md` の `generator-reliability`）
+- `src/game/core/generator.ts`（安全弁の最悪の生成量が大きい。マジックナンバー 400・100・100 が既定値の定数と別に書いてある）— 理由: 到達しない見込み（測定では引き直しは最大 0.3%）。安全弁の値は spec で「実質、上限なし」と決めたもの
+- `src/game/core/floorLayout.ts`（`floorMap`・`floorFitsApart` が本番で使われない）— 理由: 公開 API を変えない約束（既存のテスト）。3 部屋の星型の薄いラッパーと明記済み
+- `src/game/core/generator.ts`（引き直しのループの重複・作り直しのたびに全部屋の扉を計算し直す）— 理由: 読みやすさと数 ms の差。動作は同じ
+- `src/game/core/floor.fixture.test.ts`（fixture の部屋 A の比較が、フロア全体の引き直しを除かない・テストの時間）— 理由: 記録したステージ 1〜20 では引き直しが 0 件（測定）。テストは約 10 秒
+- `src/game/core/corridor.ts`（`corridorReach` が長さ 2 未満を守らない）— 理由: 通路は基準の 6 マス以上で、2 未満は作られない
+- `src/game/scenes/Game.ts`（帯の下に押し下げた矢印が、プレイヤーのマスに重なりうる）— 理由: 矢印は画面の端に出し、プレイヤーはカメラの中心にいる。端から帯の下までしか動かさない
+- `src/game/scenes/Game.ts`（`updateGoalArrow` が HUD の更新のたびに何度も呼ばれ、同じ文字を再描画する）— 理由: 1 回数 ms。呼び出しは 3 つの矢印だけで、頻度は低い（HUD の更新・スクロール）
+- `src/game/scenes/Game.ts`（矢印の最大数 3 が `exitMarkers` と別に書かれ、4 つ目は黙って捨てられる）— 理由: spec が「最大 3 つ」と決めている（部屋 A は 2 つ、枝分かれの部屋は入口を含めて 3 つ。▼ の部屋は GOAL だけ）。部屋の出口は最大 2 つ
+- `src/game/scenes/Game.ts`（`EXIT_ARROW_TOP_GAP` = 18 が spec の定数と別に書かれ、文字の大きさから導かれていない）— 理由: spec の `ExitArrowTopGap` が値の持ち主。文字の大きさを変えるときは spec が先
+- `src/game/scenes/Game.ts`（`exitMarkers(…, undefined, inset)` の引数の位置）— 理由: 呼び出しは 1 か所で、定数 `pad` の既定値を使う意図が分かる

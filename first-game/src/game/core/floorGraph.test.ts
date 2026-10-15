@@ -130,19 +130,23 @@ describe('roomExits decides the start room by its goalKind, not its index', () =
 });
 
 describe('a generated floor as data', () => {
-  const floors = [1, 2, 3, 4, 5].flatMap((seed) => [1, 5].map((stageNo) => generateFloor(stageNo, { seed })));
+  const floors = [1, 2, 3, 4, 5].flatMap((seed) =>
+    [1, 5].map((stageNo) => generateFloor(stageNo, { seed, maxRetries: 1, maxGenerationMs: 600_000 }))
+  );
 
-  it('has 3 rooms, 4 doors, 2 corridors and starts in room A', () => {
+  it('has RoomCount rooms, one corridor per room but room A, one entry door per room but room A, and starts in room A', () => {
     for (const floor of floors) {
-      expect(floor.rooms).toHaveLength(3);
-      expect(floorDoors(floor.rooms)).toHaveLength(4);
-      expect(floor.graph.corridors).toHaveLength(2);
-      expect(floor.layout.corridors).toHaveLength(2);
+      const exits = floor.tree.children.reduce((sum, children) => sum + children.length, 0);
+
+      expect(floor.rooms).toHaveLength(5);
+      expect(floorDoors(floor.rooms)).toHaveLength(exits + 4);
+      expect(floor.graph.corridors).toHaveLength(4);
+      expect(floor.layout.corridors).toHaveLength(4);
       expect(floor.graph.startRoom).toBe(0);
     }
   });
 
-  it('joins door A1 to room B and door A2 to room C, walked back from their own door', () => {
+  it('joins door A1 to room B and door A2 to room C, walked back from their own entry door', () => {
     for (const floor of floors) {
       expect(corridorFrom(floor.graph, { room: 0, door: 0 })).toEqual({ corridor: 0, forward: true, to: { room: 1, door: 0 } });
       expect(corridorFrom(floor.graph, { room: 0, door: 1 })).toEqual({ corridor: 1, forward: true, to: { room: 2, door: 0 } });
@@ -150,17 +154,17 @@ describe('a generated floor as data', () => {
     }
   });
 
-  it('puts the end of each corridor just before the door cell of the room it joins', () => {
+  it('joins a branching room\'s exits (after its entry door) to its children', () => {
     for (const floor of floors) {
-      floor.graph.corridors.forEach((link, k) => {
-        const cells = floor.layout.corridors[k];
-        const entry = floor.rooms[link.to.room].doors![link.to.door];
-        const origin = floor.layout.roomOrigin[link.to.room];
-        const door = { x: origin.x + entry.cell.x, y: origin.y + entry.cell.y };
-        const last = cells[cells.length - 1];
-        // The door cell is one step past the corridor's last cell, in the direction of door A_k's wall.
-        const step = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] }[floor.layout.headings[k]];
-        expect([last.x + step[0], last.y + step[1]]).toEqual([door.x, door.y]);
+      floor.tree.children.forEach((children, room) => {
+        children.forEach((child, i) => {
+          const door = room === 0 ? i : 1 + i;
+          expect(corridorFrom(floor.graph, { room, door })).toEqual({
+            corridor: child - 1,
+            forward: true,
+            to: { room: child, door: 0 }
+          });
+        });
       });
     }
   });

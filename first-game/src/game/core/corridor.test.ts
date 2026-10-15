@@ -5,6 +5,7 @@ import {
   CORRIDOR_STEP_MS,
   advanceCorridor,
   corridorCellAt,
+  corridorReach,
   corridorShape,
   corridorState
 } from './corridor';
@@ -119,6 +120,34 @@ describe('corridorState', () => {
     expect(CORRIDOR_LENGTH * CORRIDOR_STEP_MS).toBe(720);
     expect(corridorState(-50)).toEqual({ index: 0, done: false });
     expect(corridorState(720)).toEqual({ index: 5, done: true });
+  });
+});
+
+describe('a lengthened corridor (docs/spec/rooms-and-floors.md "通路の見た目と時間")', () => {
+  it('walks every cell of a 12-cell corridor: not done at 719 ms or at 1439 ms, done at 1440 ms', () => {
+    expect(corridorState(719, 12)).toEqual({ index: 5, done: false });
+    expect(corridorState(720, 12)).toEqual({ index: 6, done: false });
+    expect(corridorState(1439, 12)).toEqual({ index: 11, done: false });
+    expect(corridorState(1440, 12).done).toBe(true);
+  });
+
+  it('takes 26 x 120 ms = 3120 ms for the longest corridor', () => {
+    expect(corridorState(3119, 26).done).toBe(false);
+    expect(corridorState(3120, 26).done).toBe(true);
+  });
+
+  it('glides the camera between cells up to the second-to-last one, whatever the length', () => {
+    expect(corridorReach(0, 12)).toEqual({ index: 0, fraction: 0 });
+    expect(corridorReach(60, 12)).toEqual({ index: 0, fraction: 0.5 });
+    expect(corridorReach(720, 12)).toEqual({ index: 6, fraction: 0 });
+    expect(corridorReach(1320, 12)).toEqual({ index: 10, fraction: 1 });
+    // The last cell (index 11) is reached at 11 x 120 ms; after that the camera rests on it.
+    expect(corridorReach(5000, 12)).toEqual({ index: 10, fraction: 1 });
+  });
+
+  it('keeps the six-cell walk of the base corridor as it was', () => {
+    expect(corridorReach(600, 6)).toEqual({ index: 4, fraction: 1 });
+    expect(corridorReach(5000)).toEqual({ index: 4, fraction: 1 });
   });
 });
 
