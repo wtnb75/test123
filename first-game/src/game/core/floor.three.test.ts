@@ -33,13 +33,13 @@ describe('FloorState (three rooms)', () => {
   it('names the corridor, the direction and the end of each walk', () => {
     const floor = new FloorState([room(1, 1), room(1, 1), room(1, 1)]);
 
-    expect(floor.route(0)).toEqual({ corridor: 0, forward: true, to: 1 });
-    expect(floor.route(1)).toEqual({ corridor: 1, forward: true, to: 2 });
+    expect(floor.route(0)).toEqual({ corridor: 0, forward: true, to: 1, toDoor: 0 });
+    expect(floor.route(1)).toEqual({ corridor: 1, forward: true, to: 2, toDoor: 0 });
     floor.cross(0);
-    expect(floor.route()).toEqual({ corridor: 0, forward: false, to: 0 });
+    expect(floor.route()).toEqual({ corridor: 0, forward: false, to: 0, toDoor: 0 });
     floor.cross();
     floor.cross(1);
-    expect(floor.route()).toEqual({ corridor: 1, forward: false, to: 0 });
+    expect(floor.route()).toEqual({ corridor: 1, forward: false, to: 0, toDoor: 1 });
   });
 
   it('keeps what was committed to a room (opened cells, flags) when the player comes back, in each room', () => {

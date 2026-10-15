@@ -233,12 +233,12 @@ describe('the spec\'s five-room tree on the floor map', () => {
     expect(corridorFrom(graph, { room: 3, door: 0 })).toEqual({ corridor: 2, forward: false, to: { room: 2, door: 1 } });
     expect(corridorFrom(graph, { room: 4, door: 0 })).toEqual({ corridor: 3, forward: false, to: { room: 2, door: 2 } });
     expect(corridorFrom(graph, { room: 2, door: 0 })).toEqual({ corridor: 1, forward: false, to: { room: 0, door: 1 } });
-    const state = new FloorState(rooms.map((r) => ({ ...r }) as unknown as Stage), graph);
+    const state = new FloorState(rooms.map((r) => ({ ...r, cells: [] }) as unknown as Stage), graph);
     state.cross(1);
     expect(state.roomIndex).toBe(2);
-    expect(state.route(1)).toEqual({ corridor: 2, forward: true, to: 3 });
+    expect(state.route(1)).toEqual({ corridor: 2, forward: true, to: 3, toDoor: 0 });
     state.cross(1);
-    expect(state.route(0)).toEqual({ corridor: 2, forward: false, to: 2 });
+    expect(state.route(0)).toEqual({ corridor: 2, forward: false, to: 2, toDoor: 1 });
   });
 });
 

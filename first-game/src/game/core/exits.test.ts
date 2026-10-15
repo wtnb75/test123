@@ -50,3 +50,35 @@ describe('roomExits', () => {
     expect(roomExits(b, 1, { x: 0, y: 0 }, 10)).toEqual([{ x: 55, y: 25, label: 'GOAL' }]);
   });
 });
+
+describe('roomExits with loop doors', () => {
+  const doors = [
+    { cell: { x: 0, y: 3 }, side: 'W' as const },
+    { cell: { x: 7, y: 5 }, side: 'E' as const },
+    { cell: { x: 4, y: 7 }, side: 'S' as const }
+  ];
+  const centre = (x: number, y: number) => ({ x: 20 + x * 30 + 15, y: 80 + y * 30 + 15 });
+
+  it('a dead end with a loop door points at both of its doors with DOOR (the entry, then the loop door)', () => {
+    const dead = room({ startKind: 'door', goalKind: 'none', start: doors[0].cell, goal: doors[0].cell, doors: doors.slice(0, 2) });
+
+    expect(roomExits(dead, 3, origin, 30)).toEqual([
+      { ...centre(0, 3), label: 'DOOR' },
+      { ...centre(7, 5), label: 'DOOR' }
+    ]);
+  });
+
+  it('a branching room points at its entry, exits and loop door: every door, in the order of the doors', () => {
+    const branching = room({ startKind: 'door', goalKind: 'door', start: doors[0].cell, goal: doors[1].cell, doors });
+
+    expect(roomExits(branching, 1, origin, 30).map((e) => [e.label, e.x, e.y])).toEqual(
+      doors.map((d) => ['DOOR', centre(d.cell.x, d.cell.y).x, centre(d.cell.x, d.cell.y).y])
+    );
+  });
+
+  it('the down-stairs room points at the stairs only, loop door or not', () => {
+    const down = room({ startKind: 'door', goalKind: 'down', start: doors[0].cell, goal: { x: 5, y: 2 }, doors: doors.slice(0, 2) });
+
+    expect(roomExits(down, 2, origin, 30)).toEqual([{ ...centre(5, 2), label: 'GOAL' }]);
+  });
+});

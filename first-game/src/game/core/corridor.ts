@@ -3,6 +3,8 @@ import type { Rng } from './random';
 
 /** The corridor between the two rooms (docs/spec/rooms-and-floors.md): its length in cells, the time per cell, the turn chance. */
 export const CORRIDOR_LENGTH = 6;
+/** The most straight cells a tree corridor may be lengthened by (docs/spec/rooms-and-floors.md `MaxCorridorExtension`). */
+export const MAX_CORRIDOR_EXTENSION = 20;
 export const CORRIDOR_STEP_MS = 120;
 export const CORRIDOR_TURN_CHANCE = 0.5;
 /** A turn out of a forward step goes left when the second draw is below this, right otherwise. */

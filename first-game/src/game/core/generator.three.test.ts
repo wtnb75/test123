@@ -9,10 +9,12 @@ import { analyzeSolvability } from './solver';
 import type { Heading, Position, Stage } from './types';
 
 // A large time budget: tests must not depend on the speed of the machine (the spec's 1500 ms is a runtime guard).
-const makeFloor = (stageNo: number, seed: number) => generateFloor(stageNo, { seed, maxGenerationMs: 600_000 });
+// These tests are about the tree of rooms: no loops (`maxLoops: 0`; the loops are in generator.loops.test.ts).
+const makeFloor = (stageNo: number, seed: number) =>
+  generateFloor(stageNo, { seed, maxGenerationMs: 600_000, maxLoops: 0 });
 // For geometry only (large rooms): no solving effort, whatever the first attempts give.
 const quickFloor = (stageNo: number, seed: number, extra: object = {}) =>
-  generateFloor(stageNo, { seed, maxRetries: 1, maxGenerationMs: 600_000, ...extra });
+  generateFloor(stageNo, { seed, maxRetries: 1, maxGenerationMs: 600_000, maxLoops: 0, ...extra });
 
 const touchesWall = (stage: Stage, p: Position, side: Heading) =>
   (side === 'E' && p.x === stage.width - 1) ||
@@ -153,9 +155,13 @@ describe('generateFloor, a tree of rooms', () => {
     }
   });
 
-  it('opens the start of every room (so entering a room shows its first cells)', () => {
-    for (const room of makeFloor(1, 9).rooms) {
-      expect(room.cells[indexOf(room, room.start)].revealed).toBe(true);
+  it('opens the start (and its zero cascade) of room A only; every other room is closed until the player arrives', () => {
+    const rooms = makeFloor(1, 9).rooms;
+
+    expect(rooms[0].cells[indexOf(rooms[0], rooms[0].start)].revealed).toBe(true);
+    for (const room of rooms.slice(1)) {
+      expect(room.cells.some((cell) => cell.revealed)).toBe(false);
+      expect(room.player).toEqual(room.start);
     }
   });
 
