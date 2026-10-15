@@ -1,11 +1,12 @@
 import { createRandomStage, type RoomOptions, type RoomRole } from './board';
-import { corridorShape } from './corridor';
+import { MAX_CORRIDOR_EXTENSION, corridorShape } from './corridor';
 import type { FloorGraph } from './floorGraph';
 import { HEADINGS, headingPairFromDraw, layoutTree, oppositeHeading, type FloorMap } from './floorLayout';
+import { enterableDoors, placeLoops, type PlacedLoop } from './floorLoops';
 import { ROOM_COUNT, buildFloorTree, entryHeadingOf, type FloorTree } from './floorTree';
 import { createRng } from './random';
 import { analyzeSolvability } from './solver';
-import type { Heading, Stage, StageParams } from './types';
+import type { Heading, Position, Stage, StageDoor, StageParams } from './types';
 import { roomDoors } from './walls';
 
 const BASE_BOMB_DENSITY = 0.14;
@@ -15,10 +16,16 @@ const MAX_BOMB_DENSITY = 0.18;
 const STAGE_SEED_STRIDE = 9973;
 const CORRIDOR_SEED_OFFSET = 2;
 const HEADING_SEED_OFFSET = 3;
+/**
+ * The loops' own stream, and the offset of a room made again with its loop doors. Clear of the rooms' offsets
+ * (1, 4, 7 ... `3 * room - 2`: 76 at most for the at most 26 rooms of a floor).
+ */
+const LOOP_SEED_OFFSET = 1000;
+const REMADE_ROOM_SEED_OFFSET = 2000;
 /** How many times a corridor's shape is drawn again when the floor does not fit apart (docs/spec/rooms-and-floors.md). */
 export const LAYOUT_RETRIES = 8;
-/** The most straight cells a corridor may be lengthened by, and how many times a parent and child may be made again. */
-export const MAX_CORRIDOR_EXTENSION = 20;
+/** How many times a parent and child may be made again (the corridor lengthening cap is in `corridor.ts`). */
+export { MAX_CORRIDOR_EXTENSION };
 export const LAYOUT_REBUILDS = 3;
 /** A floor that cannot be placed is drawn again from `seed + n * stride`, at most this many times. */
 const FLOOR_REROLL_LIMIT = 100;
@@ -63,6 +70,12 @@ export type GenerateOptions = {
   withDown?: boolean;
   /** The walls of a branching room's exits (role `C`), in child order. */
   exits?: Heading[];
+  /** Anchors to keep (a room made again with the same start, doors and down-stairs). */
+  anchors?: RoomOptions['anchors'];
+  /** Loop doors added after the room's own: bomb-free like the other doors. */
+  extraDoors?: StageDoor[];
+  /** Other cells the room must be solvable from (doors the player may enter through), as well as its start. */
+  altStarts?: Position[];
   /** How many times a corridor's shape is drawn again when it does not fit apart (default `LAYOUT_RETRIES`). */
   layoutRetries?: number;
   seed?: number;
@@ -80,7 +93,13 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   const heading = options?.heading ?? floor.headings[0];
   const roomOptions: RoomOptions = role === 'A'
     ? { heading2: options?.heading2 ?? floor.headings[1] }
-    : { withDown: options?.withDown ?? true, ...(options?.exits ? { exits: options.exits } : {}) };
+    : {
+      withDown: options?.withDown ?? true,
+      ...(options?.exits ? { exits: options.exits } : {}),
+      ...(options?.anchors ? { anchors: options.anchors } : {}),
+      ...(options?.extraDoors ? { extraDoors: options.extraDoors } : {})
+    };
+  const altStarts = options?.altStarts ?? [];
   const rng = createRng(baseSeed + stageNo * STAGE_SEED_STRIDE);
 
   let depthTarget = Math.min(5, Math.floor(1 + stageNo / 3));
@@ -108,7 +127,11 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
       bestStage.generation.generationMs = Date.now() - startedAt;
     }
 
-    if (analysis.solvable && analysis.depth >= depthTarget) {
+    if (
+      analysis.solvable &&
+      analysis.depth >= depthTarget &&
+      altStarts.every((alt) => analyzeSolvability({ ...stage, start: alt }).solvable)
+    ) {
       stage.generation.solverDepth = analysis.depth;
       stage.generation.depthTarget = depthTarget;
       stage.generation.retries = retries;
@@ -154,14 +177,19 @@ export type Floor = {
   graph: FloorGraph;
   /** The tree the rooms were made from (parents, children, exit walls). */
   tree: FloorTree;
-  /** How many straight cells each corridor was lengthened by (0 = the plain shape). */
+  /** How many straight cells each tree corridor was lengthened by (0 = the plain shape; loops are not lengthened and have no entry). */
   extensions: number[];
   /** How many times a parent and child were made again, and how many times the whole floor was drawn again. */
   rebuilds: number;
   rerolls: number;
+  /** The loops placed after the tree (docs/spec/rooms-and-floors.md "輪"), in the order of the corridors after the tree's. */
+  loops: PlacedLoop[];
 };
 
-export type FloorOptions = Omit<GenerateOptions, 'role' | 'heading' | 'heading2' | 'withDown' | 'exits'> & {
+export type FloorOptions = Omit<
+  GenerateOptions,
+  'role' | 'heading' | 'heading2' | 'withDown' | 'exits' | 'anchors' | 'extraDoors' | 'altStarts'
+> & {
   /** How many times a parent and child may be made again when a corridor cannot be placed (default `LAYOUT_REBUILDS`). */
   layoutRebuilds?: number;
   /** Number of rooms (default `ROOM_COUNT`). */
@@ -170,6 +198,8 @@ export type FloorOptions = Omit<GenerateOptions, 'role' | 'heading' | 'heading2'
   maxExtension?: number;
   /** How many times a floor that cannot be placed is drawn again before the relaxed tries (default 100). */
   rerollLimit?: number;
+  /** The most loops a floor gets (default `LOOP_COUNT_MAX`; 0: a plain tree). */
+  maxLoops?: number;
 };
 
 /** Seed offset of room `k`: room A has none; rooms B, C, D ... take 1, 4, 7 ... (clear of the corridor and heading offsets). */
@@ -189,8 +219,8 @@ const tryFloor = (stageNo: number, seed: number, options: FloorOptions | undefin
   const tree = buildFloorTree(createRng(seed + stageNo * STAGE_SEED_STRIDE + HEADING_SEED_OFFSET), roomCount);
   const childOrder = (room: number): number => tree.children[tree.parent[room]].indexOf(room);
 
-  const make = (room: number): Stage => {
-    const extra: Partial<GenerateOptions> = {};
+  const make = (room: number, again?: Pick<GenerateOptions, 'anchors' | 'extraDoors' | 'altStarts'>): Stage => {
+    const extra: Partial<GenerateOptions> = { ...again };
     let role: RoomRole;
     let heading: Heading;
     if (room === 0) {
@@ -207,7 +237,8 @@ const tryFloor = (stageNo: number, seed: number, options: FloorOptions | undefin
         extra.exits = tree.exitHeadings[room];
       }
     }
-    return generateStage(stageNo, { ...options, seed: seed + roomSeedOffset(room), role, heading, ...extra });
+    const roomSeed = seed + roomSeedOffset(room) + (again ? REMADE_ROOM_SEED_OFFSET : 0);
+    return generateStage(stageNo, { ...options, seed: roomSeed, role, heading, ...extra });
   };
 
   const rooms: Stage[] = Array.from({ length: roomCount }, (_, room) => make(room));
@@ -231,16 +262,47 @@ const tryFloor = (stageNo: number, seed: number, options: FloorOptions | undefin
         headings: [tree.exitHeadings[0][0], tree.exitHeadings[0][1]],
         ...result.placement
       };
+      const loopRng = createRng(seed + stageNo * STAGE_SEED_STRIDE + LOOP_SEED_OFFSET);
+      const looped = placeLoops(placed, result.placement, graph, loopRng, options?.maxLoops);
+      if (looped.loops.length > 0) {
+        // A room with a loop door, or one the player may enter through more than one door, gets its bombs again:
+        // same start, doors and down-stairs, the loop doors bomb-free, solvable from every door it may be entered by.
+        for (let room = 1; room < rooms.length; room += 1) {
+          const enterable = enterableDoors(looped.graph, room);
+          const extraDoors: StageDoor[] = looped.rooms[room].doors.slice(rooms[room].doors?.length ?? 0);
+          if (extraDoors.length === 0 && enterable.length < 2) {
+            continue;
+          }
+          const own = rooms[room];
+          const goal2 = own.doors?.[2]?.cell;
+          const altStarts: Position[] = enterable
+            .filter((door) => door !== 0)
+            .map((door) => looped.rooms[room].doors[door].cell);
+          rooms[room] = make(room, {
+            anchors: { start: own.start, goal: own.goal, ...(goal2 ? { goal2 } : {}) },
+            extraDoors,
+            altStarts
+          });
+        }
+      }
+      // A room other than A is closed until the player comes in (through whichever door): the door they arrive
+      // at opens it (docs/spec/rooms-and-floors.md "扉のマスに出たとき").
+      for (const room of rooms.slice(1)) {
+        for (const cell of room.cells) {
+          cell.revealed = false;
+        }
+      }
       return {
         stageNo,
         rooms,
         downRoom: tree.downRoom,
-        layout,
-        graph,
+        layout: { ...layout, ...looped.placement },
+        graph: looped.graph,
         tree,
         extensions: result.extensions,
         rebuilds,
-        rerolls: 0
+        rerolls: 0,
+        loops: looped.loops
       };
     }
     if (rebuilds >= layoutRebuilds) {

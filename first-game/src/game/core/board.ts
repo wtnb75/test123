@@ -70,6 +70,10 @@ export type RoomOptions = {
   /** `false`: a dead-end room (no down-stairs). Default `true`. */
   withDown?: boolean;
   exits?: Heading[];
+  /** Anchors (start, first and second door / goal) to use as they are, instead of drawing them (a room made again). */
+  anchors?: { start: Position; goal: Position; goal2?: Position };
+  /** Doors that come after the room's own (loop doors): their cells and their neighbours get no bomb. */
+  extraDoors?: StageDoor[];
 };
 
 /** The cells that touch the wall on `side`, in reading order (top row first, left to right). */
@@ -266,7 +270,8 @@ export const createRandomStage = (
 ): Stage => {
   const { width, height, bombCount, stageNo, depthTarget } = params;
   const cells = createCells(width, height);
-  const { start, goal, goal2 } = chooseRoomAnchors(width, height, role, heading, rng, STAIRS_MIN_DISTANCE_RATIO, options);
+  const { start, goal, goal2 } = options.anchors
+    ?? chooseRoomAnchors(width, height, role, heading, rng, STAIRS_MIN_DISTANCE_RATIO, options);
   const deadEnd = role === 'B' && options.withDown === false;
   const exits = options.exits ?? [];
   const doors: StageDoor[] = role === 'A'
@@ -277,6 +282,8 @@ export const createRandomStage = (
         ...[goal, goal2].flatMap((cell, i) => (cell && exits[i] ? [{ cell, side: exits[i] }] : []))
       ]
       : [{ cell: start, side: oppositeHeading(heading) }];
+  const extraDoors = options.extraDoors ?? [];
+  doors.push(...extraDoors.map((door) => ({ cell: { ...door.cell }, side: door.side })));
   const stage: Stage = {
     width,
     height,
@@ -297,7 +304,10 @@ export const createRandomStage = (
     }
   };
 
-  const forbidden = forbiddenCells(stage, goal2 ? [start, goal, goal2] : [start, goal]);
+  const forbidden = forbiddenCells(
+    stage,
+    [start, goal, ...(goal2 ? [goal2] : []), ...extraDoors.map((door) => door.cell)]
+  );
   const candidateIndices: number[] = [];
   for (let i = 0; i < cells.length; i += 1) {
     if (!forbidden.has(i)) {

@@ -83,11 +83,11 @@ describe('FloorState on a graph of more rooms', () => {
     const d = stage();
     const floor = new FloorState([a, b, d], chain);
     expect(floor.cross(0)).toBe(b);
-    expect(floor.route(1)).toEqual({ corridor: 1, forward: true, to: 2 });
+    expect(floor.route(1)).toEqual({ corridor: 1, forward: true, to: 2, toDoor: 0 });
     expect(floor.cross(1)).toBe(d);
-    expect(floor.route()).toEqual({ corridor: 1, forward: false, to: 1 });
+    expect(floor.route()).toEqual({ corridor: 1, forward: false, to: 1, toDoor: 1 });
     expect(floor.cross()).toBe(b);
-    expect(floor.route(0)).toEqual({ corridor: 0, forward: false, to: 0 });
+    expect(floor.route(0)).toEqual({ corridor: 0, forward: false, to: 0, toDoor: 0 });
   });
 
   it('throws when the door used joins no corridor', () => {
@@ -98,7 +98,7 @@ describe('FloorState on a graph of more rooms', () => {
   it('starts in the graph\'s start room', () => {
     const floor = new FloorState([stage(), stage()], { startRoom: 1, corridors: [{ from: { room: 1, door: 0 }, to: { room: 0, door: 0 } }] });
     expect(floor.roomIndex).toBe(1);
-    expect(floor.route(0)).toEqual({ corridor: 0, forward: true, to: 0 });
+    expect(floor.route(0)).toEqual({ corridor: 0, forward: true, to: 0, toDoor: 0 });
   });
 });
 
@@ -131,7 +131,7 @@ describe('roomExits decides the start room by its goalKind, not its index', () =
 
 describe('a generated floor as data', () => {
   const floors = [1, 2, 3, 4, 5].flatMap((seed) =>
-    [1, 5].map((stageNo) => generateFloor(stageNo, { seed, maxRetries: 1, maxGenerationMs: 600_000 }))
+    [1, 5].map((stageNo) => generateFloor(stageNo, { seed, maxRetries: 1, maxGenerationMs: 600_000, maxLoops: 0 }))
   );
 
   it('has RoomCount rooms, one corridor per room but room A, one entry door per room but room A, and starts in room A', () => {
@@ -173,9 +173,13 @@ describe('a generated floor as data', () => {
     const floor = floors[0];
     const state = new FloorState(floor.rooms, floor.graph);
     expect(state.roomIndex).toBe(0);
-    expect(state.route(0)).toEqual({ corridor: 0, forward: true, to: 1 });
-    expect(state.cross(1)).toBe(floor.rooms[2]);
-    expect(state.route()).toEqual({ corridor: 1, forward: false, to: 0 });
+    expect(state.route(0)).toEqual({ corridor: 0, forward: true, to: 1, toDoor: 0 });
+    // Arriving opens the door cell the player stands on (room C was closed): the same room, the cell now open.
+    const arrived = state.cross(1);
+    expect(arrived.cells.map((cell) => cell.hasBomb)).toEqual(floor.rooms[2].cells.map((cell) => cell.hasBomb));
+    expect(arrived.player).toEqual(floor.rooms[2].start);
+    expect(arrived.cells[arrived.player.y * arrived.width + arrived.player.x].revealed).toBe(true);
+    expect(state.route()).toEqual({ corridor: 1, forward: false, to: 0, toDoor: 1 });
   });
 });
 

@@ -69,3 +69,7 @@
 - `src/game/scenes/Game.ts`（矢印の最大数 3 が `exitMarkers` と別に書かれ、4 つ目は黙って捨てられる）— 理由: spec が「最大 3 つ」と決めている（部屋 A は 2 つ、枝分かれの部屋は入口を含めて 3 つ。▼ の部屋は GOAL だけ）。部屋の出口は最大 2 つ
 - `src/game/scenes/Game.ts`（`EXIT_ARROW_TOP_GAP` = 18 が spec の定数と別に書かれ、文字の大きさから導かれていない）— 理由: spec の `ExitArrowTopGap` が値の持ち主。文字の大きさを変えるときは spec が先
 - `src/game/scenes/Game.ts`（`exitMarkers(…, undefined, inset)` の引数の位置）— 理由: 呼び出しは 1 か所で、定数 `pad` の既定値を使う意図が分かる
+- `core/floorLoops.ts` 輪の扉のマスが ▼ と同じマスになり、到着しても降りられない: ▼ は内側のマス（`STAIRS_MARGIN`）で扉のマスは壁に接するマスなので、同じマスにならない（隣になる場合は 1 歩で降りられる）。同じマスにならないことは `generator.loops.test.ts` が固定 — 理由: 起こらない状況
+- `core/generator.ts` 置き直した部屋の fallback が altStarts を満たす候補を優先しない: 仕様手順 10 は「そのとき得た最も深い候補」。上限に届くのはステージ 40 以降 — 理由: 仕様どおり。変えるなら仕様の改訂（`generator-reliability` で扱う）
+- `core/generator.loops.test.ts` 置き直しの要否の式が実装と二重: 仕様に書かれた規則をそのまま書いたもの。`enterableDoors` の手計算の例と fixture が別に固定している — 理由: 仕様の独立した記述である
+- `core/generator.loops.test.ts` 「置き直した部屋は plain と違う」が `some` で弱い: 置き直しが走ったことは `remade > 10` の別のテストが見ている — 理由: 重複しており、弱さは別のテストが補う

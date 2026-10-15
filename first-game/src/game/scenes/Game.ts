@@ -96,8 +96,8 @@ const DEATH_DELAY_MS = 600;
 const CLEAR_DELAY_MS = 250;
 /** The corridor's "#" marks sit above the board layers and under the player's highlight (depth 5). */
 const CORRIDOR_MARK_DEPTH = 3;
-/** Exit arrows: how many at most (a branching room's entry and two exits), and the gap below the HUD band (spec `ExitArrowTopGap`). */
-const EXIT_ARROW_COUNT = 3;
+/** Exit arrows: how many at most (a room's entry, two exits and two loop doors), and the gap below the HUD band (spec `ExitArrowTopGap`). */
+const EXIT_ARROW_COUNT = 5;
 const EXIT_ARROW_TOP_GAP = 18;
 /** The STAGE button (and its prompt) exists only on the dev server, never in the production build. */
 const STAGE_BUTTON_ENABLED = import.meta.env.DEV;
@@ -169,7 +169,7 @@ export class Game extends Scene
     /** The "#" marks of each corridor (made at the first walk through it), the time walked and which way. */
     private corridorMarks: Array<Phaser.GameObjects.Text[] | undefined> = [];
     /** The walk in progress: which corridor, which way and which door of the room it started from. */
-    private corridorRoute: DoorRoute & { doorIndex: number } = { corridor: 0, forward: true, to: 1, doorIndex: 0 };
+    private corridorRoute: DoorRoute & { doorIndex: number } = { corridor: 0, forward: true, to: 1, toDoor: 0, doorIndex: 0 };
     private corridorElapsed = 0;
     /** The cell of the walk the player is drawn on (`-1`: none yet), so an unchanged cell is not drawn again. */
     private corridorDrawn = -1;
@@ -784,7 +784,9 @@ export class Game extends Scene
                 height: stage.height,
                 player: { x: stage.player.x, y: stage.player.y },
                 goal: { x: stage.goal.x, y: stage.goal.y },
-                bombs: stage.cells.map((cell) => cell.hasBomb)
+                bombs: stage.cells.map((cell) => cell.hasBomb),
+                revealed: stage.cells.map((cell) => cell.revealed),
+                flagged: stage.cells.map((cell) => cell.flagged)
             };
         }
     }
