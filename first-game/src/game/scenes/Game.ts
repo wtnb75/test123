@@ -4,11 +4,22 @@ import { generateFloor } from '../core/generator';
 import { CORRIDOR_GLYPH, advanceCorridor, corridorCellAt, corridorReach, corridorState } from '../core/corridor';
 import { cameraBounds, cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
 import { FloorState, type DoorRoute } from '../core/floor';
+import type { FloorGraph } from '../core/floorGraph';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR } from '../core/cellAppearance';
 import { roomExits } from '../core/exits';
+import {
+    CONTROL_MARGIN,
+    controlsLayout,
+    mapAccepted,
+    mapAlpha,
+    mapKeyPressed,
+    mapShapes,
+    mapView,
+    type MapView
+} from '../core/mapOverlay';
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
 import { REFERENCE_CELL } from '../core/title';
@@ -101,6 +112,25 @@ const EXIT_ARROW_COUNT = 5;
 const EXIT_ARROW_TOP_GAP = 18;
 /** The STAGE button (and its prompt) exists only on the dev server, never in the production build. */
 const STAGE_BUTTON_ENABLED = import.meta.env.DEV;
+/** The floor map sits above the "@" mark (depth 6) and under the HUD band (7); its "?" and stairs signs just over it. */
+const MAP_DEPTH = 6.2;
+const MAP_TEXT_DEPTH = 6.3;
+/** The player's dot is the front-most part of the map (over the signs). */
+const MAP_DOT_DEPTH = 6.4;
+const MAP_COLORS = {
+    panel: 0x0a1f2f,
+    panelAlpha: 0.88,
+    room: 0x1f3b57,
+    roomCurrent: 0x2f6fa3,
+    outline: 0x6f8197,
+    corridor: 0xa4b0be,
+    door: 0x74b9ff,
+    line: 0xffd166,
+    player: 0xffffff,
+    up: '#7bed9f',
+    down: '#ffa502',
+    question: '#ffd166'
+} as const;
 
 // True until the first Game of this page is created: only that game reads `?stage=` (docs/spec.md "開始ステージの決め方").
 let firstGameOfPage = true;
@@ -203,6 +233,22 @@ export class Game extends Scene
     /** The lit sector of the pad (drawn over the base and the thumb) and the FLAG circle's size without its frame. */
     padSectorGraphics?: Phaser.GameObjects.Graphics;
     flagBaseSize = 52;
+    /** The floor map (docs/spec/floor-map.md): its drawing, its signs, the time since it was shown (`null`: hidden). */
+    private mapGraphics?: Phaser.GameObjects.Graphics;
+    private mapDotGraphics?: Phaser.GameObjects.Graphics;
+    private mapTexts: Phaser.GameObjects.Text[] = [];
+    private mapElapsed: number | null = null;
+    /** True for the update of the frame the map was shown in: that frame's delta is not counted. */
+    private mapSkipDelta = false;
+    private mapPlace?: MapView;
+    /** `''`: the map has to be drawn again; otherwise what it was last drawn with is in `mapStamp`. */
+    private mapKey = '';
+    private mapStamp = { progress: -1, room: -1, x: -1, y: -1 };
+    private mapRooms: Stage[] = [];
+    private mapGraph: FloorGraph = { startRoom: 0, corridors: [] };
+    mapBg?: Phaser.GameObjects.Ellipse;
+    mapLabel?: Phaser.GameObjects.Text;
+    mapHitArea?: Phaser.Geom.Circle;
     gameOverLogical?: LogicalAnalysis;
     gameOverStageNo = 0;
     /** The game-over buttons (backgrounds and labels) while they are on screen. */
@@ -262,6 +308,14 @@ export class Game extends Scene
             strokeThickness: 3
         }).setScrollFactor(0).setDepth(10);
         this.exitArrows = Array.from({ length: EXIT_ARROW_COUNT }, makeArrow);
+        // Phaser reuses this instance on scene.start: the map starts hidden, with its own new drawing.
+        this.mapGraphics = this.add.graphics().setScrollFactor(0).setDepth(MAP_DEPTH).setVisible(false);
+        this.mapDotGraphics = this.add.graphics().setScrollFactor(0).setDepth(MAP_DOT_DEPTH).setVisible(false);
+        this.mapTexts = [];
+        this.mapElapsed = null;
+        this.mapSkipDelta = false;
+        this.mapPlace = undefined;
+        this.mapKey = '';
 
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
@@ -289,6 +343,13 @@ export class Game extends Scene
             this.flagBg = undefined;
             this.flagLabel = undefined;
             this.flagHitArea = undefined;
+            this.mapBg = undefined;
+            this.mapLabel = undefined;
+            this.mapHitArea = undefined;
+            this.mapGraphics = undefined;
+            this.mapDotGraphics = undefined;
+            this.mapTexts = [];
+            this.mapElapsed = null;
             this.stageSelectBg = undefined;
             this.stageSelectLabel = undefined;
             this.stageSelectHitArea = undefined;
@@ -309,6 +370,7 @@ export class Game extends Scene
 
     private startStage (stageNo: number): void
     {
+        this.hideMap();
         this.flow.reset();
         this.presses.clear();
         this.gameOverLogical = undefined;
@@ -317,6 +379,8 @@ export class Game extends Scene
         this.destroyViews();
         const floor = generateFloor(stageNo);
         this.floorState = new FloorState(floor.rooms, floor.graph);
+        this.mapRooms = floor.rooms;
+        this.mapGraph = floor.graph;
         this.layout = floor.layout;
         this.views = floor.rooms.map(() => undefined);
         this.views[this.floorState.roomIndex] = this.makeView(this.floorState.roomIndex);
@@ -428,6 +492,10 @@ export class Game extends Scene
         this.updateGoalArrow();
         this.layoutVirtualControls();
         this.relayoutRestartButtons(gameSize.width, gameSize.height);
+        // The map's area depends on the screen and the HUD band: place it again.
+        this.mapPlace = undefined;
+        this.mapKey = '';
+        this.drawMap();
     }
 
     private createVirtualControls (): void
@@ -466,11 +534,28 @@ export class Game extends Scene
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
 
+        // --- MAP button (above FLAG; docs/spec/floor-map.md): same size, a blue frame ---
+        this.mapBg = this.add.ellipse(0, 0, 52, 52, 0x071a33, 0.82)
+            .setStrokeStyle(2, 0x38bdf8, 0.9)
+            .setScrollFactor(0)
+            .setDepth(31);
+        this.mapLabel = this.add.text(0, 0, 'MAP', {
+            fontFamily: 'monospace',
+            fontSize: 11,
+            fontStyle: 'bold',
+            color: '#7dd3fc',
+            stroke: '#0b1220',
+            strokeThickness: 3,
+            align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+
         this.virtualControlLayer.add(this.joystickBase);
         this.virtualControlLayer.add(this.joystickThumb);
         this.virtualControlLayer.add(this.padSectorGraphics);
         this.virtualControlLayer.add(this.flagBg);
         this.virtualControlLayer.add(this.flagLabel);
+        this.virtualControlLayer.add(this.mapBg);
+        this.virtualControlLayer.add(this.mapLabel);
 
         if (STAGE_BUTTON_ENABLED) {
             this.stageSelectBg = this.add.rectangle(0, 0, 90, 34, 0x071a33, 0.88)
@@ -560,12 +645,13 @@ export class Game extends Scene
 
         const W = this.camera.width;
         const H = this.camera.height;
-        const compact = H <= 520 || W <= 400;
-        const margin = 20;
+        const controls = controlsLayout(W, H);
+        const compact = controls.compact;
+        const margin = CONTROL_MARGIN;
 
         const baseR = compact ? Math.round(JOYSTICK_BASE_RADIUS * 0.78) : JOYSTICK_BASE_RADIUS;
         const thumbR = compact ? Math.round(JOYSTICK_THUMB_RADIUS * 0.78) : JOYSTICK_THUMB_RADIUS;
-        const flagSize = compact ? 44 : 52;
+        const flagSize = controls.flag.size;
         const flagFontSize = 11;
 
         // Joystick: bottom-left
@@ -579,12 +665,19 @@ export class Game extends Scene
         this.joystickHitArea = new Phaser.Geom.Circle(jsX, jsY, baseR + 14);
 
         // FLAG button: bottom-right
-        const flagX = W - margin - flagSize / 2;
-        const flagY = H - margin - flagSize / 2;
+        const flagX = controls.flag.x;
+        const flagY = controls.flag.y;
         this.flagBaseSize = flagSize;
         this.flagBg.setPosition(flagX, flagY);
         this.flagLabel.setPosition(flagX, flagY).setFontSize(flagFontSize);
-        this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, flagSize / 2 + 10);
+        this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, controls.flag.hitRadius);
+
+        // MAP button: right above FLAG, the same size; its hit circle only touches FLAG's.
+        if (this.mapBg && this.mapLabel) {
+            this.mapBg.setPosition(controls.map.x, controls.map.y).setSize(controls.map.size, controls.map.size);
+            this.mapLabel.setPosition(controls.map.x, controls.map.y);
+            this.mapHitArea = new Phaser.Geom.Circle(controls.map.x, controls.map.y, controls.map.hitRadius);
+        }
 
         if (this.stageSelectBg && this.stageSelectLabel) {
             const stageW = compact ? 82 : 90;
@@ -768,8 +861,12 @@ export class Game extends Scene
             // QA only: a read-only view of the state (never part of the production bundle).
             const flow = this.flow;
             const stage = this.stageData;
+            const mapElapsedNow = (): number | null => this.mapElapsed;
+            const flagModeNow = (): boolean => this.flagMode;
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
+                get mapAlpha () { return mapElapsedNow() === null ? 0 : mapAlpha(mapElapsedNow() as number); },
+                get flagMode () { return flagModeNow(); },
                 message,
                 room: String.fromCharCode(65 + this.floorState.roomIndex),
                 doorSide: stage.doorSide,
@@ -937,6 +1034,10 @@ export class Game extends Scene
     private onKeyDown (event: KeyboardEvent): void
     {
         sessionInputKind = inputKindOfKey();
+        if (mapKeyPressed(event.code, event.repeat, event) && mapAccepted(this.flow.phase)) {
+            this.showMap();
+            return;
+        }
         if (this.flow.awaitingRestart) {
             if (this.flow.onGrave && graveLocked(this.time.now, this.graveEnteredAt)) {
                 return;
@@ -1095,6 +1196,7 @@ export class Game extends Scene
         this.centerCameraOnPlayer();
 
         if (status === 'dead') {
+            this.hideMap();
             this.flow.die();
             this.discardPointerState();
             this.gameOverStageNo = this.stageData.stageNo;
@@ -1122,6 +1224,7 @@ export class Game extends Scene
         }
 
         if (status === 'goal') {
+            this.hideMap();
             this.flow.reachGoal();
             this.discardPointerState();
             this.refreshHud(resultMessage('goal', undefined, 0, this.inputKind()));
@@ -1175,8 +1278,184 @@ export class Game extends Scene
         this.refreshHud(message);
     }
 
+    /** Shows the floor map from the start of its time (docs/spec/floor-map.md): in play and in a corridor walk only. */
+    private showMap (): void
+    {
+        if (!mapAccepted(this.flow.phase)) {
+            return;
+        }
+        this.mapElapsed = 0;
+        this.mapSkipDelta = true;
+        this.mapPlace = undefined;
+        this.mapKey = '';
+        this.drawMap();
+    }
+
+    private hideMap (): void
+    {
+        this.mapElapsed = null;
+        this.mapSkipDelta = false;
+        this.mapPlace = undefined;
+        this.mapKey = '';
+        this.mapGraphics?.clear().setVisible(false);
+        this.mapDotGraphics?.clear().setVisible(false);
+        for (const text of this.mapTexts) {
+            text.setVisible(false);
+        }
+    }
+
+    /**
+     * Counts the map's time (the frame it was shown in is not counted). Like a corridor walk, one frame counts at
+     * most `CORRIDOR_MAX_FRAME_MS` (spec "時間と状態"), so a long frame (a tab coming back) does not eat the display time.
+     */
+    private advanceMapClock (delta: number): void
+    {
+        if (this.mapElapsed === null) {
+            return;
+        }
+        if (this.mapSkipDelta) {
+            this.mapSkipDelta = false;
+        } else {
+            this.mapElapsed = advanceCorridor(this.mapElapsed, delta);
+        }
+    }
+
+    /** How many rooms the player has entered and how many corridors they have started to walk (they only grow). */
+    private mapProgress (): number
+    {
+        let count = 0;
+        for (const view of this.views) {
+            count += view ? 1 : 0;
+        }
+        for (const marks of this.corridorMarks) {
+            count += marks ? 1000 : 0;
+        }
+        return count;
+    }
+
+    /** The floor map as it stands: redrawn when what it shows changes, and its opacity follows the time. */
+    private drawMap (): void
+    {
+        const g = this.mapGraphics;
+        if (this.mapElapsed === null || !g || !this.layout) {
+            return;
+        }
+        const alpha = mapAlpha(this.mapElapsed);
+        if (alpha === null) {
+            this.hideMap();
+            return;
+        }
+        const layout = this.layout;
+        if (!this.mapPlace) {
+            this.mapPlace = mapView(layout.cols, layout.rows, this.camera.width, this.camera.height, this.hudBand.height);
+        }
+        const current = this.floorState.roomIndex;
+        const origin = layout.roomOrigin[current];
+        // The player's cell on the floor's grid: on the corridor cell being walked, else in the room.
+        const inWalk = this.flow.inCorridor && this.corridorDrawn >= 0;
+        const walkedAt = inWalk ? corridorCellAt(this.walkedCorridor, this.corridorDrawn, this.corridorForward) : undefined;
+        const px = walkedAt ? walkedAt.x : origin.x + this.stageData.player.x;
+        const py = walkedAt ? walkedAt.y : origin.y + this.stageData.player.y;
+        g.setVisible(true).setAlpha(alpha);
+        this.mapDotGraphics?.setVisible(true).setAlpha(alpha);
+        for (const text of this.mapTexts) {
+            text.setAlpha(alpha);
+        }
+        // Redrawn only when what it shows changed (numbers only here: this runs every frame while the map is up).
+        const progress = this.mapProgress();
+        if (
+            this.mapKey !== '' &&
+            progress === this.mapStamp.progress &&
+            current === this.mapStamp.room &&
+            px === this.mapStamp.x &&
+            py === this.mapStamp.y
+        ) {
+            return;
+        }
+        this.mapKey = 'drawn';
+        this.mapStamp = { progress, room: current, x: px, y: py };
+        const walkedCell = { x: px, y: py };
+        const entered = this.views.map((view) => view !== undefined);
+        const walked = layout.corridors.map((_, k) => this.corridorMarks[k] !== undefined);
+
+        const shapes = mapShapes({
+            roomOrigin: layout.roomOrigin,
+            corridors: layout.corridors,
+            rooms: this.mapRooms,
+            graph: this.mapGraph,
+            entered,
+            walked,
+            current,
+            player: walkedCell,
+            view: this.mapPlace
+        });
+        const area = this.mapPlace.area;
+        g.clear();
+        g.fillStyle(MAP_COLORS.panel, MAP_COLORS.panelAlpha);
+        g.fillRect(area.left, area.top, area.width, area.height);
+        for (const room of shapes.rooms) {
+            g.fillStyle(room.current ? MAP_COLORS.roomCurrent : MAP_COLORS.room, 1);
+            g.fillRect(room.x, room.y, room.width, room.height);
+            g.lineStyle(room.current ? 2 : 1, room.current ? MAP_COLORS.door : MAP_COLORS.outline, 1);
+            g.strokeRect(room.x, room.y, room.width, room.height);
+        }
+        g.fillStyle(MAP_COLORS.corridor, 1);
+        for (const cell of shapes.corridors) {
+            g.fillRect(cell.x, cell.y, cell.size, cell.size);
+        }
+        for (const stub of shapes.stubs) {
+            g.lineStyle(stub.thickness, MAP_COLORS.line, 1);
+            g.lineBetween(stub.x1, stub.y1, stub.x2, stub.y2);
+        }
+        g.fillStyle(MAP_COLORS.door, 1);
+        for (const door of shapes.doors) {
+            g.fillRect(door.x, door.y, door.size, door.size);
+        }
+        const dot = this.mapDotGraphics;
+        if (dot) {
+            dot.clear();
+            dot.fillStyle(MAP_COLORS.player, 1);
+            dot.fillCircle(shapes.player.x, shapes.player.y, shapes.player.size / 2);
+        }
+
+        // The signs (the stairs and the "?" of each unwalked door): a small pool of Text objects, reused.
+        const signs = [
+            ...shapes.stairs.map((s) => ({
+                x: s.x, y: s.y, text: s.glyph, color: s.glyph === '▲' ? MAP_COLORS.up : MAP_COLORS.down
+            })),
+            ...shapes.stubs.map((s) => ({ x: s.qx, y: s.qy, text: '?', color: MAP_COLORS.question }))
+        ];
+        while (this.mapTexts.length < signs.length) {
+            this.mapTexts.push(
+                this.add.text(0, 0, '', {
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontStyle: 'bold',
+                    stroke: '#0b1220',
+                    strokeThickness: 3
+                }).setOrigin(0.5).setScrollFactor(0).setDepth(MAP_TEXT_DEPTH)
+            );
+        }
+        this.mapTexts.forEach((text, i) => {
+            const sign = signs[i];
+            if (!sign) {
+                text.setVisible(false);
+                return;
+            }
+            text.setText(sign.text).setColor(sign.color).setPosition(sign.x, sign.y).setAlpha(alpha).setVisible(true);
+        });
+    }
+
     /** The walk's progress: one corridor cell per `CORRIDOR_STEP_MS` (the walk takes as long as the corridor is long), then the other room is entered. */
     update (_time: number, delta: number): void
+    {
+        this.advanceMapClock(delta);
+        this.advanceWalk(delta);
+        // After the walk, so the map shows the cell and the room of this frame.
+        this.drawMap();
+    }
+
+    private advanceWalk (delta: number): void
     {
         if (!this.flow.inCorridor) {
             return;
@@ -1403,6 +1682,19 @@ export class Game extends Scene
         if (this.stageSelectHitArea && Phaser.Geom.Rectangle.Contains(this.stageSelectHitArea, pointer.x, pointer.y)) {
             this.presses.begin(pointer.id, 'button');
             this.promptAndStartStage();
+            return;
+        }
+
+        // MAP button (docs/spec/floor-map.md): taken in play and while a corridor is walked; FLAG's circle goes first.
+        const onFlag = this.flagHitArea !== undefined && Phaser.Geom.Circle.Contains(this.flagHitArea, pointer.x, pointer.y);
+        if (
+            !onFlag &&
+            mapAccepted(this.flow.phase) &&
+            this.mapHitArea &&
+            Phaser.Geom.Circle.Contains(this.mapHitArea, pointer.x, pointer.y)
+        ) {
+            this.presses.begin(pointer.id, 'button');
+            this.showMap();
             return;
         }
 
