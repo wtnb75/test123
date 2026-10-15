@@ -77,3 +77,6 @@
 - `scenes/Game.ts` 全体図の表示中に HUD の帯が変わると、図の上端と帯が数 px ずれる: 仕様が「押したフレームで決め、表示中は変えない」と定めている — 理由: 仕様どおり
 - `scenes/Game.ts` MAP ボタンの色・線幅・depth の直書き: 周囲の FLAG・STAGE のコードと同じ書き方で、仕様の実装裁量 — 理由: 周囲に揃えている
 - `scenes/Game.ts` 墓石画面で M を押すと NEW GAME になる: 仕様どおり（R・T 以外のキー。`game-over.md`）— 理由: 仕様どおり
+- `core/floor.fixture.test.ts` 「輪を足しても木・通路・部屋 A は動かない」の旧 fixture との比較が無い: `generator.loops.test.ts` が、同じシード・ステージの `maxLoops: 0` と比べて、木・伸ばしたマス・部屋の座標・部屋 A を見ている — 理由: 別のテストが守っている
+- `core/roomParams.test.ts` 爆弾数の期待値を `roomParams()` から出している・深さの式を複製している: 手計算の値は別のテストが固定しており、この箇所は式の関係を見るためのもの — 理由: 独立した値は別にある
+- `core/generator.ts` `stageParams(n, d, true)` を直接呼ぶと深さの +1 が付かない: `roomParams` が仕様の入口で、生成は `roomParams` を使う。`stageParams` の既存の呼び出しは変えない（回帰条件）— 理由: 仕様どおり
