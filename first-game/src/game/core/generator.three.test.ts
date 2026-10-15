@@ -47,7 +47,10 @@ describe('generateFloor, a tree of rooms', () => {
 
     expect(floor.stageNo).toBe(3);
     expect(floor.rooms).toHaveLength(5);
-    expect(floor.rooms.map((room) => [room.width, room.height, room.stageNo])).toEqual(Array(5).fill([10, 10, 3]));
+    // The room with the down-stairs is one cell bigger (docs/spec/rooms-and-floors.md "▼ の部屋の難しさ"): 11 instead of 10.
+    expect(floor.rooms.map((room) => [room.width, room.height, room.stageNo])).toEqual(
+      floor.rooms.map((_, i) => (i === floor.downRoom ? [11, 11, 3] : [10, 10, 3]))
+    );
     expect([floor.rooms[0].startKind, floor.rooms[0].goalKind]).toEqual(['up', 'door']);
     expect(floor.rooms[0].doors).toHaveLength(2);
     floor.rooms.slice(1).forEach((room, i) => {

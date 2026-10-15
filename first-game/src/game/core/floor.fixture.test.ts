@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import floors from './__fixtures__/floors.json';
-import fiveRooms from './__fixtures__/floors.five-rooms.json';
+import beforeDownRoom from './__fixtures__/floors.before-down-room.json';
 import threeRooms from './__fixtures__/floors.three-rooms.json';
 import { enterableDoors } from './floorLoops';
 import { buildFloorTree } from './floorTree';
@@ -12,11 +12,11 @@ import type { Position } from './types';
 /**
  * Regression for docs/spec/rooms-and-floors.md "旧実装との一致": `__fixtures__/floors.json` records the floors of the
  * room tree with loops (seeds 1-50 at stages 1, 5, 10 and 20; `seed` is the floor's seed value); the same seed and
- * stage must give the same floor. `floors.five-rooms.json` is the record of the floors before loops existed: a floor
- * that got no loop is the same floor (every recorded field). `floors.three-rooms.json` is the record of the
- * three-room floors before that: room A of a floor whose room A was not made again is the same room. Write
- * `floors.json` again only for an intended change of behavior (`WRITE_FIXTURE=1`, from the implementation that is to
- * be the reference).
+ * stage must give the same floor. `floors.before-down-room.json` is the record of the floors before the down-stairs
+ * room became bigger: the tree (when the floor was not drawn again) and room A are the same. `floors.three-rooms.json`
+ * is the record of the three-room floors before that: room A of a floor whose room A was not made again is the same
+ * room. Write `floors.json` again only for an intended change of behavior (`WRITE_FIXTURE=1`, from the
+ * implementation that is to be the reference).
  */
 const NO_TIME_LIMIT = 10 * 60 * 1000;
 
@@ -47,6 +47,8 @@ type FloorRecord = {
 
 type LoopFloorRecord = FloorRecord & {
   loops: { from: number; to: number; heading: string; length: number }[];
+  /** How many times the whole floor was drawn again (0: the first draw of the tree was used). */
+  rerolls: number;
   /** The door indices of each room the player may come into it through first. */
   enterable: number[][];
 };
@@ -75,11 +77,9 @@ const record = (seed: number, stageNo: number, floor: Floor): LoopFloorRecord =>
   rows: floor.layout.rows,
   rooms: floor.rooms.map(roomRecord),
   loops: floor.loops.map(({ from, to, heading, length }) => ({ from, to, heading, length })),
+  rerolls: floor.rerolls,
   enterable: floor.rooms.map((_, room) => enterableDoors(floor.graph, room))
 });
-
-/** The record the floors had before loops (no `loops` / `enterable`). */
-const withoutLoops = ({ loops: _loops, enterable: _enterable, ...rest }: LoopFloorRecord): FloorRecord => rest;
 
 const recorded = floors as LoopFloorRecord[];
 const make = (stageNo: number, seed: number): Floor => generateFloor(stageNo, { seed, maxGenerationMs: NO_TIME_LIMIT });
@@ -138,32 +138,50 @@ describe('floor fixture (the rooms, corridors and loops of a seed and stage do n
     expect(rebuilt.length).toBeGreaterThan(0);
   });
 
-  it('gives a floor without a loop exactly the floor it was before loops existed (every recorded field)', () => {
+  it('keeps the tree and the down-stairs room of every floor that was not drawn again, and room A where it was not made again', () => {
     let compared = 0;
-    for (const now of recorded.filter((floor) => floor.loops.length === 0)) {
-      const before = (fiveRooms as FloorRecord[]).find((old) => old.seed === now.seed && old.stageNo === now.stageNo);
+    let roomA = 0;
+    for (const now of recorded.filter((floor) => floor.rerolls === 0)) {
+      const before = (beforeDownRoom as LoopFloorRecord[]).find((old) => old.seed === now.seed && old.stageNo === now.stageNo);
+
       expect(before).toBeDefined();
-      expect(withoutLoops(now)).toEqual(before);
+      expect(now.parent).toEqual((before as LoopFloorRecord).parent);
+      expect(now.downRoom).toBe((before as LoopFloorRecord).downRoom);
       compared += 1;
+      const drawn = floorHeadings(now.seed, now.stageNo).headings.join();
+      if (now.exitHeadings[0].join() === drawn && (before as LoopFloorRecord).exitHeadings[0].join() === drawn) {
+        expect(now.rooms[0]).toEqual((before as LoopFloorRecord).rooms[0]);
+        roomA += 1;
+      }
     }
-    expect(compared).toBeGreaterThan(80);
+    expect(compared).toBeGreaterThan(150);
+    expect(roomA).toBeGreaterThan(150);
   });
 
-  it('keeps the tree, the tree corridors and room A of a floor with loops (a loop adds, it does not move)', () => {
+  it('keeps the board of every room but the down-stairs room where nothing was made again (no loop, same exit walls)', () => {
     let compared = 0;
-    for (const now of recorded.filter((floor) => floor.loops.length > 0)) {
-      const before = (fiveRooms as FloorRecord[]).find((old) => old.seed === now.seed && old.stageNo === now.stageNo) as FloorRecord;
-
-      expect(now.parent).toEqual(before.parent);
-      expect(now.exitHeadings).toEqual(before.exitHeadings);
-      expect(now.downRoom).toBe(before.downRoom);
-      expect(now.extensions).toEqual(before.extensions);
-      expect(now.roomOrigin).toEqual(before.roomOrigin);
-      expect(now.corridors.slice(0, 4)).toEqual(before.corridors);
-      expect(now.rooms[0]).toEqual(before.rooms[0]);
-      compared += 1;
+    for (const now of recorded.filter((floor) => floor.rerolls === 0 && floor.loops.length === 0)) {
+      const before = (beforeDownRoom as LoopFloorRecord[]).find((old) => old.seed === now.seed && old.stageNo === now.stageNo);
+      if (!before || before.loops.length > 0 || before.exitHeadings.flat().join() !== now.exitHeadings.flat().join()) {
+        continue;
+      }
+      now.rooms.forEach((room, index) => {
+        if (index !== now.downRoom) {
+          expect(room).toEqual(before.rooms[index]);
+          compared += 1;
+        }
+      });
     }
-    expect(compared).toBeGreaterThan(40);
+    expect(compared).toBeGreaterThan(100);
+  });
+
+  it('gives the down-stairs room one more cell than the others and every other room the baseline size (7 + n)', () => {
+    for (const floor of recorded) {
+      floor.rooms.forEach((room, index) => {
+        expect(room.width).toBe(7 + floor.stageNo + (index === floor.downRoom ? 1 : 0));
+        expect(room.height).toBe(room.width);
+      });
+    }
   });
 
   it('keeps room A of the three-room floors when room A was not made again (same seed and stage)', () => {

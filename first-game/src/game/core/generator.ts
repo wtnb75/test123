@@ -41,9 +41,29 @@ export const floorHeadings = (seed: number, stageNo: number): { headings: [Headi
   return { headings: headingPairFromDraw(rng()), downInB: rng() < 0.5 };
 };
 
-export const stageParams = (stageNo: number, depthTarget: number): StageParams => {
-  const width = 7 + stageNo;
-  const height = 7 + stageNo;
+/** The depth target of stage `stageNo` (docs/spec.md "パラメータ表"); the down-stairs room's is one more, at most 5. */
+export const baseDepthTarget = (stageNo: number): number => Math.min(5, Math.floor(1 + stageNo / 3));
+
+/** The down-stairs room is one cell wider and taller than the baseline and aims one step deeper. */
+export const DOWN_ROOM_EXTRA_SIZE = 1;
+export const DOWN_ROOM_EXTRA_DEPTH = 1;
+
+/** The parameters a room of stage `stageNo` starts from: the down-stairs room is bigger and aims one step deeper. */
+export const roomParams = (stageNo: number, isDownRoom: boolean): StageParams =>
+  stageParams(
+    stageNo,
+    isDownRoom ? Math.min(5, baseDepthTarget(stageNo) + DOWN_ROOM_EXTRA_DEPTH) : baseDepthTarget(stageNo),
+    isDownRoom
+  );
+
+/**
+ * The parameters of a room of stage `stageNo` (docs/spec/rooms-and-floors.md "▼ の部屋の難しさ"). `isDownRoom`: the
+ * room that holds the down-stairs is `DOWN_ROOM_EXTRA_SIZE` bigger; the bomb formula is the same on the bigger area
+ * (its linear term and density stay those of stage `stageNo`). `depthTarget` is what the generation starts from.
+ */
+export const stageParams = (stageNo: number, depthTarget: number, isDownRoom = false): StageParams => {
+  const width = 7 + stageNo + (isDownRoom ? DOWN_ROOM_EXTRA_SIZE : 0);
+  const height = width;
   const area = width * height;
   const density = Math.min(MAX_BOMB_DENSITY, BASE_BOMB_DENSITY + stageNo * DENSITY_INCREASE_PER_STAGE);
   const linearBombs = 4 + stageNo * 4;
@@ -102,7 +122,9 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   const altStarts = options?.altStarts ?? [];
   const rng = createRng(baseSeed + stageNo * STAGE_SEED_STRIDE);
 
-  let depthTarget = Math.min(5, Math.floor(1 + stageNo / 3));
+  // The room with the down-stairs (a leaf with `withDown`) is bigger and aims one step deeper.
+  const isDownRoom = role === 'B' && (options?.withDown ?? true);
+  let depthTarget = roomParams(stageNo, isDownRoom).depthTarget;
   let bombPenalty = 0;
   let retries = 0;
 
@@ -112,7 +134,7 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   while (retries < maxRetries) {
     retries += 1;
 
-    const params = stageParams(stageNo, depthTarget);
+    const params = stageParams(stageNo, depthTarget, isDownRoom);
     params.bombCount = Math.max(1, params.bombCount - bombPenalty);
 
     const stage = createRandomStage(params, rng, role, heading, roomOptions);
@@ -155,7 +177,13 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
     return bestStage;
   }
 
-  const fallback = createRandomStage(stageParams(Math.max(1, stageNo - 1), 1), rng, role, heading, roomOptions);
+  const fallback = createRandomStage(
+    stageParams(Math.max(1, stageNo - 1), 1, isDownRoom),
+    rng,
+    role,
+    heading,
+    roomOptions
+  );
   fallback.stageNo = stageNo;
   fallback.generation.retries = retries;
   fallback.generation.depthTarget = 1;
