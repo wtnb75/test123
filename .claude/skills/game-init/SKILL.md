@@ -12,6 +12,9 @@ never call `pnpm create @phaserjs/game@latest` directly.
 
 - `PACKAGE=<game-dir>`: folder name only (kebab/lowercase, e.g. `cjump`). If
   not given, ask the user — do not guess a name silently.
+- `IDEA=<仮タイトル>` (optional): the entry in `docs/ideas.md` this game comes
+  from, passed by `game-idea`. Absent when the idea never went through the
+  list.
 
 ## Steps
 
@@ -40,6 +43,11 @@ never call `pnpm create @phaserjs/game@latest` directly.
      next free name instead (`feat/<game-dir>-2`, `-3`, ...) and create
      that, and tell the user a branch by the original name already existed
      so they can look at it later if it's worth recovering.
+   - If `IDEA` was given: in `docs/ideas.md`, remove its Inbox line or 候補
+     card and add `- <仮タイトル>（`<game-dir>`）— feat/<game-dir>` (use the
+     actual branch name) under **採用済み**. Do it here, on the game's
+     branch, so the move lands in the same PR as the game. If no matching
+     entry exists on this branch, skip it and say so.
 3. Run `task newgame PACKAGE=<game-dir>`. This merges `package.json` with
    `base.json`, sets up thin `tsconfig.json` / `eslint.config.mjs` /
    `vitest.config.ts` / `vite/config.*.mjs` that reference the shared

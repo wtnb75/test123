@@ -53,6 +53,17 @@ presentation-only revision) — pushing and PR
 creation are both visible, and this skill has no standing authorization to
 do them silently.
 
+**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
+the conversation): the agreement covers the commit, push and `gh pr create`;
+don't ask. The PR body states that it was made in autopilot, that polish and
+balance were skipped (numbers untried by hand), and lists 「未対応の指摘」
+from `game-codereview`. It still scopes to the one agreed change.
+
+**Existing PR** (`game-playtest` is reflecting change requests on a PR that
+is already open): commit and push to the same branch; don't run
+`gh pr create`. Update the PR body with the `gh api` call below if the
+content changed.
+
 By this point you should already be on a dedicated branch for this game
 (`feat/<game-dir>` from `game-init` for a first publish, or a
 `<type>/<game-dir>-<slug>` branch from `game-spec` for a post-publish

@@ -30,7 +30,9 @@ edits files itself — it only detects state and dispatches.
      scope by design). Run `task game:dashboard`; if any game shows
      `next=complete`, offer those too ("continue a published game —
      extend or rebalance") alongside starting a brand-new game
-     (→ `game-idea`) or an existing untracked game (out of scope for
+     (→ `game-idea` develop mode, which offers the top of `docs/ideas.md`;
+     a new idea the user only wants to jot down → `game-idea` memo mode) or
+     an existing untracked game (out of scope for
      this skill — handle it manually). If the user picks a
      `next=complete` game, skip straight to the `complete` section below
      for it.
@@ -125,6 +127,13 @@ game's workflow has nothing pending, and offer the ways to continue:
   game, starting from the top card of `docs/backlog.md` (name it). It
   agrees the scope in conversation, then hands off to `game-spec`, which
   opens a new branch and restarts the chain from `impl`.
+- **`game-autopilot`** — the same as `game-extend`, but after the user's
+  one combined approval the chain runs without further stops, up to an open
+  PR. Offer it when the user wants to spend their time on the conversation
+  only.
+- **`game-playtest`** — for an open game PR: publish its dev server, wait for
+  the user's verdict, squash-merge on OK or reflect change requests on the
+  same PR. Offer it when `gh pr list` shows a game PR waiting.
 - **`game-title`** — put a Title with a demo (a bot playing behind it, or a
   replay-style board) onto the game, when it has none. A fixed set of
   choices (method, small-screen layout, bot, what must not change), then
