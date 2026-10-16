@@ -114,6 +114,10 @@ Ask one question at a time.
 
 ## Handoff
 
+`game-autopilot` calls this skill for steps 1–9 and replaces step 10's
+approval by one combined approval (the extension plus the autopilot
+agreement). Used directly, this skill ends at step 10 as written.
+
 Once approved, invoke `game-spec` with `PACKAGE=<game-dir>` and pass the
 summary from step 10. `game-spec` treats it as a post-publish revision:
 new `feat/<game-dir>-<slug>` branch from `main`, spec revision (see its

@@ -122,6 +122,15 @@ message, and treat the answer as covering only what was asked. If it
 covered the look only, ask the other two before marking balance and
 publish done.
 
+## Autopilot
+
+When an 「オートパイロット合意」 block from `game-autopilot` is in the
+conversation, don't propose or ask. Re-screenshot the affected Scenes, check
+them against section 4.6 of AGENTS.md, fix only what breaks the agreed
+extension (cut-off text, overlap, targets under 44 px) as part of that
+change, then run the review and mark the stage done. Extra polish is left to
+the playtest.
+
 ## Coming back after an unrelated revision
 
 A `game-balance` or bug-fix revision resets this stage too. If nothing

@@ -49,6 +49,12 @@ For a presentation-only revision whose polish confirmation already asked
 about the feel (`game-polish` "Presentation-only revisions"), that answer
 is the sign-off: mark this stage done without asking again.
 
+**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
+the conversation): no tuning and no question. The initial numbers from the
+agreement stay; mark this stage done and note in the hand-off that the
+numbers have not been tried by hand (the PR body says so; the playtest is
+where the user judges them).
+
 ## When to stop looping
 
 Only the user decides the game is fun enough to ship — don't declare this

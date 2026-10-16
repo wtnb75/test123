@@ -142,6 +142,12 @@ with the reasons, say the loop ends here and that the user can ask for any
 item to be reconsidered, and go on to completion. Round 1 is always asked.
 A round with even one accept, spec or spec (clarify) is asked as usual.
 
+**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
+the conversation): don't ask in any round. Apply your recommendations —
+accept → fix, reject → drop. A **spec** finding is not applied (it goes
+beyond the agreement): list it for the PR body under 「未対応の指摘」. A
+**spec (clarify)** finding is applied as a wording-only spec change.
+
 ### 3. Fix
 
 - **accept** → fix it. For a correctness bug, write a regression test that

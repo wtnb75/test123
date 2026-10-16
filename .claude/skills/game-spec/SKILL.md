@@ -333,7 +333,11 @@ Also check the process yourself, for a revision:
    above, then show the user the draft together with the review result
    (blockers fixed, questions answered, remaining should/nit) and get
    explicit approval — this is a design document other steps depend on,
-   not a formality.
+   not a formality. **Autopilot** (an 「オートパイロット合意」 block from
+   `game-autopilot` is in the conversation): skip the approval stop — the
+   agreement is the approval. Check the draft says what was agreed, and
+   report the spec diff and review result at the end; a question the
+   agreement doesn't answer stops the chain and is asked as usual.
 2. Once approved and the file is written:
    `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`
 3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
