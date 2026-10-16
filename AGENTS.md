@@ -222,7 +222,7 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
 | 拡張候補 | `game-backlog` | 公開済みゲームの拡張アイデアを、spec の分析・自動プレイの数字・ユーザーの思いつきから出し、`docs/backlog.md` に狙い・コアループへの効き方・種別・規模・根拠つきのカードとして並べる。順番はユーザーが決める（上が次の候補）。docs だけのブランチ・PR で更新する |
 | 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` の上から順に出し（無ければ先に `game-backlog`）、見送った候補は `game-spec` が同じファイルにカードとして記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
-| 拡張（自動） | `game-autopilot` | `game-extend` と同じく backlog から 1 件を選んで対話で詳細化し、最後の 1 回の承認（拡張の内容＋オートパイロット合意）のあとは、spec の承認・codereview の採否・polish/balance の選択・push と PR 作成を聞かずに、PR を開くところまで進める。仕様の穴や合意からの逸脱、ゲートの失敗では止まる。マージはしない |
+| 拡張（自動） | `game-autopilot` | 先行する PR・作業ブランチが触れているゲームを除き、残った `next=complete` のゲームからランダムに 1 つ選んで、その backlog の先頭カードを `game-extend` と同じく対話で詳細化し、最後の 1 回の承認（拡張の内容＋オートパイロット合意）のあとは、spec の承認・codereview の採否・polish/balance の選択・push と PR 作成を聞かずに、PR を開くところまで進める。仕様の穴や合意からの逸脱、ゲートの失敗では止まる。マージはしない |
 | テストプレイ・マージ | `game-playtest` | 開いている PR を選び、dev サーバをトンネルで公開（9.1節）してユーザーが遊ぶ。OK なら CI を確認して squash マージ、注文があれば同じ PR のブランチに反映して繰り返す |
 | Title・デモ | `game-title` | 公開済みゲームに Title（名前・START・操作）とデモ（背景でボットが遊ぶ・縮小盤面の再生）を足す。方式の選択（簡略描画 / 本物のゲームを背景で動かす / デモ無し）、最低画面の配置表、ボット、変えないものを対話で固める（ファイルは作らない）。常に presentation-only。合意後は `game-spec` の公開後改訂から spec→…→publish を通す。部品と型は `shared/title-demo/README.md` |
 

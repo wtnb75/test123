@@ -15,17 +15,52 @@ skip their approval stops (each has an "Autopilot" section).
 
 ## Inputs
 
-- `PACKAGE=<game-dir>` (optional). If not given, run `task game:dashboard`,
-  take the games with `next=complete`, and show for each the top card of its
-  `docs/backlog.md` on `origin/main` (title, 種別, 規模). Ask the user to pick
-  a game. A game with no backlog is offered `game-backlog` first.
+- `PACKAGE=<game-dir>` (optional). If given, use it as is and skip
+  "Choosing the game and card". If not given, choose as below.
+
+## Choosing the game and card
+
+The backlog on `origin/main` still lists a card while a PR that implements
+it is open, so picking from `main` alone repeats work already in flight and
+conflicts with it. Look at the work in flight first.
+
+1. `git fetch origin`. List the work in flight:
+   - open PRs: `gh pr list --state open --json number,title,headRefName,files`
+   - remote branches with no PR: `git branch -r --list 'origin/feat/*'
+     'origin/fix/*' 'origin/balance/*'`, minus the heads of those PRs (a
+     branch with nothing pushed beyond `origin/main` is ignored).
+2. A game is **busy** if any of that work touches `<game-dir>/` (a branch
+   name `<type>/<game-dir>-<slug>` counts too), or touches a
+   `shared/<name>` the game depends on (`"<name>": "workspace:*"` in its
+   `package.json`), or touches `scaffold/`. Changes only to `docs/`,
+   `.claude/`, `AGENTS.md`, `Taskfile.yml`, `pnpm-lock.yaml` are ignored. A
+   busy game is skipped as a whole, not card by card: a second PR in the same
+   game collides on its spec and backlog even for a different card.
+3. Candidates = the games with `next=complete` in `task game:dashboard`
+   (`status_publish: done`, nothing pending), minus the busy ones, and
+   minus those with no `docs/backlog.md` or an empty one.
+4. Pick one candidate at random (`shuf -n1`), and take the **top card** of
+   its `docs/backlog.md` on `origin/main`. With no work in flight this is the
+   same rule applied to every complete game.
+5. Tell the user in one block: the game and card (タイトル, 種別, 規模), the
+   work in flight and which games it made busy, and the candidates left. The
+   choice is a proposal: if the user wants another card or game, take the
+   next one they name (or re-pick). Don't ask for approval here — the
+   questions of the next section confirm the card.
+
+If there is no candidate: say why (all complete games are busy, or have no
+backlog) and offer `game-backlog` for a game without a backlog, or
+`game-playtest` for an open PR waiting to be played. A busy game is touched
+only if the user insists, and then after the PR that makes it busy is merged.
 
 ## Process
 
-1. **Pin down one card with `game-extend`.** Invoke it with `PACKAGE`; follow
-   it as written (its steps 1–9: understand the game, pick exactly one, ask
-   one question at a time, classify, "must not change", size, spec place,
-   branch slug, `game-review STAGE=extend`). Several rounds of questions are
+1. **Pin down one card with `game-extend`.** Invoke it with `PACKAGE` and
+   tell it the card chosen above is the starting card (its step 2 then
+   confirms it instead of offering the whole backlog); follow it as written
+   (its steps 1–9: understand the game, pick exactly one, ask one question at
+   a time, classify, "must not change", size, spec place, branch slug,
+   `game-review STAGE=extend`). Several rounds of questions are
    expected here — this is where the user's attention is spent. Don't skip
    or shorten a question because autopilot follows; the autopilot can only
    be as good as this agreement.
