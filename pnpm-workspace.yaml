@@ -20,11 +20,11 @@ packages:
 
 catalog:
   phaser: '4.1.0'
-  vite: '^8.0.11'
+  vite: '^8.3.4'
   vitest: '^4.1.5'
   '@vitest/coverage-v8': '^4.1.5'
-  eslint: '^10.3.0'
+  eslint: '^10.13.0'
   typescript: '~6.0.3'
-  terser: '^5.47.1'
-  typescript-eslint: '^8.59.2'
+  terser: '^5.51.2'
+  typescript-eslint: '^8.71.2'
   '@eslint/js': '^10.0.1'
