@@ -19,7 +19,7 @@ packages:
   - 'shared/title-demo'
 
 catalog:
-  phaser: '4.1.0'
+  phaser: '4.2.1'
   vite: '^8.3.4'
   vitest: '^4.1.5'
   '@vitest/coverage-v8': '^4.1.5'

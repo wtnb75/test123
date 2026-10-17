@@ -16,8 +16,8 @@ catalogs:
       specifier: ^10.13.0
       version: 10.13.0
     phaser:
-      specifier: 4.1.0
-      version: 4.1.0
+      specifier: 4.2.1
+      version: 4.2.1
     terser:
       specifier: ^5.51.2
       version: 5.51.2
@@ -42,7 +42,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -76,7 +76,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -110,7 +110,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -141,7 +141,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -175,7 +175,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -206,7 +206,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -237,7 +237,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -271,7 +271,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -302,7 +302,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -333,7 +333,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -364,7 +364,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -395,7 +395,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -429,7 +429,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -460,7 +460,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -494,7 +494,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -549,7 +549,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -580,7 +580,7 @@ importers:
     dependencies:
       phaser:
         specifier: 'catalog:'
-        version: 4.1.0
+        version: 4.2.1
       terser:
         specifier: 'catalog:'
         version: 5.51.2
@@ -1291,8 +1291,8 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
-  phaser@4.1.0:
-    resolution: {integrity: sha512-ZXv5Bhyg2BqJGAAxNI2xvmzGXW9q+TwUG1RLri5ZDBYGGtcma6aWUO/eJ7EbozeqRd5fKdpo4ycNMQt+Bi5iYg==}
+  phaser@4.2.1:
+    resolution: {integrity: sha512-WUNwCPJpdjvZiuT6SgCfYVW8Qw/3j0jJ4ws7P2QkhFLFu74sbGuyHJcbFueGkY/AYO4Pi47bNQXn1OCJeLX//w==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -2145,7 +2145,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  phaser@4.1.0:
+  phaser@4.2.1:
     dependencies:
       eventemitter3: 5.0.4
 
