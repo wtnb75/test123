@@ -2,6 +2,7 @@
   "name": "editmin",
   "description": "minesweeper field editor",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

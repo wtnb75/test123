@@ -2,6 +2,7 @@
   "name": "fukuwarai",
   "description": "福笑い風のパーツ配置ゲーム。お題の元絵を見ながらパーツをドラッグで配置し、仕上がりが元絵とどれだけ似ているかでスコアをつける。",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

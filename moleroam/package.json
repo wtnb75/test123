@@ -2,6 +2,7 @@
   "name": "moleroam",
   "description": "A whack-a-mole game on a board larger than the screen: scroll around, find the moles, and avoid the ones you must not hit.",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

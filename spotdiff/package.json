@@ -2,6 +2,7 @@
   "name": "spotdiff",
   "description": "A spot-the-difference puzzle: find the differences between two randomly generated pictures before time runs out.",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"
