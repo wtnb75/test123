@@ -2,6 +2,7 @@
   "name": "__NAME__",
   "description": "A Phaser 4 TypeScript game using Vite.",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

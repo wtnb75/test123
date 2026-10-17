@@ -2,6 +2,7 @@
   "name": "title-demo",
   "description": "Game-independent flow of the auto-play demo shown behind a Title screen (phases, waits, fades) and the start gate.",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "repository": {
     "type": "git",

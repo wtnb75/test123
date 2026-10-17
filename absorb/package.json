@@ -2,6 +2,7 @@
   "name": "absorb",
   "description": "A shooter where you absorb enemy bullets instead of dodging them, then release them at the right moment to defeat the nearest enemies.",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"

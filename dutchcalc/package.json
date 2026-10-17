@@ -2,6 +2,7 @@
   "name": "dutchcalc",
   "description": "Dutch book allocation calculator, a Phaser 4 TypeScript tool using Vite.",
   "version": "0.1.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wtnb75/test123.git"
