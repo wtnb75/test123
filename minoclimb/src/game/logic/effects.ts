@@ -21,6 +21,16 @@ export const hintAlpha = (t: number): number => {
 };
 
 /**
+ * Brightness (0..1) of the blinking wall cell `t` seconds into the warning. The blink speeds up in a straight
+ * line from CRUMBLE_BLINK_HZ_START to CRUMBLE_BLINK_HZ_END over CRUMBLE_TIME; it is brightest at t = 0.
+ */
+export const crumbleBlink = (t: number): number => {
+    const { CRUMBLE_BLINK_HZ_START: start, CRUMBLE_BLINK_HZ_END: end, CRUMBLE_TIME: duration } = P;
+    const cycles = start * t + ((end - start) * t * t) / (2 * duration);
+    return (1 + Math.cos(2 * Math.PI * cycles)) / 2;
+};
+
+/**
  * Where field cells end up after the full rows `cleared` (ascending) are removed in the same frame:
  * cells in a cleared row are gone, the others move down one row per cleared row below them.
  */

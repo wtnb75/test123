@@ -1,6 +1,6 @@
 import { GameObjects, type Scene } from 'phaser';
 import { P, WIDTH, HEIGHT } from '../params';
-import { flashAlpha, hintAlpha } from '../logic/effects';
+import { crumbleBlink, flashAlpha, hintAlpha } from '../logic/effects';
 import type { StickView } from '../logic/input';
 import type { Round, RoundEvent } from '../logic/round';
 import { shapeCells, type Cell } from '../logic/pieces';
@@ -22,6 +22,7 @@ const HINT_FONT = { fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff'
 const HINT_MAX_ALPHA = 0.55;
 const LOCK_FLASH_MAX_ALPHA = 0.7;
 const CLEAR_FLASH_MAX_ALPHA = 0.8;
+const CRUMBLE_MAX_ALPHA = 0.85;
 
 interface Flash {
     /** Cells of a lock flash; empty for a clear flash. */
@@ -88,6 +89,7 @@ export class BoardView {
             }
         }
 
+        this.drawCrumble(round);
         this.drawFlashes();
         this.drawFlow(round, time);
 
@@ -116,6 +118,15 @@ export class BoardView {
             const f = this.flashes[i];
             if (f.t >= (f.row < 0 ? P.LOCK_FLASH_TIME : P.CLEAR_FLASH_TIME)) this.flashes.splice(i, 1);
         }
+    }
+
+    /** The wall cell that is about to crumble blinks, faster the closer it is to vanishing. */
+    private drawCrumble(round: Round): void {
+        const target = round.crumble.target;
+        if (target === null) return;
+        const C = P.CELL;
+        const a = CRUMBLE_MAX_ALPHA * crumbleBlink(target.t);
+        this.board.fillStyle(FLASH, a).fillRect(target.c * C + 1, target.r * C + 1, C - 2, C - 2);
     }
 
     private drawFlashes(): void {
