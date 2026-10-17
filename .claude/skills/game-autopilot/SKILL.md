@@ -24,11 +24,21 @@ The backlog on `origin/main` still lists a card while a PR that implements
 it is open, so picking from `main` alone repeats work already in flight and
 conflicts with it. Look at the work in flight first.
 
-1. `git fetch origin`. List the work in flight:
+1. `git fetch --prune origin` (without `--prune`, `origin/*` keeps branches that
+   were deleted after their merge: ~80 stale refs, none on the remote). List the
+   work in flight, from three places:
    - open PRs: `gh pr list --state open --json number,title,headRefName,files`
+   - branches checked out in other worktrees (work that is not pushed yet, so
+     neither a PR nor a remote branch shows it): `git worktree list --porcelain`.
+     Skip this session's own worktree and the one on `main`, and skip a branch
+     whose PR is merged or closed (`gh pr list --state all --head <branch>
+     --json state`; a merged branch can stay checked out). What it touches is
+     `git diff --name-only origin/main...<branch>` plus the uncommitted files
+     of that worktree (`git -C <path> status --porcelain`).
    - remote branches with no PR: `git branch -r --list 'origin/feat/*'
-     'origin/fix/*' 'origin/balance/*'`, minus the heads of those PRs (a
-     branch with nothing pushed beyond `origin/main` is ignored).
+     'origin/fix/*' 'origin/balance/*'` (after the prune only branches that
+     really exist remain), minus the heads of those PRs. Don't judge a branch
+     by its `ahead` count: a squash merge makes a merged branch look ahead.
 2. A game is **busy** if any of that work touches `<game-dir>/` (a branch
    name `<type>/<game-dir>-<slug>` counts too), or touches a
    `shared/<name>` the game depends on (`"<name>": "workspace:*"` in its
