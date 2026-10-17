@@ -55,7 +55,11 @@ Ask one question at a time.
    decide in any order (up to four) may go in one batch, each with a
    recommendation. A backlog card's 狙い,
    コアループへの効き方, 種別 and 規模 are the starting draft — confirm or
-   revise them rather than asking from scratch:
+   revise them rather than asking from scratch. Before the first question,
+   check the card's premise (what is "stuck", the numbers it cites) against
+   the current spec: a card written before a later spec change can be stale.
+   If it is, say so and restate the problem in plain text first; don't build
+   the choices on the old premise:
    - what is added, concretely;
    - why — what feels missing or dull in the current game (a concrete
      problem, not "more content");
@@ -102,7 +106,9 @@ Ask one question at a time.
    addition → edit `docs/spec.md` in place.
 8. **Propose a branch slug** for `feat/<game-dir>-<slug>` (short
    kebab-case). Check it doesn't collide with an existing local or remote
-   branch (`git branch -a --list '*<game-dir>-<slug>*'`).
+   branch: `git fetch --prune origin` first (otherwise `origin/*` keeps
+   branches deleted after their merge and reports a collision that is not
+   there), then `git branch -a --list '*<game-dir>-<slug>*'`.
 9. Run `game-review STAGE=extend PACKAGE=<game-dir>` (a self-review
    against its checklist) and fix what you can from what's already
    agreed; gaps that need the user's answer (e.g. the must-not-change

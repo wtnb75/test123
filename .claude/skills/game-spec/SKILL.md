@@ -249,7 +249,7 @@ before the downstream reset below overwrites it:
   branch named after the original feature is confusing history). Ask the
   user what kind of change this is and a short kebab-case slug describing
   it, and check out a fresh branch from `origin/main` before drafting
-  anything: `git fetch origin && git checkout -b <type>/<game-dir>-<slug> origin/main`
+  anything: `git fetch origin && git checkout --no-track -b <type>/<game-dir>-<slug> origin/main`
   (not `git checkout main`: in a worktree session `main` may be checked out
   elsewhere, and `origin/main` is the up-to-date base). Pick
   `<type>` from context if it's obvious (a bug found in `game-qa`/

@@ -36,7 +36,9 @@ never call `pnpm create @phaserjs/game@latest` directly.
      is on the current branch out of the game's branch. If the working tree
      has uncommitted changes, stop and confirm with the user first — they
      would be carried into the new branch.
-   - `git fetch origin && git checkout -b feat/<game-dir> origin/main`
+   - `git fetch origin && git checkout --no-track -b feat/<game-dir> origin/main`
+     (`--no-track`: otherwise the branch tracks `origin/main`, and a bare
+     `git push` would aim at `main`)
    - If `feat/<game-dir>` already exists, don't reuse or overwrite it
      silently — you don't know what state it's in (an abandoned earlier
      attempt, leftover from a rename, something else entirely). Find the

@@ -71,8 +71,8 @@ revision — see that skill) — **not** `main`. If you're on `main`, stop:
 something upstream skipped its branch step, and committing here would mix
 this game with whatever else is on `main`. Don't improvise a fix by
 hand-picking hunks; go back and create the branch that skill should have
-created, from `origin/main` (`git fetch origin && git checkout -b <branch>
-origin/main`), then return here.
+created, from `origin/main` (`git fetch origin && git checkout --no-track -b
+<branch> origin/main`), then return here.
 
 If the PR title/body has to change after it is open, use
 `gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F title=... -F body=@<file>`.
@@ -99,8 +99,8 @@ complete. Do it in this order:
    silently including or excluding it. The `status_publish: done` line in
    `docs/spec.md` belongs to the change.
 5. Commit the staged files with a message describing the change, push the
-   branch, and `gh pr create` with a title/body describing the change — for
-   a first publish, "add one game" with one line on what it is and a link
+   branch (`git push -u origin <branch>`), and `gh pr create` with a
+   title/body describing the change — for a first publish, "add one game" with one line on what it is and a link
    to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed
    and why.
 6. If the commit, the push or the PR fails (or the user stops you after
