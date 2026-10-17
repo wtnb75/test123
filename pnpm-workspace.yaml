@@ -21,8 +21,8 @@ packages:
 catalog:
   phaser: '4.2.1'
   vite: '^8.3.4'
-  vitest: '^4.1.5'
-  '@vitest/coverage-v8': '^4.1.5'
+  vitest: '^5.0.5'
+  '@vitest/coverage-v8': '^5.0.5'
   eslint: '^10.13.0'
   typescript: '~6.0.3'
   terser: '^5.51.2'
