@@ -1,6 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { P } from '../params';
-import { cellsAfterClear, flashAlpha, hintAlpha } from './effects';
+import { cellsAfterClear, crumbleBlink, flashAlpha, hintAlpha } from './effects';
+
+describe('crumbleBlink (CRUMBLE_TIME 2 s, 2 Hz rising to 8 Hz)', () => {
+    it('is brightest at the start of the warning', () => {
+        expect(crumbleBlink(0)).toBe(1);
+    });
+
+    it('is (1 + cos(0.75 pi)) / 2 at t = 0.5: 2 * 0.5 + 6 * 0.25 / 4 = 1.375 cycles, a fraction of 0.375', () => {
+        expect(crumbleBlink(0.5)).toBeCloseTo((1 - Math.SQRT1_2) / 2, 12);
+    });
+
+    it('is dark at t = 1 (3.5 cycles) and brightest again at t = 2 = CRUMBLE_TIME (10 cycles)', () => {
+        expect(crumbleBlink(1)).toBeCloseTo(0, 12);
+        expect(crumbleBlink(P.CRUMBLE_TIME)).toBeCloseTo(1, 12);
+    });
+
+    it('stays within 0..1', () => {
+        for (let i = 0; i <= 400; i++) {
+            const a = crumbleBlink((i / 400) * P.CRUMBLE_TIME);
+            expect(a).toBeGreaterThanOrEqual(0);
+            expect(a).toBeLessThanOrEqual(1);
+        }
+    });
+
+    it('blinks faster later: more bright peaks in the second half than in the first', () => {
+        const peaks = (from: number, to: number): number => {
+            let n = 0;
+            const steps = 4000;
+            for (let i = 1; i < steps; i++) {
+                const t = from + ((to - from) * i) / steps;
+                const dt = (to - from) / steps;
+                const [a, b, c] = [crumbleBlink(t - dt), crumbleBlink(t), crumbleBlink(t + dt)];
+                if (b > a && b >= c && b > 0.9) n++;
+            }
+            return n;
+        };
+        const first = peaks(0, 1);
+        const second = peaks(1, 2);
+        // The brightness peaks at whole cycle counts 2t + 1.5t^2 = 1, 2, 3 inside (0, 1) ...
+        expect(first).toBe(3);
+        // ... and at 4..9 inside (1, 2); the tenth is at t = 2 exactly, the edge of the interval.
+        expect(second).toBe(6);
+    });
+});
 
 describe('flashAlpha', () => {
     it('is fully visible at t = 0', () => {

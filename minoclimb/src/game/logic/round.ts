@@ -6,6 +6,7 @@ import { stepPiece } from './fall';
 import {
     createPlayer, heightOf, reachedGoal, shiftForClears, stepPlayer, type MoveInput, type Player,
 } from './player';
+import { Crumble } from './crumble';
 import { cellsAfterClear } from './effects';
 import { shapeCells, type Cell } from './pieces';
 
@@ -22,8 +23,15 @@ export type Flow =
     | { kind: 'telegraph'; plan: Plan; t: number }
     | { kind: 'drop'; piece: Piece; plan: Plan };
 
+export interface RoundOptions {
+    /** False turns the stuck-crumble off (a baseline for tests); the game always leaves it on. */
+    crumble?: boolean;
+}
+
 export class Round {
     readonly grid: Grid = createGrid();
+    /** The sealed-in timer and the blinking wall cell (docs/spec/stuck-crumble.md). */
+    readonly crumble = new Crumble();
     player: Player = createPlayer();
     flow: Flow = { kind: 'wait', timer: P.SPAWN_DELAY };
     status: RoundStatus = 'playing';
@@ -35,8 +43,11 @@ export class Round {
     /** The column kept open by the landing AI: the left or right edge, fixed for the round. */
     readonly wellCol: number;
 
-    constructor(private readonly rng: () => number) {
+    private readonly crumbleEnabled: boolean;
+
+    constructor(private readonly rng: () => number, options: RoundOptions = {}) {
         this.wellCol = rng() < 0.5 ? 0 : P.COLS - 1;
+        this.crumbleEnabled = options.crumble ?? true;
     }
 
     /** Hands the pending events to `handle`, oldest first, and forgets them. */
@@ -62,6 +73,7 @@ export class Round {
         if (this.status === 'playing' && reachedBeforeFlow) {
             this.status = 'cleared';
         }
+        if (this.status === 'playing' && this.crumbleEnabled) this.crumble.step(this.grid, this.player, dt);
         this.maxHeight = Math.max(this.maxHeight, this.height);
         // Nothing is shown for the frame that ends the round, so its events are not left for later readers.
         if (this.status !== 'playing') this.events.length = 0;
@@ -107,6 +119,7 @@ export class Round {
         this.events.push({ kind: 'locked', cells: cellsAfterClear(absolute, cleared) });
         if (cleared.length > 0) {
             this.events.push({ kind: 'cleared', rows: cleared });
+            this.crumble.followClears(cleared);
             this.player = shiftForClears(this.grid, this.player, cleared);
         }
     }
