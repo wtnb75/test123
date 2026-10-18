@@ -3,19 +3,23 @@ import { DemoDirector } from 'title-demo';
 import {
     CELL_FILL, CELL_FONT_FAMILY, CELL_LABEL_COLOR, CELL_STROKE, CELL_STROKE_WIDTH, cellLabelSize, COLORS
 } from '../logic/boardStyle';
-import { createRng } from '../logic/primes';
+import { dailyDateKey, digitLabel, getDailyStorage, loadDailyResults } from '../logic/daily';
+import { createRng, getSharedPrimeMap } from '../logic/primes';
 import { digitFromKey, modeFromData } from '../logic/selectLayout';
 import {
     createDemoGame, DEMO_ATTEMPTS, DEMO_DIGITS, DEMO_OPTIONS, isJudged, typedDigits,
     type DemoDetail, type DemoState
 } from '../logic/titleDemo';
-import { computeTitleLayout, TITLE_NAME_FONT, type DemoLayout } from '../logic/titleLayout';
-import type { DigitOption, GameMode, GameStartData, TitleData } from '../types';
+import { computeTitleLayout, MODE_LABEL_FONT, TITLE_NAME_FONT, type DemoLayout } from '../logic/titleLayout';
+import type { DigitOption, GameStartData, TitleData, TitleMode } from '../types';
 import {
-    BACKGROUND_COLOR, BUTTON_STROKE, createButton, createHomeIcon, createText, detectLocale, translate, type Locale
+    BACKGROUND_COLOR, BUTTON_STROKE, createButton, createHomeIcon, createText, detectLocale, translate, type Locale,
+    type TextKey
 } from './ui';
 
-const MODE_STROKE: Record<GameMode, number> = { normal: 0x38bdf8, hard: 0xf59e0b };
+const MODES: readonly TitleMode[] = ['normal', 'hard', 'daily'];
+const MODE_STROKE: Record<TitleMode, number> = { normal: 0x38bdf8, hard: 0xf59e0b, daily: 0x34d399 };
+const MODE_LABEL: Record<TitleMode, TextKey> = { normal: 'normalMode', hard: 'hardMode', daily: 'dailyMode' };
 const NAME_COLOR = '#f9fafb';
 
 interface DemoCell {
@@ -26,7 +30,7 @@ interface DemoCell {
 }
 
 export class Title extends Scene {
-    private mode: GameMode = 'normal';
+    private mode: TitleMode = 'normal';
     private locale: Locale = 'ja';
     private uiObjects: GameObjects.GameObject[] = [];
     private director: DemoDirector<DemoState, string, DemoDetail> | null = null;
@@ -36,9 +40,15 @@ export class Title extends Scene {
     private demoObjects: GameObjects.GameObject[] = [];
     private demoCells: DemoCell[][] = [];
     private demoAlpha = 1;
-    private modeBoxes: Partial<Record<GameMode, GameObjects.Rectangle>> = {};
+    private modeBoxes: Partial<Record<TitleMode, GameObjects.Rectangle>> = {};
+    private digitTexts = new Map<DigitOption, GameObjects.Text>();
     private starting = false;
     private readonly onKeyDown = (event: KeyboardEvent): void => {
+        // A key held down from the previous screen (e.g. dismissing a daily result) must not start a game here.
+        if (event.repeat) {
+            return;
+        }
+
         const digit = digitFromKey(event.key);
 
         if (digit !== null) {
@@ -126,24 +136,26 @@ export class Title extends Scene {
 
         createText(this, layout.name.x, layout.name.y, 'digdle', TITLE_NAME_FONT, NAME_COLOR, 0.5, this.uiObjects);
 
-        const { normal, hard } = layout.modeButtons;
-        const normalButton = createButton(
-            this, normal.x, normal.y, normal.width, normal.height, translate(this.locale, 'normalMode'),
-            () => this.setMode('normal'), this.uiObjects
-        );
-        const hardButton = createButton(
-            this, hard.x, hard.y, hard.width, hard.height, translate(this.locale, 'hardMode'),
-            () => this.setMode('hard'), this.uiObjects
-        );
-        this.modeBoxes = { normal: normalButton.box, hard: hardButton.box };
+        this.modeBoxes = {};
+        for (const mode of MODES) {
+            const { x, y, width: w, height: h } = layout.modeButtons[mode];
+            const button = createButton(
+                this, x, y, w, h, translate(this.locale, MODE_LABEL[mode]),
+                () => this.setMode(mode), this.uiObjects, MODE_LABEL_FONT
+            );
+            this.modeBoxes[mode] = button.box;
+        }
         this.highlightMode();
 
+        this.digitTexts.clear();
         for (const { digit, rect } of layout.digitButtons) {
-            createButton(
+            const button = createButton(
                 this, rect.x, rect.y, rect.width, rect.height, String(digit),
                 () => this.startGame(digit), this.uiObjects
             );
+            this.digitTexts.set(digit, button.text);
         }
+        this.refreshDigitLabels();
 
         this.buildDemo(layout.demo);
         this.renderDemo();
@@ -225,9 +237,21 @@ export class Title extends Scene {
         this.demoAlpha = alpha;
     }
 
-    private setMode(mode: GameMode): void {
+    private setMode(mode: TitleMode): void {
         this.mode = mode;
         this.highlightMode();
+        this.refreshDigitLabels();
+    }
+
+    /** In the daily mode a finished digit count shows `✓` (cleared) or `✗` (failed); other modes show plain digits. */
+    private refreshDigitLabels(): void {
+        const results = this.mode === 'daily'
+            ? loadDailyResults(getDailyStorage(), getSharedPrimeMap(), dailyDateKey(new Date()))
+            : {};
+
+        for (const [digit, text] of this.digitTexts) {
+            text.setText(digitLabel(digit, results[digit]));
+        }
     }
 
     private highlightMode(): void {
@@ -237,7 +261,7 @@ export class Title extends Scene {
             qa.__qa = { ...qa.__qa, scene: 'Title', mode: this.mode };
         }
 
-        for (const mode of ['normal', 'hard'] as const) {
+        for (const mode of MODES) {
             const selected = this.mode === mode;
 
             this.modeBoxes[mode]?.setStrokeStyle(selected ? 3 : 2, selected ? MODE_STROKE[mode] : BUTTON_STROKE);

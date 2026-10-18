@@ -2,13 +2,17 @@ import { Scene, type GameObjects, type Time } from 'phaser';
 import {
     CELL_FILL, CELL_FONT_FAMILY, CELL_LABEL_COLOR, CELL_STROKE, CELL_STROKE_WIDTH, cellLabelSize, COLORS
 } from '../logic/boardStyle';
+import { dailyDateKey, dropsDailyResultRepeat, getDailyStorage, loadDailyRound } from '../logic/daily';
 import { applyGuess, createGame } from '../logic/game';
 import {
     computeGameLayout, computeToastPlacement, pickToastFontSize, TOAST_FONT_SIZE, TOAST_PADDING_Y, toastBoxWidth,
     type LayoutMetrics
 } from '../logic/gameLayout';
+import { getSharedPrimeMap } from '../logic/primes';
 import { isDigitOption, modeFromData } from '../logic/selectLayout';
-import type { DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData } from '../types';
+import type {
+    DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData, TitleMode
+} from '../types';
 import {
     BACKGROUND_COLOR, createButton, createHomeIcon, createReselectIcon, createText, detectLocale, translate,
     type Locale, type TextKey
@@ -29,9 +33,11 @@ const KEY_PRIORITY: Record<DigitStatus, number> = {
 
 export class Game extends Scene {
     private phase: UiPhase = 'playing';
-    private gameApi = createGame();
+    private gameApi = createGame({ primeMap: getSharedPrimeMap() });
     private round: RoundState | null = null;
-    private selectedMode: GameMode = 'normal';
+    private selectedMode: TitleMode = 'normal';
+    /** Set for a daily round: the date it was started on (fixed for the round) and its digit count. */
+    private daily: { dateKey: string; digits: DigitOption } | null = null;
     private currentGuess = '';
     private uiObjects: GameObjects.GameObject[] = [];
     private endUiObjects: GameObjects.GameObject[] = [];
@@ -61,6 +67,7 @@ export class Game extends Scene {
         this.startDigits = isDigitOption(data?.digits) ? data.digits : null;
         this.phase = 'playing';
         this.round = null;
+        this.daily = null;
         this.currentGuess = '';
         this.uiObjects = [];
         this.endUiObjects = [];
@@ -93,12 +100,21 @@ export class Game extends Scene {
             this.scale.off('resize', this.onResize);
         });
 
-        this.startRound(this.startDigits);
+        if (this.selectedMode === 'daily') {
+            this.startDailyRound(this.startDigits);
+        } else {
+            this.startRound(this.startDigits);
+        }
     }
 
     /** Ignores the key press that started this Scene, so it is not typed into the board. */
     private readonly onKeyDown = (event: KeyboardEvent): void => {
         if (event.timeStamp < this.startedAt) {
+            return;
+        }
+
+        // A held key must not skip a daily result (it is the last screen and there is no next round).
+        if (dropsDailyResultRepeat(event.repeat, this.daily !== null, this.phase)) {
             return;
         }
 
@@ -144,7 +160,10 @@ export class Game extends Scene {
         this.clearEndUi();
         this.buildPlayUi();
         this.refreshUi();
+        this.showEndUiForPhase();
+    }
 
+    private showEndUiForPhase(): void {
         if (this.phase === 'won') {
             this.showEndUi(this.t('clear'));
         } else if (this.phase === 'lost') {
@@ -153,7 +172,9 @@ export class Game extends Scene {
     }
 
     private startRound(digits: number, previousAnswer?: string): void {
-        this.round = this.gameApi.createRound(digits, this.selectedMode, previousAnswer);
+        const mode: GameMode = this.selectedMode === 'hard' ? 'hard' : 'normal';
+
+        this.round = this.gameApi.createRound(digits, mode, previousAnswer);
         this.phase = 'playing';
         this.currentGuess = '';
         this.keyStatus.clear();
@@ -164,7 +185,33 @@ export class Game extends Scene {
         this.refreshUi();
     }
 
+    /** Today's round for `digits`, with the guesses saved earlier played back (a finished round opens as a result). */
+    private startDailyRound(digits: DigitOption): void {
+        const dateKey = dailyDateKey(new Date());
+
+        this.daily = { dateKey, digits };
+        this.round = loadDailyRound(getDailyStorage(), getSharedPrimeMap(), dateKey, digits);
+        this.phase = this.round.status;
+        this.currentGuess = '';
+        this.keyStatus.clear();
+        for (const { guess, colors } of this.round.history) {
+            this.updateKeyStatus(guess, colors);
+        }
+
+        this.cleanupMainUi();
+        this.clearEndUi();
+        this.buildPlayUi();
+        this.refreshUi();
+        this.showEndUiForPhase();
+    }
+
     private beginNextRoundFromTrigger(): void {
+        if (this.daily !== null) {
+            // The daily is once a day: after the result the only way on is the Title.
+            this.goToTitle();
+            return;
+        }
+
         if (!this.round) {
             this.goToTitle();
             return;
@@ -368,6 +415,8 @@ export class Game extends Scene {
                 }
             }
         }
+
+        this.paintKeys();
     }
 
     private handleToken(token: string): void {
@@ -419,6 +468,9 @@ export class Game extends Scene {
 
         this.round = result.round;
         this.currentGuess = '';
+        if (this.daily !== null) {
+            getDailyStorage().saveGuesses(this.daily.dateKey, this.daily.digits, this.round.history.map((entry) => entry.guess));
+        }
         if (result.colors) {
             this.updateKeyStatus(result.round.history[result.round.history.length - 1].guess, result.colors);
         }
@@ -525,6 +577,11 @@ export class Game extends Scene {
             }
         }
 
+        this.paintKeys();
+    }
+
+    /** Colours the on-screen keys with what the guesses so far have shown. */
+    private paintKeys(): void {
         for (const [digit, status] of this.keyStatus.entries()) {
             const box = this.keyBoxes.get(digit);
             if (box) {
@@ -545,6 +602,7 @@ export class Game extends Scene {
                 phase: this.phase,
                 digits: this.round.n,
                 mode: this.round.mode,
+                daily: this.daily !== null,
                 attemptsUsed: this.round.attemptsUsed,
                 attemptLimit: this.round.attemptLimit
             };

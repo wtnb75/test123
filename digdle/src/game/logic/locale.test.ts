@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { detectLocale, translate, type TextKey } from './locale';
 
-const KEYS: TextKey[] = ['clear', 'gameOver', 'reselectDigits', 'checkInput', 'normalMode', 'hardMode'];
+const KEYS: TextKey[] = ['clear', 'gameOver', 'reselectDigits', 'checkInput', 'normalMode', 'hardMode', 'dailyMode'];
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -32,8 +32,10 @@ describe('detectLocale', () => {
 
 describe('translate', () => {
     it('Title の文言（モード）は日本語と英語で表のとおり', () => {
-        expect([translate('ja', 'normalMode'), translate('ja', 'hardMode')]).toEqual(['ノーマル', 'ハード']);
-        expect([translate('en', 'normalMode'), translate('en', 'hardMode')]).toEqual(['Normal', 'Hard']);
+        expect([translate('ja', 'normalMode'), translate('ja', 'hardMode'), translate('ja', 'dailyMode')])
+            .toEqual(['ノーマル', 'ハード', 'デイリー']);
+        expect([translate('en', 'normalMode'), translate('en', 'hardMode'), translate('en', 'dailyMode')])
+            .toEqual(['Normal', 'Hard', 'Daily']);
     });
 
     it('結果表示の Clear / GameOver は言語によらず同じ', () => {

@@ -1,4 +1,4 @@
-import type { DigitOption, GameMode } from '../types';
+import type { DigitOption, TitleMode } from '../types';
 
 /** The digit counts a player can pick on the Title. */
 export const DIGIT_OPTIONS: readonly DigitOption[] = [2, 3, 4, 5, 6];
@@ -10,8 +10,9 @@ export interface Rect {
     height: number;
 }
 
-/** The mode carried by Scene data; anything but `hard` (including no data at all) means `normal`. */
-export const modeFromData = (data?: { mode?: unknown }): GameMode => (data?.mode === 'hard' ? 'hard' : 'normal');
+/** The mode carried by Scene data; anything but `hard` or `daily` (including no data at all) means `normal`. */
+export const modeFromData = (data?: { mode?: unknown }): TitleMode =>
+    (data?.mode === 'hard' || data?.mode === 'daily' ? data.mode : 'normal');
 
 /** Whether `value` is one of the selectable digit counts. */
 export const isDigitOption = (value: unknown): value is DigitOption =>

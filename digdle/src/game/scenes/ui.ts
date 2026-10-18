@@ -37,14 +37,15 @@ export const createButton = (
     height: number,
     label: string,
     onClick: () => void,
-    store: GameObjects.GameObject[]
+    store: GameObjects.GameObject[],
+    fontSize = BUTTON_LABEL_SIZE
 ): { box: GameObjects.Rectangle; text: GameObjects.Text } => {
     const box = scene.add.rectangle(x, y, width, height, BUTTON_FILL)
         .setOrigin(0, 0)
         .setStrokeStyle(2, BUTTON_STROKE);
     const text = scene.add.text(x + width / 2, y + height / 2, label, {
         fontFamily: 'sans-serif',
-        fontSize: BUTTON_LABEL_SIZE,
+        fontSize,
         color: LIGHT_TEXT
     }).setOrigin(0.5);
 
