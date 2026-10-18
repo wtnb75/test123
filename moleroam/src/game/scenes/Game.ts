@@ -3,13 +3,14 @@ import { PARAMS } from '../params';
 import { arrowFor, arrowPulse, type View } from '../logic/arrow';
 import { holeCenter, startScroll, type Pt } from '../logic/board';
 import { LANDSCAPE, type Layout } from '../logic/layout';
-import { applyStrike, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
+import { changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { PointerTracker } from '../logic/pointers';
 import { combineScrollIn, edgeDelta, keyDelta } from '../logic/scroll';
 import { firstSpawnAt, rollDecoys, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
-import { createCatVeil, playCatHit, playMiss, playMoleHit } from './fx';
+import { resolveStrike } from '../logic/streak';
+import { createCatVeil, playCatHit, playMiss, playMoleHit, playStreakAnnounce } from './fx';
 import { DEPTH, UI_FONT, applyLayout, fadeInScene } from './ui';
 
 const HUD_STYLE = { fontFamily: UI_FONT, fontSize: '30px', color: '#ffffff', stroke: '#000000', strokeThickness: 4 };
@@ -23,6 +24,8 @@ export class Game extends Scene {
     private endingElapsedMs = 0;
     private nextSpawn = 0;
     private score = 0;
+    /** Consecutive mole hits (docs/spec.md "連続"); a miss or a cat hit starts it over. */
+    private streak = 0;
     protected live: PopView[] = [];
     private arrows: GameObjects.Triangle[] = [];
     private scoreText!: GameObjects.Text;
@@ -55,6 +58,7 @@ export class Game extends Scene {
         this.endingElapsedMs = 0;
         this.nextSpawn = firstSpawnAt();
         this.score = 0;
+        this.streak = 0;
         this.live = [];
         this.arrows = [];
         this.pointers.clear();
@@ -83,6 +87,7 @@ export class Game extends Scene {
                 get: () => ({
                     phase: this.phase,
                     score: this.score,
+                    streak: this.streak,
                     remainingMs: remainingMs(this.elapsedMs),
                     layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
                     camera: { w: cam.width, h: cam.height },
@@ -261,15 +266,25 @@ export class Game extends Scene {
         const at = { x: cam.scrollX + sx, y: cam.scrollY + sy };
         const hit = judgeStrike(at, this.live.map((v) => v.pop), this.elapsedMs, this.layout);
         const view = this.live.find((v) => v.pop === hit);
+        const result = resolveStrike(this.score, this.streak, hit && view ? hit.kind : 'miss');
+        this.score = result.score;
+        this.streak = result.streak;
         if (!hit || !view) {
             playMiss(this, at.x, at.y, this.layout);
             return;
         }
-        const { score, applied } = applyStrike(this.score, hit.kind);
-        this.score = score;
         this.live = this.live.filter((v) => v !== view);
-        if (hit.kind === 'mole') playMoleHit(this, view, changeLabel(applied), this.layout);
-        else playCatHit(this, view, changeLabel(applied), this.veil, this.layout);
+        if (hit.kind === 'mole') {
+            playMoleHit(this, view, changeLabel(result.applied), this.layout);
+            if (result.announce !== null) this.announceStreak(result.announce);
+        } else {
+            playCatHit(this, view, changeLabel(result.applied), this.veil, this.layout);
+        }
+    }
+
+    /** The streak multiplier went up. The Title's demo (a subclass) keeps this silent. */
+    protected announceStreak(multiplier: number): void {
+        playStreakAnnounce(this, this.layout, multiplier);
     }
 
     private updatePops() {

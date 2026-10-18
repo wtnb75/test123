@@ -33,6 +33,13 @@ export const PARAMS = {
     hitRadius: 70,
     scoreMole: 10,
     scoreFriend: -20,
+    // streak multiplier (docs/spec.md "連続"): +1x every `streakStep` consecutive mole hits, up to the max
+    streakStep: 5,
+    streakMaxMultiplier: 3,
+    streakTextSize: 56,
+    streakTextOffsetY: 120,
+    streakTextRisePx: 40,
+    streakTextMs: 600,
     scrollSpeed: 700,
     dragThresholdPx: 10,
     maxTouchPointers: 2,

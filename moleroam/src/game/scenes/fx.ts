@@ -104,6 +104,29 @@ export const playCatHit = (
     });
 };
 
+/** The streak multiplier went up: "×N!" above the screen center, fixed to the screen, rising and fading. */
+export const playStreakAnnounce = (scene: Scene, layout: Layout, multiplier: number): void => {
+    const y = layout.viewH / 2 - PARAMS.streakTextOffsetY;
+    const t = scene.add
+        .text(layout.viewW / 2, y, `×${multiplier}!`, {
+            fontFamily: UI_FONT,
+            fontSize: `${PARAMS.streakTextSize}px`,
+            color: '#ffee58',
+            stroke: '#000000',
+            strokeThickness: 6,
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.streak);
+    scene.tweens.add({
+        targets: t,
+        y: y - PARAMS.streakTextRisePx,
+        alpha: 0,
+        duration: PARAMS.streakTextMs,
+        onComplete: () => t.destroy(),
+    });
+};
+
 /** A whiff (also a tap on a telegraphing hole): a white ring and a small "miss" where the player tapped. */
 export const playMiss = (scene: Scene, x: number, y: number, layout: Layout): void => {
     const ring = scene.add.circle(x, y, 20).setStrokeStyle(4, 0xffffff).setDepth(DEPTH.fx);

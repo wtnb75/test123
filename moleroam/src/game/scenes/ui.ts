@@ -5,7 +5,7 @@ import { pickLayout, type Layout } from '../logic/layout';
 export const UI_FONT = 'sans-serif';
 
 /** Draw order, back to front (see docs/spec.md "描画順"). */
-export const DEPTH = { dust: 10, body: 20, fx: 50, text: 60, arrow: 90, overlay: 95, hud: 100 } as const;
+export const DEPTH = { dust: 10, body: 20, fx: 50, text: 60, arrow: 90, streak: 92, overlay: 95, hud: 100 } as const;
 
 /** A new Scene fades in from black; input is never held back by it. */
 export const fadeInScene = (scene: Scene): void => {

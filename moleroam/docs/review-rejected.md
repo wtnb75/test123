@@ -48,4 +48,5 @@
 - `src/game/scenes/Game.ts` createArrows: 矢印プールの個数（`maxActiveLate`）を Scene の単体テストで固定していない — 理由: Scene の接着部分でブラウザ QA の範囲。定数の整合（`maxActiveLate` が全段階の上限以上）は `ramp.test.ts` で固定している
 - `src/game/logic/demoBot.play.test.ts`: 走りの性質テストが 40 秒までで、終盤の段階に届かない — 理由: 仕様どおり。デモは `DEMO_RUN_SECONDS`（40 秒）で作り直され、終盤は幕が閉じる約 0.5 秒だけ。上限 6 は矢印プールが賄う
 - `src/game/logic/spawn.ts` stepSpawn: 同じ `elapsedMs` で `rampPhase` を 2 回呼ぶ — 理由: 同じ式で同じ値が出る。`nextSpawnAt` は既存のテストが使う API で、保守性だけの指摘
+- `src/game/scenes/fx.ts` playStreakAnnounce: 予告の文字を参照として持たず、シーン終了時に明示的に破棄していない — 理由: 浮かぶ文字（`floatText`）と同じ作りで、Scene の終了とともに Phaser が表示物と tween を破棄する。リスタート直後の挙動はブラウザ QA で確認する
 - `src/game/logic/spawn.ts` planSpawn: 上限の引数の既定値が前半の値 — 理由: 既存のテスト（`layout.test.ts`、`decoy.test.ts` など）が既定値に依存し、書き換えない方針。本番の経路 `stepSpawn` は段階の上限を渡すことをテストで固定している
