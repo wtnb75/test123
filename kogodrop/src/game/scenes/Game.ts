@@ -8,6 +8,12 @@ import {
     isCorrect,
     createQuestionSequence,
 } from '../logic/kogodrop';
+import {
+    buildRetryPool,
+    createRetrySequence,
+    recordAnswer,
+    type RetryGameData,
+} from '../logic/retry';
 import { kogoList } from '../data/kogoList';
 
 const FALL_SPEED = 400;
@@ -72,6 +78,8 @@ function slotFontSize(text: string): string {
 
 export class Game extends Scene {
     private config!: GameConfig;
+    private isRetry = false;
+    private totalQuestions = 0;
     private questions: KogoEntry[] = [];
     private currentIndex = 0;
     private slots: KogoEntry[] = [];
@@ -118,15 +126,22 @@ export class Game extends Scene {
         super('Game');
     }
 
-    init(data: GameConfig) {
-        this.config = data;
+    init(data: RetryGameData) {
+        const { retryEntries, ...config } = data;
+        this.config = config;
+        const retry = retryEntries?.length ? retryEntries : undefined;
+        this.isRetry = retry !== undefined;
         const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
         this.pool = getPool(kogoList, this.config.difficulty, ignoreVerified);
+        if (retry) this.pool = buildRetryPool(this.pool, retry);
         this.adaptiveTier = 0;
         this.adaptiveSlotCount = SLOT_COUNT;
         this.adaptivePool = [...this.pool];
         this.lastTierChangeIndex = 0;
-        this.questions = createQuestionSequence(this.pool, this.config.questionCount);
+        this.questions = retry
+            ? createRetrySequence(retry)
+            : createQuestionSequence(this.pool, this.config.questionCount);
+        this.totalQuestions = this.questions.length;
         this.correctCount = 0;
         this.comboCount = 0;
         this.wrongEntries = [];
@@ -175,7 +190,7 @@ export class Game extends Scene {
 
         // Segmented gauge: one rect per question
         this.questionSegments = [];
-        const segCount = this.config.questionCount;
+        const segCount = this.totalQuestions;
         const segH = 10;
         const segY = 6;
         const segStartX = 8;
@@ -470,7 +485,7 @@ export class Game extends Scene {
 
     private updateGauge() {
         const answered = this.results.length;
-        this.progressText.setText(`${answered} / ${this.config.questionCount}`);
+        this.progressText.setText(`${answered} / ${this.totalQuestions}`);
         for (let i = 0; i < this.questionSegments.length; i++) {
             let color: number;
             if (i < answered) {
@@ -507,25 +522,25 @@ export class Game extends Scene {
         const selected = this.slots[slotIndex];
         const correct = isCorrect(entry, selected, this.config.langMode.slot);
 
+        const record = recordAnswer(
+            { wrongEntries: this.wrongEntries, correctEntries: this.correctEntries },
+            entry,
+            correct,
+        );
+        this.wrongEntries = record.wrongEntries;
+        this.correctEntries = record.correctEntries;
         if (correct) {
             this.correctCount++;
             this.comboCount++;
-            this.correctEntries.push(entry);
             this.masteredIds.add(entry.id);
-            // A word that has been answered correctly should only show in the
-            // "correct" review list, even if it was missed on an earlier attempt.
-            this.wrongEntries = this.wrongEntries.filter((e) => e.id !== entry.id);
-        } else if (!this.correctEntries.some((e) => e.id === entry.id)) {
-            this.wrongEntries.push(entry);
-            this.comboCount = 0;
         } else {
             this.comboCount = 0;
         }
         this.results.push(correct);
         this.evaluateAdaptive();
 
-        if (correct) {
-            const remaining = this.config.questionCount - this.currentIndex - 1;
+        if (correct && !this.isRetry) {
+            const remaining = this.totalQuestions - this.currentIndex - 1;
             if (remaining > 0) {
                 const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
                 this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
@@ -557,13 +572,14 @@ export class Game extends Scene {
             this.flashComboTxt.setVisible(false);
             overlays.forEach((o) => o.destroy());
 
-            if (this.currentIndex >= this.config.questionCount) {
+            if (this.currentIndex >= this.totalQuestions) {
                 this.scene.start('Result', {
                     correctCount: this.correctCount,
-                    totalCount: this.config.questionCount,
+                    totalCount: this.totalQuestions,
                     wrongEntries: this.wrongEntries,
                     correctEntries: this.correctEntries,
                     config: this.config,
+                    isRetry: this.isRetry,
                 });
             } else {
                 this.startNewTile();
@@ -695,6 +711,7 @@ export class Game extends Scene {
     }
 
     private evaluateAdaptive() {
+        if (this.isRetry) return;
         if (this.results.length < ADAPTIVE_EVAL_WINDOW) return;
         if (this.results.length < this.lastTierChangeIndex + ADAPTIVE_EVAL_WINDOW) return;
         const recent = this.results.slice(-ADAPTIVE_EVAL_WINDOW);
@@ -723,7 +740,7 @@ export class Game extends Scene {
         const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
         this.adaptivePool = getPool(kogoList, poolDiff, ignoreVerified);
 
-        const remaining = this.config.questionCount - this.currentIndex - 1;
+        const remaining = this.totalQuestions - this.currentIndex - 1;
         if (remaining > 0) {
             const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
             this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];

@@ -2,17 +2,20 @@ import { Scene } from 'phaser';
 import type { GameConfig, Highlight, KogoEntry } from '../logic/types';
 import { findExampleSentences } from '../logic/kogodrop';
 import { exampleSentences } from '../data/exampleSentences';
+import { isReviewCompact, reviewRetryLabel, uniqueEntries, type RetryGameData } from '../logic/retry';
 
 interface ReviewData {
     wrongEntries?: KogoEntry[];
     correctEntries?: KogoEntry[];
     config?: GameConfig;
+    isRetry?: boolean;
 }
 
 export class Review extends Scene {
     private wrongEntries: KogoEntry[] = [];
     private correctEntries: KogoEntry[] = [];
     private config!: GameConfig;
+    private isRetry = false;
     private overlayEl: HTMLElement | null = null;
 
     constructor() {
@@ -23,6 +26,7 @@ export class Review extends Scene {
         this.wrongEntries = data.wrongEntries ?? [];
         this.correctEntries = data.correctEntries ?? [];
         this.config = data.config ?? { langMode: { tile: 'kogo', slot: 'jp' }, difficulty: 'normal', questionCount: 20 };
+        this.isRetry = data.isRetry ?? false;
     }
 
     create() {
@@ -49,6 +53,7 @@ export class Review extends Scene {
             `display:flex`,
             `flex-direction:column`,
             `box-sizing:border-box`,
+            `overflow-y:auto`,
         ].join(';');
 
         const title = document.createElement('div');
@@ -93,22 +98,39 @@ export class Review extends Scene {
         }
 
         const list = document.createElement('div');
-        list.style.cssText = 'flex:1;overflow-y:auto;padding:12px 16px;';
+        list.style.cssText = 'flex:1;min-height:100px;overflow-y:auto;padding:12px 16px;';
         this.renderList(list, false);
         overlay.appendChild(list);
 
+        const missedEntries = uniqueEntries(this.wrongEntries);
+        const compact = isReviewCompact(rect.height);
+        const retryRoundBtn = missedEntries.length > 0 ? this.buildRetryRoundButton(missedEntries, compact) : null;
+
+        if (retryRoundBtn && !compact) {
+            const retryRow = document.createElement('div');
+            retryRow.style.cssText = 'display:flex;padding:8px 16px 0;flex-shrink:0;';
+            retryRow.appendChild(retryRoundBtn);
+            overlay.appendChild(retryRow);
+        }
+
         const btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;padding:12px 16px;flex-shrink:0;';
+        btnRow.style.cssText = compact
+            ? 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:4px;flex-shrink:0;'
+            : 'display:flex;gap:12px;justify-content:center;padding:12px 16px;flex-shrink:0;';
+        if (retryRoundBtn && compact) btnRow.appendChild(retryRoundBtn);
+
+        const bottomPadding = compact ? 'padding:6px 10px' : 'padding:12px 20px';
+        const bottomFontSize = compact ? '13px' : '18px';
 
         const retryBtn = document.createElement('button');
-        retryBtn.textContent = 'もう一度';
+        retryBtn.textContent = this.isRetry ? '最初から' : 'もう一度';
         retryBtn.style.cssText = [
-            'padding:12px 28px',
+            `${bottomPadding};white-space:nowrap`,
             'background:#8ac926',
             'color:#14213d',
             'border:none',
             'border-radius:4px',
-            'font-size:18px',
+            `font-size:${bottomFontSize}`,
             'font-weight:bold',
             'cursor:pointer',
         ].join(';');
@@ -120,12 +142,12 @@ export class Review extends Scene {
         const titleBtn = document.createElement('button');
         titleBtn.textContent = 'タイトルへ';
         titleBtn.style.cssText = [
-            'padding:12px 28px',
+            `${bottomPadding};white-space:nowrap`,
             'background:#415a77',
             'color:#f1faee',
             'border:none',
             'border-radius:4px',
-            'font-size:18px',
+            `font-size:${bottomFontSize}`,
             'cursor:pointer',
         ].join(';');
         titleBtn.addEventListener('click', () => {
@@ -139,6 +161,27 @@ export class Review extends Scene {
 
         document.body.appendChild(overlay);
         this.overlayEl = overlay;
+    }
+
+    private buildRetryRoundButton(missedEntries: KogoEntry[], compact: boolean): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.textContent = reviewRetryLabel(missedEntries.length);
+        btn.style.cssText = [
+            compact ? 'padding:6px 10px' : 'flex:1;padding:14px 16px;min-height:44px',
+            'background:#ffd166',
+            'color:#14213d',
+            'border:none',
+            'border-radius:4px',
+            `font-size:${compact ? '13px' : '16px'}`,
+            'font-weight:bold',
+            'cursor:pointer',
+        ].join(';');
+        btn.addEventListener('click', () => {
+            this.destroyOverlay();
+            const data: RetryGameData = { ...this.config, retryEntries: missedEntries };
+            this.scene.start('Game', data);
+        });
+        return btn;
     }
 
     private renderList(list: HTMLElement, showCorrect: boolean) {

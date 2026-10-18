@@ -1,5 +1,13 @@
 import { Scene } from 'phaser';
 import type { GameConfig, KogoEntry } from '../logic/types';
+import {
+    RESULT_REVIEW_BUTTON_Y,
+    RESULT_WIDE_BUTTON_WIDTH_RATIO,
+    resultLayout,
+    resultTexts,
+    uniqueEntries,
+    type RetryGameData,
+} from '../logic/retry';
 
 interface ResultData {
     correctCount?: number;
@@ -7,6 +15,7 @@ interface ResultData {
     wrongEntries?: KogoEntry[];
     correctEntries?: KogoEntry[];
     config?: GameConfig;
+    isRetry?: boolean;
 }
 
 export class Result extends Scene {
@@ -15,6 +24,7 @@ export class Result extends Scene {
     private wrongEntries: KogoEntry[] = [];
     private correctEntries: KogoEntry[] = [];
     private config!: GameConfig;
+    private isRetry = false;
 
     constructor() {
         super('Result');
@@ -26,13 +36,18 @@ export class Result extends Scene {
         this.wrongEntries = data.wrongEntries ?? [];
         this.correctEntries = data.correctEntries ?? [];
         this.config = data.config ?? { langMode: { tile: 'kogo', slot: 'jp' }, difficulty: 'normal', questionCount: 20 };
+        this.isRetry = data.isRetry ?? false;
     }
 
     create() {
         const { width, height } = this.cameras.main;
         this.cameras.main.setBackgroundColor('#2b2d42');
 
-        this.add.text(width / 2, height * 0.1, 'リザルト', {
+        const missedEntries = uniqueEntries(this.wrongEntries);
+        const layout = resultLayout(missedEntries.length);
+        const texts = resultTexts(this.isRetry, missedEntries.length);
+
+        this.add.text(width / 2, height * 0.1, texts.heading, {
             color: '#f1faee',
             fontFamily: 'sans-serif',
             fontSize: '40px',
@@ -59,9 +74,9 @@ export class Result extends Scene {
         const reviewLabel = incorrectCount > 0
             ? `間違えた単語を復習する (${incorrectCount}語)`
             : `全単語を復習する (${this.totalCount}語)`;
-        const reviewBtn = this.add.rectangle(width / 2, height * 0.56, width * 0.82, 64, 0x778da9)
+        const reviewBtn = this.add.rectangle(width / 2, RESULT_REVIEW_BUTTON_Y, width * RESULT_WIDE_BUTTON_WIDTH_RATIO, 64, 0x778da9)
             .setInteractive({ useHandCursor: true });
-        this.add.text(width / 2, height * 0.56, reviewLabel, {
+        this.add.text(width / 2, RESULT_REVIEW_BUTTON_Y, reviewLabel, {
             color: '#f1faee',
             fontFamily: 'sans-serif',
             fontSize: '20px',
@@ -71,14 +86,33 @@ export class Result extends Scene {
                 wrongEntries: this.wrongEntries,
                 correctEntries: this.correctEntries,
                 config: this.config,
+                isRetry: this.isRetry,
             });
         });
 
-        const nextButtonY = height * 0.72;
+        if (layout.showRetry) {
+            const retryWidth = width * RESULT_WIDE_BUTTON_WIDTH_RATIO;
+            const retryRoundBtn = this.add.rectangle(width / 2, layout.retryY, retryWidth, layout.retryHeight, 0xffd166)
+                .setInteractive({ useHandCursor: true });
+            this.add.text(width / 2, layout.retryY, texts.retryLabel, {
+                color: '#14213d',
+                fontFamily: 'sans-serif',
+                fontSize: '22px',
+                fontStyle: 'bold',
+                align: 'center',
+                wordWrap: { width: retryWidth - 24, useAdvancedWrap: true },
+            }).setOrigin(0.5);
+            retryRoundBtn.on('pointerdown', () => {
+                const data: RetryGameData = { ...this.config, retryEntries: missedEntries };
+                this.scene.start('Game', data);
+            });
+        }
+
+        const nextButtonY = layout.bottomRowY;
 
         const retryBtn = this.add.rectangle(width / 2 - width * 0.26, nextButtonY, width * 0.44, 60, 0x8ac926)
             .setInteractive({ useHandCursor: true });
-        this.add.text(width / 2 - width * 0.26, nextButtonY, 'もう一度', {
+        this.add.text(width / 2 - width * 0.26, nextButtonY, texts.restartLabel, {
             color: '#14213d',
             fontFamily: 'sans-serif',
             fontSize: '22px',
