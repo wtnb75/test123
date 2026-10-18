@@ -1,0 +1,5 @@
+- `src/game/scenes/Game.ts` spawnFormation: recomputes elapsedSec / getDifficultyParams already computed in update — 理由: 出現フレームだけの小さな重複で挙動は同じ。従来の書き方
+- `src/game/scenes/Game.ts` spawnFormation: FormationType を `useV` の 2 択に潰している — 理由: 新しい編隊は `formations` カードで足す。いまは推測での拡張になる
+- `src/game/scenes/Game.ts` update: 編隊タイマー（dt）と段階（time.now）の時計のずれ — 理由: 従来から同じ作り。タブが止まると Phaser も止まる
+- `src/game/core/difficulty.ts`: 各段階のオブジェクトリテラルの繰り返し — 理由: 従来と同じ書き方。1 変更 1 目的を守る
+- `docs/backlog.md`: 実装中のカードを同じ変更で外している — 理由: `game-spec` の規則（実装するブランチで外す）。balance の確認は PR 本文に残す

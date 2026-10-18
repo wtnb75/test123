@@ -3,6 +3,31 @@ import type { Vec2 } from './physics';
 export type FormationType = 'row' | 'v';
 
 /**
+ * 編隊タイマーを dt 進め、出現するかを返す（出現したら超過分を捨てて 0 に戻す）
+ * @param timer 現在のタイマー（秒）
+ * @param dt 経過時間（秒）
+ * @param intervalSec その時点の段階の出現間隔
+ */
+export function advanceFormationTimer(
+    timer: number,
+    dt: number,
+    intervalSec: number
+): { timer: number; spawn: boolean } {
+    const next = timer + dt;
+    if (next >= intervalSec) return { timer: 0, spawn: true };
+    return { timer: next, spawn: false };
+}
+
+/**
+ * 候補から編隊の形を等確率で選ぶ
+ * @param shapes 候補（1 つ以上）
+ * @param rand 0 以上 1 未満の乱数
+ */
+export function pickFormationType(shapes: FormationType[], rand: number): FormationType {
+    return shapes[Math.min(shapes.length - 1, Math.floor(rand * shapes.length))];
+}
+
+/**
  * 横一列編隊の座標を返す
  * @param count 機数
  * @param centerX 中心X

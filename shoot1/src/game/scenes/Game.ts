@@ -7,7 +7,7 @@ import {
     MINE_RADIUS, MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER,
     MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
-    FORMATION_INTERVAL_SEC, ENEMY_SPEED
+    ENEMY_SPEED
 } from '../core/constants';
 import {
     circlesOverlap, getTargetsInExplosion,
@@ -15,7 +15,7 @@ import {
     angleToVec, angleTo, calcNWayAngles, calcScore, calcChainExplosionRadius
 } from '../core/physics';
 import { getDifficultyParams, type BulletType } from '../core/difficulty';
-import { calcRowFormation, calcVFormation } from '../core/formation';
+import { advanceFormationTimer, calcRowFormation, calcVFormation, pickFormationType } from '../core/formation';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
 
 // --- 型定義 ---
@@ -70,7 +70,7 @@ export class Game extends Scene {
     private mineState!: MineState;
     private startTime = 0;
     private gameOver = false;
-    private formationTimer = 0;
+    private formationTimer = Infinity;
 
     // キー入力
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -108,8 +108,10 @@ export class Game extends Scene {
         this.enemies = [];
         this.mines = [];
         this.mineState = createMineState(MINE_INITIAL_COUNT);
-        this.startTime = this.time.now;
-        this.formationTimer = 0;
+        // time.now is stale until the first update after a scene restart, so the clock starts there
+        this.startTime = -1;
+        // start past any interval so the first formation spawns on the first update
+        this.formationTimer = Infinity;
         this.px = GAME_WIDTH / 2;
         this.py = GAME_HEIGHT - 80;
 
@@ -260,7 +262,7 @@ export class Game extends Scene {
         const elapsedSec = (this.time.now - this.startTime) / 1000;
         const params = getDifficultyParams(elapsedSec);
         const count = params.formationSize;
-        const useV = Math.random() < 0.5;
+        const useV = pickFormationType(params.formationShapes, Math.random()) === 'v';
         const centerX = Phaser.Math.Between(80, GAME_WIDTH - 80);
         const spacing = 52;
 
@@ -452,6 +454,7 @@ export class Game extends Scene {
     update(_time: number, delta: number) {
         if (this.gameOver) return;
 
+        if (this.startTime < 0) this.startTime = this.time.now;
         const dt = delta / 1000;
         const elapsedSec = (this.time.now - this.startTime) / 1000;
 
@@ -488,14 +491,12 @@ export class Game extends Scene {
         }
 
         // --- 編隊出現 ---
-        this.formationTimer += dt;
-        if (this.formationTimer >= FORMATION_INTERVAL_SEC) {
-            this.formationTimer = 0;
-            this.spawnFormation();
-        }
+        const params = getDifficultyParams(elapsedSec);
+        const formation = advanceFormationTimer(this.formationTimer, dt, params.formationIntervalSec);
+        this.formationTimer = formation.timer;
+        if (formation.spawn) this.spawnFormation();
 
         // --- 敵機更新 ---
-        const params = getDifficultyParams(elapsedSec);
         for (const enemy of this.enemies) {
             enemy.x += enemy.vx * dt;
             enemy.y += enemy.vy * dt;

@@ -16,5 +16,6 @@ export const MINE_INITIAL_COUNT = 3;
 export const MINE_CHAIN_RADIUS_MULTIPLIER = 1.5;
 export const SCORE_MULTIPLIER = 10;
 
+export const FORMATION_INTERVAL_EARLY_SEC = 4;
 export const FORMATION_INTERVAL_SEC = 6;
 export const ENEMY_SPEED = 80;
