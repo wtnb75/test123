@@ -22,7 +22,9 @@ export const P = {
     CRUMBLE_BLINK_HZ_END: 8,
     DROP_SPEED: 40,
     TELEGRAPH_TIME: 0.9,
-    ROTATE_STEP: 0.2,
+    // Times (s from the telegraph start) at which the hovering mino turns, by number of turns n.
+    // Later gaps are longer, so the spin slows down before it stops (all done by 0.6 s).
+    ROTATE_TIMES: [[], [0.3], [0.2, 0.45], [0.14, 0.34, 0.6]],
     SPAWN_DELAY: 0.3,
     AI_TOP_K: 2,
     AI_HOLES_W: 8,
