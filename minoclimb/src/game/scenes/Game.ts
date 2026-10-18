@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { P, WIDTH } from '../params';
+import { P } from '../params';
 import { InputArbiter, type StickView } from '../logic/input';
 import type { MoveInput } from '../logic/player';
 import { Round } from '../logic/round';
@@ -64,9 +64,10 @@ export class Game extends Scene {
             return;
         }
 
-        const control = this.readControl();
+        const dt = Math.min(deltaMs / 1000, P.MAX_DT);
+        const control = this.readControl(dt);
         this.clock = time;
-        this.playSec += Math.min(deltaMs / 1000, P.MAX_DT);
+        this.playSec += dt;
         this.round.step(deltaMs / 1000, control.move);
         if (this.round.status !== 'playing') this.finish();
         // After the round ends the scene keeps running (so the shake plays) but nothing advances.
@@ -89,22 +90,30 @@ export class Game extends Scene {
         }
     }
 
-    /** What the Scene shows: hints and the touch tint are for the player, not for the demo. */
+    /** What the Scene shows: the hints are for the player, not for the demo. */
     protected viewOptions(): BoardViewOptions {
-        return { hints: true, touchTint: true };
+        return { hints: true };
     }
 
     /** Listens to the player. Keys and fingers held right now stay ignored until released. */
     protected setupControls(): void {
         this.controls = new SceneInput(this);
-        this.arbiter = new InputArbiter(WIDTH / 2, P.STICK_DEADZONE, P.STICK_RING_RADIUS);
+        this.arbiter = new InputArbiter({
+            deadzone: P.STICK_DEADZONE,
+            ringRadius: P.STICK_RING_RADIUS,
+            jumpFlick: P.STICK_JUMP_FLICK,
+            jumpRelease: P.STICK_JUMP_RELEASE,
+            tapMaxTime: P.TAP_MAX_TIME,
+            tapSlop: P.TAP_SLOP,
+            tapJumpHold: P.TAP_JUMP_HOLD,
+        });
         this.arbiter.blockHeld(this.controls.read());
     }
 
-    /** This frame's moves: the keyboard and the touch stick. */
-    protected readControl(): Control {
+    /** This frame's moves: the keyboard and the touch pad. `dt` is the frame time in seconds, capped. */
+    protected readControl(dt: number): Control {
         // The arbiter returns one reused object (same shape as Control): nothing is allocated per frame.
-        return this.arbiter!.read(this.controls!.read());
+        return this.arbiter!.read(this.controls!.read(), dt);
     }
 
     /** The round is over: show the result (the demo has none). */

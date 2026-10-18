@@ -190,17 +190,28 @@ describe('the kick through the input layer', () => {
         pointers,
         pressedKeys: new Set(keys),
         pointerPressed: false,
+        quickTaps: [],
+        cancelled: new Set(),
     });
-    const rightFinger: PointerState = { id: 1, x: 300, downX: 300, downY: 500, isDown: true };
-    const arbiter = (): InputArbiter => new InputArbiter(180, P.STICK_DEADZONE, P.STICK_RING_RADIUS);
-    const step = (a: InputArbiter, pl: Player, r: RawInput): Player => stepPlayer(leftWall(), pl, { ...a.read(r).move }, DT);
+    // The jump finger: it touches while the stick finger (`stick`, below) is down, so it jumps while it touches.
+    const jumpFinger: PointerState = { id: 1, x: 300, y: 500, downX: 300, downY: 500, isDown: true };
+    const arbiter = (): InputArbiter => new InputArbiter({
+        deadzone: P.STICK_DEADZONE,
+        ringRadius: P.STICK_RING_RADIUS,
+        jumpFlick: P.STICK_JUMP_FLICK,
+        jumpRelease: P.STICK_JUMP_RELEASE,
+        tapMaxTime: P.TAP_MAX_TIME,
+        tapSlop: P.TAP_SLOP,
+        tapJumpHold: P.TAP_JUMP_HOLD,
+    });
+    const step = (a: InputArbiter, pl: Player, r: RawInput): Player => stepPlayer(leftWall(), pl, { ...a.read(r, DT).move }, DT);
 
     it('adding a second jump key or a finger while jump is held is not a new press', () => {
         const a = arbiter();
         let pl = air(4 + EPS, 10, memory({ jumpHeld: true }));
         pl = step(a, pl, raw(['Space']));
         pl = step(a, pl, raw(['Space', 'ArrowUp']));
-        pl = step(a, pl, raw(['Space', 'ArrowUp'], [rightFinger]));
+        pl = step(a, pl, raw(['Space', 'ArrowUp'], [stick(300), jumpFinger]));
         expect(pl.kick?.kicked).toBe(false);
     });
 
@@ -214,12 +225,55 @@ describe('the kick through the input layer', () => {
         expect(pl.kick?.kicked).toBe(true);
     });
 
-    it('a finger on the right half is a jump press like a key', () => {
+    // The stick finger that started at (100, 300); y = 271 is 29 px up, past STICK_JUMP_FLICK.
+    const stick = (y: number): PointerState => ({ id: 2, x: 100, y, downX: 100, downY: 300, isDown: true });
+
+    it('flicking the stick up against the wall in the air is a new press and kicks', () => {
         const a = arbiter();
         let pl = air(4 + EPS, 10);
-        pl = step(a, pl, raw([]));
+        pl = step(a, pl, raw([], [stick(300)]));
         expect(pl.kick?.kicked).toBe(false);
-        pl = step(a, pl, raw([], [rightFinger]));
+        pl = step(a, pl, raw([], [stick(271)]));
+        expect(pl.kick?.kicked).toBe(true);
+        expect(pl.kick?.side).toBe(-1);
+    });
+
+    it('keeping the stick flicked does not kick again on the following frames', () => {
+        const a = arbiter();
+        let pl = air(4 + EPS, 10);
+        pl = step(a, pl, raw([], [stick(300)]));
+        pl = step(a, pl, raw([], [stick(271)]));
+        expect(pl.kick?.kicked).toBe(true);
+        for (let i = 0; i < 3; i++) {
+            pl = step(a, pl, raw([], [stick(271)]));
+            expect(pl.kick?.kicked).toBe(false);
+        }
+    });
+
+    it('flicking the stick while a jump finger already holds jump is not a new press', () => {
+        const a = arbiter();
+        let pl = air(4 + EPS, 10, memory({ jumpHeld: true }));
+        pl = step(a, pl, raw([], [stick(300), jumpFinger]));
+        pl = step(a, pl, raw([], [stick(271), jumpFinger]));
+        expect(pl.kick?.kicked).toBe(false);
+    });
+
+    it('a second finger touching while the stick finger is down is a jump press like a key', () => {
+        const a = arbiter();
+        let pl = air(4 + EPS, 10);
+        pl = step(a, pl, raw([], [stick(300)]));
+        expect(pl.kick?.kicked).toBe(false);
+        pl = step(a, pl, raw([], [stick(300), jumpFinger]));
+        expect(pl.kick?.kicked).toBe(true);
+    });
+
+    it('a tap (a still, quick finger that lifts) is a jump press like a key and kicks at the lift', () => {
+        const a = arbiter();
+        let pl = air(4 + EPS, 10);
+        pl = step(a, pl, raw([], [stick(300)]));
+        expect(pl.kick?.kicked).toBe(false);
+        const lifted: PointerState = { ...stick(300), isDown: false };
+        pl = step(a, pl, raw([], [lifted]));
         expect(pl.kick?.kicked).toBe(true);
     });
 });

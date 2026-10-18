@@ -1,14 +1,17 @@
 import type { Input, Scene } from 'phaser';
-import type { PointerState, RawInput } from '../logic/input';
+import type { PointerState, QuickTap, RawInput } from '../logic/input';
 import { KeyTracker } from './KeyTracker';
 import { readPointers } from './pointers';
+import { TouchLatch } from './touchLatch';
 
 /**
  * Raw keyboard and pointer state of one Scene. Its listeners are removed when the Scene shuts down, so
  * a Scene only has to create it in `create` and call `read` each frame.
  *
  * Presses are latched from events, not found by comparing frames, so a tap shorter than one frame is
- * still seen; each `read` hands the latched presses over and clears them.
+ * still seen; each `read` hands the latched presses over and clears them. A press that began and ended
+ * between two reads is handed over as a quick tap, and a finger that ended without a normal release
+ * (touch cancel, released outside the canvas) is reported as cancelled (see `TouchLatch`).
  */
 export class SceneInput {
     private readonly keys: KeyTracker;
@@ -16,13 +19,27 @@ export class SceneInput {
     private readonly raw: RawInput;
     private readonly pressedKeys = new Set<string>();
     private pointerDown = false;
+    private readonly latch = new TouchLatch();
+    private readonly quickTaps: QuickTap[] = [];
+    private readonly cancelled = new Set<number>();
 
     constructor(private readonly scene: Scene) {
         this.keys = new KeyTracker(scene.input.keyboard!, scene.game.events);
-        this.raw = { keys: this.keys.down, pointers: this.pointerBuffer, pressedKeys: this.pressedKeys, pointerPressed: false };
+        this.raw = {
+            keys: this.keys.down,
+            pointers: this.pointerBuffer,
+            pressedKeys: this.pressedKeys,
+            pointerPressed: false,
+            quickTaps: this.quickTaps,
+            cancelled: this.cancelled,
+        };
         scene.input.on('pointerdown', this.onPointerDown);
+        scene.input.on('pointerup', this.onPointerUp);
+        scene.input.on('pointerupoutside', this.onPointerUpOutside);
         scene.events.once('shutdown', () => {
             scene.input.off('pointerdown', this.onPointerDown);
+            scene.input.off('pointerup', this.onPointerUp);
+            scene.input.off('pointerupoutside', this.onPointerUpOutside);
             this.keys.destroy();
         });
     }
@@ -35,11 +52,27 @@ export class SceneInput {
         this.keys.pressed.clear();
         this.raw.pointerPressed = this.pointerDown;
         this.pointerDown = false;
+        this.latch.markSeen(this.pointerBuffer);
+        this.latch.drain(this.quickTaps, this.cancelled);
         return this.raw;
     }
 
     private readonly onPointerDown = (pointer: Input.Pointer): void => {
         // Right and middle mouse buttons are not presses (see readPointers).
-        if (pointer.primaryDown) this.pointerDown = true;
+        if (!pointer.primaryDown) return;
+        this.pointerDown = true;
+        this.latch.down(pointer.id, pointer.downX, pointer.downY);
+    };
+
+    private readonly onPointerUp = (pointer: Input.Pointer): void => {
+        // `primaryDown` is cleared by the release of the primary button or finger (and a touch cancel).
+        this.latch.up(pointer.id, pointer.x, pointer.y, {
+            primaryStillDown: pointer.primaryDown,
+            canceled: pointer.wasCanceled,
+        });
+    };
+
+    private readonly onPointerUpOutside = (pointer: Input.Pointer): void => {
+        this.latch.upOutside(pointer.id, pointer.primaryDown);
     };
 }

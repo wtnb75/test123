@@ -6,6 +6,7 @@ import { readPointers } from './pointers';
 interface FakePointer {
     id: number;
     x: number;
+    y: number;
     downX: number;
     downY: number;
     isDown: boolean;
@@ -16,14 +17,14 @@ const manager = (...pointers: FakePointer[]): Input.InputManager =>
     ({ pointers }) as unknown as Input.InputManager;
 
 const pointer = (id: number, over: Partial<FakePointer> = {}): FakePointer => ({
-    id, x: 10, downX: 5, downY: 7, isDown: false, primaryDown: false, ...over,
+    id, x: 10, y: 12, downX: 5, downY: 7, isDown: false, primaryDown: false, ...over,
 });
 
 describe('readPointers', () => {
     it('copies position, press origin and id', () => {
         const out: PointerState[] = [];
-        readPointers(manager(pointer(2, { x: 40, downX: 30, downY: 20, isDown: true, primaryDown: true })), out);
-        expect(out).toEqual([{ id: 2, x: 40, downX: 30, downY: 20, isDown: true }]);
+        readPointers(manager(pointer(2, { x: 40, y: 50, downX: 30, downY: 20, isDown: true, primaryDown: true })), out);
+        expect(out).toEqual([{ id: 2, x: 40, y: 50, downX: 30, downY: 20, isDown: true }]);
     });
 
     it('does not count a non-primary mouse button as a press', () => {
