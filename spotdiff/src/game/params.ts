@@ -84,4 +84,28 @@ export const PARAMS = {
         landscape: { nameY: 60, taglineY: 125, dateY: 175, promptY: 700, panelScale: 1, panelY: [220, 220] },
         wide: { nameY: 60, taglineY: 125, dateY: 175, promptY: 700, panelScale: 1, panelY: [220, 220] },
     },
+
+    // Help (see docs/spec/how-to-play.md)
+    helpInputLockMs: 300,
+    // "HOW TO PLAY" button on the Title per layout kind: centre, size and text size, in canvas px.
+    helpButton: {
+        portrait: { x: 384, y: 1612, w: 360, h: 88, size: 32 },
+        landscape: { x: 840, y: 700, w: 240, h: 60, size: 28 },
+        wide: { x: 1464, y: 690, w: 320, h: 110, size: 40 },
+    },
+    // Help screen per layout kind: heading, the six lines, the grid of difference figures (cell centres `cols`, swatch tops `rowTops`), prompt.
+    helpLayout: {
+        portrait: {
+            headingY: 110, headingSize: 56, bodyX: 40, bodySize: 32, bodyWrap: 688, bodyTop: 200, bodyPitch: 88,
+            cols: [192, 576], rowTops: [790, 994, 1198], swatch: 120, swatchGap: 24, labelSize: 32, labelDy: 150, promptY: 1540,
+        },
+        landscape: {
+            headingY: 50, headingSize: 48, bodyX: 40, bodySize: 28, bodyWrap: 460, bodyTop: 110, bodyPitch: 72,
+            cols: [650, 870], rowTops: [130, 280, 430], swatch: 80, swatchGap: 16, labelSize: 24, labelDy: 102, promptY: 700,
+        },
+        wide: {
+            headingY: 50, headingSize: 56, bodyX: 60, bodySize: 32, bodyWrap: 800, bodyTop: 110, bodyPitch: 64,
+            cols: [1000, 1240, 1480], rowTops: [130, 330], swatch: 96, swatchGap: 16, labelSize: 32, labelDy: 126, promptY: 700,
+        },
+    },
 } as const;

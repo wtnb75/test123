@@ -42,3 +42,6 @@
 - `src/game/logic/generate.ts`（`kindsAt` を何度も呼んで小さな配列を作る）: 同じ配列の作り直し — 理由: 生成時だけの小さな配列で、同種の指摘は見送り済み
 - `src/game/scenes/draw.ts`（多角形の再描画のたびに頂点の配列とクロージャを作る）: 割り当て — 理由: 再描画は状態変化のときだけで、最大 72 図形。既存の描画の作りと同じで実害なし
 - `src/game/logic/titleDemo.ts`（`botPlan` の既定の `Set` を毎回作る）: 無駄な割り当て — 理由: 本番の呼び出しは常に `found` を渡す。無視できる量
+- `src/game/scenes/Help.ts`（作成時の文字サイズのリテラル、促し文の 36）: params と二重 — 理由: 見出し・説明・種類名は `place()` が上書きする。促し文の 36 は Title の "TAP TO START" と同じ書き方
+- `src/game/scenes/Help.ts`（`shutdown` での `input.off` が冗長）: Phaser が後始末する — 理由: `Result.ts` と同じパターンで無害。早い入力を無視するため `input.once` は使えない
+- `src/game/scenes/Help.ts`（開発ビルドの `__qa` の形が Title 用の QA スクリプトと違う）: — 理由: 開発ビルド専用で本番に含まれない。Help 用のシナリオは `scene: 'Help'` を見て読める
