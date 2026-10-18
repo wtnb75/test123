@@ -14,6 +14,7 @@ export const COLORS = {
     fixedMark: 0x2a2f3a,
     player: 0x4fd1c5,
     pruned: 0x8a93a3,
+    glow: 0xffffff,
     buttonDefault: 0x2c3a52,
     buttonDanger: 0x5a2d3a,
     buttonDangerArmed: 0xb23a52,

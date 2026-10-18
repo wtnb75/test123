@@ -101,6 +101,7 @@ export class Game extends Scene {
             case 'undo':
                 // With nothing to undo the press does nothing at all (a walk in progress goes on).
                 if (!canUndo(this.state)) break;
+                this.view.completeStaging();
                 this.flow.cancelWalk();
                 undo(this.state);
                 this.view.dropStalePops(this.state.grid);
@@ -113,6 +114,7 @@ export class Game extends Scene {
                 break;
             case 'swipe':
                 // swipes and keys both: one cell in a direction
+                this.view.completeStaging();
                 this.flow.cancelWalk();
                 this.step(action.dir);
                 break;
@@ -130,6 +132,7 @@ export class Game extends Scene {
         if (!cell) return;
         this.flow.cancelWalk();
         const outcome = tapOutcome(this.state, cell.x, cell.y);
+        if (outcome.kind !== 'none') this.view.completeStaging();
         if (outcome.kind === 'walk') {
             this.playTapMark(cell, 'walk');
             this.flow.startWalk(outcome.path, this.deps.now());

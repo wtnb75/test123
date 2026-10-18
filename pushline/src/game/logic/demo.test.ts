@@ -33,13 +33,57 @@ describe('Demo timing', () => {
         expect(demo.phase).toBe('waiting');
     });
 
-    it('waits the full pause after a clear before the next plan starts moving', () => {
-        const demo = demoOn(THREE);
+    it('waits for the new blocks to finish growing (590 ms, 700 ms with a relocation) before the next move', () => {
+        // Spec (title-demo.md): the clear at 940 ms, then the pop-in ends 590 ms later (700 ms if a fixed block moved).
+        const outcomes = new Set<number>();
+        for (let seed = 1; seed <= 60; seed++) {
+            const demo = demoOn(THREE, {}, seed);
+            demo.tick(500);
+            demo.tick(720);
+            const clear = demo.tick(940);
+            expect(cleared(clear)).toBe(true);
+            if (clear?.kind !== 'move') throw new Error('expected a move');
+            const growth = clear.result.relocated.length > 0 ? 700 : 590;
+            outcomes.add(growth);
+            expect(demo.tick(940 + growth - 1)).toBeNull();
+            expect(demo.tick(940 + growth)?.kind).toBe('move');
+        }
+        expect(outcomes.has(590)).toBe(true); // the plain case is exercised (700 ms: demo.relocation.test.ts)
+    });
+
+    it('keeps the plain pause when it outlasts the growth (a pause of 800 ms)', () => {
+        // The wait is the longer of the pause and the growth (590 / 700 ms): here the pause decides.
+        const demo = demoOn(THREE, { timing: { stepMs: 220, waitMs: 800, lines: 4, fadeMs: 300 } });
+        demo.tick(800);
+        demo.tick(1020);
+        expect(cleared(demo.tick(1240))).toBe(true);
+        expect(demo.tick(1240 + 799)).toBeNull();
+        expect(demo.tick(1240 + 800)?.kind).toBe('move');
+    });
+
+    it('does not delay the fade when no plan is found after a clear (the plain pause decides)', () => {
+        let calls = 0;
+        const planner: Planner = (s) => (++calls === 1 ? solverPlanner(s) : null);
+        const demo = demoOn(THREE, { planner });
         demo.tick(500);
         demo.tick(720);
         expect(cleared(demo.tick(940))).toBe(true);
         expect(demo.tick(1439)).toBeNull();
-        expect(demo.tick(1440)?.kind).toBe('move');
+        expect(demo.tick(1440)).toEqual({ kind: 'fade-out' });
+    });
+
+    it('asks a planner that is still working again, and moves once it has a plan and the growth is over', () => {
+        let calls = 0;
+        const planner: Planner = (s) => (++calls === 2 ? 'pending' : solverPlanner(s));
+        const demo = demoOn(ONE, { planner });
+        expect(demo.tick(500)?.kind).toBe('move'); // call 1: the plan clears the line
+        let t = 501;
+        while (calls < 2) demo.tick(t++); // call 2 answers 'pending'
+        expect(calls).toBe(2);
+        // the board after the clear is planned again: some later frame moves, never before the growth is over
+        let moved = -1;
+        for (; moved < 0 && t < 3000; t++) if (demo.tick(t)?.kind === 'move') moved = t;
+        expect(moved).toBeGreaterThanOrEqual(500 + 590);
     });
 
     it('makes at most one move per call even after a long frame', () => {
