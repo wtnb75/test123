@@ -9,6 +9,19 @@ const SEEDS = Array.from({ length: 300 }, (_, i) => i + 1);
 const STAGES = [1, 2, 3, 4, 5];
 const PS = PARAMS.panelSize;
 
+/** Spec "図形の種類", written out by hand per stage (index = stage). */
+const STAGE_KINDS: Record<number, string[]> = {
+    1: ['circle', 'rect', 'triangle'],
+    2: ['circle', 'rect', 'triangle', 'star'],
+    3: ['circle', 'rect', 'triangle', 'star', 'cross'],
+    4: ['circle', 'rect', 'triangle', 'star', 'cross', 'hexagon'],
+    5: ['circle', 'rect', 'triangle', 'star', 'cross', 'hexagon'],
+};
+
+/** Every ordered pair (from -> to) of different kinds of a stage. */
+const swapPairs = (stage: number): string[] =>
+    STAGE_KINDS[stage].flatMap((a) => STAGE_KINDS[stage].filter((b) => b !== a).map((b) => `${a}->${b}`)).sort();
+
 const hueDistance = (a: number, b: number) => {
     const d = Math.abs(a - b) % 360;
     return Math.min(d, 360 - d);
@@ -127,10 +140,38 @@ describe('generateStage: shapes', () => {
         expect(overlapping).toBeGreaterThan(0);
     });
 
-    it('uses all three shape kinds', () => {
+    // Spec "図形の種類": stage 1 circle/rect/triangle, +star at 2, +cross at 3, +hexagon at 4 and 5 (written out by hand).
+    it('draws only the kinds of the stage and every one of them (stage 1: 3 kinds, 2: +star, 3: +cross, 4-5: +hexagon)', () => {
+        const seen = new Map<number, Set<string>>(STAGES.map((st) => [st, new Set<string>()]));
+        eachStage((s, stage) => s.shapes.forEach((sh) => seen.get(stage)?.add(sh.kind)));
+        for (const st of STAGES) expect([...(seen.get(st) as Set<string>)].sort(), `stage ${st}`).toEqual(STAGE_KINDS[st].slice().sort());
+    });
+
+    it('draws the kinds of a stage about equally often (within 5 points of 1 / kinds)', () => {
+        for (const st of STAGES) {
+            const counts = new Map<string, number>();
+            let total = 0;
+            for (const seed of SEEDS) {
+                for (const sh of generateStage(st, mulberry32(seed)).shapes) {
+                    counts.set(sh.kind, (counts.get(sh.kind) ?? 0) + 1);
+                    total++;
+                }
+            }
+            const even = 1 / STAGE_KINDS[st].length;
+            for (const kind of STAGE_KINDS[st]) {
+                const share = (counts.get(kind) ?? 0) / total;
+                if (Math.abs(share - even) > 0.05) expect.fail(`stage ${st} ${kind} share ${(share * 100).toFixed(1)}%`);
+            }
+        }
+    });
+
+    it('uses the kinds of stage 1 and stage 5 for out-of-range stage numbers', () => {
+        for (const seed of SEEDS.slice(0, 40)) {
+            for (const sh of generateStage(0, mulberry32(seed)).shapes) expect(STAGE_KINDS[1]).toContain(sh.kind);
+        }
         const kinds = new Set<string>();
-        eachStage((s) => s.shapes.forEach((sh) => kinds.add(sh.kind)));
-        expect([...kinds].sort()).toEqual(['circle', 'rect', 'triangle']);
+        for (const seed of SEEDS.slice(0, 40)) generateStage(9, mulberry32(seed)).shapes.forEach((sh) => kinds.add(sh.kind));
+        expect([...kinds].sort()).toEqual(STAGE_KINDS[5].slice().sort());
     });
 
     it('builds the background hue and the decoration dots inside the panel', () => {
@@ -170,7 +211,7 @@ describe('generateStage: differences', () => {
     it('changes exactly the shapes named by the differences, by exactly the stage amount, and nothing else', () => {
         const seen = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0, grown: 0, shrunk: 0, huePlus: 0, hueMinus: 0, hueWrapped: 0, forcedShrink: 0 };
         const quadrants = new Set<string>();
-        const swaps = new Set<string>();
+        const swaps = new Map<number, Set<string>>(STAGES.map((st) => [st, new Set<string>()]));
         eachStage((s, stage, seed) => {
             const si = stage - 1;
             const byIndex = new Map(s.diffs.map((d) => [d.index, d]));
@@ -220,10 +261,11 @@ describe('generateStage: differences', () => {
                 } else if (d.kind === 'shape') {
                     // only the form changes: a kind different from the original; position, radius and colour stay
                     if (rr.kind === l.kind) expect.fail(`shape diff kept the kind: ${tag}`);
+                    if (!STAGE_KINDS[stage].includes(rr.kind)) expect.fail(`shape diff went to a kind the stage does not have: ${tag}`);
                     if (!(same('x') && same('y') && same('size') && same('hue') && same('sat') && same('light'))) {
                         expect.fail(`shape diff changed more than the kind: ${tag}`);
                     }
-                    swaps.add(`${l.kind}->${rr.kind}`);
+                    swaps.get(stage)?.add(`${l.kind}->${rr.kind}`);
                 } else {
                     if (!(same('hue') && same('x') && same('y') && same('kind'))) expect.fail(`size diff changed look: ${tag}`);
                     const ratio = rr.size / l.size;
@@ -245,9 +287,13 @@ describe('generateStage: differences', () => {
         // guard against vacuous runs: every kind and both size directions occurred
         for (const [k, v] of Object.entries(seen)) expect(v, k).toBeGreaterThan(0);
         expect(quadrants.size).toBeGreaterThanOrEqual(4);
-        expect([...swaps].sort()).toEqual([
-            'circle->rect', 'circle->triangle', 'rect->circle', 'rect->triangle', 'triangle->circle', 'triangle->rect',
-        ]);
+        // spec: a form change goes to a kind of that stage other than the original, and every such pair occurs
+        // (stage 1: 6 pairs, 2: 12, 3: 20, 4 and 5: 30)
+        const expectedCounts = [6, 12, 20, 30, 30];
+        STAGES.forEach((st, i) => {
+            expect(swapPairs(st), `stage ${st} pair count`).toHaveLength(expectedCounts[i]);
+            expect([...(swaps.get(st) as Set<string>)].sort(), `stage ${st}`).toEqual(swapPairs(st));
+        });
     });
 });
 
@@ -271,19 +317,17 @@ describe('generateStage: shares of the six difference kinds', () => {
         expect(Object.keys(counts)).toHaveLength(6);
     });
 
-    it('swaps each shape kind to either of the other two about half of the time (300 sets x 5 stages)', () => {
+    it('at stage 1, swaps each shape kind to either of the other two about half of the time (1500 sets)', () => {
         const swaps: Record<string, number> = {};
-        for (let seed = 1; seed <= 300; seed++) {
-            for (const stage of STAGES) {
-                const s = generateStage(stage, mulberry32(seed));
-                for (const d of s.diffs) {
-                    if (d.kind !== 'shape') continue;
-                    const key = `${(s.left[d.index] as Shape).kind}->${(s.right[d.index] as Shape).kind}`;
-                    swaps[key] = (swaps[key] ?? 0) + 1;
-                }
+        for (let seed = 1; seed <= 1500; seed++) {
+            const s = generateStage(1, mulberry32(seed));
+            for (const d of s.diffs) {
+                if (d.kind !== 'shape') continue;
+                const key = `${(s.left[d.index] as Shape).kind}->${(s.right[d.index] as Shape).kind}`;
+                swaps[key] = (swaps[key] ?? 0) + 1;
             }
         }
-        const kinds = ['circle', 'rect', 'triangle'];
+        const kinds = STAGE_KINDS[1];
         for (const from of kinds) {
             const targets = kinds.filter((k) => k !== from);
             const [a, b] = targets.map((to) => swaps[`${from}->${to}`] ?? 0);
@@ -291,6 +335,28 @@ describe('generateStage: shares of the six difference kinds', () => {
             if (a === 0 || b === 0 || share < 0.35 || share > 0.65) expect.fail(`${from}: ${targets[0]} ${a} vs ${targets[1]} ${b}`);
         }
         expect(Object.keys(swaps)).toHaveLength(6);
+    });
+
+    it('at stage 5, swaps each shape kind to each of the five other kinds about equally often (2000 sets)', () => {
+        const kinds = STAGE_KINDS[5];
+        const swaps: Record<string, number> = {};
+        for (let seed = 1; seed <= 2000; seed++) {
+            const s = generateStage(5, mulberry32(seed));
+            for (const d of s.diffs) {
+                if (d.kind !== 'shape') continue;
+                const key = `${(s.left[d.index] as Shape).kind}->${(s.right[d.index] as Shape).kind}`;
+                swaps[key] = (swaps[key] ?? 0) + 1;
+            }
+        }
+        // spec: equal probability among the other kinds of the stage, so each target gets 1/5 of a kind's swaps
+        for (const from of kinds) {
+            const counts = kinds.filter((k) => k !== from).map((to) => swaps[`${from}->${to}`] ?? 0);
+            const sum = counts.reduce((a, b) => a + b, 0);
+            counts.forEach((n, i) => {
+                const share = n / sum;
+                if (sum < 300 || Math.abs(share - 0.2) > 0.07) expect.fail(`${from}: target ${i} share ${(share * 100).toFixed(1)}% of ${sum}`);
+            });
+        }
     });
 
     it('draws a shape in the left picture unless it was added, and in the right unless it was missing (counts by hand)', () => {

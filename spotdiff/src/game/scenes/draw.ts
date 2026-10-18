@@ -2,6 +2,7 @@ import type { GameObjects } from 'phaser';
 import { PARAMS } from '../params';
 import { hslToHex } from '../logic/color';
 import type { Diff, Dot, Shape, Stage } from '../logic/generate';
+import { polygonPoints } from '../logic/shapeGeometry';
 
 export const UI_FONT = 'sans-serif';
 export const MENU_HUE = 215;
@@ -32,7 +33,13 @@ const drawShape = (g: GameObjects.Graphics, s: Shape, f: PanelFrame): void => {
     const r = s.size * f.scale;
     if (s.kind === 'circle') g.fillCircle(x, y, r);
     else if (s.kind === 'rect') g.fillRect(x - r, y - r, r * 2, r * 2);
-    else g.fillTriangle(x, y - r, x - r, y + r, x + r, y + r);
+    else if (s.kind === 'triangle') g.fillTriangle(x, y - r, x - r, y + r, x + r, y + r);
+    else {
+        g.beginPath();
+        polygonPoints(s.kind, r).forEach((p, i) => (i === 0 ? g.moveTo(x + p.x, y + p.y) : g.lineTo(x + p.x, y + p.y)));
+        g.closePath();
+        g.fillPath();
+    }
 };
 
 const DOT_SEGMENTS = 24;

@@ -37,4 +37,8 @@
 - `src/game/storage.test.ts`（共有パッケージを含む glob が長い 1 行で、`../../../` に依存する）: — 理由: 取りこぼすと `toContain` の検査が大きな声で失敗する。lint・型は通っている
 - `shared/title-demo/src/director.ts`（`fadeMs` が NaN のときの扱い）: 検証が無い — 理由: 設定値の書き間違いだけで起き、揃った動き（すぐ終わる）になる
 - `pushline/src/game/logic/demo.ts`（アダプタが `advance` を null にする）: 将来 `advance` を足すと再描画されない — 理由: pushline に `advance` は無い。コメントで明記している
+- `src/game/scenes/draw.ts`（星・十字の凹多角形を `fillPath` で塗る）: 描画器によって塗りが崩れる恐れ — 理由: コードの誤りの指摘ではなく実描画の確認の話。QA で実ブラウザの星・十字を確認する（完了条件にある）
+- `src/game/logic/generate.ts`（`SHAPE_KIND_ORDER` が PARAMS の外にある、種類の列が複数箇所）: spec の `shapeKindOrder` との置き場所のずれ — 理由: 動作に問題なし。種類の数・並びは `kindsAt` のテストで固定している
+- `src/game/logic/generate.ts`（`kindsAt` を何度も呼んで小さな配列を作る）: 同じ配列の作り直し — 理由: 生成時だけの小さな配列で、同種の指摘は見送り済み
+- `src/game/scenes/draw.ts`（多角形の再描画のたびに頂点の配列とクロージャを作る）: 割り当て — 理由: 再描画は状態変化のときだけで、最大 72 図形。既存の描画の作りと同じで実害なし
 - `src/game/logic/titleDemo.ts`（`botPlan` の既定の `Set` を毎回作る）: 無駄な割り当て — 理由: 本番の呼び出しは常に `found` を渡す。無視できる量
