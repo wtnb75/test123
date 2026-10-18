@@ -26,7 +26,7 @@ export interface PanelFrame {
     scale: number;
 }
 
-const drawShape = (g: GameObjects.Graphics, s: Shape, f: PanelFrame): void => {
+export const drawShape = (g: GameObjects.Graphics, s: Shape, f: PanelFrame): void => {
     g.fillStyle(hslToHex(s.hue, s.sat, s.light), 1);
     const x = f.x + s.x * f.scale;
     const y = f.y + s.y * f.scale;

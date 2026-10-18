@@ -1,7 +1,9 @@
-import { GameObjects, Scene } from 'phaser';
+import { GameObjects, Input, Scene } from 'phaser';
 import { StartGate } from 'title-demo';
 import type { DemoEvent } from 'title-demo';
+import { hslToHex } from '../logic/color';
 import { hitPopScale, promptAlpha, tapRingAlpha, tapRingRadius } from '../logic/effects';
+import { HELP_BUTTON_LABEL, helpButtonRect, titleTapTarget } from '../logic/help';
 import type { Layout } from '../logic/layout';
 import { dateToYmd } from '../logic/random';
 import { firstSet } from '../logic/set';
@@ -34,6 +36,8 @@ export class Title extends Scene {
     private tagline!: GameObjects.Text;
     private dateText!: GameObjects.Text;
     private prompt!: GameObjects.Text;
+    private helpBox!: GameObjects.Graphics;
+    private helpLabel!: GameObjects.Text;
     private date = 0;
     private pulseMs = 0;
     /** Time since the Scene started, counted from `update`'s delta (the demo's clock). */
@@ -79,11 +83,15 @@ export class Title extends Scene {
         this.tagline = this.add.text(0, 0, 'Find the differences', text(32, '#dfe6f5')).setOrigin(0.5).setDepth(DEPTH.text);
         this.dateText = this.add.text(0, 0, label, text(28, '#ffd166')).setOrigin(0.5).setDepth(DEPTH.text);
         this.prompt = this.add.text(0, 0, 'TAP TO START', text(36, '#ffffff')).setOrigin(0.5).setDepth(DEPTH.text);
+        this.helpBox = this.add.graphics().setDepth(DEPTH.text);
+        this.helpLabel = this.add.text(0, 0, HELP_BUTTON_LABEL, text(32, '#ffffff')).setOrigin(0.5).setDepth(DEPTH.text);
 
         this.place(bindOrientation(this, (layout) => this.place(layout)));
-        // Any tap starts; the first request wins (a second input in the same frame is ignored).
-        this.input.once('pointerdown', () => {
-            if (this.gate.start()) this.scene.start('Game', firstSet(this.date));
+        // The button opens the Help; any other tap starts. The first request wins (a second input in the same frame is ignored).
+        this.input.once('pointerdown', (pointer: Input.Pointer) => {
+            if (!this.gate.start()) return;
+            if (titleTapTarget(this.layout.kind, pointer.x, pointer.y) === 'help') this.scene.start('Help');
+            else this.scene.start('Game', firstSet(this.date));
         });
     }
 
@@ -124,6 +132,13 @@ export class Title extends Scene {
         this.tagline.setPosition(t.tagline.x, t.tagline.y);
         this.dateText.setPosition(t.date.x, t.date.y);
         this.prompt.setPosition(t.prompt.x, t.prompt.y);
+        const b = helpButtonRect(layout.kind);
+        this.helpBox.clear();
+        this.helpBox.fillStyle(hslToHex(MENU_HUE, 0.45, 0.32), 1);
+        this.helpBox.fillRect(b.x, b.y, b.w, b.h);
+        this.helpBox.lineStyle(3, 0xdfe6f5, 1);
+        this.helpBox.strokeRect(b.x, b.y, b.w, b.h);
+        this.helpLabel.setFontSize(b.size).setPosition(b.cx, b.cy);
         t.panels.forEach((p, i) => {
             this.frames[i].x = p.x;
             this.frames[i].y = p.y;
