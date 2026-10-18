@@ -16,6 +16,10 @@ export const PARAMS = {
     messageY: { landscape: 120, portrait: 150, wide: 78 },
     stageCount: 5,
     shapeCounts: [12, 18, 24, 30, 36],
+    // Kinds shown per stage: the first N of SHAPE_KIND_ORDER (circle, rect, triangle, star, cross, hexagon).
+    shapeKinds: [3, 4, 5, 6, 6],
+    starInnerRatio: 0.4,
+    crossArmRatio: 0.35,
     shapeSizeMin: 20,
     shapeSizeMax: [48, 44, 40, 36, 32],
     shapeSat: { min: 0.55, max: 0.9 },

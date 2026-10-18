@@ -2,7 +2,7 @@ import { PARAMS } from '../params';
 import type { Point } from './layout';
 import { Rng, between, shuffle } from './random';
 
-export type ShapeKind = 'circle' | 'rect' | 'triangle';
+export type ShapeKind = 'circle' | 'rect' | 'triangle' | 'star' | 'cross' | 'hexagon';
 export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'added' | 'shape';
 
 export interface Shape {
@@ -43,13 +43,16 @@ export interface Stage {
     dots: Dot[];
 }
 
-const SHAPE_KINDS: ShapeKind[] = ['circle', 'rect', 'triangle'];
+export const SHAPE_KIND_ORDER: readonly ShapeKind[] = ['circle', 'rect', 'triangle', 'star', 'cross', 'hexagon'];
 const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing', 'added', 'shape'];
 const ANGLE_TRIES = 16;
 
 export const clampStage = (stage: number): number => Math.min(Math.max(Math.round(stage), 1), PARAMS.stageCount);
 
-const makeShapes = (rng: Rng, count: number, sizeMax: number): Shape[] => {
+/** The shape kinds that can appear at a stage (`si` = stage - 1): the first `shapeKinds[si]` of the order. */
+export const kindsAt = (si: number): readonly ShapeKind[] => SHAPE_KIND_ORDER.slice(0, PARAMS.shapeKinds[si]);
+
+const makeShapes = (rng: Rng, count: number, sizeMax: number, kinds: readonly ShapeKind[]): Shape[] => {
     const shapes: Shape[] = [];
     const pad = sizeMax + PARAMS.shapePadding;
     for (let tries = 0; shapes.length < count && tries < PARAMS.placeAttemptsMax; tries++) {
@@ -59,7 +62,7 @@ const makeShapes = (rng: Rng, count: number, sizeMax: number): Shape[] => {
         const spaced = shapes.every((s) => Math.hypot(s.x - x, s.y - y) > (s.size + size) * PARAMS.overlapFactor);
         if (!spaced) continue;
         shapes.push({
-            kind: SHAPE_KINDS[Math.floor(rng() * SHAPE_KINDS.length)],
+            kind: kinds[Math.floor(rng() * kinds.length)],
             x,
             y,
             size,
@@ -132,8 +135,8 @@ const propose = (si: number, index: number, src: Shape, rng: Rng): Proposal => {
         return { dst: { ...src }, hideLeft: true, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
     }
     if (kind === 'shape') {
-        // only the form changes, to one of the other two kinds; the bounding square (2 * size) stays the same
-        const others = SHAPE_KINDS.filter((k) => k !== src.kind);
+        // only the form changes, to one of the kinds of this stage other than the current one; the bounding square (2 * size) stays the same
+        const others = kindsAt(si).filter((k) => k !== src.kind);
         const swapped = others[Math.floor(rng() * others.length)];
         return { dst: { ...src, kind: swapped }, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
     }
@@ -147,7 +150,7 @@ const wantedDiffs = (si: number, shapeCount: number): number => Math.min(PARAMS.
 
 const buildPicture = (stage: number, rng: Rng): Stage => {
     const si = stage - 1;
-    const shapes = makeShapes(rng, PARAMS.shapeCounts[si], PARAMS.shapeSizeMax[si]);
+    const shapes = makeShapes(rng, PARAMS.shapeCounts[si], PARAMS.shapeSizeMax[si], kindsAt(si));
     const left: (Shape | null)[] = shapes.map((s) => ({ ...s }));
     const right: (Shape | null)[] = shapes.map((s) => ({ ...s }));
     const diffs: Diff[] = [];
