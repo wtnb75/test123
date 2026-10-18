@@ -17,3 +17,7 @@
 - `src/game/logic/*.test.ts`: the seeded PRNG is copied into each statistics test file — 理由: existing convention in this package; a shared helper is an unrelated refactor.
 - `src/game/logic/roundCrumble.test.ts`: the I-mino fixture's `plan.row = 14` is claimed not to match the lock row — 理由: it does lock at row 14 (row 15, columns 0-3 are solid); `stepPiece` ignores `plan.row`, which is only used for drawing.
 - `src/game/logic/crumble.test.ts`: the comment on the straddle test's second assertion is unclear — 理由: the comment is accurate (a single-column foot gives (5,18)); the assertion tells the two rules apart.
+- `src/game/logic/input.ts`: a new left-half finger is ignored when the old stick finger lifts in the same read (classification runs before the stale-role cleanup) — 理由: the order is older than the stick changes, it needs a lift and a touch in one frame, and the next touch works; not part of this change.
+- `src/game/params.ts`: `STICK_JUMP_FLICK` equals `STICK_RING_RADIUS` only by convention — 理由: the spec states the two as separate parameters that happen to share a value; tying them would block tuning one without the other.
+- `src/game/logic/input.ts`: `follow()` returns a shared `offset` object — 理由: it is reused to avoid a per-frame allocation (AGENTS.md 4.2); deriving dx / dy twice would only trade that for duplicate code.
+- `src/game/scenes/BoardView.ts`: the two-line left hint's centring and 180 px fit are not unit-tested — 理由: Scene drawing is checked in game-qa screenshots (see the first line of this file).

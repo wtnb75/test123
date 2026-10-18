@@ -13,9 +13,10 @@ export const readPointers = (manager: Input.InputManager, out: PointerState[]): 
     const src = manager.pointers;
     for (let i = 0; i < src.length; i++) {
         const p = src[i];
-        const s = out[i] ?? (out[i] = { id: 0, x: 0, downX: 0, downY: 0, isDown: false });
+        const s = out[i] ?? (out[i] = { id: 0, x: 0, y: 0, downX: 0, downY: 0, isDown: false });
         s.id = p.id;
         s.x = p.x;
+        s.y = p.y;
         s.downX = p.downX;
         s.downY = p.downY;
         s.isDown = p.isDown && p.primaryDown;

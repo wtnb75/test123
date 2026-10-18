@@ -97,7 +97,9 @@ export class Game extends Scene {
     /** Listens to the player. Keys and fingers held right now stay ignored until released. */
     protected setupControls(): void {
         this.controls = new SceneInput(this);
-        this.arbiter = new InputArbiter(WIDTH / 2, P.STICK_DEADZONE, P.STICK_RING_RADIUS);
+        this.arbiter = new InputArbiter(
+            WIDTH / 2, P.STICK_DEADZONE, P.STICK_RING_RADIUS, P.STICK_JUMP_FLICK, P.STICK_JUMP_RELEASE,
+        );
         this.arbiter.blockHeld(this.controls.read());
     }
 

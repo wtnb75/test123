@@ -63,7 +63,8 @@ export class BoardView {
             .setOrigin(0.5, 1).setAlpha(0.35);
         const hintY = HEIGHT - P.CELL * 1.5;
         this.hints = [
-            scene.add.text(WIDTH * 0.25, hintY, 'ドラッグ: 移動', HINT_FONT).setOrigin(0.5).setAlpha(0),
+            scene.add.text(WIDTH * 0.25, hintY, 'ドラッグ: 移動\n上へ弾く: ジャンプ', HINT_FONT)
+                .setOrigin(0.5).setAlpha(0),
             scene.add.text(WIDTH * 0.75, hintY, 'タップ: ジャンプ', HINT_FONT).setOrigin(0.5).setAlpha(0),
         ];
         this.overlay = scene.add.graphics();
@@ -199,6 +200,6 @@ export class BoardView {
         g.clear();
         if (!stick) return;
         g.lineStyle(3, 0xffffff, 0.35).strokeCircle(stick.anchorX, stick.anchorY, P.STICK_RING_RADIUS);
-        g.fillStyle(0xffffff, 0.5).fillCircle(stick.anchorX + stick.knobDx, stick.anchorY, P.STICK_KNOB_RADIUS);
+        g.fillStyle(0xffffff, 0.5).fillCircle(stick.anchorX + stick.knobDx, stick.anchorY + stick.knobDy, P.STICK_KNOB_RADIUS);
     }
 }

@@ -7,12 +7,16 @@ import {
 const HALF = 180;
 const DZ = P.STICK_DEADZONE;
 
-const arbiter = (): InputArbiter => new InputArbiter(HALF, DZ, P.STICK_RING_RADIUS);
+const RING = P.STICK_RING_RADIUS;
+const FLICK = P.STICK_JUMP_FLICK;
+const RELEASE = P.STICK_JUMP_RELEASE;
+
+const arbiter = (): InputArbiter => new InputArbiter(HALF, DZ, RING, FLICK, RELEASE);
 const keys = (...codes: string[]): ReadonlySet<string> => new Set(codes);
-const finger = (id: number, downX: number, x = downX, downY = 300): PointerState => ({
-    id, x, downX, downY, isDown: true,
+const finger = (id: number, downX: number, x = downX, downY = 300, y = downY): PointerState => ({
+    id, x, y, downX, downY, isDown: true,
 });
-const up = (id: number): PointerState => ({ id, x: 0, downX: 0, downY: 0, isDown: false });
+const up = (id: number): PointerState => ({ id, x: 0, y: 0, downX: 0, downY: 0, isDown: false });
 const raw = (k: ReadonlySet<string> = keys(), ...pointers: PointerState[]): RawInput => ({
     keys: k, pointers, pressedKeys: keys(), pointerPressed: false,
 });
@@ -77,11 +81,12 @@ describe('InputArbiter: touch stick', () => {
         expect(readDx(-DZ - 1).move).toMatchObject({ left: true, right: false });
     });
 
-    it('keeps the stick view anchored at the first touch and clamps the knob to the ring', () => {
-        const stick = readDx(500).stick;
-        expect(stick).toEqual({ anchorX: 100, anchorY: 300, knobDx: P.STICK_RING_RADIUS });
-        expect(readDx(-500).stick?.knobDx).toBe(-P.STICK_RING_RADIUS);
-        expect(readDx(7).stick?.knobDx).toBe(7);
+    it('starts the stick view at the first touch and keeps the knob inside the ring', () => {
+        expect(readDx(7).stick).toEqual({ anchorX: 100, anchorY: 300, knobDx: 7, knobDy: 0 });
+        expect(readDx(RING).stick).toEqual({ anchorX: 100, anchorY: 300, knobDx: RING, knobDy: 0 });
+        // A far-away finger drags the anchor along instead of the knob leaving the ring.
+        expect(readDx(500).stick).toEqual({ anchorX: 572, anchorY: 300, knobDx: RING, knobDy: 0 });
+        expect(readDx(-500).stick).toEqual({ anchorX: -372, anchorY: 300, knobDx: -RING, knobDy: 0 });
     });
 
     it('treats a touch at exactly half the width as the jump half', () => {
@@ -161,7 +166,136 @@ describe('InputArbiter: touch stick', () => {
         // A new left finger drags right while the blocked one still drags left.
         const r = a.read(raw(keys(), finger(1, 100, 50), finger(2, 80, 140)));
         expect(r.move).toEqual({ left: false, right: true, jump: false });
-        expect(r.stick?.anchorX).toBe(80);
+        // The anchor started at 80 and followed the finger at 140 to stay one ring radius behind it.
+        expect(r.stick?.anchorX).toBe(112);
+    });
+});
+
+// Hand-worked from the spec: anchor (100, 300), DEADZONE 10, RING 28, FLICK 28, RELEASE 14.
+describe('InputArbiter: stick anchor follows the finger', () => {
+    const at = (a: InputArbiter, x: number, y = 300): ReturnType<InputArbiter['read']> =>
+        a.read(raw(keys(), finger(1, 100, x, 300, y)));
+
+    it('does not move the anchor until the finger is more than the ring radius away', () => {
+        expect(at(arbiter(), 100 + RING).stick).toMatchObject({ anchorX: 100, knobDx: RING });
+        expect(at(arbiter(), 100 + RING + 1).stick).toMatchObject({ anchorX: 101, knobDx: RING });
+        expect(at(arbiter(), 100 - RING).stick).toMatchObject({ anchorX: 100, knobDx: -RING });
+        expect(at(arbiter(), 100 - RING - 1).stick).toMatchObject({ anchorX: 99, knobDx: -RING });
+    });
+
+    it('reverses with a 39 px move after following to the right, but not with 38 px', () => {
+        const a = arbiter();
+        expect(at(a, 200).stick?.anchorX).toBe(172);
+        const back38 = at(a, 162);
+        expect(back38.move).toMatchObject({ left: false, right: false });
+        expect(back38.stick?.knobDx).toBe(-DZ);
+        expect(at(a, 161).move).toMatchObject({ left: true, right: false });
+    });
+
+    it('reverses with a 39 px move after following to the left as well', () => {
+        const a = arbiter();
+        expect(at(a, 0).stick?.anchorX).toBe(28);
+        expect(at(a, 38).move).toMatchObject({ left: false, right: false });
+        expect(at(a, 39).move).toMatchObject({ left: false, right: true });
+    });
+
+    it('judges a single huge jump of the finger by the offset after following', () => {
+        const r = at(arbiter(), 300);
+        expect(r.move).toMatchObject({ left: false, right: true });
+        expect(r.stick).toMatchObject({ anchorX: 272, knobDx: RING });
+    });
+
+    it('follows downwards but not upwards', () => {
+        const a = arbiter();
+        expect(at(a, 100, 300 + RING).stick).toMatchObject({ anchorY: 300, knobDy: RING });
+        expect(at(a, 100, 300 + RING + 1).stick).toMatchObject({ anchorY: 301, knobDy: RING });
+        const b = arbiter();
+        // 40 px above the anchor: the anchor stays, the knob is held at the ring edge.
+        expect(at(b, 100, 260).stick).toMatchObject({ anchorY: 300, knobDy: -RING });
+    });
+
+    it('keeps the finger as the stick when the anchor leaves the left half', () => {
+        const a = arbiter();
+        at(a, 500);
+        const r = at(a, 500);
+        expect(r.stick?.anchorX).toBe(472);
+        expect(r.move).toMatchObject({ right: true, jump: false });
+    });
+});
+
+describe('InputArbiter: flicking the stick up jumps', () => {
+    const at = (a: InputArbiter, y: number, x = 100): ReturnType<InputArbiter['read']> =>
+        a.read(raw(keys(), finger(1, 100, x, 300, y)));
+
+    it('needs to pass the flick distance: exactly 28 px up does not jump, 29 px does', () => {
+        expect(at(arbiter(), 300 - FLICK).move.jump).toBe(false);
+        expect(at(arbiter(), 300 - FLICK - 1).move.jump).toBe(true);
+    });
+
+    it('stays on until the finger comes back inside the release distance (hysteresis)', () => {
+        const a = arbiter();
+        expect(at(a, 271).move.jump).toBe(true);
+        expect(at(a, 300 - RELEASE - 1).move.jump).toBe(true); // 15 px up
+        expect(at(a, 300 - RELEASE).move.jump).toBe(false); // 14 px up
+        expect(at(a, 285).move.jump).toBe(false); // 15 px up again does not turn it back on
+        expect(at(a, 271).move.jump).toBe(true); // flicked again
+    });
+
+    it('moves and jumps together on a diagonal, and jumps alone when the sideways offset is within the deadzone', () => {
+        const diagonal = at(arbiter(), 270, 120);
+        expect(diagonal.move).toEqual({ left: false, right: true, jump: true });
+        const straightUp = at(arbiter(), 270, 105);
+        expect(straightUp.move).toEqual({ left: false, right: false, jump: true });
+    });
+
+    it('measures the flick from the anchor after it followed the finger down', () => {
+        const a = arbiter();
+        expect(at(a, 329).stick?.anchorY).toBe(301);
+        expect(at(a, 273).move.jump).toBe(false); // 28 px above the new anchor
+        expect(at(a, 272).move.jump).toBe(true);
+    });
+
+    it('shows the knob moving up with the flick', () => {
+        expect(at(arbiter(), 285).stick).toMatchObject({ knobDx: 0, knobDy: -15 });
+    });
+
+    it('drops the jump when the finger lifts', () => {
+        const a = arbiter();
+        expect(at(a, 271).move.jump).toBe(true);
+        expect(a.read(raw(keys(), up(1))).move.jump).toBe(false);
+    });
+
+    it('starts a new stick finger as not flicked, so 20 px up on its first frame (inside the flick distance) is no jump', () => {
+        const a = arbiter();
+        expect(at(a, 271).move.jump).toBe(true);
+        a.read(raw(keys(), up(1)));
+        expect(a.read(raw(keys(), finger(2, 100, 100, 300, 280))).move.jump).toBe(false);
+    });
+
+    it('combines with the right-half finger and the keys as an OR', () => {
+        const a = arbiter();
+        const both = a.read(raw(keys(), finger(1, 100, 100, 300, 271), finger(2, 300)));
+        expect(both.move.jump).toBe(true);
+        // The right finger lifts while the stick is still flicked: jump input does not drop.
+        expect(a.read(raw(keys(), finger(1, 100, 100, 300, 271), up(2))).move.jump).toBe(true);
+        const withKey = arbiter().read(raw(keys('Space'), finger(1, 100, 100, 300, 300)));
+        expect(withKey.move.jump).toBe(true);
+    });
+
+    it('does not jump from a flick by a finger held at blockHeld or a second left-half finger', () => {
+        const a = arbiter();
+        a.blockHeld(raw(keys(), finger(1, 100, 100, 300, 300)));
+        expect(a.read(raw(keys(), finger(1, 100, 100, 300, 250))).move.jump).toBe(false);
+        // A fresh stick finger exists now; a further left finger flicking is ignored.
+        const r = a.read(raw(keys(), finger(1, 100, 100, 300, 250), finger(2, 80, 80, 300, 300), finger(3, 60, 60, 300, 250)));
+        expect(r.move.jump).toBe(false);
+    });
+
+    it('keeps the right-half tap jump and keyboard jump working without the stick', () => {
+        const a = arbiter();
+        expect(a.read(raw(keys(), finger(1, 300))).move.jump).toBe(true);
+        expect(a.read(raw(keys(), up(1))).move.jump).toBe(false);
+        expect(a.read(raw(keys('KeyW'))).move.jump).toBe(true);
     });
 });
 
