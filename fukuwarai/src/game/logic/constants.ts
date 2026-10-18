@@ -10,6 +10,24 @@ export const PLACEMENT_CENTER = { x: GAME_WIDTH / 2, y: 380 };
 export const TRAY_ROW2_Y = 830;
 export const SCORE_BUTTON_Y = 910;
 
+// Drop-target display shown while a part is held (docs/spec.md "ドロップ先の表示").
+export const DROP_HINT_LABEL_Y = 24;
+export const DROP_HINT_LABEL_FONT_PX = 28;
+export const DROP_HINT_LINE_WIDTH_PX = 6;
+export const DROP_HINT_DASH_PX = 16;
+export const DROP_HINT_GAP_PX = 10;
+export const DROP_HINT_CONFIRM_COLOR = 0x2a9d8f;
+export const DROP_HINT_TRAY_COLOR = 0xe76f51;
+export const DROP_HINT_TINT_ALPHA = 0.1;
+// Below every existing object (depth 0) for tint/line; above any part depth
+// (depthCounter only grows by 1 per grab) for label and confirm ring.
+export const DROP_HINT_TINT_DEPTH = -10;
+export const DROP_HINT_DIVIDER_DEPTH = -8;
+export const DROP_HINT_LINE_DEPTH = -5;
+export const DROP_HINT_TOP_DEPTH = 1000000;
+export const CONFIRM_FLASH_MS = 250;
+export const CONFIRM_FLASH_LINE_PX = 4;
+
 // Offscreen canvas used only to compute the similarity score (see score.ts).
 export const SCORE_CANVAS_SIZE = 400;
 
