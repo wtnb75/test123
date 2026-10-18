@@ -1,30 +1,23 @@
 import type { Point } from './types';
 
-/** Below this per-frame movement distance (px), keep `targetRotation` at the
- * current rotation instead of recomputing a direction — avoids the target
- * (and therefore the rotation) flickering from near-zero movement noise
- * while the pointer is essentially stationary. */
-export const ROTATION_UPDATE_THRESHOLD = 1.5;
-
 /** Fraction of the remaining angle to `targetRotation` closed per frame
- * (linear interpolation), at full confidence (see `CONFIDENT_ROTATION_DISTANCE`).
+ * (linear interpolation), at full speed (see `ROTATION_FULL_SPEED`).
  * Lower = slower to "catch up", more of a trailing feel; 1 would snap
  * instantly. */
 export const ROTATION_LERP_FACTOR = 0.25;
 
-/** Per-frame movement distance (px) at or above which `targetRotation` is
- * trusted fully (the effective lerp factor reaches `ROTATION_LERP_FACTOR`).
- * Below this, the effective lerp factor is scaled down toward 0 as
- * movement approaches `ROTATION_UPDATE_THRESHOLD` — a single frame's
- * movement vector is direction-of-travel evidence, and a short vector's
- * angle is disproportionately sensitive to ordinary pointer-sampling
- * jitter (a couple of stray pixels can swing `atan2` by tens of degrees),
- * so slow dragging produced visibly erratic rotation even though rotation
- * itself is lerped — chasing a noisy target still looks jittery, just
- * damped a little. Scaling the lerp factor itself by movement confidence
- * fixes this without affecting fast, confident drags (where a frame's
- * movement already comfortably exceeds this distance). */
-export const CONFIDENT_ROTATION_DISTANCE = 10;
+/** Per-move distance (px) at or below which rotation does not change at all
+ * (only the position follows the pointer). Position fine-tuning is slow,
+ * small movement; letting it steer the rotation made the part twist while
+ * the player was only trying to line it up. */
+export const ROTATION_START_SPEED = 3;
+
+/** Per-move distance (px) at or above which the effective lerp factor
+ * reaches `ROTATION_LERP_FACTOR`. Between `ROTATION_START_SPEED` and this
+ * the factor ramps up linearly. A short movement vector's angle is also
+ * disproportionately sensitive to pointer-sampling jitter, so the ramp keeps
+ * that noise out of the rotation. */
+export const ROTATION_FULL_SPEED = 8;
 
 /**
  * Converts a world-space point into a part's local (unrotated) frame,
@@ -106,9 +99,9 @@ function lerpAngle(from: number, to: number, t: number): number {
  * face the movement direction regardless of where on the part it is,
  * verified against `grabLocalOffset` near 0, 90 and 180 degrees.
  *
- * The lerp factor itself is scaled by movement confidence (see
- * `CONFIDENT_ROTATION_DISTANCE`) so slow, jitter-prone drags don't produce
- * visibly erratic rotation swings that a fast, confident drag wouldn't.
+ * The lerp factor itself is ramped by this move's distance (see
+ * `ROTATION_START_SPEED` / `ROTATION_FULL_SPEED`): slow, small movement
+ * only moves the part, fast movement steers it fully.
  */
 export function computeDragTransform(
     lastPointer: Point,
@@ -120,10 +113,11 @@ export function computeDragTransform(
     const dy = pointer.y - lastPointer.y;
     const moveDistance = Math.hypot(dx, dy);
     const grabLocalAngle = Math.atan2(grabLocalOffset.y, grabLocalOffset.x);
-    const targetRotation = moveDistance < ROTATION_UPDATE_THRESHOLD
-        ? currentRotation
-        : Math.atan2(dy, dx) - grabLocalAngle;
-    const speedRatio = Math.min(1, Math.max(0, moveDistance / CONFIDENT_ROTATION_DISTANCE));
+    const targetRotation = Math.atan2(dy, dx) - grabLocalAngle;
+    const speedRatio = Math.min(1, Math.max(
+        0,
+        (moveDistance - ROTATION_START_SPEED) / (ROTATION_FULL_SPEED - ROTATION_START_SPEED),
+    ));
     const rotation = lerpAngle(currentRotation, targetRotation, ROTATION_LERP_FACTOR * speedRatio);
 
     const cos = Math.cos(rotation);
