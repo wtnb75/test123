@@ -17,6 +17,13 @@ export const PARAMS = {
     firstSpawnDelayMs: 500,
     spawnIntervalMs: 1200,
     maxActive: 4,
+    // ramp-up (docs/spec.md "段階"): from these game times the later phases' interval and cap apply
+    rampMidAtMs: 20000,
+    rampLateAtMs: 40000,
+    spawnIntervalMidMs: 1000,
+    maxActiveMid: 5,
+    spawnIntervalLateMs: 800,
+    maxActiveLate: 6,
     friendRate: 0.25,
     decoyRate: 0.3,
     comboRate: 0.2,

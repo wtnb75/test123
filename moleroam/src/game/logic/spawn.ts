@@ -8,6 +8,24 @@ export interface SpawnPlan {
     kind: Kind;
 }
 
+export interface RampPhase {
+    /** Time between spawn checks while this phase runs. */
+    intervalMs: number;
+    /** Most pops (telegraph and up) that may exist at once. */
+    maxActive: number;
+}
+
+/** The phase at game time `elapsedMs`: early, mid from `rampMidAtMs`, late from `rampLateAtMs` (docs/spec.md "段階"). */
+export const rampPhase = (elapsedMs: number): RampPhase => {
+    if (elapsedMs >= PARAMS.rampLateAtMs) {
+        return { intervalMs: PARAMS.spawnIntervalLateMs, maxActive: PARAMS.maxActiveLate };
+    }
+    if (elapsedMs >= PARAMS.rampMidAtMs) {
+        return { intervalMs: PARAMS.spawnIntervalMidMs, maxActive: PARAMS.maxActiveMid };
+    }
+    return { intervalMs: PARAMS.spawnIntervalMs, maxActive: PARAMS.maxActive };
+};
+
 /** Time of the first spawn check, measured from the start of play. */
 export const firstSpawnAt = (): number => PARAMS.firstSpawnDelayMs;
 
@@ -26,11 +44,11 @@ export const stepSpawn = (
     layout: Layout = LANDSCAPE,
 ): { plan: SpawnPlan[]; scheduledAt: number } =>
     isSpawnDue(elapsedMs, scheduledAt)
-        ? { plan: planSpawn(usedHoles, rand, layout), scheduledAt: nextSpawnAt(elapsedMs) }
+        ? { plan: planSpawn(usedHoles, rand, layout, rampPhase(elapsedMs).maxActive), scheduledAt: nextSpawnAt(elapsedMs) }
         : { plan: [], scheduledAt };
 
-/** The next check is `spawnIntervalMs` after the check that just ran, whether or not it spawned. */
-export const nextSpawnAt = (checkedAt: number): number => checkedAt + PARAMS.spawnIntervalMs;
+/** The next check is one interval after the check that just ran (the interval of that check's phase), whether or not it spawned. */
+export const nextSpawnAt = (checkedAt: number): number => checkedAt + rampPhase(checkedAt).intervalMs;
 
 /** Index into a list of `length` items from a random value in [0, 1) (1 is tolerated). */
 const pick = (length: number, rand: () => number): number => Math.min(length - 1, Math.floor(rand() * length));
@@ -94,8 +112,13 @@ const comboHoles = (free: readonly number[], rand: () => number, layout: Layout)
  * Random draws in order: combo roll (only when there is room for a combo), anchor hole,
  * neighbour holes, then one kind roll per spawned pop.
  */
-export const planSpawn = (usedHoles: readonly number[], rand: () => number, layout: Layout = LANDSCAPE): SpawnPlan[] => {
-    const room = PARAMS.maxActive - usedHoles.length;
+export const planSpawn = (
+    usedHoles: readonly number[],
+    rand: () => number,
+    layout: Layout = LANDSCAPE,
+    maxActive: number = PARAMS.maxActive,
+): SpawnPlan[] => {
+    const room = maxActive - usedHoles.length;
     const free = freeHoles(usedHoles, layout);
     if (room <= 0 || free.length === 0) return [];
     const combo = room >= PARAMS.comboSize && rand() < PARAMS.comboRate;
