@@ -19,6 +19,7 @@ export const COLORS = {
     buttonDanger: 0x5a2d3a,
     buttonDangerArmed: 0xb23a52,
     recoveredText: '#7ee787',
+    bonusText: '#ffd166',
     text: '#ffffff',
     captionText: '#9aa7b8',
     alarm: 0xff3b30,

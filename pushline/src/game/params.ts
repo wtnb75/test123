@@ -11,7 +11,8 @@ export const PARAMS = {
     // moves
     startMoves: 30,
     maxMoves: 40,
-    movesPerLine: 14,
+    movesPerLine: 11,
+    shortestBonus: 4,
 
     // fixed blocks
     initialFixed: 3,
@@ -81,6 +82,7 @@ export const PARAMS = {
     startPulseScale: 1.05,
     sceneFadeMs: 150,
     resultCaptionGap: 70,
+    resultShortestGap: 60,
     recoveredGap: 16,
     recoveredEdgeMargin: 4,
     tapRingRatio: 0.2,

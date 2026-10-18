@@ -84,8 +84,10 @@ describe('generateBlocks after a line clear', () => {
         const s = board(['.....', '.....', '.....', '....@', '....o', 'oooo.'], { score: 1 });
         move(s, 'down', depsOf(5));
         expect(s.score).toBe(2);
-        const limits = search.mock.calls.map((call) => call[3]);
+        // the shortest-clear measurement of the new board (limit = the moves cap) is a separate call
+        const limits = search.mock.calls.map((call) => call[3]).filter((limit) => limit !== PARAMS.maxMoves);
         expect(limits.length).toBeGreaterThan(0);
         expect(new Set(limits)).toEqual(new Set([6])); // targetSolve(2) = 7, limit = 7 - 1
+        expect(search.mock.calls.some((call) => call[3] === PARAMS.maxMoves)).toBe(true);
     });
 });

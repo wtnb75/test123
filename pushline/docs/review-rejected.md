@@ -24,3 +24,9 @@
 - `src/game/scenes/boardView.ts` (`completeStaging` などの状態遷移に単体テストがない): Scene は網羅の対象外 — 理由: 仕様の完了条件が QA の連続撮影での確認と定めている。時刻の計算は `logic/staging` で単体テスト済み
 - `src/game/logic/staging.ts` (`STAGING_END_MS` が間引きの tween の構造を重複して持つ): 1 か所で定義すべき — 理由: 間引きは仕様で `間引き点滅 × 4 + 間引きの薄れ` と固定されている。パラメータ表と同じ式
 - `src/game/scenes/boardView.ts` (入力で完成させた出現の rect が 1350 ms まで残る): 重なるマスだけにすべき — 理由: 仕様の描画順の規則（完成させたブロックは演出が終わるまで演出の層に置く）どおり。判定を増やすより単純
+- `src/game/logic/rules.ts` (`measureShortest` が生成のあとで 2 回目の幅優先探索を走らせる): 生成が測った値を使い回すべき — 理由: 実測で中央値 0.3 ms、p95 1.8 ms（480 回）。spec も別の測定を許している。使い回すと生成の探索の上限との結合が増える
+- `src/game/logic/rules.ts` / `demo.ts` (Title のデモも測定とボーナスの分岐を通る): デモが使わない測定をする — 理由: デモは `res.bonus` を見ず、`state.moves` は毎手上書きされる（spec は「してもしなくてもよい」）。除外の口を `rules.ts` に足すほうが影響が大きい
+- `src/game/scenes/Result.ts` (「最短 M 回」が見出しの 60 px 下で枠が接する): 重なる — 理由: 字形の間は約 9 px。受け入れ条件は QA の 375 × 550 と 667 × 310 で見る
+- `src/game/logic/spawn.wiring.test.ts` (測定の呼び出しを limit = `maxMoves` で見分ける): 脆い — 理由: 生成の limit は `solveMax` 10 の 9 以下で、40 にならない
+- `src/game/scenes/Game.ts` (縦画面の「+N」の上昇が約 17 px に縮む): spec の 40 px より短い — 理由: 元からの挙動（上端の制限）。spec にも書いた
+- `src/game/scenes/Game.ts` (横画面の中心が `originX` 0.5 を前提にする / 幅が画面より大きいときの保険 / 配置の単体テスト): 将来の崩れ — 理由: 横画面の `hudMoves` は 0.5 固定で幅も収まる。配置は Phaser の文字幅に依存し、QA で見る

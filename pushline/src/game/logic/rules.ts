@@ -3,6 +3,7 @@ import { PARAMS } from '../params';
 import { topUpFixed } from './fixed';
 import { colFull, DIR_LIST, DIRS, emptyGrid, inBounds, rowFull } from './grid';
 import { findPath } from './path';
+import { minClearMoves } from './solve';
 import { generateBlocks } from './spawn';
 import {
     EMPTY, FIXED, MOVABLE,
@@ -19,11 +20,23 @@ export function createState(deps: Deps): State {
         score: 0,
         over: false,
         history: [],
+        spent: 0,
+        shortest: null,
+        bonusCount: 0,
     };
     topUpFixed(state, deps.rng);
     generateBlocks(state, deps.rng, [], deps.now);
+    state.shortest = measureShortest(state);
     return state;
 }
+
+/** Fewest moves to clear the board as it is now, or null when the search finds none within its limits. */
+export const measureShortest = (state: State): number | null =>
+    minClearMoves(state.grid, state.px, state.py, PARAMS.maxMoves);
+
+/** The shortest-clear bonus: a board that could be measured, cleared in no more moves than its shortest. */
+export const earnsShortestBonus = (spent: number, shortest: number | null): boolean =>
+    shortest !== null && spent <= shortest;
 
 const snapshot = (state: State): Snapshot => ({
     grid: state.grid.map((row) => row.slice()),
@@ -35,7 +48,7 @@ const snapshot = (state: State): Snapshot => ({
 /** Moves one cell (pushing a movable block when it is in the way). Blocked moves change nothing. */
 export function move(state: State, dir: Dir, deps: Deps): MoveResult {
     const res: MoveResult = {
-        moved: false, pushed: false, clearedRows: [], clearedCols: [], cleared: [], pruned: [], spawned: [], relocated: [], recovered: 0,
+        moved: false, pushed: false, clearedRows: [], clearedCols: [], cleared: [], pruned: [], spawned: [], relocated: [], recovered: 0, bonus: false,
     };
     if (state.over) return res;
     const { grid } = state;
@@ -60,6 +73,7 @@ export function move(state: State, dir: Dir, deps: Deps): MoveResult {
     state.px = nx;
     state.py = ny;
     state.moves -= 1;
+    state.spent += 1;
     res.moved = true;
 
     if (dest && (rowFull(grid, dest.y) || colFull(grid, dest.x))) {
@@ -87,7 +101,10 @@ function clearLines(state: State, dest: { x: number; y: number }, res: MoveResul
     const lines = res.clearedRows.length + res.clearedCols.length;
     state.score += lines;
     const movesBefore = state.moves;
-    state.moves = Math.min(PARAMS.maxMoves, state.moves + PARAMS.movesPerLine * lines);
+    res.bonus = earnsShortestBonus(state.spent, state.shortest);
+    if (res.bonus) state.bonusCount += 1;
+    const gain = PARAMS.movesPerLine * lines + (res.bonus ? PARAMS.shortestBonus : 0);
+    state.moves = Math.min(PARAMS.maxMoves, state.moves + gain);
     res.recovered = state.moves - movesBefore;
     state.history = [];
 
@@ -100,6 +117,8 @@ function clearLines(state: State, dest: { x: number; y: number }, res: MoveResul
     res.spawned.push(...spawn.added);
     res.pruned.push(...spawn.removed);
     res.relocated.push(...spawn.relocated);
+    state.spent = 0;
+    state.shortest = measureShortest(state);
     // a block of this top-up that the generation moved away again appears only at its final cell
     res.spawned = res.spawned.filter((p) => grid[p.y][p.x] === p.kind);
 }
