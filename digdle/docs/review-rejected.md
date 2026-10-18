@@ -16,3 +16,11 @@
 - `src/game/logic/titleDemo.ts`: レイアウトの定数がボット側のファイルにある — 理由: 内部構造は実装裁量で、効果が小さい
 - `src/game/scenes/Title.ts`（`renderDemo`）: alpha の比較がセルのループの中にある — 理由: 20 セルだけで影響がない
 - `src/game/logic/titleLayout.ts`（ボタンの高さ 40・52 px）: 44 px の目安より小さい — 理由: ユーザーの依頼（ボタンを小さくして）による。QA で実機を確認する
+- `src/game/logic/gameLayout.ts`（`computeToastPlacement`）: 幅 160 未満では折り返し幅の下限 20 が背景の最大幅を超える — 理由: spec の想定は幅 320 px 以上。下限 20 は Phaser の高度な折り返しが例外を投げないためのもの
+- `src/game/logic/gameLayout.ts`（`pickToastFontSize`）: 12 px でも 58 px を超える通知を切り詰めない — 理由: spec が「保証しない・許容する」と明記している（従来の下限の挙動）
+- `src/game/scenes/Game.ts`（通知の背景）: 背景の高さが奇数だと上下の端が半ピクセルになる — 理由: 見た目の差がほぼ無く、spec も高さの偶数化を求めない。幅だけ偶数にしたのは `🏠` / `◀️` との位置の保証のため
+- `src/game/scenes/Game.ts`（`toastMaxWidth` の初期値 0）: `createToastUi` の前に通知を出すと 0 幅になる — 理由: `toastBg` / `toastText` の null 判定で `createToastUi` の前には到達しない
+- `src/game/logic/gameLayout.ts`（`TOAST_PADDING_X` / `TOAST_PADDING_Y`）: 余白の定数の使われ方が非対称 — 理由: 保守性のみ。値は両方とも定数に集約済み
+- `src/game/logic/gameLayout.test.ts`（`ROWS_BY_DIGITS`）: 試行回数をテスト内の固定値で持つ — 理由: spec の表が独立した基準。ゲーム側の定数と共有すると、ゲーム側の誤りを見逃す
+- `src/game/scenes/Game.ts`（結果表示の文字 y=52・82）: 通知の帯の境界 60 px と近い — 理由: 今回の変更では動かしていない既存の配置。QA のスクリーンショットで確認する
+- `src/game/scenes/Game.ts`（`showToast`）: 通知のたびに文字を最大 5 回測り直す — 理由: 不正入力の Enter 時だけで、コストが小さい

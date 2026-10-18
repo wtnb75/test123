@@ -3,6 +3,10 @@ import {
     CELL_FILL, CELL_FONT_FAMILY, CELL_LABEL_COLOR, CELL_STROKE, CELL_STROKE_WIDTH, cellLabelSize, COLORS
 } from '../logic/boardStyle';
 import { applyGuess, createGame } from '../logic/game';
+import {
+    computeGameLayout, computeToastPlacement, pickToastFontSize, TOAST_FONT_SIZE, TOAST_PADDING_Y, toastBoxWidth,
+    type LayoutMetrics
+} from '../logic/gameLayout';
 import { isDigitOption, modeFromData } from '../logic/selectLayout';
 import type { DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData } from '../types';
 import {
@@ -15,28 +19,6 @@ type UiPhase = 'playing' | 'won' | 'lost';
 interface BoardCell {
     box: GameObjects.Rectangle;
     label: GameObjects.Text;
-}
-
-interface LayoutMetrics {
-    width: number;
-    height: number;
-    keyboardDock: 'right' | 'bottom';
-    leftTitleX: number;
-    leftTitleY: number;
-    boardCenterX: number;
-    boardStartX: number;
-    boardStartY: number;
-    boardWidth: number;
-    boardHeight: number;
-    boardGap: number;
-    boardCellSize: number;
-    keyboardStartX: number;
-    keyboardStartY: number;
-    keyboardCols: number;
-    keyboardRows: number;
-    keyboardButtonHeight: number;
-    keyboardButtonWidth: number;
-    keyboardGap: number;
 }
 
 const KEY_PRIORITY: Record<DigitStatus, number> = {
@@ -57,6 +39,7 @@ export class Game extends Scene {
     private toastText: GameObjects.Text | null = null;
     private toastBg: GameObjects.Rectangle | null = null;
     private toastTimer: Time.TimerEvent | null = null;
+    private toastMaxWidth = 0;
     private keyBoxes = new Map<string, GameObjects.Rectangle>();
     private keyStatus = new Map<string, DigitStatus>();
     private keyboardObjects: GameObjects.GameObject[] = [];
@@ -196,7 +179,9 @@ export class Game extends Scene {
             return;
         }
 
-        this.layout = this.computeLayout(this.round.attemptLimit, this.round.n);
+        this.layout = computeGameLayout(
+            this.scale.gameSize.width, this.scale.gameSize.height, this.round.attemptLimit, this.round.n
+        );
         this.buildVerticalTitle();
         this.buildTopIcons();
         this.createToastUi();
@@ -210,25 +195,22 @@ export class Game extends Scene {
             return;
         }
 
-        const toastY = this.layout.keyboardDock === 'bottom'
-            ? this.layout.keyboardStartY - 12
-            : this.layout.height - 24;
+        // The notice sits in the strip above the board, so it never covers a row or a key.
+        const placement = computeToastPlacement(this.layout.width);
+        this.toastMaxWidth = placement.maxBoxWidth;
 
-        this.toastBg = this.add.rectangle(this.layout.boardCenterX, toastY, 10, 10, 0x0b1220, 0.92)
-            .setOrigin(0.5, 1)
+        this.toastBg = this.add.rectangle(placement.centerX, placement.centerY, 10, 10, 0x0b1220, 0.92)
+            .setOrigin(0.5, 0.5)
             .setVisible(false)
             .setDepth(1200);
-        this.toastText = this.add.text(this.layout.boardCenterX, toastY - 8, '', {
+        this.toastText = this.add.text(placement.centerX, placement.centerY, '', {
             fontFamily: 'sans-serif',
-            fontSize: 16,
+            fontSize: TOAST_FONT_SIZE,
             color: '#fca5a5',
             align: 'center',
-            wordWrap: {
-                width: this.layout.keyboardDock === 'right'
-                    ? Math.max(180, this.layout.boardWidth - 20)
-                    : Math.max(180, this.layout.width - 28)
-            }
-        }).setOrigin(0.5, 1)
+            // Advanced wrap also breaks inside a long run with no spaces (Japanese messages).
+            wordWrap: { width: placement.textWidth, useAdvancedWrap: true }
+        }).setOrigin(0.5, 0.5)
             .setVisible(false)
             .setDepth(1201);
 
@@ -244,10 +226,18 @@ export class Game extends Scene {
         this.toastText.setColor('#fca5a5');
         this.toastText.setVisible(true);
 
-        const bounds = this.toastText.getBounds();
-        const paddingX = 14;
-        const paddingY = 10;
-        this.toastBg.setSize(bounds.width + paddingX * 2, bounds.height + paddingY * 2);
+        const text = this.toastText;
+        const fontSize = pickToastFontSize((size) => {
+            text.setFontSize(size);
+            return text.getBounds().height + TOAST_PADDING_Y * 2;
+        });
+        text.setFontSize(fontSize);
+
+        const bounds = text.getBounds();
+        this.toastBg.setSize(
+            toastBoxWidth(bounds.width, this.toastMaxWidth),
+            bounds.height + TOAST_PADDING_Y * 2
+        );
         this.toastBg.setVisible(true);
 
         if (this.toastTimer) {
@@ -613,88 +603,6 @@ export class Game extends Scene {
             obj.destroy();
         }
         this.keyboardObjects = [];
-    }
-
-    private computeLayout(rows: number, cols: number): LayoutMetrics {
-        const width = this.scale.gameSize.width;
-        const height = this.scale.gameSize.height;
-
-        const outerMargin = Math.max(8, Math.min(14, Math.floor(width * 0.02)));
-        const leftTitleWidth = Math.max(36, Math.min(62, Math.floor(width * 0.07)));
-        const panelGap = Math.max(6, Math.min(12, Math.floor(width * 0.02)));
-
-        const useBottomKeyboard = height > width;
-
-        const keyboardDock: 'right' | 'bottom' = useBottomKeyboard ? 'bottom' : 'right';
-        const keyboardCols = keyboardDock === 'right' ? 2 : 4;
-        const keyboardRows = keyboardDock === 'right' ? 6 : 3;
-        const keyboardGap = 8;
-
-        const rightPanelWidth = keyboardDock === 'right'
-            ? Math.max(140, Math.min(220, Math.floor(width * 0.20)))
-            : 0;
-
-        const keyboardButtonWidth = keyboardDock === 'right'
-            ? Math.floor((rightPanelWidth - keyboardGap * (keyboardCols - 1)) / keyboardCols)
-            : Math.max(52, Math.floor((width - (outerMargin * 2) - leftTitleWidth - panelGap - keyboardGap * (keyboardCols - 1)) / keyboardCols));
-
-        const keyboardButtonHeight = keyboardDock === 'right'
-            ? Math.max(36, Math.min(64, Math.floor((height - 120 - keyboardGap * (keyboardRows - 1)) / keyboardRows)))
-            : Math.max(38, Math.min(54, Math.floor((height * 0.22 - keyboardGap * (keyboardRows - 1)) / keyboardRows)));
-
-        const boardTop = 60;
-        const bottomKeyboardHeight = keyboardDock === 'bottom'
-            ? keyboardRows * keyboardButtonHeight + (keyboardRows - 1) * keyboardGap
-            : 0;
-
-        const boardBottom = keyboardDock === 'bottom'
-            ? height - outerMargin - bottomKeyboardHeight - panelGap
-            : height - outerMargin;
-        const boardLeft = outerMargin + leftTitleWidth + panelGap;
-        const boardRight = width - rightPanelWidth - panelGap - outerMargin;
-        const boardHeightLimit = Math.max(120, boardBottom - boardTop);
-        const boardWidthLimit = Math.max(120, boardRight - boardLeft);
-
-        const boardGap = Math.max(4, Math.min(10, Math.floor(boardHeightLimit / (rows * 7))));
-        const cellByHeight = Math.floor((boardHeightLimit - boardGap * (rows - 1)) / rows);
-        const cellByWidth = Math.floor((boardWidthLimit - boardGap * (cols - 1)) / cols);
-        const boardCellSize = Math.max(28, Math.min(92, cellByHeight, cellByWidth));
-
-        const boardWidth = cols * boardCellSize + (cols - 1) * boardGap;
-        const boardHeight = rows * boardCellSize + (rows - 1) * boardGap;
-        const boardStartX = boardLeft + Math.max(0, Math.floor((boardWidthLimit - boardWidth) / 2));
-        const boardStartY = boardTop + Math.max(0, Math.floor((boardHeightLimit - boardHeight) / 2));
-
-        const keyboardHeight = keyboardRows * keyboardButtonHeight + (keyboardRows - 1) * keyboardGap;
-        const keyboardWidth = keyboardCols * keyboardButtonWidth + (keyboardCols - 1) * keyboardGap;
-        const keyboardStartX = keyboardDock === 'right'
-            ? width - outerMargin - rightPanelWidth
-            : width - outerMargin - keyboardWidth;
-        const keyboardStartY = keyboardDock === 'right'
-            ? Math.max(72, Math.floor((height - keyboardHeight) / 2))
-            : height - outerMargin - keyboardHeight;
-
-        return {
-            width,
-            height,
-            keyboardDock,
-            leftTitleX: outerMargin + Math.floor(leftTitleWidth / 2),
-            leftTitleY: Math.floor(height / 2),
-            boardCenterX: boardStartX + boardWidth / 2,
-            boardStartX,
-            boardStartY,
-            boardWidth,
-            boardHeight,
-            boardGap,
-            boardCellSize,
-            keyboardStartX,
-            keyboardStartY,
-            keyboardCols,
-            keyboardRows,
-            keyboardButtonHeight,
-            keyboardButtonWidth,
-            keyboardGap
-        };
     }
 
     private clearEndUi(): void {
