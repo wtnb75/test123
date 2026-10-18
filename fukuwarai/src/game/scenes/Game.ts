@@ -6,9 +6,23 @@ import {
     PLACEMENT_CENTER,
     SCORE_BUTTON_Y,
     SCORE_CANVAS_SIZE,
+    DROP_HINT_LABEL_Y,
+    DROP_HINT_LABEL_FONT_PX,
+    DROP_HINT_LINE_WIDTH_PX,
+    DROP_HINT_DASH_PX,
+    DROP_HINT_GAP_PX,
+    DROP_HINT_CONFIRM_COLOR,
+    DROP_HINT_TINT_ALPHA,
+    DROP_HINT_TINT_DEPTH,
+    DROP_HINT_LINE_DEPTH,
+    DROP_HINT_DIVIDER_DEPTH,
+    DROP_HINT_TOP_DEPTH,
+    CONFIRM_FLASH_MS,
+    CONFIRM_FLASH_LINE_PX,
 } from '../logic/constants';
+import { dropHintFor } from '../logic/dropHint';
 import { PART_IDS, PART_SHAPES, PART_ANSWERS, TRAY_SLOTS, hitRadius } from '../logic/parts';
-import type { DraggablePartId, GamePhase, PartTransform, Point } from '../logic/types';
+import type { DraggablePartId, GamePhase, PartTransform, Point, Region } from '../logic/types';
 import { toLocalOffset, computeDragTransform } from '../logic/dragTransform';
 import { regionForY } from '../logic/regions';
 import { averageChannelDiff, scoreFromAverageDiff } from '../logic/score';
@@ -28,6 +42,12 @@ export class Game extends Scene {
     private dragState: DragState | null = null;
     private depthCounter = 1;
     private grabMarker!: GameObjects.Graphics;
+    // Drop-target display (docs/spec.md "ドロップ先の表示"); created once in showPlacement.
+    private guideText: GameObjects.Text | null = null;
+    private hintLabel: GameObjects.Text | null = null;
+    private hintTint: GameObjects.Graphics | null = null;
+    private hintLine: GameObjects.Graphics | null = null;
+    private hintRegion: Region | null = null;
 
     constructor() {
         super('Game');
@@ -41,9 +61,15 @@ export class Game extends Scene {
         this.activeDragId = null;
         this.dragState = null;
         this.grabMarker = this.add.graphics().setVisible(false);
+        this.hintRegion = null;
+        this.guideText = null;
+        this.hintLabel = null;
+        this.hintTint = null;
+        this.hintLine = null;
 
         this.input.on('pointermove', (pointer: Input.Pointer) => this.onPointerMove(pointer));
         this.input.on('pointerup', (pointer: Input.Pointer) => this.onPointerUp(pointer));
+        this.input.on('pointerupoutside', (pointer: Input.Pointer) => this.onPointerUp(pointer, true));
 
         this.showReveal();
     }
@@ -82,13 +108,15 @@ export class Game extends Scene {
     }
 
     private showPlacement() {
-        this.add.text(GAME_WIDTH / 2, 20, '記憶を頼りにパーツを並べよう', {
+        this.guideText = this.add.text(GAME_WIDTH / 2, 20, '記憶を頼りにパーツを並べよう', {
             color: '#333333',
             fontFamily: 'sans-serif',
             fontSize: '16px',
         }).setOrigin(0.5);
+        this.createDropHint();
 
-        const divider = this.add.graphics();
+        // Under the drop-hint line, so the thick line is not striped by this thin one.
+        const divider = this.add.graphics().setDepth(DROP_HINT_DIVIDER_DEPTH);
         divider.lineStyle(2, 0xcccccc, 1);
         divider.lineBetween(0, TRAY_TOP_Y, GAME_WIDTH, TRAY_TOP_Y);
 
@@ -119,6 +147,73 @@ export class Game extends Scene {
         const onScore = () => this.finishPlacement(scoreBtn, scoreLabel);
         scoreBtn.on('pointerdown', onScore);
         scoreLabel.on('pointerdown', onScore);
+    }
+
+    private createDropHint() {
+        this.hintTint = this.add.graphics().setDepth(DROP_HINT_TINT_DEPTH).setVisible(false);
+        this.hintLine = this.add.graphics().setDepth(DROP_HINT_LINE_DEPTH).setVisible(false);
+        this.hintLabel = this.add.text(GAME_WIDTH / 2, DROP_HINT_LABEL_Y, '', {
+            color: '#222222',
+            fontFamily: 'sans-serif',
+            fontSize: `${DROP_HINT_LABEL_FONT_PX}px`,
+            fontStyle: 'bold',
+            stroke: '#ffffff',
+            strokeThickness: 4,
+        }).setOrigin(0.5).setDepth(DROP_HINT_TOP_DEPTH).setVisible(false);
+    }
+
+    /** Shows what releasing at `y` would do; redraws only when the region changes. */
+    private updateDropHint(y: number) {
+        if (!this.hintTint || !this.hintLine || !this.hintLabel) return;
+        const region = regionForY(y, TRAY_TOP_Y);
+        if (region === this.hintRegion) return;
+        this.hintRegion = region;
+        const hint = dropHintFor(region);
+
+        this.hintTint.clear().setVisible(true);
+        this.hintTint.fillStyle(hint.color, DROP_HINT_TINT_ALPHA);
+        if (region === 'placement') {
+            this.hintTint.fillRect(0, 0, GAME_WIDTH, TRAY_TOP_Y);
+        } else {
+            this.hintTint.fillRect(0, TRAY_TOP_Y, GAME_WIDTH, GAME_HEIGHT - TRAY_TOP_Y);
+        }
+
+        this.hintLine.clear().setVisible(true);
+        this.hintLine.lineStyle(DROP_HINT_LINE_WIDTH_PX, hint.color, 1);
+        if (hint.dashed) {
+            const step = DROP_HINT_DASH_PX + DROP_HINT_GAP_PX;
+            for (let x = 0; x < GAME_WIDTH; x += step) {
+                this.hintLine.lineBetween(x, TRAY_TOP_Y, Math.min(x + DROP_HINT_DASH_PX, GAME_WIDTH), TRAY_TOP_Y);
+            }
+        } else {
+            this.hintLine.lineBetween(0, TRAY_TOP_Y, GAME_WIDTH, TRAY_TOP_Y);
+        }
+
+        this.hintLabel.setText(hint.label).setColor(region === 'placement' ? '#14524b' : '#8f2f14').setVisible(true);
+        this.guideText?.setVisible(false);
+    }
+
+    private hideDropHint() {
+        this.hintRegion = null;
+        this.hintTint?.setVisible(false);
+        this.hintLine?.setVisible(false);
+        this.hintLabel?.setVisible(false);
+        this.guideText?.setVisible(true);
+    }
+
+    /** Ring that fades out over CONFIRM_FLASH_MS where a part was just confirmed. */
+    private playConfirmFlash(id: DraggablePartId, container: GameObjects.Container) {
+        const ring = this.add.graphics().setDepth(DROP_HINT_TOP_DEPTH);
+        ring.lineStyle(CONFIRM_FLASH_LINE_PX, DROP_HINT_CONFIRM_COLOR, 1);
+        ring.strokeCircle(0, 0, hitRadius(PART_SHAPES[id]));
+        ring.setPosition(container.x, container.y);
+        this.tweens.add({
+            targets: ring,
+            alpha: { from: 1, to: 0 },
+            duration: CONFIRM_FLASH_MS,
+            ease: 'Linear',
+            onComplete: () => ring.destroy(),
+        });
     }
 
     private createPart(id: DraggablePartId) {
@@ -161,6 +256,7 @@ export class Game extends Scene {
             container.add(this.grabMarker);
             drawGrabMarker(this.grabMarker, grabLocalOffset);
             this.grabMarker.setVisible(true);
+            this.updateDropHint(pointer.y);
         });
 
         this.partContainers.set(id, container);
@@ -180,20 +276,25 @@ export class Game extends Scene {
         container.setPosition(center.x, center.y);
         container.setRotation(rotation);
         this.dragState.lastPointer = { x: pointer.x, y: pointer.y };
+        this.updateDropHint(pointer.y);
     }
 
-    private onPointerUp(pointer: Input.Pointer) {
+    // Released outside the canvas (e.g. on the letterbox band): the drag ends
+    // without confirming, like any other unexpected place (docs/spec.md).
+    private onPointerUp(pointer: Input.Pointer, releasedOutside = false) {
         if (!this.activeDragId) return;
         const id = this.activeDragId;
         const container = this.partContainers.get(id);
         this.activeDragId = null;
         this.dragState = null;
         this.grabMarker.setVisible(false);
+        this.hideDropHint();
         if (!container) return;
 
-        if (regionForY(pointer.y, TRAY_TOP_Y) === 'placement') {
+        if (!releasedOutside && regionForY(pointer.y, TRAY_TOP_Y) === 'placement') {
             this.locked.set(id, true);
             container.disableInteractive();
+            this.playConfirmFlash(id, container);
         }
         // Dropped in the tray region: stay right where it was released
         // (docs/spec.md) — no position reset.
