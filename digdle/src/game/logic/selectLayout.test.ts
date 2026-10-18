@@ -31,13 +31,17 @@ describe('isDigitOption', () => {
 });
 
 describe('modeFromData', () => {
-    it('データが無い・mode が無い・hard 以外のときはノーマルになる', () => {
+    it('データが無い・mode が無い・hard と daily 以外のときはノーマルになる', () => {
         expect([undefined, {}, { mode: 'x' }, { mode: 'normal' }, { mode: null }].map(modeFromData)).toEqual([
             'normal', 'normal', 'normal', 'normal', 'normal'
         ]);
     });
 
-    it('mode が hard のときだけハードになる', () => {
+    it('mode が hard のときはハードになる', () => {
         expect(modeFromData({ mode: 'hard' })).toBe('hard');
+    });
+
+    it('mode が daily のときはデイリーになる', () => {
+        expect(modeFromData({ mode: 'daily' })).toBe('daily');
     });
 });

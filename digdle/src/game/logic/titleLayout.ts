@@ -1,4 +1,4 @@
-import type { DigitOption, GameMode } from '../types';
+import type { DigitOption, TitleMode } from '../types';
 import { DIGIT_OPTIONS, type Rect } from './selectLayout';
 import { DEMO_ATTEMPTS, DEMO_CELL_GAP, DEMO_CELL_MAX, DEMO_CELL_MIN, DEMO_DIGITS, DEMO_MARGIN } from './titleDemo';
 
@@ -7,9 +7,15 @@ export const TITLE_NAME_FONT = 44;
 
 const NAME_CENTER = 44;
 const MODE_TOP = 84;
-const MODE_WIDTH = 120;
+const MODE_WIDTH = 78;
 const MODE_HEIGHT = 40;
-const MODE_GAP = 12;
+const MODE_GAP = 8;
+/** The mode row's label size (px); the three buttons are narrower than the old two. */
+export const MODE_LABEL_FONT = 16;
+/** The three mode buttons side by side. */
+const MODE_ROW_WIDTH = 3 * MODE_WIDTH + 2 * MODE_GAP;
+/** The width the mode row had with two 120 px buttons; the two-column boundary stays fixed on it. */
+const LEGACY_MODE_ROW_WIDTH = 252;
 const DIGIT_TOP = 140;
 const DIGIT_HEIGHT = 52;
 const DIGIT_GAP = 8;
@@ -28,7 +34,7 @@ const COLUMN_PADDING = 16;
 /** The screen height below which the stacked layout would cut the digit buttons off. */
 const STACKED_MIN_HEIGHT = DIGIT_BOTTOM;
 /** The narrowest screen whose left quarter-column still holds the 252 px mode row (2 x 252). */
-const COLUMNS_MIN_WIDTH = 2 * (2 * MODE_WIDTH + MODE_GAP);
+const COLUMNS_MIN_WIDTH = 2 * LEGACY_MODE_ROW_WIDTH;
 
 export type TitleArrangement = 'stacked' | 'columns';
 
@@ -44,7 +50,7 @@ export interface DemoLayout {
 export interface TitleLayout {
     arrangement: TitleArrangement;
     name: { x: number; y: number };
-    modeButtons: Record<GameMode, Rect>;
+    modeButtons: Record<TitleMode, Rect>;
     digitButtons: { digit: DigitOption; rect: Rect }[];
     /** `null` when the free area is too small (the Title is then drawn without the demo). */
     demo: DemoLayout | null;
@@ -72,7 +78,8 @@ const placeBlock = (
     modeTop: number,
     digitTop: number
 ): Pick<TitleLayout, 'name' | 'modeButtons' | 'digitButtons'> => {
-    const modeLeft = Math.floor(cx - (2 * MODE_WIDTH + MODE_GAP) / 2);
+    const modeLeft = Math.floor(cx - MODE_ROW_WIDTH / 2);
+    const modeStep = MODE_WIDTH + MODE_GAP;
     const rowWidth = DIGIT_OPTIONS.length * digitW + (DIGIT_OPTIONS.length - 1) * DIGIT_GAP;
     const rowLeft = Math.floor(cx - rowWidth / 2);
 
@@ -80,7 +87,8 @@ const placeBlock = (
         name: { x: cx, y: nameY },
         modeButtons: {
             normal: { x: modeLeft, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT },
-            hard: { x: modeLeft + MODE_WIDTH + MODE_GAP, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT }
+            hard: { x: modeLeft + modeStep, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT },
+            daily: { x: modeLeft + 2 * modeStep, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT }
         },
         digitButtons: DIGIT_OPTIONS.map((digit, index) => ({
             digit,

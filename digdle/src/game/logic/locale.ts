@@ -6,7 +6,8 @@ export type TextKey =
     | 'reselectDigits'
     | 'checkInput'
     | 'normalMode'
-    | 'hardMode';
+    | 'hardMode'
+    | 'dailyMode';
 
 const JA: Record<TextKey, string> = {
     clear: 'Clear',
@@ -14,7 +15,8 @@ const JA: Record<TextKey, string> = {
     reselectDigits: '桁数を選び直す',
     checkInput: '入力を確認してください',
     normalMode: 'ノーマル',
-    hardMode: 'ハード'
+    hardMode: 'ハード',
+    dailyMode: 'デイリー'
 };
 
 const EN: Record<TextKey, string> = {
@@ -23,7 +25,8 @@ const EN: Record<TextKey, string> = {
     reselectDigits: 'Choose digits again',
     checkInput: 'Please check your input',
     normalMode: 'Normal',
-    hardMode: 'Hard'
+    hardMode: 'Hard',
+    dailyMode: 'Daily'
 };
 
 /** `ja` when the browser language starts with "ja", otherwise `en`. */

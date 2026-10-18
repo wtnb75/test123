@@ -57,6 +57,14 @@ export const buildPrimeMap = (): PrimeMap => {
     return map;
 };
 
+let sharedPrimeMap: PrimeMap | null = null;
+
+/** The prime lists, built once and shared by every Scene (building them is the slow part of a start). */
+export const getSharedPrimeMap = (): PrimeMap => {
+    sharedPrimeMap ??= buildPrimeMap();
+    return sharedPrimeMap;
+};
+
 const mulberry32 = (seed: number): (() => number) => {
     let state = seed >>> 0;
 

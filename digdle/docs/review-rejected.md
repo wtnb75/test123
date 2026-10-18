@@ -24,3 +24,11 @@
 - `src/game/logic/gameLayout.test.ts`（`ROWS_BY_DIGITS`）: 試行回数をテスト内の固定値で持つ — 理由: spec の表が独立した基準。ゲーム側の定数と共有すると、ゲーム側の誤りを見逃す
 - `src/game/scenes/Game.ts`（結果表示の文字 y=52・82）: 通知の帯の境界 60 px と近い — 理由: 今回の変更では動かしていない既存の配置。QA のスクリーンショットで確認する
 - `src/game/scenes/Game.ts`（`showToast`）: 通知のたびに文字を最大 5 回測り直す — 理由: 不正入力の Enter 時だけで、コストが小さい
+- `src/game/logic/daily.ts`（`parseDailySave`）: 範囲外のキー（2〜6 以外）の値が不正だと保存全体が空になる — 理由: spec が「値が文字列の配列でない → 全体を空」と明記している。通常の遊びでは起きない
+- `src/game/logic/daily.ts`（`saveGuesses`）: 日付をまたいで開いたままの古いラウンドが、新しい日の保存を置き換える — 理由: 日付をまたぐ放置と複数タブが重なる場合だけ。「日付が違えば置き換える」は spec どおり
+- `src/game/scenes/Game.ts`（`startDailyRound`）: `startRound` の後半と重複し、素数表を `gameApi.primeMap` から取らない — 理由: 整理のみ（1 変更 1 目的）。素数表は共有の 1 つ
+- `src/game/scenes/Title.ts`（`refreshDigitLabels`）: 再構築のたびに保存を 5 回解析・再生する — 理由: 数百バイトの JSON で、リサイズとモード切替のときだけ
+- `src/game/logic/daily.ts`（`createDailyStorage`）: 読み書きが一度失敗すると以後ずっとメモリを読む・読み込み失敗の直後の書き込みがメモリを元にする — 理由: 「一度失敗したら以後はメモリ」は spec どおり。ブラウザの保存のブロックは持続的で、読みが失敗する環境では書きも失敗する
+- `src/game/scenes/Title.ts`（`refreshDigitLabels`）: 0 時をまたいで Title を開きっぱなしにすると印が古い — 理由: 放置してまたぐ場合だけ。Game は新しい日付で始まるので、実害は表示の遅れのみ
+- `src/game/scenes/Title.ts`（`onKeyDown`）: 全モードで自動リピートを捨てる — 理由: 最初の keydown で既に開始するので、リピートに意味のある機能が無い
+- `docs/spec/daily.md`: 保存キーの名前が spec は `dailyStorageKey`、コードは `DAILY_STORAGE_KEY` — 理由: シンボル名は実装裁量。値（`digdle.daily`）は一致している

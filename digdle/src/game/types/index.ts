@@ -4,6 +4,9 @@ export type RoundStatus = 'playing' | 'won' | 'lost';
 
 export type GameMode = 'normal' | 'hard';
 
+/** What the Title's mode switch selects: a round mode, or the once-a-day challenge. */
+export type TitleMode = GameMode | 'daily';
+
 /** The digit counts a player can pick on the Title. */
 export type DigitOption = 2 | 3 | 4 | 5 | 6;
 
@@ -29,11 +32,11 @@ export interface ValidationResult {
 
 /** Hands the selected mode back to the Title (so it stays highlighted). */
 export interface TitleData {
-    mode?: GameMode;
+    mode?: TitleMode;
 }
 
 /** What the Title hands to the Game when a digit count is picked. */
 export interface GameStartData {
     digits: DigitOption;
-    mode: GameMode;
+    mode: TitleMode;
 }
