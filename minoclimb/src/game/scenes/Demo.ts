@@ -6,7 +6,7 @@ import { Game, type Control } from './Game';
 
 /**
  * The real game played by a bot behind the Title: the same Round and drawing as Game, but with no input
- * of its own, no hints, no touch tint, no Result and no shake. The Title restarts it now and then.
+ * of its own, no hints, no Result and no shake. The Title restarts it now and then.
  */
 export class Demo extends Game {
     protected override readonly isDemo: boolean = true;
@@ -29,7 +29,7 @@ export class Demo extends Game {
     }
 
     protected override viewOptions(): BoardViewOptions {
-        return { hints: false, touchTint: false };
+        return { hints: false };
     }
 
     protected override setupControls(): void {

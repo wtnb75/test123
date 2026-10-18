@@ -11,14 +11,14 @@ const BACKGROUND = 0x10131c;
 const DANGER_BAND = 0x4a2a14;
 const GOAL_LINE = 0xffe040;
 const PLAYER = 0xffffff;
-const RIGHT_HALF_TINT = 0xffffff;
 const FLASH = 0xffffff;
 const GOAL_LINE_THICKNESS = 4;
 const HUD_FONT = {
     fontFamily: 'sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
 };
 const LABEL_FONT = { fontFamily: 'sans-serif', fontSize: '12px', color: '#ffffff' };
-const HINT_FONT = { fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff', align: 'center' };
+const HINT_FONT = { fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff', align: 'center' };
+const HINT_TEXT = 'ドラッグ: 移動\nタップ / 上へ弾く: ジャンプ\nドラッグ中に 2 本目の指: ジャンプ';
 const HINT_MAX_ALPHA = 0.55;
 const LOCK_FLASH_MAX_ALPHA = 0.7;
 const CLEAR_FLASH_MAX_ALPHA = 0.8;
@@ -36,8 +36,6 @@ interface Flash {
 export interface BoardViewOptions {
     /** The operation hints of the first seconds (not shown behind the Title). */
     hints: boolean;
-    /** The faint right-half tint that marks the jump side for touch players. */
-    touchTint: boolean;
 }
 
 /** Draws the field, the climber, the minos, the labels, the hints, the HUD and the touch stick. */
@@ -51,21 +49,19 @@ export class BoardView {
 
     private readonly hintsEnabled: boolean;
 
-    constructor(scene: Scene, options: BoardViewOptions = { hints: true, touchTint: true }) {
+    constructor(scene: Scene, options: BoardViewOptions = { hints: true }) {
         this.hintsEnabled = options.hints;
         // The static layer never changes, so it is drawn once, below everything else.
-        this.drawBackground(scene.add.graphics(), options.touchTint);
+        this.drawBackground(scene.add.graphics());
         this.board = scene.add.graphics();
         this.hud = scene.add.text(6, 4, '', HUD_FONT);
         scene.add.text(WIDTH - 6, P.GOAL_ROW * P.CELL - 4, 'GOAL', { ...LABEL_FONT, color: '#ffe040' })
             .setOrigin(1, 1).setAlpha(0.9);
         scene.add.text(WIDTH / 2, P.TOP_OUT_ROW * P.CELL - 4, 'ここまで積むと負け', LABEL_FONT)
             .setOrigin(0.5, 1).setAlpha(0.35);
-        const hintY = HEIGHT - P.CELL * 1.5;
+        const hintY = HEIGHT - P.CELL * 3;
         this.hints = [
-            scene.add.text(WIDTH * 0.25, hintY, 'ドラッグ: 移動\n上へ弾く: ジャンプ', HINT_FONT)
-                .setOrigin(0.5).setAlpha(0),
-            scene.add.text(WIDTH * 0.75, hintY, 'タップ: ジャンプ', HINT_FONT).setOrigin(0.5).setAlpha(0),
+            scene.add.text(WIDTH / 2, hintY, HINT_TEXT, HINT_FONT).setOrigin(0.5).setAlpha(0),
         ];
         this.overlay = scene.add.graphics();
     }
@@ -156,10 +152,9 @@ export class BoardView {
         for (const hint of this.hints) hint.setAlpha(alpha);
     }
 
-    private drawBackground(g: GameObjects.Graphics, touchTint: boolean): void {
+    private drawBackground(g: GameObjects.Graphics): void {
         const C = P.CELL;
         g.fillStyle(BACKGROUND, 1).fillRect(0, 0, WIDTH, HEIGHT);
-        if (touchTint) g.fillStyle(RIGHT_HALF_TINT, 0.05).fillRect(WIDTH / 2, 0, WIDTH / 2, HEIGHT);
         g.fillStyle(DANGER_BAND, 1).fillRect(0, 0, WIDTH, P.TOP_OUT_ROW * C);
         g.fillStyle(GOAL_LINE, 1).fillRect(0, P.GOAL_ROW * C - GOAL_LINE_THICKNESS / 2, WIDTH, GOAL_LINE_THICKNESS);
     }
