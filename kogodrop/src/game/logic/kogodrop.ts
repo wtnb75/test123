@@ -1,4 +1,5 @@
 import type { KogoEntry, ExampleSentence, Lang, Difficulty, Level } from './types';
+import { weightedShuffle } from './weakWords';
 
 export const DIFFICULTY_LEVELS: Record<Difficulty, Level[]> = {
     easy: ['basic'],
@@ -28,7 +29,8 @@ export const createQuestionSequence = (
     pool: KogoEntry[],
     count: number,
     rng: () => number = Math.random,
-    excludeIds: Set<string> = new Set()
+    excludeIds: Set<string> = new Set(),
+    weightOf?: (entry: KogoEntry) => number
 ): KogoEntry[] => {
     if (pool.length === 0) {
         return [];
@@ -37,14 +39,19 @@ export const createQuestionSequence = (
     const filtered = excludeIds.size > 0 ? pool.filter((e) => !excludeIds.has(e.id)) : pool;
     const activePool = filtered.length > 0 ? filtered : pool;
 
+    // weighting only applies when some word in the pool is not weight 1; otherwise the plain shuffle (and its rng use) stays
+    const activeWeight = weightOf !== undefined && activePool.some((e) => weightOf(e) !== 1) ? weightOf : undefined;
+    const shuffleDeck = (): KogoEntry[] =>
+        activeWeight ? weightedShuffle(activePool, activeWeight, rng) : shuffleArray(activePool, rng);
+
     const result: KogoEntry[] = [];
-    let deck = shuffleArray(activePool, rng);
+    let deck = shuffleDeck();
     let deckIndex = 0;
 
     for (let i = 0; i < count; i++) {
         if (deckIndex >= deck.length) {
             const lastWord = result.length > 0 ? result[result.length - 1].word : null;
-            deck = shuffleArray(activePool, rng);
+            deck = shuffleDeck();
 
             if (activePool.length > 1 && lastWord !== null && deck[0].word === lastWord) {
                 const swapIdx = 1 + Math.floor(rng() * (deck.length - 1));
