@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { allocate, MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES, type AllocationResult } from '../logic/allocate';
+import { buildResultHtml } from '../logic/resultHtml';
 
 type UiRefs = {
     root: HTMLDivElement;
@@ -156,24 +157,7 @@ export class Game extends Scene {
             return;
         }
 
-        const rows = result.candidates
-            .map(
-                (c) =>
-                    `<tr><td>${c.odds}</td><td>${c.units}</td><td>${Math.round(c.payout)}</td><td>${(c.returnRate * 100).toFixed(1)}%</td></tr>`
-            )
-            .join('');
-
-        this.ui.result.innerHTML = `
-        <table class="dutchcalc-table">
-          <thead><tr><th>倍率</th><th>口数</th><th>払戻見込み額</th><th>回収率</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="dutchcalc-summary">
-          合計投資額: ${Math.round(result.totalInvestment)}円 /
-          最小払戻: ${Math.round(result.minPayout)}円 /
-          最大払戻: ${Math.round(result.maxPayout)}円 /
-          バランス度(差): ${Math.round(result.spread)}円
-        </div>`;
+        this.ui.result.innerHTML = buildResultHtml(result);
     }
 
     private onResize(): void {
