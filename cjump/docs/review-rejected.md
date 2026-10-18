@@ -1,0 +1,9 @@
+- `logic/simulation.test.ts`: the simulator tests do not pin an exact failure frame — 理由: the frame depends on float accumulation of 1000/60 ms steps and would be a characterization value; the one-frame prediction is pinned by the "willTouch is true on the last frame" cases and the lookahead mutant is killed
+- `logic/simulation.ts`: the loop runs the frame at exactly `timeoutMs` (`<=` vs `<`) — 理由: a one-frame boundary at 120 s that no route reaches (routes finish within about 11 s)
+- `logic/simulation.ts`, `logic/measure.ts`: repeated `polylineLength` and `stageRoute` computation, per-frame `willTouch` closure — 理由: measured at about 4 s for all stages, no problem yet; optimize when `MEASURE_RUNS` grows
+- `logic/measure.ts`: `runs >= 1000` is not rejected although seeds `stage * 1000 + run` then overlap — 理由: the spec states `MEASURE_RUNS < 1000` as a precondition of a developer-only tool; adding a guard is a behavior the spec does not ask for
+- `logic/measure.test.ts`: "uses 200 runs by default" and the stage-values test restate the implementation — 理由: low value but harmless; the behavioral checks (idle <= reflex, seeding, determinism) are in other tests
+- `logic/measure.seed.test.ts`: the `seed >= 3000` filter and the call-order dependence are fragile — 理由: documented in the test; fix it when it actually breaks
+- `logic/polyline.ts`: the final fallback return is unreachable — 理由: kept as a defensive default against float differences between the two summations
+- `logic/simulation.ts`: a zero-length route gives `speedPerMs = Infinity` — 理由: routes always come from `generateWaypoints`, which never yields a zero-length route; the spec only requires `polylinePointAt` to be safe
+- `logic/bots.ts`: reflex cannot react on the landing frame, so its clear rate partly reflects landing luck — 理由: this is what the spec defines (bots are not asked while jumping) and what `Game` allows the player to do; not a defect

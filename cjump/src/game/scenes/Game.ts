@@ -13,6 +13,7 @@ import { getDifficultyParams } from '../logic/difficulty';
 import { generateWaypoints } from '../logic/waypoints';
 import { createCircle, getRadius, isOffScreen, isWarning, type CircleObstacle } from '../logic/circle';
 import { isTouchingEdge } from '../logic/collision';
+import { advanceSpawnTimer } from '../logic/spawn';
 import {
     createCharacterState,
     requestJump,
@@ -110,9 +111,9 @@ export class Game extends Scene {
         this.character = updateCharacter(this.character, delta, this.speedPerMs, JUMP_DURATION_MS);
         this.drawCharacter();
 
-        this.msSinceLastSpawn += delta;
-        if (this.msSinceLastSpawn >= this.spawnIntervalMs) {
-            this.msSinceLastSpawn = 0;
+        const spawn = advanceSpawnTimer(this.msSinceLastSpawn, delta, this.spawnIntervalMs);
+        this.msSinceLastSpawn = spawn.msSinceLastSpawn;
+        if (spawn.shouldSpawn) {
             this.spawnCircle();
         }
 
