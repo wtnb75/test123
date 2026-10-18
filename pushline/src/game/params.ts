@@ -50,6 +50,8 @@ export const PARAMS = {
     playerRadiusRatio: 0.3,
     crossInset: 14,
     crossWidth: 4,
+    glowMs: 150,
+    glowAlpha: 0.8,
     clearMs: 220,
     clearShrinkScale: 0.2,
     popMs: 220,

@@ -2,8 +2,18 @@ import type { GameObjects, Scene } from 'phaser';
 import { PARAMS } from '../params';
 import type { Layout } from '../logic/layout';
 import { stalePopKeys } from '../logic/pops';
+import { NEXT_EFFECT_MS, spawnDelayMs, STAGING_END_MS } from '../logic/staging';
 import { FIXED, MOVABLE, type Cell, type Grid, type KindPt, type MoveResult, type Pt } from '../logic/types';
 import { COLORS, DEPTH } from './ui';
+
+/** A block popping in at a cell; once an input completed it, `done` is set and `mark` holds a fixed block's cross. */
+interface Pop {
+    rect: GameObjects.Rectangle;
+    kind: Cell;
+    startedAt: number;
+    done: boolean;
+    mark?: GameObjects.Graphics;
+}
 
 /** What the board needs to be drawn: the grid and where the character stands. */
 export interface BoardState {
@@ -17,8 +27,8 @@ export const qaRows = (state: BoardState): string[] =>
     state.grid.map((row, y) => row.map((c, x) => (x === state.px && y === state.py ? '@' : '.ox'[c])).join(''));
 
 /**
- * The board and the block effects played on it (a cleared line shrinking, thinned-out blocks blinking
- * away, new blocks popping in). Shared by Game and the Title demo, so both look the same.
+ * The board and the block effects played on it (a cleared line glowing and shrinking, then thinned-out
+ * blocks blinking away and new blocks popping in). Shared by Game and the Title demo, so both look the same.
  * It owns no rules and no input: the Scene tells it what happened.
  */
 export class BoardView {
@@ -27,7 +37,9 @@ export class BoardView {
     /** Transient effect objects; dropped on a layout change. */
     private readonly effects = new Set<GameObjects.GameObject>();
     /** Cells whose new block is still being drawn by a pop-in; the board draws them as empty. */
-    private readonly popping = new Map<string, { rect: GameObjects.Rectangle; kind: Cell }>();
+    private readonly popping = new Map<string, Pop>();
+    /** Fixed blocks waiting at their old cell to shrink away (relocated by the board generation). */
+    private readonly relocating = new Set<GameObjects.GameObject>();
     /** The board needs redrawing (set by effect completions, handled once per frame by the Scene). */
     private dirty = false;
     private alpha = 1;
@@ -72,19 +84,29 @@ export class BoardView {
         const inset = PARAMS.cellInset;
         const g = this.graphics.clear();
         state.grid.forEach((row, y) => row.forEach((cell, x) => {
-            const shown = this.popping.has(`${x},${y}`) ? 0 : cell;
+            const shown = this.popping.get(`${x},${y}`)?.done === false ? 0 : cell;
             const o = this.cellOrigin(x, y);
             const color = shown === MOVABLE ? COLORS.movable : shown === FIXED ? COLORS.fixed : COLORS.empty;
             g.fillStyle(color).fillRect(o.x + inset, o.y + inset, size - 2 * inset, size - 2 * inset);
-            if (shown === FIXED) {
-                const c = PARAMS.crossInset;
-                g.lineStyle(PARAMS.crossWidth, COLORS.fixedMark)
-                    .lineBetween(o.x + c, o.y + c, o.x + size - c, o.y + size - c)
-                    .lineBetween(o.x + size - c, o.y + c, o.x + c, o.y + size - c);
-            }
+            if (shown === FIXED) this.drawCross(g, o);
         }));
         const p = this.cellOrigin(state.px, state.py);
         this.dot.setPosition(p.x + size / 2, p.y + size / 2);
+    }
+
+    /** The cross that marks a fixed block, at the cell whose corner is `o`. */
+    private drawCross(g: GameObjects.Graphics, o: Pt): void {
+        const size = PARAMS.cellSize;
+        const c = PARAMS.crossInset;
+        g.lineStyle(PARAMS.crossWidth, COLORS.fixedMark)
+            .lineBetween(o.x + c, o.y + c, o.x + size - c, o.y + size - c)
+            .lineBetween(o.x + size - c, o.y + c, o.x + c, o.y + size - c);
+    }
+
+    /** Drops a pop-in's objects (its tweens must not run their completion handlers). */
+    private disposePop(pop: Pop): void {
+        this.dispose(pop.rect);
+        if (pop.mark) this.dispose(pop.mark);
     }
 
     /** A pop-in whose block was pushed away (or covered, or undone) must not keep growing on that cell. */
@@ -92,34 +114,44 @@ export class BoardView {
         for (const k of stalePopKeys(this.popping, grid)) {
             const pop = this.popping.get(k);
             this.popping.delete(k);
-            if (pop) this.dispose(pop.rect);
+            if (pop) this.disposePop(pop);
         }
     }
 
     /**
-     * Line clear: blocks shrink away. Relocated fixed blocks shrink at their old cell (they pop in at the
-     * new one with the spawns). Thinned leftovers: grey blink then fade. Spawns: pop in.
+     * Line clear (see logic/staging for the timeline): the cleared line glows white and shrinks away. Once it
+     * is gone the rest starts together: thinned leftovers turn grey, blink and fade; relocated fixed blocks
+     * shrink at their old cell; spawns (and the relocated blocks at their new cell) pop in.
+     * Until then the leftovers and the old cells are drawn as they were: the grid is already updated.
      */
     playBlockEffects(res: MoveResult): void {
         const color = (kind: number) => (kind === FIXED ? COLORS.fixed : COLORS.movable);
-        res.cleared.forEach((p) => this.shrinkAway(p, color(p.kind)));
-        // a fixed block moved by the board generation shrinks away here (it pops in at its new cell with the spawns)
-        res.relocated.forEach((m) => this.shrinkAway({ ...m.from, kind: FIXED }, color(FIXED)));
+        res.cleared.forEach((p) => this.glowAndShrink(p, color(p.kind))); // each cell once, even at a row/column crossing
+        res.relocated.forEach((m) => {
+            const r = this.shrinkAway({ ...m.from, kind: FIXED }, color(FIXED), NEXT_EFFECT_MS);
+            this.relocating.add(r);
+        });
         res.pruned.forEach((p) => {
-            const r = this.blockRect(p, COLORS.pruned, DEPTH.ghost);
-            this.scene.tweens.add({
-                targets: r, alpha: PARAMS.pruneBlinkAlpha, duration: PARAMS.pruneBlinkMs, yoyo: true, repeat: 1,
-                onComplete: () => {
-                    this.scene.tweens.add({ targets: r, alpha: 0, duration: PARAMS.pruneFadeMs, onComplete: () => this.release(r) });
-                },
+            const r = this.blockRect(p, COLORS.movable, DEPTH.ghost);
+            this.scene.tweens.chain({
+                targets: r,
+                tweens: [
+                    {
+                        alpha: PARAMS.pruneBlinkAlpha, duration: PARAMS.pruneBlinkMs, yoyo: true, repeat: 1, delay: NEXT_EFFECT_MS,
+                        onStart: () => r.setFillStyle(COLORS.pruned),
+                    },
+                    { alpha: 0, duration: PARAMS.pruneFadeMs, onComplete: () => this.release(r) },
+                ],
             });
         });
         res.spawned.forEach((p) => {
             const k = `${p.x},${p.y}`;
             const r = this.blockRect(p, color(p.kind), DEPTH.fx).setScale(0);
-            this.popping.set(k, { rect: r, kind: p.kind });
+            const earlier = this.popping.get(k); // a block kept on the effect layer by an earlier clear
+            if (earlier) this.disposePop(earlier);
+            this.popping.set(k, { rect: r, kind: p.kind, startedAt: this.scene.time.now, done: false });
             this.scene.tweens.add({
-                targets: r, scale: 1, duration: PARAMS.popMs, delay: PARAMS.popDelayMs,
+                targets: r, scale: 1, duration: PARAMS.popMs, delay: spawnDelayMs(res, p),
                 onComplete: () => {
                     this.release(r);
                     if (this.popping.get(k)?.rect === r) this.popping.delete(k);
@@ -127,6 +159,44 @@ export class BoardView {
                 },
             });
         });
+    }
+
+    /**
+     * An input arrived while a clear is staged: the pop-ins and the relocations, begun or not, jump to their
+     * final look so no block the grid already holds stays unseen. Glow, shrink and thinning play on.
+     * The caller redraws the board.
+     */
+    completeStaging(): void {
+        let completed = false;
+        this.popping.forEach((pop, k) => {
+            if (pop.done) return;
+            completed = true;
+            // The finished block stays on the effect layer until the glow, shrink and thinning on its cell
+            // are over, so it is drawn above them (a spawn is drawn over the effects of the same cell).
+            this.scene.tweens.killTweensOf(pop.rect);
+            pop.rect.setScale(1);
+            pop.done = true;
+            if (pop.kind === FIXED) {
+                // the rectangle has no cross: draw the one the board shows under it
+                const [x, y] = k.split(',').map(Number);
+                pop.mark = this.scene.add.graphics().setDepth(DEPTH.fx);
+                this.effects.add(pop.mark);
+                this.drawCross(pop.mark, this.cellOrigin(x, y));
+            }
+            const rest = Math.max(0, STAGING_END_MS - (this.scene.time.now - pop.startedAt));
+            this.scene.tweens.add({
+                targets: pop.rect, alpha: 1, duration: rest,
+                onComplete: () => {
+                    this.release(pop.rect);
+                    if (pop.mark) this.release(pop.mark);
+                    if (this.popping.get(k) === pop) this.popping.delete(k);
+                },
+            });
+        });
+        if (this.relocating.size > 0) completed = true;
+        this.relocating.forEach((r) => this.dispose(r));
+        this.relocating.clear();
+        if (completed) this.dirty = true;
     }
 
     /** Registers an effect object of the Scene (a tap mark, a "+N") so a layout change can drop it. */
@@ -137,6 +207,7 @@ export class BoardView {
     /** An effect finished by itself: forget and destroy its object. */
     release(obj: GameObjects.GameObject): void {
         this.effects.delete(obj);
+        this.relocating.delete(obj);
         obj.destroy();
     }
 
@@ -144,6 +215,7 @@ export class BoardView {
     discardEffects(): void {
         this.effects.forEach((o) => this.dispose(o));
         this.popping.clear();
+        this.relocating.clear();
     }
 
     /** An effect cut short: its tweens must not run their completion handlers either. */
@@ -152,12 +224,26 @@ export class BoardView {
         this.release(obj);
     }
 
-    /** A block that left the board: it shrinks and fades where it stood (the same for a cleared and a moved block). */
-    private shrinkAway(p: KindPt, fill: number): void {
+    /** A block that left the board: after `delay` it shrinks and fades where it stood (a cleared or a moved block). */
+    private shrinkAway(p: KindPt, fill: number, delay: number): GameObjects.Rectangle {
         const r = this.blockRect(p, fill, DEPTH.fx);
         this.scene.tweens.add({
-            targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs,
+            targets: r, scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs, delay,
             onComplete: () => this.release(r),
+        });
+        return r;
+    }
+
+    /** A cleared block: a white layer grows over it, then both shrink away and fade. */
+    private glowAndShrink(p: KindPt, fill: number): void {
+        this.shrinkAway(p, fill, PARAMS.glowMs);
+        const glow = this.blockRect(p, COLORS.glow, DEPTH.fx).setAlpha(0);
+        this.scene.tweens.chain({
+            targets: glow,
+            tweens: [
+                { alpha: PARAMS.glowAlpha, duration: PARAMS.glowMs },
+                { scale: PARAMS.clearShrinkScale, alpha: 0, duration: PARAMS.clearMs, onComplete: () => this.release(glow) },
+            ],
         });
     }
 
