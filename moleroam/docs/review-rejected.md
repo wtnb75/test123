@@ -6,7 +6,7 @@
 - `src/game/main.ts`: 背景色のリテラルが `BACKDROP_COLOR` と二重管理 — 理由: 影響は見た目だけで、仕様の数値ではない
 - `src/game/scenes/Game.ts` scrollStep: 端スクロールの判定が `activePointer.isDown` に依存する — 理由: マウス位置が入るのは最後の動きがマウスのときだけで、そのとき activePointer もマウス。実害のある組み合わせを再現できない
 - `src/game/scenes/Game.ts` onPointerUp: キャンバスの端ちょうどで離すと叩きになる — 理由: 端のピクセルはキャンバスの内側で、仕様の「外で離したら叩かない」に反しない
-- `src/game/logic/spawn.ts` stepSpawn: 次の判定時刻を「今」から数えるためフレーム分ずれる — 理由: 仕様に「判定を行った時刻に spawnIntervalMs を足した時刻」と明記されている
+- `src/game/logic/spawn.ts` stepSpawn: 次の判定時刻を「今」から数えるためフレーム分ずれる — 理由: 仕様に「判定を行った時刻に、その判定の時刻の段階の間隔を足した時刻」と明記されている
 - `src/game/scenes/Game.ts` onPointerDown: 解放処理がフェーズの順序に依存する — 理由: 指摘自体が「現状は問題なし、リスクは低い」としている
 - `src/game/scenes/Game.ts` onPointerDown/onPointerUp: 右・中ボタンの押下で失われた左ボタンの追跡が解放されない、追跡中の左ボタンの離しが button≠0 で届く可能性、touchcancel の復帰が次の押下まで遅れる — 理由: いずれも次の左ボタンの押下で解放される自己回復する状態で、その間は pointermove が isDown を見て無視する。button の件は未検証の推測
 - `src/game/scenes/fx.ts` floatText: 浮かぶ文字は出現時にだけ画面内へ収めるので、浮かぶ間のスクロールで端へ流れる — 理由: 仕様に「調整するのは出現のときだけで、文字が盤面とともに動くのは今までどおり」と明記されている
@@ -45,3 +45,7 @@
 - `src/game/logic/demoBot.play.test.ts`: 走りの性質テストが `Game.update` の順序を写した簡易シミュレーションで、`DemoGame.scrollStep` と食い違っても落ちない — 理由: Phaser なしで走りを進めるための仕様どおりの作り（実装裁量）。順序（叩き → スクロール）は単体テストと QA で確認する
 - `src/game/logic/titleLayout.test.ts`: 文字の高さの見積もり（48 / 17 / 65）が文字の大きさと結びついていない — 理由: 重なりの検査は、近似の配置を守るためのもの。手計算の値は別のテストが固定している
 - `src/game/scenes/DemoGame.ts`, `logic/demoBot.ts`: 毎フレームの小さな座標オブジェクトの生成 — 理由: 元の `Game.scrollStep` も同じ。実害がない
+- `src/game/scenes/Game.ts` createArrows: 矢印プールの個数（`maxActiveLate`）を Scene の単体テストで固定していない — 理由: Scene の接着部分でブラウザ QA の範囲。定数の整合（`maxActiveLate` が全段階の上限以上）は `ramp.test.ts` で固定している
+- `src/game/logic/demoBot.play.test.ts`: 走りの性質テストが 40 秒までで、終盤の段階に届かない — 理由: 仕様どおり。デモは `DEMO_RUN_SECONDS`（40 秒）で作り直され、終盤は幕が閉じる約 0.5 秒だけ。上限 6 は矢印プールが賄う
+- `src/game/logic/spawn.ts` stepSpawn: 同じ `elapsedMs` で `rampPhase` を 2 回呼ぶ — 理由: 同じ式で同じ値が出る。`nextSpawnAt` は既存のテストが使う API で、保守性だけの指摘
+- `src/game/logic/spawn.ts` planSpawn: 上限の引数の既定値が前半の値 — 理由: 既存のテスト（`layout.test.ts`、`decoy.test.ts` など）が既定値に依存し、書き換えない方針。本番の経路 `stepSpawn` は段階の上限を渡すことをテストで固定している

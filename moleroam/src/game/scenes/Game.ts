@@ -173,7 +173,7 @@ export class Game extends Scene {
     }
 
     private createArrows() {
-        for (let i = 0; i < PARAMS.maxActive; i++) {
+        for (let i = 0; i < PARAMS.maxActiveLate; i++) {
             const arrow = this.add
                 .triangle(0, 0, 0, -16, 40, 0, 0, 16, 0xffeb3b)
                 .setScrollFactor(0)
