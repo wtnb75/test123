@@ -7,12 +7,15 @@ import { addLabel, applyLayout, COLORS, createButton, DEPTH, FONT_SIZE, watchOri
 export class Result extends Scene {
     private layout!: Layout;
     private lines = 0;
+    /** Clears of the run that earned the shortest-clear bonus. */
+    private shortest = 0;
     /** Input is ignored until the guard time has passed (the tap that ended the run is still releasing). */
     private enteredAt = 0;
     /** Set once the Scene is on its way out, so two inputs in one frame start the next Scene only once. */
     private leaving = false;
     private captionText!: GameObjects.Text;
     private linesText!: GameObjects.Text;
+    private shortestText!: GameObjects.Text;
     private retry!: ButtonView;
     private toTitle!: ButtonView;
 
@@ -20,8 +23,9 @@ export class Result extends Scene {
         super('Result');
     }
 
-    init(data: { lines?: number }) {
+    init(data: { lines?: number; shortest?: number }) {
         this.lines = data.lines ?? 0;
+        this.shortest = data.shortest ?? 0;
     }
 
     create() {
@@ -33,6 +37,7 @@ export class Result extends Scene {
         this.cameras.main.fadeIn(PARAMS.sceneFadeMs);
         this.captionText = addLabel(this, 0, 0, '手数切れ', FONT_SIZE.button, COLORS.captionText);
         this.linesText = addLabel(this, 0, 0, `ライン ${this.lines}`, FONT_SIZE.headline);
+        this.shortestText = addLabel(this, 0, 0, `最短 ${this.shortest} 回`, FONT_SIZE.button, COLORS.bonusText);
         this.retry = createButton(this, 'もう一度', COLORS.buttonDefault, DEPTH.hud);
         this.toTitle = createButton(this, 'タイトルへ', COLORS.buttonDefault, DEPTH.hud);
         this.retry.box.setInteractive({ useHandCursor: true }).on('pointerup', () => this.go('Game'));
@@ -55,6 +60,7 @@ export class Result extends Scene {
         const l = this.layout;
         this.captionText.setPosition(l.resultLines.x, l.resultLines.y - PARAMS.resultCaptionGap);
         this.linesText.setPosition(l.resultLines.x, l.resultLines.y);
+        this.shortestText.setPosition(l.resultLines.x, l.resultLines.y + PARAMS.resultShortestGap);
         this.retry.place(l.resultRetry);
         this.toTitle.place(l.resultToTitle);
     }

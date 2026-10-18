@@ -167,7 +167,7 @@ export class Game extends Scene {
     private pump(now: number = this.deps.now()) {
         const tick = this.flow.tick(now);
         if (tick.walkStep && !this.step(tick.walkStep)) this.flow.cancelWalk();
-        if (tick.ended) this.scene.start('Result', { lines: this.state.score });
+        if (tick.ended) this.scene.start('Result', { lines: this.state.score, shortest: this.state.bonusCount });
     }
 
     /** One move; returns false when blocked. Starts the `ending` wait when the moves run out. */
@@ -252,6 +252,9 @@ export class Game extends Scene {
                     phase: this.flow.phase,
                     moves: s.moves,
                     score: s.score,
+                    spent: s.spent,
+                    shortest: s.shortest,
+                    bonusCount: s.bonusCount,
                     orientation: this.layout.orientation,
                     rows: qaRows(s),
                 },
@@ -280,30 +283,43 @@ export class Game extends Scene {
         });
     }
 
-    /** "+N" next to the moves counter after a clear: rises and fades; kept inside the canvas. */
-    private playRecovered(amount: number) {
+    /**
+     * "+N" next to the moves counter after a clear, with a differently coloured "最短!" after it when the
+     * shortest-clear bonus was earned: rises and fades; kept inside the canvas.
+     */
+    private playRecovered(amount: number, bonus: boolean) {
         // The counter already shows the new value (its width is read unscaled, so a pulse doesn't move it).
         // Portrait: to the right of the counter. Landscape: right above it, so it stays out of the board.
         this.movesText.setText(this.movesLabel());
         const m = this.movesText;
         const landscape = this.layout.orientation === 'landscape';
-        const x = landscape ? m.x : m.x + m.width * (1 - m.originX) + PARAMS.recoveredGap;
         const startY = landscape ? m.y - m.height / 2 - PARAMS.recoveredGap : m.y;
-        const text = addLabel(this, x, startY, `+${amount}`, FONT_SIZE.hud, COLORS.recoveredText)
-            .setOrigin(landscape ? 0.5 : 0, 0.5)
-            .setDepth(DEPTH.hud);
-        this.view.track(text);
-        const top = text.height / 2 + PARAMS.recoveredEdgeMargin;
-        const toY = Math.max(startY - PARAMS.recoveredRisePx, top);
-        this.tweens.add({
-            targets: text, y: toY, alpha: 0, duration: PARAMS.recoveredMs, ease: 'Sine.easeOut',
-            onComplete: () => this.view.release(text),
+        const parts = [addLabel(this, 0, startY, `+${amount}`, FONT_SIZE.hud, COLORS.recoveredText)];
+        if (bonus) parts.push(addLabel(this, 0, startY, '最短!', FONT_SIZE.hud, COLORS.bonusText));
+        parts.forEach((t) => t.setOrigin(0, 0.5).setDepth(DEPTH.hud));
+        // Landscape: "+N" and "最短!" side by side, centred over the counter. Portrait: "最短!" under "+N", so
+        // the pair stays clear of the "ライン N" at the right end of the same row.
+        const margin = PARAMS.recoveredEdgeMargin;
+        const room = this.layout.viewW - margin;
+        const total = parts.reduce((w, t) => w + t.width, 0) + PARAMS.recoveredGap * (parts.length - 1);
+        const left = landscape ? m.x - total / 2 : m.x + m.width * (1 - m.originX) + PARAMS.recoveredGap;
+        let x = Math.max(margin, Math.min(left, room - (landscape ? total : Math.max(...parts.map((t) => t.width)))));
+        const rise = Math.min(PARAMS.recoveredRisePx, startY - (parts[0].height / 2 + margin));
+        parts.forEach((t, i) => {
+            const y = landscape ? startY : startY + i * t.height;
+            t.setPosition(x, y);
+            if (landscape) x += t.width + PARAMS.recoveredGap;
+            this.view.track(t);
+            this.tweens.add({
+                targets: t, y: y - rise, alpha: 0, duration: PARAMS.recoveredMs, ease: 'Sine.easeOut',
+                onComplete: () => this.view.release(t),
+            });
         });
     }
 
     /** The effects of one move: the "+N" of a recovery, and the blocks' clear / thin-out / pop-in. */
     private playEffects(res: MoveResult) {
-        if (res.recovered > 0) this.playRecovered(res.recovered);
+        if (res.recovered > 0) this.playRecovered(res.recovered, res.bonus);
         this.view.playBlockEffects(res);
     }
 }

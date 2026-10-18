@@ -112,7 +112,7 @@ describe('move: pushing', () => {
 });
 
 describe('move: line clears', () => {
-    it('clears a completed row, scores 1 and recovers 14 moves', () => {
+    it('clears a completed row, scores 1 and recovers the base 11 moves (no shortest known: no bonus)', () => {
         const s = board(ROW_CLEAR);
         const res = move(s, 'down', depsOf(7));
         expect(res.clearedRows).toEqual([5]);
@@ -120,7 +120,7 @@ describe('move: line clears', () => {
         expect(res.cleared.map(key).sort()).toEqual(['0,5', '1,5', '2,5', '3,5', '4,5']);
         expect(res.cleared.every((p) => p.kind === MOVABLE)).toBe(true);
         expect(s.score).toBe(1);
-        expect(s.moves).toBe(20 - 1 + 14);
+        expect(s.moves).toBe(20 - 1 + 11);
         expect(s.over).toBe(false);
     });
 
@@ -167,15 +167,15 @@ describe('move: line clears', () => {
     });
 
     it('recovers exactly up to the maximum without going over', () => {
-        const s = board(ROW_CLEAR, { moves: 27 });
+        const s = board(ROW_CLEAR, { moves: 30 });
         move(s, 'down', depsOf(7));
-        expect(s.moves).toBe(40); // 27 - 1 + 14 = 40
+        expect(s.moves).toBe(40); // 30 - 1 + 11 = 40
     });
 
     it('survives with one move left when that move clears a line', () => {
         const s = board(ROW_CLEAR, { moves: 1 });
         move(s, 'down', depsOf(7));
-        expect(s.moves).toBe(14);
+        expect(s.moves).toBe(11);
         expect(s.over).toBe(false);
     });
 
@@ -191,10 +191,10 @@ describe('move: line clears', () => {
 });
 
 describe('move: moves recovered by a clear (the "+N" shown to the player)', () => {
-    it('is the full 14 when there is room', () => {
+    it('is the full 11 when there is room', () => {
         const s = board(ROW_CLEAR, { moves: 20 });
-        expect(move(s, 'down', depsOf(7)).recovered).toBe(14);
-        expect(s.moves).toBe(33);
+        expect(move(s, 'down', depsOf(7)).recovered).toBe(11);
+        expect(s.moves).toBe(30);
     });
 
     it('is the part that fits under the cap: 35 -> 34 after the step -> 40 gives 6', () => {
@@ -208,9 +208,9 @@ describe('move: moves recovered by a clear (the "+N" shown to the player)', () =
         expect(move(s, 'down', depsOf(7)).recovered).toBe(1);
     });
 
-    it('is exactly 14 when the result lands on the cap (27 -> 26 -> 40)', () => {
-        const s = board(ROW_CLEAR, { moves: 27 });
-        expect(move(s, 'down', depsOf(7)).recovered).toBe(14);
+    it('is exactly 11 when the result lands on the cap (30 -> 29 -> 40)', () => {
+        const s = board(ROW_CLEAR, { moves: 30 });
+        expect(move(s, 'down', depsOf(7)).recovered).toBe(11);
     });
 
     it('is 0 for a move that clears nothing', () => {

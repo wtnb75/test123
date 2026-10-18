@@ -25,7 +25,7 @@ export function board(rows: string[], extra: Partial<State> = {}): State {
             return cell;
         }));
     if (px < 0) throw new Error('board needs a player (@)');
-    return { grid, px, py, moves: 20, score: 0, over: false, history: [], ...extra };
+    return { grid, px, py, moves: 20, score: 0, over: false, history: [], spent: 0, shortest: null, bonusCount: 0, ...extra };
 }
 
 /** The state as ASCII rows, the inverse of `board`. */

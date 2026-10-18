@@ -40,6 +40,12 @@ export interface State {
     over: boolean;
     /** Undo history since the last line clear (oldest first). */
     history: Snapshot[];
+    /** Cells actually moved since the current board appeared (Undo does not take any back). */
+    spent: number;
+    /** Fewest moves to clear the current board when it appeared; null when it could not be measured. */
+    shortest: number | null;
+    /** Clears of this run that earned the shortest-clear bonus. */
+    bonusCount: number;
 }
 
 /** Injected randomness and clock (and an optional history cap) so rules stay reproducible in tests. */
@@ -69,6 +75,8 @@ export interface MoveResult {
     relocated: Relocation[];
     /** Moves actually gained by this move's line clears (after the cap); 0 when nothing was cleared. */
     recovered: number;
+    /** Whether this move's clear earned the shortest-clear bonus (also when the cap swallowed it). */
+    bonus: boolean;
 }
 
 export interface LineRef {
