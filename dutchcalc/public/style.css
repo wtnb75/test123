@@ -109,7 +109,41 @@ canvas {
     text-align: right;
 }
 
+.dutchcalc-table-wrap {
+    overflow-x: auto;
+}
+
+.dutchcalc-table tr.dutchcalc-loss {
+    background: #fbe3df;
+}
+
+.dutchcalc-loss-badge {
+    display: block;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--error);
+}
+
 .dutchcalc-summary {
     margin-top: 10px;
     font-size: 0.9em;
+}
+
+@media (max-width: 480px) {
+    .dutchcalc-root {
+        padding: 8px;
+    }
+
+    .dutchcalc-panel {
+        padding: 12px;
+    }
+
+    .dutchcalc-table {
+        font-size: 14px;
+    }
+
+    .dutchcalc-table th,
+    .dutchcalc-table td {
+        padding: 4px;
+    }
 }
