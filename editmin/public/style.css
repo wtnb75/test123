@@ -63,6 +63,17 @@ canvas {
     font-size: 14px;
     color: #333;
     cursor: pointer;
+    padding: 0;
+}
+
+/* Cell side under COMPACT_CELL_PX: no digits and no "B", mines are painted dark red. */
+.editmin-board-grid.compact .editmin-cell {
+    font-size: 0;
+}
+
+.editmin-board-grid.compact .editmin-cell.mine {
+    background: #8f1c1c;
+    border-color: #6e1414;
 }
 
 .editmin-cell.forbidden {
@@ -135,6 +146,16 @@ canvas {
     background: var(--accent);
     color: #fff;
     border-color: #9c3f26;
+}
+
+.editmin-zoom-row {
+    flex-wrap: wrap;
+}
+
+.editmin-zoom-label {
+    min-width: 6.5em;
+    text-align: center;
+    font-size: 13px;
 }
 
 .editmin-status {
