@@ -134,7 +134,8 @@ describe('findPath on hand-made boards', () => {
         const dist = distanceField(board);
         expect(dist[indexOf(board, 0, 0)]).toBe(UNREACHABLE);
         expect(dist[indexOf(board, 4, 11)]).toBe(0);
-        expect(dist[indexOf(board, 4, 0)]).toBe(11);
+        // Weighted distance: 11 plain-plain steps of weight 2 (spec: dist(S) = 22 on an all-plain board).
+        expect(dist[indexOf(board, 4, 0)]).toBe(22);
     });
 });
 
