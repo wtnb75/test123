@@ -25,20 +25,32 @@ const phasermsg = () => {
     };
 };
 
-/** Points the bare `phaser` import at the shared copy; the import map must come before any module script. */
+/**
+ * Points the bare `phaser` import at the shared copy; the import map must come before any module script.
+ * Vite does not preload external modules, so a modulepreload with the same URL lets the browser fetch Phaser
+ * in parallel with the game bundle instead of after it has been parsed.
+ */
 const sharedPhaser = () => {
     const { version } = resolvePhaser(process.cwd());
-    const imports = { phaser: `${VENDOR_URL_PREFIX}${phaserVendorFile(version)}` };
+    const phaserUrl = `${VENDOR_URL_PREFIX}${phaserVendorFile(version)}`;
+    const imports = { phaser: phaserUrl };
     return {
         name: 'shared-phaser',
         transformIndexHtml: {
             order: 'pre',
-            handler: () => [{
-                tag: 'script',
-                attrs: { type: 'importmap' },
-                children: JSON.stringify({ imports }),
-                injectTo: 'head-prepend'
-            }]
+            handler: () => [
+                {
+                    tag: 'script',
+                    attrs: { type: 'importmap' },
+                    children: JSON.stringify({ imports }),
+                    injectTo: 'head-prepend'
+                },
+                {
+                    tag: 'link',
+                    attrs: { rel: 'modulepreload', href: phaserUrl },
+                    injectTo: 'head-prepend'
+                }
+            ]
         }
     };
 };
