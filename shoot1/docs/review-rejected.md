@@ -2,4 +2,8 @@
 - `src/game/scenes/Game.ts` spawnFormation: FormationType を `useV` の 2 択に潰している — 理由: 新しい編隊は `formations` カードで足す。いまは推測での拡張になる
 - `src/game/scenes/Game.ts` update: 編隊タイマー（dt）と段階（time.now）の時計のずれ — 理由: 従来から同じ作り。タブが止まると Phaser も止まる
 - `src/game/core/difficulty.ts`: 各段階のオブジェクトリテラルの繰り返し — 理由: 従来と同じ書き方。1 変更 1 目的を守る
+- `src/game/core/visuals.ts`: 直下弾の橙が通常の爆発の橙と同じ — 理由: 直下弾は従来の橙のまま、爆発の色も従来のまま、が spec の合意（変えないもの）
+- `src/game/scenes/Game.ts` updateMineRings: 警告輪を出し入れで使い回し、波紋は破棄する（方針が 3 通り）／毎フレームの `setRadius` — 理由: 地雷が除かれるときに 3 つとも破棄される。輪は最大でも地雷 3 つ分で、tween を使わないのは spec で決めた
+- `src/game/scenes/bulletTextures.ts`: 頂点が `BULLET_VISUAL_RADIUS_MAX` に収まることを純関数でテストしていない — 理由: 手計算で確認済み（最大 6.0）。見え方は QA で目視する
+- `docs/spec.md` テスト観点: 発射方向と複数地雷の独立判定の単体テストが無い — 理由: 発射の角度の計算は `calcNWayAngles`・`angleTo` の既存テストで押さえてあり、警告輪の判定は地雷ごとに純関数を呼ぶだけ
 - `docs/backlog.md`: 実装中のカードを同じ変更で外している — 理由: `game-spec` の規則（実装するブランチで外す）。balance の確認は PR 本文に残す

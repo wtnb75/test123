@@ -7,8 +7,11 @@ import {
     MINE_RADIUS, MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER,
     MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
+    MINE_RIPPLE_START_RADIUS, MINE_RIPPLE_ALPHA,
     ENEMY_SPEED
 } from '../core/constants';
+import { bulletRotation, countdownRingRadius, isInBlastWarning, rippleState } from '../core/visuals';
+import { bulletTextureKey } from './bulletTextures';
 import {
     circlesOverlap, getTargetsInExplosion,
     clampPosition, inputToVelocity, joystickToVelocity,
@@ -24,7 +27,7 @@ type Bullet = {
     y: number;
     vx: number;
     vy: number;
-    gfx: Phaser.GameObjects.Arc;
+    gfx: Phaser.GameObjects.Image;
 };
 
 type Enemy = {
@@ -42,6 +45,9 @@ type Mine = {
     y: number;
     age: number;          // 設置からの経過秒
     gfx: Phaser.GameObjects.Arc;
+    ripple: Phaser.GameObjects.Arc | null;     // placement ripple
+    countdown: Phaser.GameObjects.Arc | null;  // shrinking countdown ring
+    warning: Phaser.GameObjects.Arc | null;    // blast warning ring
 };
 
 // ジョイスティック状態
@@ -58,6 +64,7 @@ const JOYSTICK_BASE_RADIUS = 56;
 const JOYSTICK_THUMB_RADIUS = 22;
 const JOYSTICK_DEADZONE = 8;
 const BOMB_BTN_RADIUS = 36;
+const MINE_RING_DEPTH = 4.5;
 
 export class Game extends Scene {
     // ゲームオブジェクト
@@ -254,8 +261,44 @@ export class Game extends Scene {
         }
 
         const gfx = this.add.circle(this.px, this.py, MINE_RADIUS, 0xffdd00).setDepth(5);
-        this.mines.push({ x: this.px, y: this.py, age: 0, gfx });
+        const ripple = this.add.circle(this.px, this.py, MINE_RIPPLE_START_RADIUS)
+            .setStrokeStyle(2, 0xffdd00, MINE_RIPPLE_ALPHA).setDepth(MINE_RING_DEPTH);
+        this.mines.push({ x: this.px, y: this.py, age: 0, gfx, ripple, countdown: null, warning: null });
         this.mineState = placeMine(this.mineState);
+    }
+
+    private destroyMineRings(mine: Mine) {
+        mine.ripple?.destroy();
+        mine.countdown?.destroy();
+        mine.warning?.destroy();
+        mine.ripple = null;
+        mine.countdown = null;
+        mine.warning = null;
+    }
+
+    private updateMineRings(mine: Mine) {
+        const ripple = rippleState(mine.age);
+        if (mine.ripple && ripple) {
+            mine.ripple.setRadius(ripple.radius);
+            mine.ripple.setStrokeStyle(2, 0xffdd00, ripple.alpha);
+        } else if (mine.ripple) {
+            mine.ripple.destroy();
+            mine.ripple = null;
+        }
+
+        const countdownRadius = countdownRingRadius(mine.age);
+        if (countdownRadius !== null) {
+            mine.countdown ??= this.add.circle(mine.x, mine.y, countdownRadius)
+                .setStrokeStyle(2, 0xffee99, 0.7).setDepth(MINE_RING_DEPTH);
+            mine.countdown.setRadius(countdownRadius);
+        }
+
+        const inBlast = isInBlastWarning(mine.x, mine.y, this.px, this.py);
+        if (inBlast) {
+            mine.warning ??= this.add.circle(mine.x, mine.y, MINE_EXPLODE_RADIUS)
+                .setStrokeStyle(3, 0xff3333, 0.85).setDepth(MINE_RING_DEPTH + 0.1);
+        }
+        mine.warning?.setVisible(inBlast);
     }
 
     private spawnFormation() {
@@ -286,8 +329,8 @@ export class Game extends Scene {
         }
     }
 
-    private spawnBullet(x: number, y: number, vx: number, vy: number) {
-        const gfx = this.add.circle(x, y, BULLET_RADIUS, 0xff8800).setDepth(3);
+    private spawnBullet(x: number, y: number, vx: number, vy: number, type: BulletType) {
+        const gfx = this.add.image(x, y, bulletTextureKey(type)).setDepth(3).setRotation(bulletRotation(vx, vy));
         this.bullets.push({ x, y, vx, vy, gfx });
     }
 
@@ -298,27 +341,27 @@ export class Game extends Scene {
         const bt = enemy.bulletType;
 
         if (bt === 'straight') {
-            this.spawnBullet(enemy.x, enemy.y, 0, speed);
+            this.spawnBullet(enemy.x, enemy.y, 0, speed, bt);
         } else if (bt === 'aimed') {
             const angle = angleTo(enemy.x, enemy.y, this.px, this.py);
             const v = angleToVec(angle);
-            this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed);
+            this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
         } else if (bt === 'nway3' || bt === 'nway5') {
             const n = bt === 'nway3' ? 3 : 5;
             const base = angleTo(enemy.x, enemy.y, this.px, this.py);
             const angles = calcNWayAngles(base, n, Math.PI / 5);
             for (const a of angles) {
                 const v = angleToVec(a);
-                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed);
+                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
             }
         } else if (bt === 'spread8') {
             for (let i = 0; i < 8; i++) {
                 const a = (i / 8) * Math.PI * 2;
                 const v = angleToVec(a);
-                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed);
+                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
             }
         } else if (bt === 'fast') {
-            this.spawnBullet(enemy.x, enemy.y, 0, speed * 2);
+            this.spawnBullet(enemy.x, enemy.y, 0, speed * 2, bt);
         }
     }
 
@@ -330,6 +373,7 @@ export class Game extends Scene {
 
         // 地雷を即座にリストから除去
         mine.gfx.destroy();
+        this.destroyMineRings(mine);
         const mineIdx = this.mines.indexOf(mine);
         if (mineIdx !== -1) this.mines.splice(mineIdx, 1);
         this.mineState = replenishMine(this.mineState);
@@ -550,6 +594,8 @@ export class Game extends Scene {
                 const freq = 2 + (1 - remaining / MINE_BLINK_SEC) * 8;
                 mine.gfx.setVisible(Math.sin(mine.age * freq * Math.PI) > 0);
             }
+
+            this.updateMineRings(mine);
 
             // 敵機との判定
             for (const enemy of this.enemies) {

@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { createBulletTextures } from './bulletTextures';
 
 export class Boot extends Scene {
     constructor() {
@@ -10,6 +11,7 @@ export class Boot extends Scene {
     }
 
     create() {
+        createBulletTextures(this);
         this.scene.start('Game');
     }
 }
