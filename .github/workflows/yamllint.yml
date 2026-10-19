@@ -1,0 +1,16 @@
+name: yamllint
+on:
+  push:
+    paths:
+    - '**/*.yml'
+    - '**/*.yaml'
+    - '!pnpm-lock.yaml'
+jobs:
+  yamllint:
+    name: 'Yamllint'
+    runs-on: ubuntu-latest
+    steps:
+    - name: 'Checkout'
+      uses: actions/checkout@master
+    - name: 'Yamllint'
+      uses: karancode/yamllint-github-action@master

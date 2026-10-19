@@ -1,0 +1,8 @@
+formatter:
+  type: basic
+  max_line_length: 120
+  indentless_arrays: true
+  include_document_start: false
+  trim_trailing_whitespace: true
+exclude:
+- pnpm-lock.yaml

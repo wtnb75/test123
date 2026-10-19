@@ -1,220 +1,197 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
-
 version: "3"
-
 vars:
   # Games listed on the top page, oldest first (the page shows them newest first).
   GAMES:
-    - kogodrop
-    - primtris
-    - first-game
-    - digdle
-    - calc1
-    #- nonoedit
-    #- editmin
-    #- dutchcalc
-    #- cjump
-    #- fukuwarai
-    - absorb
-    - spotdiff
-    - pushline
-    - minoclimb
+  - kogodrop
+  - primtris
+  - first-game
+  - digdle
+  - calc1
+  #- nonoedit
+  #- editmin
+  #- dutchcalc
+  #- cjump
+  #- fukuwarai
+  - absorb
+  - spotdiff
+  - pushline
+  - minoclimb
   ALL_GAMES:
     # Games only: entries with a / (shared packages under shared/) are not games.
     sh: sed -n "s/^  - '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
   # Games listed only on labs.html (works in progress), oldest first.
   LAB_GAMES:
-    - shoot1
-    - mazetd
-    - moleroam
-
+  - shoot1
+  - mazetd
+  - moleroam
 tasks:
   default:
     desc: task list
     cmds:
-      - task -l --sort alphanumeric
+    - task -l --sort alphanumeric
     silent: true
-
   ci:
     desc: pnpm install (frozen)
     cmds:
-      - pnpm install --frozen-lockfile
-
+    - pnpm install --frozen-lockfile
   lint:
     desc: lint games
     cmds:
-      - pnpm -r run lint
-
+    - pnpm -r run lint
   test:
     desc: test games
     cmds:
-      - pnpm -r run test
-
+    - pnpm -r run test
   test:coverage:
     desc: test games with coverage
     cmds:
-      - pnpm -r run test:coverage
-
+    - pnpm -r run test:coverage
   build:games:
     desc: build games (Phaser shared through output/vendor; each game goes to dist-shared/)
     env:
       SHARED_VENDOR: "1"
     cmds:
-      - pnpm -r run build
-
+    - pnpm -r run build
   build:output:
     desc: build output
     cmds:
-      - rm -rf output
-      - mkdir output
-      - for:
-          var: ALL_GAMES
-        cmd: rsync -av {{ .ITEM }}/dist-shared/ output/{{ .ITEM }}/
-      - node scripts/vendor-phaser.mjs output/vendor {{ .ALL_GAMES | replace "\n" " " }}
-      - task: build:index
-
+    - rm -rf output
+    - mkdir output
+    - for:
+        var: ALL_GAMES
+      cmd: rsync -av {{ .ITEM }}/dist-shared/ output/{{ .ITEM }}/
+    - node scripts/vendor-phaser.mjs output/vendor {{ .ALL_GAMES | replace "\n" " " }}
+    - task: build:index
   build:index:
     desc: build only index.html / labs.html into output/ (OUT= to change the directory)
     cmds:
-      - node scripts/build-index.mjs {{ .OUT | default "output" }} {{ .GAMES | join " " }} --labs {{ .LAB_GAMES | join " " }}
-
+    - >-
+      node scripts/build-index.mjs {{ .OUT | default "output" }} {{ .GAMES | join " " }}
+      --labs {{ .LAB_GAMES | join " " }}
   build:
     desc: build game + output
     cmds:
-      - task: build:games
-      - task: build:output
-
+    - task: build:games
+    - task: build:output
   audit:
     desc: audit fix
     cmds:
-      - pnpm audit --fix
-
+    - pnpm audit --fix
   update:
     desc: update packages
     cmds:
-      - pnpm update -r
-
+    - pnpm update -r
   update:check:
     desc: check update
     cmds:
-      - pnpm outdated -r
-
+    - pnpm outdated -r
   depcheck:
     desc: depcheck
     cmds:
-      - for:
-          var: GAMES
-        cmd: cd {{ .ITEM }} && pnpm dlx depcheck
-
+    - for:
+        var: GAMES
+      cmd: cd {{ .ITEM }} && pnpm dlx depcheck
   pkgmod:
     desc: modify package of PACKAGE=
     preconditions:
-      - "test -f {{ .PACKAGE }}/package.json"
+    - "test -f {{ .PACKAGE }}/package.json"
     cmds:
-      - jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json | sed -e
-        's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
-      - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
-      - jq 'del(.scripts["dev-nolog"], .scripts["build-nolog"])'
-        {{ .PACKAGE }}/package.json > {{ .PACKAGE }}/package.json.new
-      - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
-
+    - >-
+      jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json
+      | sed -e 's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
+    - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
+    - >-
+      jq 'del(.scripts["dev-nolog"], .scripts["build-nolog"])' {{ .PACKAGE }}/package.json
+      > {{ .PACKAGE }}/package.json.new
+    - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
   registerworkspace:
     desc: register PACKAGE= into pnpm-workspace.yaml and Taskfile.yml GAMES
     preconditions:
-      - "test -d {{ .PACKAGE }}"
-      - sh: "command -v sd"
-        msg: "sd is required (sed -i differs between GNU and BSD)"
+    - "test -d {{ .PACKAGE }}"
+    - sh: "command -v sd"
+      msg: "sd is required (sed -i differs between GNU and BSD)"
     cmds:
-      - 'sd ''^packages:$'' "packages:\n  - ''{{ .PACKAGE }}''" pnpm-workspace.yaml'
-      - 'sd ''^  ALL_GAMES:$'' "    #- {{ .PACKAGE }}\n  ALL_GAMES:" Taskfile.yml'
-
+    - 'sd ''^packages:$'' "packages:\n  - ''{{ .PACKAGE }}''" pnpm-workspace.yaml'
+    - 'sd ''^  ALL_GAMES:$'' "    #- {{ .PACKAGE }}\n  ALL_GAMES:" Taskfile.yml'
   newgame:
     desc: create new project template PACKAGE= (from scaffold/base-template, no network/interactive wizard)
     preconditions:
-      - "test ! -e {{ .PACKAGE }}"
-      - "test -d scaffold/base-template"
-      - sh: "command -v sd"
-        msg: "sd is required (sed -i differs between GNU and BSD)"
+    - "test ! -e {{ .PACKAGE }}"
+    - "test -d scaffold/base-template"
+    - sh: "command -v sd"
+      msg: "sd is required (sed -i differs between GNU and BSD)"
     cmds:
-      - cp -r scaffold/base-template {{ .PACKAGE }}
-      - task: pkgmod
-      - task: registerworkspace
-      - "echo 'done - review {{ .PACKAGE }}/package.json description, then run pnpm install to update the lockfile'"
-
+    - cp -r scaffold/base-template {{ .PACKAGE }}
+    - task: pkgmod
+    - task: registerworkspace
+    - "echo 'done - review {{ .PACKAGE }}/package.json description, then run pnpm install to update the lockfile'"
   scaffold:update-base-template:
     desc: refresh scaffold/base-template from the latest official Phaser+Vite+TypeScript template
     vars:
       FETCHDIR:
         sh: mktemp -d
     cmds:
-      - cd {{ .FETCHDIR }} && python3 {{ .TASKFILE_DIR }}/scripts/fetch-phaser-template.py game
-      - cp {{ .FETCHDIR }}/game/README.md scaffold/base-template/README.md
-      - cp {{ .FETCHDIR }}/game/index.html scaffold/base-template/index.html
-      - cp {{ .FETCHDIR }}/game/screenshot.png scaffold/base-template/screenshot.png
-      - cp {{ .FETCHDIR }}/game/package.json scaffold/base-template/package.json
-      - cp -r {{ .FETCHDIR }}/game/public/. scaffold/base-template/public/
-      - cp -r {{ .FETCHDIR }}/game/src/. scaffold/base-template/src/
-      - "echo 'scaffold/base-template updated from upstream - review with: git diff -- scaffold/base-template'"
-      - "echo 'NOTE: tsconfig.json and vite/ are NOT copied (they are thin wrappers around scaffold/*); diff them manually against {{ .FETCHDIR }}/game and port changes into scaffold/'"
-
+    - cd {{ .FETCHDIR }} && python3 {{ .TASKFILE_DIR }}/scripts/fetch-phaser-template.py game
+    - cp {{ .FETCHDIR }}/game/README.md scaffold/base-template/README.md
+    - cp {{ .FETCHDIR }}/game/index.html scaffold/base-template/index.html
+    - cp {{ .FETCHDIR }}/game/screenshot.png scaffold/base-template/screenshot.png
+    - cp {{ .FETCHDIR }}/game/package.json scaffold/base-template/package.json
+    - cp -r {{ .FETCHDIR }}/game/public/. scaffold/base-template/public/
+    - cp -r {{ .FETCHDIR }}/game/src/. scaffold/base-template/src/
+    - "echo 'scaffold/base-template updated from upstream - review with: git diff -- scaffold/base-template'"
+    - "echo 'NOTE: tsconfig.json and vite/ are NOT copied (they are thin wrappers around scaffold/*);
+      diff them manually against {{ .FETCHDIR }}/game and port changes into scaffold/'"
   all:
     desc: lint + test:coverage + build
     cmds:
-      - task: lint
-      - task: test:coverage
-      - task: build
-
+    - task: lint
+    - task: test:coverage
+    - task: build
   game:status:
     desc: show workflow progress for PACKAGE= (docs/spec.md frontmatter)
     cmds:
-      - scripts/game-status.sh get {{ .PACKAGE }} {{ .STAGE }}
-
+    - scripts/game-status.sh get {{ .PACKAGE }} {{ .STAGE }}
   game:status:set:
     desc: set workflow progress for PACKAGE= STAGE= to VALUE= (pending|in_progress|done)
     cmds:
-      - scripts/game-status.sh set {{ .PACKAGE }} {{ .STAGE }} {{ .VALUE }}
-
+    - scripts/game-status.sh set {{ .PACKAGE }} {{ .STAGE }} {{ .VALUE }}
   game:reset:
-    desc: set the stages after a spec revision back to pending for PACKAGE= (FROM= impl by default; qa for a clarification-only revision)
+    desc: set the stages after a spec revision back to pending for PACKAGE=
+      (FROM= impl by default; qa for a clarification-only revision)
     cmds:
-      - scripts/game-status.sh reset {{ .PACKAGE }} {{ .FROM | default "impl" }}
-
+    - scripts/game-status.sh reset {{ .PACKAGE }} {{ .FROM | default "impl" }}
   game:next:
     desc: show the next incomplete workflow stage for PACKAGE=
     cmds:
-      - scripts/game-status.sh next {{ .PACKAGE }}
-
+    - scripts/game-status.sh next {{ .PACKAGE }}
   game:dashboard:
     desc: show workflow progress for every game with status frontmatter
     cmds:
-      - scripts/game-status.sh dashboard
-
+    - scripts/game-status.sh dashboard
   game:detect:
     desc: guess which game is currently being worked on
     cmds:
-      - scripts/game-status.sh detect
-
+    - scripts/game-status.sh detect
   game:favicon:
     desc: generate PACKAGE=/public/favicon.png as an identicon of NAME= (default PACKAGE) via jdenticon
     vars:
       NAME: '{{ .NAME | default .PACKAGE }}'
     preconditions:
-      - "test -d {{ .PACKAGE }}/public"
+    - "test -d {{ .PACKAGE }}/public"
     cmds:
-      - pnpm dlx jdenticon '{{ .NAME }}' -s 64 -o {{ .PACKAGE }}/public/favicon.png
-
+    - pnpm dlx jdenticon '{{ .NAME }}' -s 64 -o {{ .PACKAGE }}/public/favicon.png
   backlogs:
     desc: show backlog count
     cmds:
-      - "git ls-files '**/backlog.md' | xargs grep -c '^### ' | sd '/docs/backlog.md:' ' '"
-
+    - "git ls-files '**/backlog.md' | xargs grep -c '^### ' | sd '/docs/backlog.md:' ' '"
   share:
     desc: share URL for dev server PACKAGE=
     preconditions:
-      - "test -d {{ .PACKAGE }}"
+    - "test -d {{ .PACKAGE }}"
     vars:
       PORT: '{{ .PORT | default 5191 }}'
     cmds:
-      - defer: ./scripts/qa/down.sh {{ .PACKAGE }} {{ .PORT }}
-      - ./scripts/qa/share.sh {{ .PACKAGE }} {{ .PORT }}
-      - sleep infinity
+    - defer: ./scripts/qa/down.sh {{ .PACKAGE }} {{ .PORT }}
+    - ./scripts/qa/share.sh {{ .PACKAGE }} {{ .PORT }}
+    - sleep infinity
