@@ -53,6 +53,10 @@ export class DemoGame extends Game {
         // See createHud.
     }
 
+    protected override announceStreak(): void {
+        // The "×N!" message belongs to the HUD layer, which the demo does not draw.
+    }
+
     protected override enterEnding(): void {
         // The run is rebuilt long before the clock runs out; should it ever run out, the last picture stays.
     }

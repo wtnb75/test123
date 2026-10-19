@@ -47,9 +47,12 @@ export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number, layout: L
     return best;
 };
 
-/** Score after hitting a `kind`; the total never drops below 0. `applied` is the actual change. */
-export const applyStrike = (score: number, kind: Kind): { score: number; applied: number } => {
-    const next = Math.max(0, score + (kind === 'mole' ? PARAMS.scoreMole : PARAMS.scoreFriend));
+/**
+ * Score after hitting a `kind`; the total never drops below 0. `applied` is the actual change.
+ * A mole is worth `scoreMole` times the streak `multiplier`; a cat's penalty is never multiplied.
+ */
+export const applyStrike = (score: number, kind: Kind, multiplier = 1): { score: number; applied: number } => {
+    const next = Math.max(0, score + (kind === 'mole' ? PARAMS.scoreMole * multiplier : PARAMS.scoreFriend));
     return { score: next, applied: next - score };
 };
 
