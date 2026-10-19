@@ -26,7 +26,7 @@ import {
     WAVE_BONUS,
     WAVE_MAX
 } from '../logic/config';
-import { getCell, indexOf, isGoal, isStart } from '../logic/board';
+import { getCell, getTerrain, indexOf, initialTerrain, isGoal, isStart } from '../logic/board';
 import { CellTimers, Countdown, PopupPool } from '../logic/effects';
 import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell } from '../logic/layout';
 import { ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update } from '../logic/world';
@@ -45,6 +45,11 @@ const COLOR = {
     start: 0x2e7d32,
     goal: 0xc62828,
     wall: 0x8d8d8d,
+    rock: 0x6d5f55,
+    rockEdge: 0x3e342d,
+    rockLight: 0x8c7b6e,
+    swamp: 0x1d5a57,
+    swampWave: 0x4fa89a,
     turretBase: 0x37474f,
     turret: 0x4fc3f7,
     range: 0x4fc3f7,
@@ -111,7 +116,7 @@ export class Game extends Scene {
     }
 
     create() {
-        this.state = createGame();
+        this.state = createGame(initialTerrain());
         this.initEffects();
         this.cameras.main.setBackgroundColor(BG_COLOR);
 
@@ -360,6 +365,9 @@ export class Game extends Scene {
             for (let col = 0; col < board.cols; col++) {
                 const x = BOARD_RECT.x + col * CELL;
                 const y = BOARD_RECT.y + row * CELL;
+                const terrain = getTerrain(board, col, row);
+                if (terrain === 'swamp') this.drawSwamp(g, x, y);
+                else if (terrain === 'rock') this.drawRock(g, x, y);
                 if (isStart(board, col, row)) g.fillStyle(COLOR.start).fillRect(x, y, CELL, CELL);
                 else if (isGoal(board, col, row)) g.fillStyle(COLOR.goal).fillRect(x, y, CELL, CELL);
                 const kind = getCell(board, col, row);
@@ -379,6 +387,35 @@ export class Game extends Scene {
         }
         this.drawRanges();
         if (this.state.phase === 'build') this.drawPathPreview(g);
+    }
+
+    /** Dark blue-green cell with two wave lines. */
+    private drawSwamp(g: GameObjects.Graphics, x: number, y: number) {
+        g.fillStyle(COLOR.swamp).fillRect(x, y, CELL, CELL);
+        g.lineStyle(2, COLOR.swampWave);
+        for (const wy of [CELL * 0.35, CELL * 0.7]) {
+            g.beginPath();
+            g.moveTo(x + 6, y + wy);
+            for (let i = 1; i <= 4; i++) g.lineTo(x + 6 + i * ((CELL - 12) / 4), y + wy + (i % 2 === 1 ? -4 : 4));
+            g.strokePath();
+        }
+    }
+
+    /** An angular brown-grey lump with a lighter face and a dark outline. */
+    private drawRock(g: GameObjects.Graphics, x: number, y: number) {
+        const lump = [[10, 46], [5, 26], [17, 8], [38, 6], [51, 25], [45, 47]];
+        const face = [[17, 38], [14, 26], [22, 16], [36, 15], [43, 26], [38, 38]];
+        const trace = (points: number[][]) => {
+            g.beginPath();
+            g.moveTo(x + points[0][0], y + points[0][1]);
+            for (let i = 1; i < points.length; i++) g.lineTo(x + points[i][0], y + points[i][1]);
+            g.closePath();
+        };
+        trace(lump);
+        g.fillStyle(COLOR.rock).fillPath();
+        g.lineStyle(2, COLOR.rockEdge).strokePath();
+        trace(face);
+        g.fillStyle(COLOR.rockLight).fillPath();
     }
 
     private drawRanges() {
