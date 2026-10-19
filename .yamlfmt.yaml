@@ -6,3 +6,7 @@ formatter:
   trim_trailing_whitespace: true
 exclude:
 - pnpm-lock.yaml
+- '**/node_modules/**'
+- '**/dist/**'
+- '**/dist-shared/**'
+- output/**

@@ -19,7 +19,7 @@ vars:
   - minoclimb
   ALL_GAMES:
     # Games only: entries with a / (shared packages under shared/) are not games.
-    sh: sed -n "s/^  - '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
+    sh: sed -n "s/^- '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
   # Games listed only on labs.html (works in progress), oldest first.
   LAB_GAMES:
   - shoot1
@@ -67,8 +67,7 @@ tasks:
     desc: build only index.html / labs.html into output/ (OUT= to change the directory)
     cmds:
     - >-
-      node scripts/build-index.mjs {{ .OUT | default "output" }} {{ .GAMES | join " " }}
-      --labs {{ .LAB_GAMES | join " " }}
+      node scripts/build-index.mjs {{ .OUT | default "output" }} {{ .GAMES | join " " }} --labs {{ .LAB_GAMES | join " " }}
   build:
     desc: build game + output
     cmds:
@@ -98,12 +97,10 @@ tasks:
     - "test -f {{ .PACKAGE }}/package.json"
     cmds:
     - >-
-      jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json
-      | sed -e 's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
+      jq -s '.[0] * .[1]' {{ .PACKAGE }}/package.json base.json | sed -e 's,__NAME__,{{ .PACKAGE }},g;' > {{ .PACKAGE }}/package.json.new
     - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
     - >-
-      jq 'del(.scripts["dev-nolog"], .scripts["build-nolog"])' {{ .PACKAGE }}/package.json
-      > {{ .PACKAGE }}/package.json.new
+      jq 'del(.scripts["dev-nolog"], .scripts["build-nolog"])' {{ .PACKAGE }}/package.json > {{ .PACKAGE }}/package.json.new
     - mv {{ .PACKAGE }}/package.json.new {{ .PACKAGE }}/package.json
   registerworkspace:
     desc: register PACKAGE= into pnpm-workspace.yaml and Taskfile.yml GAMES
@@ -112,7 +109,7 @@ tasks:
     - sh: "command -v sd"
       msg: "sd is required (sed -i differs between GNU and BSD)"
     cmds:
-    - 'sd ''^packages:$'' "packages:\n  - ''{{ .PACKAGE }}''" pnpm-workspace.yaml'
+    - 'sd ''^packages:$'' "packages:\n- ''{{ .PACKAGE }}''" pnpm-workspace.yaml'
     - 'sd ''^  ALL_GAMES:$'' "    #- {{ .PACKAGE }}\n  ALL_GAMES:" Taskfile.yml'
   newgame:
     desc: create new project template PACKAGE= (from scaffold/base-template, no network/interactive wizard)
@@ -140,8 +137,8 @@ tasks:
     - cp -r {{ .FETCHDIR }}/game/public/. scaffold/base-template/public/
     - cp -r {{ .FETCHDIR }}/game/src/. scaffold/base-template/src/
     - "echo 'scaffold/base-template updated from upstream - review with: git diff -- scaffold/base-template'"
-    - "echo 'NOTE: tsconfig.json and vite/ are NOT copied (they are thin wrappers around scaffold/*);
-      diff them manually against {{ .FETCHDIR }}/game and port changes into scaffold/'"
+    - "echo 'NOTE: tsconfig.json and vite/ are NOT copied (they are thin wrappers around scaffold/*); diff them manually against
+      {{ .FETCHDIR }}/game and port changes into scaffold/'"
   all:
     desc: lint + test:coverage + build
     cmds:
@@ -157,8 +154,8 @@ tasks:
     cmds:
     - scripts/game-status.sh set {{ .PACKAGE }} {{ .STAGE }} {{ .VALUE }}
   game:reset:
-    desc: set the stages after a spec revision back to pending for PACKAGE=
-      (FROM= impl by default; qa for a clarification-only revision)
+    desc: set the stages after a spec revision back to pending for PACKAGE= (FROM= impl by default; qa for a clarification-only
+      revision)
     cmds:
     - scripts/game-status.sh reset {{ .PACKAGE }} {{ .FROM | default "impl" }}
   game:next:

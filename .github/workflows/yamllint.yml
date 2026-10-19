@@ -5,12 +5,15 @@ on:
     - '**/*.yml'
     - '**/*.yaml'
     - '!pnpm-lock.yaml'
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   yamllint:
     name: 'Yamllint'
     runs-on: ubuntu-latest
     steps:
     - name: 'Checkout'
-      uses: actions/checkout@master
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: 'Yamllint'
-      uses: karancode/yamllint-github-action@master
+      uses: karancode/yamllint-github-action@4052d365f09b8d34eb552c363d1141fd60e2aeb2 # v3.0.0
