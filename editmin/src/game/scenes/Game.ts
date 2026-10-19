@@ -5,8 +5,19 @@ import {
     type BoardState,
     type DifficultyEvaluation
 } from '../logic/evaluateDifficulty';
+import {
+    ZOOM_DEFAULT,
+    anchoredScroll,
+    fitZoom,
+    isCompact,
+    maxScroll,
+    nextZoom,
+    wheelDirection,
+    wheelMayZoom,
+    zoomKeyAction,
+    type ZoomAction
+} from '../logic/zoom';
 
-const CELL_SIZE = 32;
 const MIN_SIZE = 2;
 const MAX_SIZE = 50;
 
@@ -19,6 +30,10 @@ type UiRefs = {
     applySizeBtn: HTMLButtonElement;
     startBtn: HTMLButtonElement;
     copyBtn: HTMLButtonElement;
+    zoomOutBtn: HTMLButtonElement;
+    zoomInBtn: HTMLButtonElement;
+    zoomFitBtn: HTMLButtonElement;
+    zoomLabel: HTMLSpanElement;
     status: HTMLDivElement;
     rank: HTMLDivElement;
     evidence: HTMLDivElement;
@@ -31,6 +46,8 @@ export class Game extends Scene {
     private cells: BoardCell[] = [];
     private startIndex: number | null = null;
     private startMode = false;
+    private cellSize = ZOOM_DEFAULT;
+    private lastWheelZoomAt: number | null = null;
     private ui?: UiRefs;
 
     constructor() {
@@ -55,6 +72,10 @@ export class Game extends Scene {
             applySizeBtn: root.querySelector('[data-role="apply-size"]') as HTMLButtonElement,
             startBtn: root.querySelector('[data-role="start-mode"]') as HTMLButtonElement,
             copyBtn: root.querySelector('[data-role="copy-board"]') as HTMLButtonElement,
+            zoomOutBtn: root.querySelector('[data-role="zoom-out"]') as HTMLButtonElement,
+            zoomInBtn: root.querySelector('[data-role="zoom-in"]') as HTMLButtonElement,
+            zoomFitBtn: root.querySelector('[data-role="zoom-fit"]') as HTMLButtonElement,
+            zoomLabel: root.querySelector('[data-role="zoom-label"]') as HTMLSpanElement,
             status: root.querySelector('[data-role="status"]') as HTMLDivElement,
             rank: root.querySelector('[data-role="rank"]') as HTMLDivElement,
             evidence: root.querySelector('[data-role="evidence"]') as HTMLDivElement,
@@ -66,6 +87,7 @@ export class Game extends Scene {
         this.renderAll();
 
         this.scale.on('resize', this.onResize, this);
+        this.events.once('shutdown', this.removeZoomListeners, this);
     }
 
     private buildUiHtml(): string {
@@ -87,12 +109,18 @@ export class Game extends Scene {
               <button data-role="start-mode">開始マスを指定</button>
                             <button data-role="copy-board">盤面テキストをコピー</button>
             </div>
+            <div class="editmin-row editmin-zoom-row">
+              <button data-role="zoom-out" aria-label="縮小">−</button>
+              <span class="editmin-zoom-label" data-role="zoom-label">表示 ${this.cellSize}px</span>
+              <button data-role="zoom-in" aria-label="拡大">＋</button>
+              <button data-role="zoom-fit">フィット</button>
+            </div>
             <div class="editmin-status" data-role="status"></div>
             <hr />
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール</p>
           </div>
         </div>`;
     }
@@ -122,11 +150,98 @@ export class Game extends Scene {
             this.setStatus(this.startMode ? '開始マスをクリックしてください。' : '開始マス指定モードを終了しました。');
         });
 
+        this.ui.zoomOutBtn.addEventListener('click', () => this.applyZoomAction('out'));
+        this.ui.zoomInBtn.addEventListener('click', () => this.applyZoomAction('in'));
+        this.ui.zoomFitBtn.addEventListener('click', () => this.applyZoomAction('fit'));
+        window.addEventListener('keydown', this.onZoomKey);
+        // Not passive: Ctrl+wheel over the board must not trigger the browser's page zoom.
+        this.ui.boardScroll.addEventListener('wheel', this.onBoardWheel, { passive: false });
+
         this.ui.copyBtn.addEventListener('click', async () => {
             const text = this.toBoardText();
             const copied = await this.copyTextToClipboard(text);
             this.setStatus(copied ? '盤面テキストをクリップボードにコピーしました。' : 'コピーに失敗しました。');
         });
+    }
+
+    private removeZoomListeners(): void {
+        window.removeEventListener('keydown', this.onZoomKey);
+        this.ui?.boardScroll.removeEventListener('wheel', this.onBoardWheel);
+    }
+
+    private readonly onZoomKey = (event: KeyboardEvent): void => {
+        const target = event.target as HTMLElement | null;
+        const typing = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+        const action = zoomKeyAction(event, typing);
+        if (action !== null) {
+            event.preventDefault();
+            this.applyZoomAction(action);
+        }
+    };
+
+    private readonly onBoardWheel = (event: WheelEvent): void => {
+        if (!event.ctrlKey && !event.metaKey) {
+            return; // a plain wheel scrolls as usual
+        }
+        event.preventDefault();
+        const direction = wheelDirection(event.deltaY);
+        if (direction === 0 || !wheelMayZoom(event.timeStamp, this.lastWheelZoomAt) || !this.ui) {
+            return;
+        }
+        const next = nextZoom(this.cellSize, direction);
+        if (next === this.cellSize) {
+            return;
+        }
+        const scroll = this.ui.boardScroll;
+        const rect = scroll.getBoundingClientRect();
+        this.setZoom(next, event.clientX - rect.left - scroll.clientLeft, event.clientY - rect.top - scroll.clientTop);
+        this.lastWheelZoomAt = event.timeStamp;
+    };
+
+    /** Buttons and keys keep the centre of the board display area where it is. */
+    private applyZoomAction(action: ZoomAction): void {
+        if (!this.ui) {
+            return;
+        }
+        const scroll = this.ui.boardScroll;
+        const next =
+            action === 'fit'
+                ? fitZoom(this.widthCells, this.heightCells, scroll.clientWidth, scroll.clientHeight)
+                : nextZoom(this.cellSize, action === 'in' ? 1 : -1);
+        if (next !== this.cellSize) {
+            this.setZoom(next, scroll.clientWidth / 2, scroll.clientHeight / 2);
+        }
+    }
+
+    /** Changes the cell side only through CSS (no button is rebuilt) and keeps the board point under the anchor. */
+    private setZoom(next: number, anchorX: number, anchorY: number): void {
+        if (!this.ui) {
+            return;
+        }
+        const old = this.cellSize;
+        const scroll = this.ui.boardScroll;
+        // Measure before the change: the browser clamps the scroll position as soon as the content shrinks.
+        const { scrollLeft, scrollTop, clientWidth, clientHeight } = scroll;
+        this.cellSize = next;
+        this.applyCellSize();
+        scroll.scrollLeft = anchoredScroll(
+            scrollLeft, anchorX, old, next, maxScroll(this.widthCells, next, clientWidth)
+        );
+        scroll.scrollTop = anchoredScroll(
+            scrollTop, anchorY, old, next, maxScroll(this.heightCells, next, clientHeight)
+        );
+    }
+
+    private applyCellSize(): void {
+        if (!this.ui) {
+            return;
+        }
+        const grid = this.ui.boardGrid;
+        grid.style.setProperty('--cell', `${this.cellSize}px`);
+        grid.style.gridTemplateColumns = `repeat(${this.widthCells}, ${this.cellSize}px)`;
+        grid.style.gridTemplateRows = `repeat(${this.heightCells}, ${this.cellSize}px)`;
+        grid.classList.toggle('compact', isCompact(this.cellSize));
+        this.ui.zoomLabel.textContent = `表示 ${this.cellSize}px`;
     }
 
     private toBoardText(): string {
@@ -327,8 +442,7 @@ export class Game extends Scene {
 
         const grid = this.ui.boardGrid;
         grid.innerHTML = '';
-        grid.style.gridTemplateColumns = `repeat(${this.widthCells}, ${CELL_SIZE}px)`;
-        grid.style.gridTemplateRows = `repeat(${this.heightCells}, ${CELL_SIZE}px)`;
+        this.applyCellSize();
 
         const forbidden = this.startIndex === null ? new Set<number>() : this.getForbiddenSet(this.startIndex);
 
