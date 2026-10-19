@@ -1,13 +1,10 @@
 name: branch
-
 on:
   push:
     branches-ignore: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   test:
     runs-on: ubuntu-latest

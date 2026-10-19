@@ -1,0 +1,17 @@
+yaml-files:
+- '*.yaml'
+- '*.yml'
+ignore:
+- node_modules
+- pnpm-lock.yaml
+extends: default
+rules:
+  document-start: false
+  line-length: disable
+  indentation:
+    indent-sequences: false
+  comments:
+    require-starting-space: false
+    min-spaces-from-content: 0
+  truthy:
+    check-keys: false
