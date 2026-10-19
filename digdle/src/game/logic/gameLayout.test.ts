@@ -27,6 +27,14 @@ describe('computeGameLayout: portrait key height', () => {
     });
 });
 
+describe('computeGameLayout: rightPanelWidth', () => {
+    it('is the dock width on landscape screens (667 x 310 -> 140, 1280 x 720 -> 220) and 0 on portrait', () => {
+        expect(layoutFor(667, 310, 4).rightPanelWidth).toBe(140);
+        expect(layoutFor(1280, 720, 4).rightPanelWidth).toBe(220);
+        expect(layoutFor(375, 550, 4).rightPanelWidth).toBe(0);
+    });
+});
+
 describe('computeGameLayout: SE (375 x 550) 手計算の値', () => {
     it('N=6（7 行）は隙間 6・セル 41', () => {
         const layout = layoutFor(375, 550, 6);

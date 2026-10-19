@@ -7,7 +7,10 @@ export type TextKey =
     | 'checkInput'
     | 'normalMode'
     | 'hardMode'
-    | 'dailyMode';
+    | 'dailyMode'
+    | 'statsEmpty'
+    | 'statsClear'
+    | 'statsClearConfirm';
 
 const JA: Record<TextKey, string> = {
     clear: 'Clear',
@@ -16,7 +19,10 @@ const JA: Record<TextKey, string> = {
     checkInput: '入力を確認してください',
     normalMode: 'ノーマル',
     hardMode: 'ハード',
-    dailyMode: 'デイリー'
+    dailyMode: 'デイリー',
+    statsEmpty: '戦績は空です',
+    statsClear: '戦績を消す',
+    statsClearConfirm: 'もう 1 回押すと\nすべて消えます'
 };
 
 const EN: Record<TextKey, string> = {
@@ -26,7 +32,10 @@ const EN: Record<TextKey, string> = {
     checkInput: 'Please check your input',
     normalMode: 'Normal',
     hardMode: 'Hard',
-    dailyMode: 'Daily'
+    dailyMode: 'Daily',
+    statsEmpty: 'No stats',
+    statsClear: 'Clear stats',
+    statsClearConfirm: 'Press again to erase all'
 };
 
 /** `ja` when the browser language starts with "ja", otherwise `en`. */

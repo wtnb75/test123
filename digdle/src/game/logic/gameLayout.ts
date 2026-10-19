@@ -19,6 +19,8 @@ export interface LayoutMetrics {
     keyboardButtonHeight: number;
     keyboardButtonWidth: number;
     keyboardGap: number;
+    /** The width of the right panel (the keyboard dock); 0 when the keyboard is at the bottom. */
+    rightPanelWidth: number;
 }
 
 /** The top of the board area; the strip above it (y 0..BOARD_TOP) holds the notice. */
@@ -102,7 +104,8 @@ export const computeGameLayout = (width: number, height: number, rows: number, c
         keyboardRows,
         keyboardButtonHeight,
         keyboardButtonWidth,
-        keyboardGap
+        keyboardGap,
+        rightPanelWidth
     };
 };
 

@@ -30,6 +30,20 @@ describe('detectLocale', () => {
     });
 });
 
+describe('translate: stats texts', () => {
+    it('gives the empty, clear and confirm texts in Japanese (the confirm text breaks after 押すと)', () => {
+        expect(translate('ja', 'statsEmpty')).toBe('戦績は空です');
+        expect(translate('ja', 'statsClear')).toBe('戦績を消す');
+        expect(translate('ja', 'statsClearConfirm')).toBe('もう 1 回押すと\nすべて消えます');
+    });
+
+    it('gives the empty, clear and confirm texts in English', () => {
+        expect(translate('en', 'statsEmpty')).toBe('No stats');
+        expect(translate('en', 'statsClear')).toBe('Clear stats');
+        expect(translate('en', 'statsClearConfirm')).toBe('Press again to erase all');
+    });
+});
+
 describe('translate', () => {
     it('Title の文言（モード）は日本語と英語で表のとおり', () => {
         expect([translate('ja', 'normalMode'), translate('ja', 'hardMode'), translate('ja', 'dailyMode')])
