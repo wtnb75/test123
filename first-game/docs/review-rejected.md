@@ -85,4 +85,11 @@
 - `core/generator.ts`（奥の部屋が 2 つになり、ステージ 30 のフロア生成で中央値約 1.5 秒・最大約 5 秒）— 理由: spec の完了条件で測定・合意済み。短縮は `docs/backlog.md` の `generator-fast`
 - `core/generator.ts`（`role !== 'A'` の守りが `tryFloor` の段の判定と二重）— 理由: 部屋 A を基準のままにする不変条件（Title のデモと一致）を `generateStage` の入口でも守る意図した二重
 - `core/roomParams.test.ts`（「部屋 A は deep にならない」のテストが `maxRetries: 1` の経路だけ）— 理由: 幅と爆弾配置を比べていて、代替の生成も同じ `deep` を使う
+- `scenes/Game.ts`（リサイズでセルの大きさが変わるたびに、描いた全部屋を作り直す。窓の端を引くと 1 px 刻みで重い）— 理由: リサイズ・回転での作り直しは spec で許容済み（board-render.md「変わったマス」）。デスクトップの窓を連続して引く場面だけ
+- `scenes/Game.ts`・`core/boardFit.ts`（HUD の帯の高さが動的なのに、領域の上端が定数 80。壁の線を収まる判定に含めない）— 理由: spec が領域の上端 80 px と、壁の線を含めない判定（数 px のはみ出しを許容）を決めている
+- `scenes/Game.ts`（`cell`・`area` などを `create` で戻していない）— 理由: `startStage` が、使う前に必ず `floorNo` を設定して `refreshBoardFit` を呼ぶ。推測の域
+- `scenes/Game.ts`（通路を出た直後・歩き始めのカメラの跳び）— 理由: spec が「その場で置いても、0.3 秒以内の補間でもよい」と実装裁量にしている。追従は現行どおり毎フレーム歩く点に中心を置く。見た目はテストプレイで判断する
+- `scenes/Game.ts`（`updateCameraRange` を `renderBoard` ごとに計算。移動のたびに `roomCenterScroll` を呼ぶ）— 理由: 部屋は 5 つで、1 回数 μs。変更前も `renderBoard` で境界を計算していた
+- `scenes/Game.ts`（`setFontSize` / `setStroke` の `as number` のキャスト）— 理由: 値は `scaledFont` / `scaledDimension` の数値。Phaser の型が広いだけ
+- `core/boardFit.ts`（`followScroll` が逆転した範囲（min > max）を検査しない）— 理由: `cameraScrollRange` が常に `min ≤ 0 ≤ max` を保証している
 - `core/floor.fixture.test.ts`（部屋 [0, 1, 2] の決め打ち）— 理由: `buildFloorTree` が部屋 1・2 を部屋 A の子と定めている（`parent = [-1, 0, 0]`）

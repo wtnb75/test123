@@ -2,13 +2,28 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateFloor } from '../core/generator';
 import { CORRIDOR_GLYPH, advanceCorridor, corridorCellAt, corridorReach, corridorState } from '../core/corridor';
-import { cameraBounds, cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
+import { cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
+import {
+    BOARD_AREA_SIDE,
+    BOARD_AREA_TOP,
+    PAD_BASE_RADIUS,
+    PAD_COMPACT_SCALE,
+    boardArea,
+    boardCell,
+    cameraScrollRange,
+    centerScroll,
+    followScroll,
+    padBaseRadius,
+    roomFits,
+    type BoardArea,
+    type ScrollRange
+} from '../core/boardFit';
 import { FloorState, type DoorRoute } from '../core/floor';
 import type { FloorGraph } from '../core/floorGraph';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
-import { GLYPH_OUTLINE_COLOR } from '../core/cellAppearance';
+import { GLYPH_OUTLINE_COLOR, scaledDimension, scaledFont } from '../core/cellAppearance';
 import { roomExits } from '../core/exits';
 import {
     CONTROL_MARGIN,
@@ -93,9 +108,8 @@ import {
     type InputKind
 } from '../core/hudText';
 
-const CELL_SIZE = REFERENCE_CELL;
-const BOARD_ORIGIN_X = 20;
-const BOARD_ORIGIN_Y = 80;
+const BOARD_ORIGIN_X = BOARD_AREA_SIDE;
+const BOARD_ORIGIN_Y = BOARD_AREA_TOP;
 /** Space under the floor's last row that the camera may show (px). */
 const BOARD_BOTTOM_MARGIN = 40;
 const CAMERA_FOLLOW_MARGIN_CELLS = 4;
@@ -148,7 +162,7 @@ type JoystickState = {
     startY: number;
 };
 
-const JOYSTICK_BASE_RADIUS = 52;
+const JOYSTICK_BASE_RADIUS = PAD_BASE_RADIUS;
 const JOYSTICK_THUMB_RADIUS = 20;
 const JOYSTICK_TAP_THRESHOLD = PAD_DIRECTION_THRESHOLD;
 const JOYSTICK_REPEAT_DELAY = 380;  // ms until first repeat
@@ -205,8 +219,13 @@ export class Game extends Scene
     private corridorDrawn = -1;
     /** True when the walk goes from room A to room B (first cell to last), false on the way back. */
     private corridorForward = true;
-    cameraBoundsWidth = 0;
-    cameraBoundsHeight = 0;
+    /** The size of one cell (px) on this floor and screen, the play area, and the scrolls the camera may take (docs/spec/board-render.md "盤面の大きさと位置"). */
+    private cell = REFERENCE_CELL;
+    private floorNo = 1;
+    private area: BoardArea = boardArea(0, 0);
+    /** The range the camera may take (the floor's, widened to the centring scrolls: a drag and the centring), and the floor's own (the follow). */
+    private scrollRange: ScrollRange = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+    private followRange: ScrollRange = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
     inputLockUntil = 0;
     flow = new StageFlow();
     presses = new PressTracker();
@@ -377,6 +396,8 @@ export class Game extends Scene
         this.graveInfo = undefined;
         this.cancelCorridor();
         this.destroyViews();
+        this.floorNo = stageNo;
+        this.refreshBoardFit();
         const floor = generateFloor(stageNo);
         this.floorState = new FloorState(floor.rooms, floor.graph);
         this.mapRooms = floor.rooms;
@@ -389,7 +410,7 @@ export class Game extends Scene
         this.renderBoard();
         this.legendText.setVisible(false);
         this.refreshHud(stageStartMessage(this.inputKind(), this.stageData.stageNo));
-        this.centerCameraOnPlayer(true);
+        this.placeCameraInRoom();
     }
 
     private startFirstStage (): void
@@ -413,7 +434,7 @@ export class Game extends Scene
     private makeView (index: number): BoardView
     {
         const origin = this.roomOriginPx(index);
-        return new BoardView(this, { originX: origin.x, originY: origin.y, cell: CELL_SIZE });
+        return new BoardView(this, { originX: origin.x, originY: origin.y, cell: this.cell });
     }
 
     /** The room the player is in. */
@@ -434,13 +455,13 @@ export class Game extends Scene
     private roomOriginPx (index: number): Position
     {
         const origin = this.layout.roomOrigin[index];
-        return { x: BOARD_ORIGIN_X + origin.x * CELL_SIZE, y: BOARD_ORIGIN_Y + origin.y * CELL_SIZE };
+        return { x: BOARD_ORIGIN_X + origin.x * this.cell, y: BOARD_ORIGIN_Y + origin.y * this.cell };
     }
 
     private renderBoard (): void
     {
         this.view.render(this.stageData, this.gameOverLogical);
-        this.updateCameraBounds();
+        this.updateCameraRange();
     }
 
     private collectChangedCellIndices (prevStage: Stage, nextStage: Stage): number[]
@@ -466,28 +487,114 @@ export class Game extends Scene
         return changed;
     }
 
-    private updateCameraBounds (): void
+    /** Works out the play area and the cell for this screen and floor. True when the cell changed. */
+    private refreshBoardFit (): boolean
     {
-        const bounds = cameraBounds(
-            this.layout.cols,
-            this.layout.rows,
-            CELL_SIZE,
-            { side: BOARD_ORIGIN_X, top: BOARD_ORIGIN_Y, bottom: BOARD_BOTTOM_MARGIN },
-            this.camera
-        );
-        this.cameraBoundsWidth = bounds.width;
-        this.cameraBoundsHeight = bounds.height;
-        this.camera.setBounds(0, 0, this.cameraBoundsWidth, this.cameraBoundsHeight);
+        this.area = boardArea(this.camera.width, this.camera.height);
+        const cell = boardCell(this.floorNo, this.area);
+        const changed = cell !== this.cell;
+        this.cell = cell;
+        return changed;
+    }
+
+    /** The scroll that puts room `index`'s board in the middle of the play area; null when the board does not fit it. */
+    private roomCenterScroll (index: number): Position | null
+    {
+        const room = this.mapRooms[index];
+        if (!room || !roomFits(room.width, room.height, this.cell, this.area)) {
+            return null;
+        }
+        return centerScroll(this.roomOriginPx(index), room.width, room.height, this.cell, this.area);
+    }
+
+    /** The camera on the room the player is in: in the middle of the play area when it fits, else on the player. */
+    private placeCameraInRoom (): void
+    {
+        const scroll = this.roomCenterScroll(this.floorState.roomIndex);
+        if (!scroll) {
+            this.centerCameraOnPlayer(true);
+            return;
+        }
+        this.camera.setScroll(scroll.x, scroll.y);
+        this.roundCameraScroll();
+        this.updateGoalArrow();
+    }
+
+    private updateCameraRange (): void
+    {
+        const centers: Position[] = [];
+        for (let index = 0; index < this.mapRooms.length; index += 1) {
+            const scroll = this.roomCenterScroll(index);
+            if (scroll) {
+                centers.push(scroll);
+            }
+        }
+        const margins = { side: BOARD_ORIGIN_X, top: BOARD_ORIGIN_Y, bottom: BOARD_BOTTOM_MARGIN };
+        this.followRange = cameraScrollRange(this.layout.cols, this.layout.rows, this.cell, margins, this.camera, []);
+        this.scrollRange = cameraScrollRange(this.layout.cols, this.layout.rows, this.cell, margins, this.camera, centers);
+        const { minX, maxX, minY, maxY } = this.scrollRange;
+        this.camera.setBounds(minX, minY, maxX - minX + this.camera.width, maxY - minY + this.camera.height);
+    }
+
+    /** The style of a corridor's "#" at the current cell size. */
+    private corridorMarkStyle (): Phaser.Types.GameObjects.Text.TextStyle
+    {
+        return {
+            fontFamily: 'monospace',
+            fontSize: scaledFont(CORRIDOR_GLYPH.size, this.cell),
+            fontStyle: 'bold',
+            color: CORRIDOR_GLYPH.color,
+            stroke: GLYPH_OUTLINE_COLOR,
+            strokeThickness: scaledDimension(CORRIDOR_GLYPH.stroke, this.cell)
+        };
+    }
+
+    /** The cell size changed: every room drawn so far, the corridors' "#" and the walk are drawn again at the new size. */
+    private relayoutBoard (): void
+    {
+        const current = this.floorState.roomIndex;
+        this.views.forEach((old, index) => {
+            if (!old) {
+                return;
+            }
+            old.destroy();
+            const view = this.makeView(index);
+            this.views[index] = view;
+            if (index === current) {
+                view.render(this.stageData, this.gameOverLogical);
+                view.setPlayerGlyph(this.gameOverLogical ? '†' : '@');
+            } else {
+                view.render(this.floorState.roomAt(index));
+                view.setPlayerVisible(false);
+            }
+        });
+        const style = this.corridorMarkStyle();
+        this.corridorMarks.forEach((marks, corridor) => {
+            marks?.forEach((mark, i) => {
+                const at = this.layout.corridors[corridor][i];
+                mark
+                    .setPosition(BOARD_ORIGIN_X + at.x * this.cell + this.cell / 2, BOARD_ORIGIN_Y + at.y * this.cell + this.cell / 2)
+                    .setFontSize(style.fontSize as number)
+                    .setStroke(GLYPH_OUTLINE_COLOR, style.strokeThickness as number);
+            });
+        });
+        if (this.flow.inCorridor) {
+            this.corridorDrawn = -1;
+            this.placeCorridorPlayer(corridorState(this.corridorElapsed, this.walkedCorridor.length).index);
+        }
     }
 
     private onResize (gameSize: Phaser.Structs.Size): void
     {
         this.camera.setSize(gameSize.width, gameSize.height);
-        this.updateCameraBounds();
+        if (this.refreshBoardFit()) {
+            this.relayoutBoard();
+        }
+        this.updateCameraRange();
         if (this.flow.inCorridor) {
             this.followCorridor(this.corridorElapsed);
         } else {
-            this.centerCameraOnPlayer(true);
+            this.placeCameraInRoom();
         }
         this.updateGoalArrow();
         this.layoutVirtualControls();
@@ -649,8 +756,8 @@ export class Game extends Scene
         const compact = controls.compact;
         const margin = CONTROL_MARGIN;
 
-        const baseR = compact ? Math.round(JOYSTICK_BASE_RADIUS * 0.78) : JOYSTICK_BASE_RADIUS;
-        const thumbR = compact ? Math.round(JOYSTICK_THUMB_RADIUS * 0.78) : JOYSTICK_THUMB_RADIUS;
+        const baseR = padBaseRadius(compact);
+        const thumbR = compact ? Math.round(JOYSTICK_THUMB_RADIUS * PAD_COMPACT_SCALE) : JOYSTICK_THUMB_RADIUS;
         const flagSize = controls.flag.size;
         const flagFontSize = 11;
 
@@ -863,11 +970,19 @@ export class Game extends Scene
             const stage = this.stageData;
             const mapElapsedNow = (): number | null => this.mapElapsed;
             const flagModeNow = (): boolean => this.flagMode;
+            const camera = this.camera;
+            const cellNow = (): number => this.cell;
+            const areaNow = (): BoardArea => this.area;
+            const originNow = (): Position => this.roomOriginPx(this.floorState.roomIndex);
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
                 get mapAlpha () { return mapElapsedNow() === null ? 0 : mapAlpha(mapElapsedNow() as number); },
                 get flagMode () { return flagModeNow(); },
                 message,
+                get cell () { return cellNow(); },
+                get origin () { return originNow(); },
+                get scroll () { return { x: camera.scrollX, y: camera.scrollY }; },
+                get area () { return { ...areaNow() }; },
                 room: String.fromCharCode(65 + this.floorState.roomIndex),
                 doorSide: stage.doorSide,
                 doors: (stage.doors ?? []).map((door) => ({ x: door.cell.x, y: door.cell.y, side: door.side })),
@@ -953,11 +1068,17 @@ export class Game extends Scene
     private centerCameraOnPlayer (force = false): void
     {
         const origin = this.roomOriginPx(this.floorState.roomIndex);
-        const px = origin.x + this.stageData.player.x * CELL_SIZE + CELL_SIZE / 2;
-        const py = origin.y + this.stageData.player.y * CELL_SIZE + CELL_SIZE / 2;
+        // A room that fits the play area stays where it was put: the whole board is in view (docs/spec/board-render.md).
+        if (this.roomCenterScroll(this.floorState.roomIndex)) {
+            this.updateGoalArrow();
+            return;
+        }
+
+        const px = origin.x + this.stageData.player.x * this.cell + this.cell / 2;
+        const py = origin.y + this.stageData.player.y * this.cell + this.cell / 2;
 
         if (!force) {
-            const margin = CAMERA_FOLLOW_MARGIN_CELLS * CELL_SIZE;
+            const margin = CAMERA_FOLLOW_MARGIN_CELLS * this.cell;
             const left = this.camera.scrollX + margin;
             const top = this.camera.scrollY + margin;
             const right = this.camera.scrollX + this.camera.width - margin;
@@ -974,16 +1095,9 @@ export class Game extends Scene
     /** Puts the camera's centre on a world point, as near as the floor's bounds allow. */
     private centerCameraOnPoint (px: number, py: number): void
     {
-        const halfW = this.camera.width / 2;
-        const halfH = this.camera.height / 2;
-        const minX = halfW;
-        const minY = halfH;
-        const maxX = Math.max(halfW, this.cameraBoundsWidth - halfW);
-        const maxY = Math.max(halfH, this.cameraBoundsHeight - halfH);
-        const clampedX = Math.min(maxX, Math.max(minX, px));
-        const clampedY = Math.min(maxY, Math.max(minY, py));
+        const scroll = followScroll({ x: px, y: py }, this.camera, this.followRange);
 
-        this.camera.centerOn(clampedX, clampedY);
+        this.camera.setScroll(scroll.x, scroll.y);
         this.roundCameraScroll();
         this.updateGoalArrow();
     }
@@ -1000,7 +1114,7 @@ export class Game extends Scene
     /** The exits to point at from the room the player is in (docs/spec/rooms-and-floors.md "画面外の出口の矢印"). */
     private exitTargets (): ExitTarget[]
     {
-        return roomExits(this.stageData, this.floorState.roomIndex, this.roomOriginPx(this.floorState.roomIndex), CELL_SIZE);
+        return roomExits(this.stageData, this.floorState.roomIndex, this.roomOriginPx(this.floorState.roomIndex), this.cell);
     }
 
     private updateGoalArrow (): void
@@ -1257,17 +1371,10 @@ export class Game extends Scene
             for (const cell of this.layout.corridors[walked]) {
                 marks.push(
                     this.add.text(
-                        BOARD_ORIGIN_X + cell.x * CELL_SIZE + CELL_SIZE / 2,
-                        BOARD_ORIGIN_Y + cell.y * CELL_SIZE + CELL_SIZE / 2,
+                        BOARD_ORIGIN_X + cell.x * this.cell + this.cell / 2,
+                        BOARD_ORIGIN_Y + cell.y * this.cell + this.cell / 2,
                         '#',
-                        {
-                            fontFamily: 'monospace',
-                            fontSize: CORRIDOR_GLYPH.size,
-                            fontStyle: 'bold',
-                            color: CORRIDOR_GLYPH.color,
-                            stroke: GLYPH_OUTLINE_COLOR,
-                            strokeThickness: CORRIDOR_GLYPH.stroke
-                        }
+                        this.corridorMarkStyle()
                     ).setOrigin(0.5).setDepth(CORRIDOR_MARK_DEPTH)
                 );
             }
@@ -1480,7 +1587,7 @@ export class Game extends Scene
     private corridorPointPx (index: number): Position
     {
         const cell = corridorCellAt(this.walkedCorridor, index, this.corridorForward);
-        return { x: BOARD_ORIGIN_X + cell.x * CELL_SIZE + CELL_SIZE / 2, y: BOARD_ORIGIN_Y + cell.y * CELL_SIZE + CELL_SIZE / 2 };
+        return { x: BOARD_ORIGIN_X + cell.x * this.cell + this.cell / 2, y: BOARD_ORIGIN_Y + cell.y * this.cell + this.cell / 2 };
     }
 
     /** The highlight and the mark on the `index`-th cell of the walk (room A to B: first to last; back: last to first). */
@@ -1518,7 +1625,7 @@ export class Game extends Scene
         }
         this.view.setPlayerVisible(true);
         this.renderBoard();
-        this.centerCameraOnPlayer(true);
+        this.placeCameraInRoom();
         this.refreshHud(ENTER_ROOM_MESSAGE);
     }
 
@@ -1849,7 +1956,7 @@ export class Game extends Scene
 
         const world = pointer.positionToCamera(this.camera) as Phaser.Math.Vector2;
         const origin = this.roomOriginPx(this.floorState.roomIndex);
-        const target = cellAtWorld(world.x, world.y, origin.x, origin.y, CELL_SIZE);
+        const target = cellAtWorld(world.x, world.y, origin.x, origin.y, this.cell);
 
         if (!inBounds(this.stageData, target)) {
             return;

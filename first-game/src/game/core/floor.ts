@@ -74,6 +74,12 @@ export class FloorState {
     return this.rooms[this.index];
   }
 
+  /** The state of room `index` (the room the player is in, as it was last committed, or any other). */
+  roomAt (index: number): Stage
+  {
+    return this.rooms[index];
+  }
+
   /**
    * The walk a door of the current room starts: the corridor that has this door at one end, walked towards the
    * other end. A door index past the room's last used door is the last one; a door no corridor joins throws.
