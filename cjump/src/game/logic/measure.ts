@@ -7,7 +7,7 @@ import {
     MEASURE_RUNS,
     MEASURE_TIMEOUT_MS
 } from './constants';
-import { getDifficultyParams } from './difficulty';
+import { getDifficultyParams, routeSeed } from './difficulty';
 import { generateWaypoints, type Point } from './waypoints';
 import { polylineLength } from './polyline';
 import { createPrng } from './prng';
@@ -25,7 +25,7 @@ export interface StageMeasurement {
 
 export function stageRoute(stage: number): Point[] {
     const difficulty = getDifficultyParams(stage);
-    return generateWaypoints(stage, difficulty.waypointCount, difficulty.thetaMaxDeg, {
+    return generateWaypoints(routeSeed(stage), difficulty.waypointCount, difficulty.thetaMaxDeg, {
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
         margin: ROUTE_MARGIN
