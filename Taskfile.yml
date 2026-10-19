@@ -202,3 +202,19 @@ tasks:
       - "test -d {{ .PACKAGE }}/public"
     cmds:
       - pnpm dlx jdenticon '{{ .NAME }}' -s 64 -o {{ .PACKAGE }}/public/favicon.png
+
+  backlogs:
+    desc: show backlog count
+    cmds:
+      - "git ls-files '**/backlog.md' | xargs grep -c '^### ' | sd '/docs/backlog.md:' ' '"
+
+  share:
+    desc: share URL for dev server PACKAGE=
+    preconditions:
+      - "test -d {{ .PACKAGE }}"
+    vars:
+      PORT: '{{ .PORT | default 5191 }}'
+    cmds:
+      - defer: ./scripts/qa/down.sh {{ .PACKAGE }} {{ .PORT }}
+      - ./scripts/qa/share.sh {{ .PACKAGE }} {{ .PORT }}
+      - sleep infinity
