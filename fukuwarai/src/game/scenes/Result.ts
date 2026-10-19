@@ -1,17 +1,19 @@
 import { Scene } from 'phaser';
 import { GAME_WIDTH } from '../logic/constants';
-import { PART_ANSWERS } from '../logic/parts';
+import { TOPICS } from '../logic/topics';
 import type { DraggablePartId, PartId, PartTransform } from '../logic/types';
 import { drawFaceGroup } from '../drawing';
 
 interface ResultData {
     score?: number;
     playerTransforms?: Record<DraggablePartId, PartTransform>;
+    topicIndex?: number;
 }
 
 export class Result extends Scene {
     private score = 0;
     private playerTransforms: Record<DraggablePartId, PartTransform> | null = null;
+    private topicIndex = 0;
 
     constructor() {
         super('Result');
@@ -20,6 +22,8 @@ export class Result extends Scene {
     init(data: ResultData) {
         this.score = data.score ?? 0;
         this.playerTransforms = data.playerTransforms ?? null;
+        const index = data.topicIndex ?? 0;
+        this.topicIndex = Number.isInteger(index) && index >= 0 && index < TOPICS.length ? index : 0;
     }
 
     create() {
@@ -34,7 +38,7 @@ export class Result extends Scene {
         // Player's finished face is the star of the screen — 福笑い is a
         // game you look at and laugh, not just a number (docs/spec.md).
         const playerFaceTransforms: Record<PartId, PartTransform> = {
-            outline: PART_ANSWERS.outline,
+            outline: TOPICS[this.topicIndex].outline,
             ...(this.playerTransforms ?? this.emptyPlayerTransforms()),
         };
         const playerFace = drawFaceGroup(this, playerFaceTransforms);
@@ -53,7 +57,7 @@ export class Result extends Scene {
             fontFamily: 'sans-serif',
             fontSize: '14px',
         }).setOrigin(0.5);
-        const answerFace = drawFaceGroup(this, PART_ANSWERS);
+        const answerFace = drawFaceGroup(this, TOPICS[this.topicIndex]);
         answerFace.setPosition(GAME_WIDTH / 2, 500);
         answerFace.setScale(0.4);
 

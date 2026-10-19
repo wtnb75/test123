@@ -21,7 +21,8 @@ import {
     CONFIRM_FLASH_LINE_PX,
 } from '../logic/constants';
 import { dropHintFor } from '../logic/dropHint';
-import { PART_IDS, PART_SHAPES, PART_ANSWERS, TRAY_SLOTS, hitRadius } from '../logic/parts';
+import { PART_IDS, PART_SHAPES, TRAY_SLOTS, hitRadius } from '../logic/parts';
+import { LAST_TOPIC_KEY, TOPICS, pickTopic, type TopicAnswers } from '../logic/topics';
 import type { DraggablePartId, GamePhase, PartTransform, Point, Region } from '../logic/types';
 import { toLocalOffset, computeDragTransform } from '../logic/dragTransform';
 import { regionForY } from '../logic/regions';
@@ -36,6 +37,8 @@ interface DragState {
 
 export class Game extends Scene {
     private phase: GamePhase = 'reveal';
+    private topicIndex = 0;
+    private answers: TopicAnswers = TOPICS[0];
     private partContainers = new Map<DraggablePartId, GameObjects.Container>();
     private locked = new Map<DraggablePartId, boolean>();
     private activeDragId: DraggablePartId | null = null;
@@ -56,6 +59,10 @@ export class Game extends Scene {
     create() {
         this.cameras.main.setBackgroundColor('#eaf6ff');
         this.phase = 'reveal';
+        const previous = this.registry.get(LAST_TOPIC_KEY) as number | undefined;
+        this.topicIndex = pickTopic(TOPICS.length, typeof previous === 'number' ? previous : null, Math.random);
+        this.answers = TOPICS[this.topicIndex];
+        this.registry.set(LAST_TOPIC_KEY, this.topicIndex);
         this.partContainers.clear();
         this.locked.clear();
         this.activeDragId = null;
@@ -75,7 +82,7 @@ export class Game extends Scene {
     }
 
     private showReveal() {
-        const group = drawFaceGroup(this, PART_ANSWERS);
+        const group = drawFaceGroup(this, this.answers);
         group.setPosition(PLACEMENT_CENTER.x, PLACEMENT_CENTER.y);
 
         const instruction = this.add.text(GAME_WIDTH / 2, 40, 'このお手本を覚えよう', {
@@ -121,7 +128,7 @@ export class Game extends Scene {
         divider.lineBetween(0, TRAY_TOP_Y, GAME_WIDTH, TRAY_TOP_Y);
 
         // Outline is a fixed background element, not a draggable part (docs/spec.md).
-        const outlineAnswer = PART_ANSWERS.outline;
+        const outlineAnswer = this.answers.outline;
         const outlineGfx = this.add.graphics();
         drawPartShape(outlineGfx, PART_SHAPES.outline);
         const outlinePart = this.add.container(
@@ -312,7 +319,7 @@ export class Game extends Scene {
 
         const playerTransforms = this.collectPlayerTransforms();
         const score = this.computeScore(playerTransforms);
-        this.scene.start('Result', { score, playerTransforms });
+        this.scene.start('Result', { score, playerTransforms, topicIndex: this.topicIndex });
     }
 
     private collectPlayerTransforms(): Record<DraggablePartId, PartTransform> {
@@ -347,7 +354,7 @@ export class Game extends Scene {
         const canvasCenter = { x: SCORE_CANVAS_SIZE / 2, y: SCORE_CANVAS_SIZE / 2 };
 
         drawFaceOnCanvas(playerCtx, canvasCenter, playerTransforms);
-        drawFaceOnCanvas(answerCtx, canvasCenter, PART_ANSWERS);
+        drawFaceOnCanvas(answerCtx, canvasCenter, this.answers);
         fillBackground(blankCtx);
 
         const playerData = playerCtx.getImageData(0, 0, SCORE_CANVAS_SIZE, SCORE_CANVAS_SIZE).data;
