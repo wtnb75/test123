@@ -5,19 +5,13 @@ import {
     type ProgressState,
     type HistoryEntry,
     ROUND_TIME_MS,
-    getDifficulty,
-    createTurnSlots,
+    generateProblem,
     evaluateProgress,
     loadLevel,
     saveLevel,
     handleLossLevelChoice,
-    findShortestSolutionFromOptions,
 } from '../logic';
 import { C, FONT } from '../palette';
-
-function randomBetween(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
 
 type SceneMode = 'playing' | 'result';
 
@@ -83,33 +77,11 @@ export class Game extends Scene {
         this.shortestPath = [];
         this.roundLevel = this.level;
 
-        const diff = getDifficulty(this.level);
-        let foundPath = false;
-        for (let attempt = 0; attempt < 200; attempt += 1) {
-            this.initialValue = randomBetween(diff.initialValueMin, diff.initialValueMax);
-            this.targetValue = randomBetween(diff.targetMin, diff.targetMax);
-            this.slots = createTurnSlots(diff.maxTurns);
-
-            const path = findShortestSolutionFromOptions(
-                this.initialValue,
-                this.targetValue,
-                this.slots.map((slot) => slot.options),
-            );
-            if (path !== null) {
-                this.shortestPath = path;
-                foundPath = true;
-                break;
-            }
-        }
-
-        // Safety fallback: always start with a solvable board.
-        if (!foundPath) {
-            this.initialValue = randomBetween(diff.initialValueMin, diff.initialValueMax);
-            this.slots = createTurnSlots(diff.maxTurns);
-            const guaranteedOp = this.slots[0].options[0];
-            this.targetValue = guaranteedOp.apply(this.initialValue);
-            this.shortestPath = [{ operation: guaranteedOp, resultValue: this.targetValue, options: this.slots[0].options }];
-        }
+        const problem = generateProblem(this.level);
+        this.initialValue = problem.initialValue;
+        this.targetValue = problem.targetValue;
+        this.slots = problem.slots;
+        this.shortestPath = problem.shortestPath;
 
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
         this.roundDeadline = this.game.loop.time + ROUND_TIME_MS;
