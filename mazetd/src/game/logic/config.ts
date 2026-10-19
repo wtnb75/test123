@@ -23,11 +23,23 @@ export const SELL_RATE = 0.5;
 export const KILL_REWARD = 2;
 export const WAVE_BONUS = 10;
 
+// Path cost of one cell (proportional to the time spent in it); the weight of a step is the sum of both cells.
+export const COST_PLAIN = 1;
+export const COST_SWAMP = 2;
+
+// The game's fixed terrain as [row, col] pairs (row 0 is the start row); every other cell is plain.
+export const INITIAL_ROCKS: ReadonlyArray<readonly [number, number]> = [[2, 2], [3, 6], [5, 4], [6, 1], [8, 6]];
+export const INITIAL_SWAMPS: ReadonlyArray<readonly [number, number]> = [
+    [3, 3], [3, 4], [4, 3], [7, 3], [7, 4], [9, 2], [9, 3], [10, 5], [10, 6]
+];
+
 export const ENEMY_COUNT_BASE = 8;
 export const ENEMY_COUNT_STEP = 2;
 export const ENEMY_HP_BASE = 3;
 export const ENEMY_HP_STEP = 2;
 export const ENEMY_SPEED = 64;
+/** Enemies walk at this fraction of ENEMY_SPEED while their position belongs to a swamp cell. */
+export const SWAMP_SPEED_RATE = 0.5;
 export const ENEMY_RADIUS = 14;
 export const SPAWN_INTERVAL = 0.8;
 

@@ -1,7 +1,8 @@
 // What the hovering mino looks like during its telegraph. Pure logic, no Phaser.
 import { P } from '../params';
 import { ROTATION_COUNT, shapeCells, shapeWidth, type Cell } from './pieces';
-import type { Plan } from './ai';
+import { PROBE_ROW, type Plan } from './ai';
+import { landingRow, type Grid } from './board';
 
 export interface TelegraphView {
     rot: number;
@@ -26,4 +27,26 @@ export const telegraphView = (plan: Plan, t: number): TelegraphView => {
     const cells = shapeCells(plan.kind, rot);
     const col = Math.min(plan.col, P.COLS - shapeWidth(cells));
     return { rot, cells, col };
+};
+
+export interface FrameView {
+    cells: readonly Cell[];
+    col: number;
+    row: number;
+}
+
+/** From this time on (the last turn of any mino) the frame sits at the landing the AI chose. */
+const FRAME_SETTLED_T = Math.max(...P.ROTATE_TIMES.flat());
+
+/**
+ * The landing frame during the telegraph: it follows the displayed mino, landing where that shape would stop
+ * if dropped straight down at its displayed column. At the settled time (and for a mino that never turns)
+ * it is exactly the AI's chosen landing, even if a crumble changed the board since.
+ */
+export const frameView = (grid: Grid, plan: Plan, t: number): FrameView => {
+    if (turnCount(plan) === 0 || t >= FRAME_SETTLED_T - 1e-9) {
+        return { cells: shapeCells(plan.kind, plan.rot), col: plan.col, row: plan.row };
+    }
+    const view = telegraphView(plan, t);
+    return { cells: view.cells, col: view.col, row: landingRow(grid, view.cells, view.col, PROBE_ROW) };
 };

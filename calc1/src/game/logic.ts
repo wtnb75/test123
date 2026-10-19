@@ -325,3 +325,107 @@ export function canReachTarget(
 ): boolean {
     return findSolutionPath(initial, target, pool, maxTurns) !== null;
 }
+
+// ────────────────────────────────────────────────────────────
+// Problem acceptance by the number of winning selection sequences
+// ────────────────────────────────────────────────────────────
+
+export type WinCountRange = { min: number; max: number };
+
+/** Per level (the last entry also serves every later level); inclusive bounds. */
+export const WIN_COUNT_RANGES: WinCountRange[] = [
+    { min: 500000, max: 2200000 },
+    { min: 6000, max: 42000 },
+    { min: 500, max: 5500 },
+    { min: 50, max: 800 },
+    { min: 15, max: 480 },
+];
+
+export const MAX_GENERATION_ATTEMPTS = 200;
+
+export function getWinCountRange(level: number): WinCountRange {
+    const idx = Math.min(level - 1, WIN_COUNT_RANGES.length - 1);
+    return WIN_COUNT_RANGES[Math.max(0, idx)];
+}
+
+/**
+ * Number of selection sequences that win: choices per turn are the turn's options plus skip, and a sequence is
+ * counted once at the first turn where the value equals the target (later turns are auto-skip). Counted per
+ * (turn, value) instead of enumerating every sequence.
+ */
+export function countWinningSequences(initial: number, target: number, turnOptions: Operation[][]): number {
+    let counts = new Map<number, number>([[initial, 1]]);
+    let wins = 0;
+    for (const options of turnOptions) {
+        const next = new Map<number, number>();
+        for (const [value, n] of counts) {
+            const results = options.map((op) => applyOperation(value, op));
+            results.push(value); // skip
+            for (const result of results) {
+                if (result === target) wins += n;
+                else next.set(result, (next.get(result) ?? 0) + n);
+            }
+        }
+        counts = next;
+    }
+    return wins;
+}
+
+/** Log distance from a count to the range: 0 inside it. */
+export function winCountDistance(count: number, range: WinCountRange): number {
+    if (count < range.min) return Math.log(range.min / count);
+    if (count > range.max) return Math.log(count / range.max);
+    return 0;
+}
+
+export type Problem = {
+    initialValue: number;
+    targetValue: number;
+    slots: TurnSlot[];
+    shortestPath: HistoryEntry[];
+};
+
+const randomBetween = (rng: () => number, min: number, max: number): number =>
+    Math.floor(rng() * (max - min + 1)) + min;
+
+/**
+ * Makes a solvable problem whose winning-sequence count is in the level's range; after MAX_GENERATION_ATTEMPTS
+ * the solvable one closest to the range (earlier on a tie), and only without any solvable one the old fallback.
+ */
+export function generateProblem(level: number, rng: () => number = Math.random): Problem {
+    const diff = getDifficulty(level);
+    const range = getWinCountRange(level);
+    let closest: { initialValue: number; targetValue: number; slots: TurnSlot[] } | null = null;
+    let closestDistance = Infinity;
+    const withPath = (p: { initialValue: number; targetValue: number; slots: TurnSlot[] }): Problem => ({
+        ...p,
+        // A problem with a winning sequence is solvable, so the shortest path exists.
+        shortestPath: findShortestSolutionFromOptions(p.initialValue, p.targetValue, p.slots.map((slot) => slot.options))!,
+    });
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+        const initialValue = randomBetween(rng, diff.initialValueMin, diff.initialValueMax);
+        const targetValue = randomBetween(rng, diff.targetMin, diff.targetMax);
+        const slots = createTurnSlots(diff.maxTurns, OPERATION_POOL, rng);
+        const count = countWinningSequences(initialValue, targetValue, slots.map((slot) => slot.options));
+        if (count === 0) continue; // unsolvable
+        const distance = winCountDistance(count, range);
+        if (distance === 0) return withPath({ initialValue, targetValue, slots });
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closest = { initialValue, targetValue, slots };
+        }
+    }
+    if (closest !== null) return withPath(closest);
+
+    // Safety fallback: always start with a solvable board.
+    const initialValue = randomBetween(rng, diff.initialValueMin, diff.initialValueMax);
+    const slots = createTurnSlots(diff.maxTurns, OPERATION_POOL, rng);
+    const guaranteedOp = slots[0].options[0];
+    const targetValue = applyOperation(initialValue, guaranteedOp);
+    return {
+        initialValue,
+        targetValue,
+        slots,
+        shortestPath: [{ operation: guaranteedOp, resultValue: targetValue, options: slots[0].options }],
+    };
+}

@@ -1,9 +1,19 @@
 import { Scene } from 'phaser';
-import { analyzePuzzle } from '../core/solver';
+import { AnalysisRunner } from '../core/analysisJob';
+import {
+    INITIAL_ANALYSIS,
+    MESSAGE_ANALYSIS_STARTED,
+    analysisPanelModel,
+    arrivalMessage,
+    canCopy,
+    copyBlockedMessage,
+    playStartMessage,
+} from '../core/analysisView';
 import { createBinaryBoard, createPlayerBoard, filledMatch, resizeBinaryBoard } from '../core/board';
+import { createAnalysisWorker } from './analysisWorkerFactory';
 import { exportPBM, importPBM } from '../core/pbm';
 import { generateColHints, generateRowHints } from '../core/hints';
-import type { AnalysisResult, BinaryCell, PlayerCell } from '../core/types';
+import type { AnalysisResult, BinaryCell, PlayerCell, SolveTechnique } from '../core/types';
 
 type Mode = 'edit' | 'play';
 
@@ -15,7 +25,12 @@ type Button = {
     height?: number;
     onClick: () => void;
     active?: boolean;
+    /** Drawn greyed out; a tap still runs onClick (which explains why nothing happens) */
+    disabled?: boolean;
 };
+
+/** Which operation asked for an analysis: only the [Analyze] button reports "Analysis updated" */
+type AnalysisTag = { fromButton: boolean };
 
 type MobileTab = 'edit' | 'analysis' | 'data';
 type PlayInputMode = 'fill' | 'mark';
@@ -53,7 +68,14 @@ export class Game extends Scene {
     private solution: BinaryCell[][] = createBinaryBoard(10, 10, 0);
     private player: PlayerCell[][] = createPlayerBoard(10, 10, 'unknown');
     private mode: Mode = 'edit';
-    private analysis: AnalysisResult = analyzePuzzle(this.solution, generateRowHints(this.solution), generateColHints(this.solution));
+    /** The latest finished analysis; not shown while one is pending */
+    private analysis: AnalysisResult = INITIAL_ANALYSIS;
+    private analysisRunner: AnalysisRunner<AnalysisTag> | null = null;
+
+    /** True while an analysis is running; before the first request (no runner yet) it counts as pending. */
+    private get analysisPending(): boolean {
+        return this.analysisRunner?.pending ?? true;
+    }
     private message = 'Ready';
     private moveCount = 0;
     private startedAt = Date.now();
@@ -127,6 +149,10 @@ export class Game extends Scene {
         this.events.once('shutdown', this.onSceneShutdown, this);
         this.events.once('destroy', this.onSceneDestroy, this);
         this.bindKeyboard();
+        this.analysisRunner = new AnalysisRunner<AnalysisTag>({
+            createWorker: createAnalysisWorker,
+            onResult: (result, tag) => this.onAnalysisResult(result, tag),
+        });
         this.runAnalysis();
         this.requestRender();
     }
@@ -141,6 +167,8 @@ export class Game extends Scene {
         }
         this.cleanupDone = true;
 
+        this.analysisRunner?.dispose();
+        this.analysisRunner = null;
         this.input.off('pointerup', this.onPointerUp);
         this.scale.off('resize', this.onResize);
         this.unbindKeyboard();
@@ -230,21 +258,38 @@ export class Game extends Scene {
         this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
         this.moveCount = 0;
         this.startedAt = Date.now();
-        if (!this.analysis.unique || !this.analysis.solvable) {
-            this.message = 'Warning: puzzle is not unique/solvable but play is allowed';
-        } else {
-            this.message = 'Play mode started';
+        this.message = playStartMessage(this.analysisPending, this.analysis);
+        this.requestRender();
+    }
+
+    /** Starts an analysis of the current board in the worker (a running one is stopped). */
+    private runAnalysis(fromButton = false): void {
+        const runner = this.analysisRunner;
+        if (!runner) {
+            return;
+        }
+        const rows = generateRowHints(this.solution);
+        const cols = generateColHints(this.solution);
+        // with a synchronous fallback the result is delivered inside this call
+        runner.request(this.solution, rows, cols, { fromButton });
+    }
+
+    private onAnalysisResult(result: AnalysisResult, tag: AnalysisTag): void {
+        this.analysis = result;
+        const message = arrivalMessage(this.mode, result, tag.fromButton);
+        if (message !== null) {
+            this.message = message;
         }
         this.requestRender();
     }
 
-    private runAnalysis(): void {
-        const rows = generateRowHints(this.solution);
-        const cols = generateColHints(this.solution);
-        this.analysis = analyzePuzzle(this.solution, rows, cols, 3000);
-    }
-
     private copyPBM(): void {
+        const blocked = copyBlockedMessage(this.analysisPending);
+        if (blocked !== null) {
+            this.message = blocked;
+            this.requestRender();
+            return;
+        }
         const data = exportPBM(this.solution, this.analysis);
         navigator.clipboard.writeText(data)
             .then(() => {
@@ -608,8 +653,8 @@ export class Game extends Scene {
     private drawButton(button: Button): void {
         const width = button.width ?? Math.max(44, button.label.length * 9 + 20);
         const height = button.height ?? 44;
-        const bgColor = button.active ? 0x2f5d3a : 0x2a2a2a;
-        const borderColor = button.active ? 0x87d3a2 : 0x666666;
+        const bgColor = button.disabled ? 0x1c1c1c : button.active ? 0x2f5d3a : 0x2a2a2a;
+        const borderColor = button.disabled ? 0x444444 : button.active ? 0x87d3a2 : 0x666666;
 
         const bg = this.add.rectangle(button.x, button.y, width, height, bgColor, 1)
             .setOrigin(0, 0)
@@ -618,7 +663,7 @@ export class Game extends Scene {
         const txt = this.add.text(button.x + width / 2, button.y + height / 2, button.label, {
             ...UI_STYLE,
             fontSize: '13px',
-            color: '#f4f4f4',
+            color: button.disabled ? '#777777' : '#f4f4f4',
         }).setOrigin(0.5, 0.5);
 
         bg.on('pointerdown', button.onClick);
@@ -717,15 +762,16 @@ export class Game extends Scene {
                 },
             },
             { x: 308, y: 20, label: '[Import]', width: 76, onClick: () => this.openImportDialog() },
-            { x: 392, y: 20, label: '[Copy PBM]', width: 104, onClick: () => this.copyPBM() },
+            { x: 392, y: 20, label: '[Copy PBM]', width: 104, onClick: () => this.copyPBM(), disabled: !canCopy(this.analysisPending) },
             {
                 x: 500,
                 y: 20,
                 label: '[Analyze]',
                 width: 86,
                 onClick: () => {
-                    this.runAnalysis();
-                    this.message = 'Analysis updated';
+                    // set before the request: a synchronous fallback answers (and sets "updated") inside it
+                    this.message = MESSAGE_ANALYSIS_STARTED;
+                    this.runAnalysis(true);
                     this.requestRender();
                 },
             },
@@ -885,17 +931,19 @@ export class Game extends Scene {
             subGraphics.lineBetween(gridLeft, cy, gridLeft + totalGridW - 1, cy);
         }
 
+        const panel = analysisPanelModel(this.analysis, this.analysisPending);
+
         if (!this.isMobileLayout) {
             // Keep analysis panel inside the viewport on narrow non-mobile widths (e.g. 769-819px).
             const statusX = Math.max(24, Math.min(Math.max(820, worldWidth - 200), worldWidth - 180));
             this.add.text(statusX, 120, 'Analysis', TITLE_STYLE);
-            this.add.text(statusX, 150, `solvable: ${this.analysis.solvable}`, UI_STYLE);
-            this.add.text(statusX, 170, `unique: ${this.analysis.unique}`, UI_STYLE);
-            this.add.text(statusX, 190, `logical: ${this.analysis.logical}`, UI_STYLE);
-            this.add.text(statusX, 210, `difficulty: ${this.analysis.difficulty}`, UI_STYLE);
-            this.add.text(statusX, 230, `score: ${this.analysis.score}`, UI_STYLE);
-            this.add.text(statusX, 250, `remaining: ${this.analysis.remainingCells}`, UI_STYLE);
-            const techLabels: Array<[string, string]> = [
+            this.add.text(statusX, 150, `solvable: ${panel.solvable}`, UI_STYLE);
+            this.add.text(statusX, 170, `unique: ${panel.unique}`, UI_STYLE);
+            this.add.text(statusX, 190, `logical: ${panel.logical}`, UI_STYLE);
+            this.add.text(statusX, 210, `difficulty: ${panel.difficulty}`, UI_STYLE);
+            this.add.text(statusX, 230, `score: ${panel.score}`, UI_STYLE);
+            this.add.text(statusX, 250, `remaining: ${panel.remaining}`, UI_STYLE);
+            const techLabels: Array<[SolveTechnique, string]> = [
                 ['full-line-fill', 'fill'],
                 ['full-line-empty', 'empty'],
                 ['edge-overlap', 'overlap'],
@@ -907,12 +955,12 @@ export class Game extends Scene {
             ];
             let techY = 270;
             for (const [key, label] of techLabels) {
-                const count = this.analysis.techniquesUsed[key as keyof typeof this.analysis.techniquesUsed] ?? 0;
-                const color = count > 0 ? '#d8d8d8' : '#666666';
+                const count = panel.techniques[key];
+                const color = count !== '0' && count !== '-' ? '#d8d8d8' : '#666666';
                 this.add.text(statusX, techY, `${label}: ${count}`, { ...UI_STYLE, color });
                 techY += 18;
             }
-            if (this.analysis.timedOut) {
+            if (panel.timeoutShown) {
                 this.add.text(statusX, techY, 'timeout: 3s', { ...UI_STYLE, color: '#ffcc66' });
             }
         }
@@ -926,26 +974,19 @@ export class Game extends Scene {
                 .setStrokeStyle(1, 0x444444);
 
             if (this.mobileTab === 'analysis') {
-                this.add.text(panelX + 10, panelY + 8, `solvable: ${this.analysis.solvable}  unique: ${this.analysis.unique}`, { ...UI_STYLE, fontSize: '13px' });
-                this.add.text(panelX + 10, panelY + 28, `logical: ${this.analysis.logical}  difficulty: ${this.analysis.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
-                this.add.text(panelX + 10, panelY + 48, `score: ${this.analysis.score}  remaining: ${this.analysis.remainingCells}`, { ...UI_STYLE, fontSize: '13px' });
-                const fill = this.analysis.techniquesUsed['full-line-fill'] ?? 0;
-                const empty = this.analysis.techniquesUsed['full-line-empty'] ?? 0;
-                const overlap = this.analysis.techniquesUsed['edge-overlap'] ?? 0;
-                const common = this.analysis.techniquesUsed['candidate-common'] ?? 0;
-                const cross = this.analysis.techniquesUsed['cross-constraint'] ?? 0;
-                const split = this.analysis.techniquesUsed['region-split'] ?? 0;
-                const box = this.analysis.techniquesUsed['box-reduction'] ?? 0;
-                const probe = this.analysis.techniquesUsed['probe-consistency'] ?? 0;
-                this.add.text(panelX + 10, panelY + 68, `f:${fill} e:${empty} o:${overlap} c:${common} x:${cross}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
-                this.add.text(panelX + 10, panelY + 82, `s:${split} b:${box} p:${probe}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
-                if (this.analysis.timedOut) {
+                const t = panel.techniques;
+                this.add.text(panelX + 10, panelY + 8, `solvable: ${panel.solvable}  unique: ${panel.unique}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 28, `logical: ${panel.logical}  difficulty: ${panel.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 48, `score: ${panel.score}  remaining: ${panel.remaining}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 68, `f:${t['full-line-fill']} e:${t['full-line-empty']} o:${t['edge-overlap']} c:${t['candidate-common']} x:${t['cross-constraint']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
+                this.add.text(panelX + 10, panelY + 82, `s:${t['region-split']} b:${t['box-reduction']} p:${t['probe-consistency']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
+                if (panel.timeoutShown) {
                     this.add.text(panelX + 10, panelY + 96, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
                 }
             } else if (this.mobileTab === 'data') {
                 this.add.text(panelX + 10, panelY + 10, 'PBM I/O', { ...UI_STYLE, fontSize: '13px' });
                 this.drawButton({ x: panelX + 10, y: panelY + 34, label: 'Import', width: 100, onClick: () => this.openImportDialog() });
-                this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy', width: 98, onClick: () => this.copyPBM() });
+                this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy', width: 98, onClick: () => this.copyPBM(), disabled: !canCopy(this.analysisPending) });
             } else {
                 this.add.text(panelX + 10, panelY + 10, this.mode === 'edit' ? 'Edit tools' : 'Play tools', { ...UI_STYLE, fontSize: '13px' });
                 this.drawButton({

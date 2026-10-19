@@ -14,6 +14,14 @@ import {
     recordAnswer,
     type RetryGameData,
 } from '../logic/retry';
+import {
+    getStorage,
+    loadRecords,
+    recordWordAnswer,
+    saveRecords,
+    weightFromRecords,
+    type WordRecords,
+} from '../logic/weakWords';
 import { kogoList } from '../data/kogoList';
 
 const FALL_SPEED = 400;
@@ -94,6 +102,10 @@ export class Game extends Scene {
     private adaptiveSlotCount = SLOT_COUNT;
     private adaptivePool: KogoEntry[] = [];
     private lastTierChangeIndex = 0;
+    /** Per-word answer records (docs/spec/weak-words.md): kept in memory and saved after every answer */
+    private records: WordRecords = {};
+    /** Weights for the question draw; set only in a normal round with the Title toggle on */
+    private weightOf?: (entry: KogoEntry) => number;
 
     private tileContainer!: GameObjects.Container;
     private tileCardGfx!: GameObjects.Graphics;
@@ -138,9 +150,12 @@ export class Game extends Scene {
         this.adaptiveSlotCount = SLOT_COUNT;
         this.adaptivePool = [...this.pool];
         this.lastTierChangeIndex = 0;
+        this.records = loadRecords(getStorage());
+        // the records are read when the weight is asked, so a rebuilt sequence sees the latest answer
+        this.weightOf = !retry && this.config.weakWords === true ? weightFromRecords(() => this.records) : undefined;
         this.questions = retry
             ? createRetrySequence(retry)
-            : createQuestionSequence(this.pool, this.config.questionCount);
+            : createQuestionSequence(this.pool, this.config.questionCount, Math.random, new Set(), this.weightOf);
         this.totalQuestions = this.questions.length;
         this.correctCount = 0;
         this.comboCount = 0;
@@ -491,7 +506,7 @@ export class Game extends Scene {
         const keep = this.currentIndex + 2;
         const remaining = this.totalQuestions - keep;
         if (remaining <= 0) return;
-        const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
+        const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds, this.weightOf);
         this.questions = [...this.questions.slice(0, keep), ...newSeq];
     }
 
@@ -541,6 +556,9 @@ export class Game extends Scene {
         );
         this.wrongEntries = record.wrongEntries;
         this.correctEntries = record.correctEntries;
+        // recorded before any sequence rebuild below, whatever the toggle says
+        this.records = recordWordAnswer(this.records, entry.id, correct);
+        saveRecords(getStorage(), this.records);
         if (correct) {
             this.correctCount++;
             this.comboCount++;

@@ -8,6 +8,7 @@ import {
     SELL_RATE,
     SHOT_FLASH,
     SPAWN_INTERVAL,
+    SWAMP_SPEED_RATE,
     TIME_EPS,
     TURRET_COST,
     TURRET_DAMAGE,
@@ -24,10 +25,12 @@ import {
     createBoard,
     findPath,
     getCell,
+    getTerrain,
     hasPath,
     isGoal,
     isStart,
-    setCell
+    setCell,
+    type Terrain
 } from './board';
 import { cellCenterX, cellCenterY, type Tool } from './layout';
 import { enemyCount, enemyHp } from './wave';
@@ -98,7 +101,8 @@ const COST: Readonly<Record<Exclude<CellKind, 'empty'>, number>> = {
     turret: TURRET_COST
 };
 
-export function createGame(): GameState {
+/** A new game; without `terrain` the board is all plain (the terrain-less board the unit tests use). */
+export function createGame(terrain?: readonly Terrain[]): GameState {
     const state: GameState = {
         phase: 'build',
         wave: 1,
@@ -107,7 +111,7 @@ export function createGame(): GameState {
         kills: 0,
         tool: 'wall',
         message: null,
-        board: createBoard(),
+        board: createBoard(undefined, undefined, terrain),
         path: [],
         pathX: [],
         pathY: [],
@@ -159,7 +163,7 @@ function fail(state: GameState, message: string): TapResult {
 function placeAt(state: GameState, kind: Exclude<CellKind, 'empty'>, col: number, row: number): TapResult {
     const { board } = state;
     if (isStart(board, col, row) || isGoal(board, col, row)) return fail(state, MSG_START_GOAL);
-    if (getCell(board, col, row) !== 'empty') return 'ignored';
+    if (getCell(board, col, row) !== 'empty' || getTerrain(board, col, row) === 'rock') return 'ignored';
     if (state.coins < COST[kind]) return fail(state, MSG_NO_COINS);
     setCell(board, col, row, kind);
     if (!hasPath(board)) {
@@ -213,6 +217,16 @@ function pathLength(state: GameState): number {
     return (state.path.length - 1) * CELL;
 }
 
+/**
+ * How fast an enemy at `traveled` px walks, as a share of ENEMY_SPEED: it is in path cell k while traveled is in
+ * [k * CELL - CELL / 2, k * CELL + CELL / 2), and slow while that cell is a swamp.
+ */
+export function speedFactor(state: GameState, traveled: number): number {
+    const k = Math.min(state.path.length - 1, Math.floor((traveled + CELL / 2) / CELL));
+    const { col, row } = state.path[k];
+    return getTerrain(state.board, col, row) === 'swamp' ? SWAMP_SPEED_RATE : 1;
+}
+
 /** Only called for enemies still short of G, so `seg + 1` is always a valid path index. */
 function placeOnPath(state: GameState, enemy: Enemy): void {
     const seg = Math.floor(enemy.traveled / CELL);
@@ -244,7 +258,7 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
         const e = enemies[i];
         // Enemies spawned this frame stay on the start cell.
         if (i < skipFrom) {
-            e.traveled += ENEMY_SPEED * dt;
+            e.traveled += ENEMY_SPEED * speedFactor(state, e.traveled) * dt;
             if (e.traveled >= goalAt) {
                 state.lives = Math.max(0, state.lives - 1);
                 state.events.leaks++;

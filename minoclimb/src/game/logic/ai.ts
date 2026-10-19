@@ -14,7 +14,7 @@ export interface Plan {
 /** Score given to a placement that would stack past TOP_OUT_ROW. */
 const TOP_OUT_SCORE = -1_000_000;
 /** Probe rows start this far above the field so every cell begins out of sight. */
-const PROBE_ROW = -4;
+export const PROBE_ROW = -4;
 
 const evaluate = (grid: Grid, cells: readonly Cell[], col: number, row: number, wellCol: number): number => {
     const g = grid.map((r) => r.slice());

@@ -1,5 +1,16 @@
 import { Scene, type GameObjects } from 'phaser';
 import type { Difficulty, GameConfig, Lang, QuestionCount } from '../logic/types';
+import {
+    CLEAR_CONFIRM_MS,
+    clearRecords,
+    getStorage,
+    hasRecords,
+    loadRecords,
+    loadToggle,
+    saveToggle,
+    tapClear,
+    type ClearState,
+} from '../logic/weakWords';
 
 const LANGS: { key: Lang; label: string }[] = [
     { key: 'kogo', label: '古語' },
@@ -21,6 +32,15 @@ const COLOR_DIMMED   = 0x141d2e;
 const COLOR_START    = 0xffd166;
 const FONT = 'sans-serif';
 
+// docs/spec/weak-words.md "Title Scene の配置" (logical px on the 540 x 960 canvas)
+const WEAK_TOGGLE_Y = 697;
+const WEAK_TOGGLE_H = 44;
+const CLEAR_RECORDS_Y = 830;
+const CLEAR_RECORDS_HIT_W = 240;
+const CLEAR_RECORDS_HIT_H = 40;
+const CLEAR_LABEL_IDLE = '苦手な語の記録を消す';
+const CLEAR_LABEL_ARMED = 'もう一度タップで消す';
+
 export class Title extends Scene {
     private selectedTileLang: Lang = 'kogo';
     private selectedSlotLang: Lang = 'jp';
@@ -36,10 +56,15 @@ export class Title extends Scene {
     private arrowFromX = 0;
     private arrowToX = 0;
     private warningText!: GameObjects.Text;
+    private weakOn = true;
+    private clearState: ClearState = { phase: 'idle' };
+    private clearRevertTimer?: Phaser.Time.TimerEvent;
 
     constructor() { super('Title'); }
 
     create() {
+        this.clearState = { phase: 'idle' };
+        this.clearRevertTimer = undefined;
         const { width, height } = this.cameras.main;
         this.cameras.main.setBackgroundColor('#101820');
 
@@ -66,6 +91,8 @@ export class Title extends Scene {
 
         this.buildDifficultyRow(width, height * 0.47);
         this.buildCountStepper(width, height * 0.62);
+        this.buildWeakToggle(width);
+        this.buildClearRecords(width);
 
         const startY = height * 0.79;
         this.startButton = this.add.rectangle(width / 2, startY, width * 0.68, 68, COLOR_START)
@@ -79,6 +106,7 @@ export class Title extends Scene {
                 langMode: { tile: this.selectedTileLang, slot: this.selectedSlotLang },
                 difficulty: this.selectedDifficulty,
                 questionCount: this.selectedCount,
+                weakWords: this.weakOn,
             };
             this.scene.start('Game', config);
         };
@@ -86,6 +114,62 @@ export class Title extends Scene {
         this.startButton.on('pointerdown', startGame);
         this.startLabel.on('pointerdown', startGame);
         this.input.keyboard?.on('keydown-ENTER', startGame);
+    }
+
+    /** "苦手な語を多めに出す: オン／オフ": read from storage here, saved on every tap */
+    private buildWeakToggle(width: number) {
+        const storage = getStorage();
+        this.weakOn = loadToggle(storage);
+
+        const bg = this.add.rectangle(width / 2, WEAK_TOGGLE_Y, width * 0.68, WEAK_TOGGLE_H, COLOR_DEFAULT)
+            .setStrokeStyle(1, 0x778da9)
+            .setInteractive({ useHandCursor: true });
+        const label = this.add.text(width / 2, WEAK_TOGGLE_Y, '', {
+            color: '#f1faee', fontFamily: FONT, fontSize: '16px',
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+        const refresh = () => {
+            bg.setFillStyle(this.weakOn ? COLOR_SELECTED : COLOR_DEFAULT);
+            label.setText(`苦手な語を多めに出す: ${this.weakOn ? 'オン' : 'オフ'}`);
+        };
+        const toggle = () => {
+            this.weakOn = !this.weakOn;
+            saveToggle(storage, this.weakOn);
+            refresh();
+        };
+        bg.on('pointerdown', toggle);
+        label.on('pointerdown', toggle);
+        refresh();
+    }
+
+    /** "苦手な語の記録を消す": shown only while records exist; two taps within CLEAR_CONFIRM_MS clear them */
+    private buildClearRecords(width: number) {
+        const storage = getStorage();
+        if (!hasRecords(loadRecords(storage))) return;
+
+        const label = this.add.text(width / 2, CLEAR_RECORDS_Y, CLEAR_LABEL_IDLE, {
+            color: '#a8dadc', fontFamily: FONT, fontSize: '16px',
+        }).setOrigin(0.5);
+        const hit = this.add.rectangle(width / 2, CLEAR_RECORDS_Y, CLEAR_RECORDS_HIT_W, CLEAR_RECORDS_HIT_H, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+
+        const showIdle = () => {
+            this.clearState = { phase: 'idle' };
+            label.setText(CLEAR_LABEL_IDLE).setColor('#a8dadc');
+        };
+        hit.on('pointerdown', () => {
+            const tap = tapClear(this.clearState, this.time.now);
+            this.clearState = tap.state;
+            this.clearRevertTimer?.remove();
+            if (tap.clear) {
+                clearRecords(storage);
+                label.setVisible(false);
+                hit.disableInteractive();
+            } else {
+                label.setText(CLEAR_LABEL_ARMED).setColor('#ffaa44');
+                this.clearRevertTimer = this.time.delayedCall(CLEAR_CONFIRM_MS, showIdle);
+            }
+        });
     }
 
     private buildLangPanel(width: number, topY: number) {

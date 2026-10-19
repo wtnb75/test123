@@ -60,4 +60,6 @@ export interface GameConfig {
     langMode: LangMode;
     difficulty: Difficulty;
     questionCount: QuestionCount;
+    /** The Title's "weak words more often" toggle; absent means off (docs/spec/weak-words.md) */
+    weakWords?: boolean;
 }
