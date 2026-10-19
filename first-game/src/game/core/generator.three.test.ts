@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { indexOf, neighbors8, stairsMinDistance } from './board';
 import { CORRIDOR_LENGTH } from './corridor';
 import { HEADING_VECTOR, oppositeHeading, placementFitsApart } from './floorLayout';
-import { buildFloorTree, entryHeadingOf } from './floorTree';
+import { buildFloorTree, entryHeadingOf, roomLevels } from './floorTree';
 import { MAX_CORRIDOR_EXTENSION, floorHeadings, generateFloor, generateStage, type Floor } from './generator';
 import { createRng } from './random';
 import { analyzeSolvability } from './solver';
@@ -47,9 +47,10 @@ describe('generateFloor, a tree of rooms', () => {
 
     expect(floor.stageNo).toBe(3);
     expect(floor.rooms).toHaveLength(5);
-    // The room with the down-stairs is one cell bigger (docs/spec/rooms-and-floors.md "▼ の部屋の難しさ"): 11 instead of 10.
+    // A room 2 or more tree steps from room A is one cell bigger (docs/spec/rooms-and-floors.md "部屋の難しさ"): 11 instead of 10.
+    const levels = roomLevels(floor.tree.parent);
     expect(floor.rooms.map((room) => [room.width, room.height, room.stageNo])).toEqual(
-      floor.rooms.map((_, i) => (i === floor.downRoom ? [11, 11, 3] : [10, 10, 3]))
+      floor.rooms.map((_, i) => (levels[i] >= 2 ? [11, 11, 3] : [10, 10, 3]))
     );
     expect([floor.rooms[0].startKind, floor.rooms[0].goalKind]).toEqual(['up', 'door']);
     expect(floor.rooms[0].doors).toHaveLength(2);

@@ -3,7 +3,7 @@ import { MAX_CORRIDOR_EXTENSION, corridorShape } from './corridor';
 import type { FloorGraph } from './floorGraph';
 import { HEADINGS, headingPairFromDraw, layoutTree, oppositeHeading, type FloorMap } from './floorLayout';
 import { enterableDoors, placeLoops, type PlacedLoop } from './floorLoops';
-import { ROOM_COUNT, buildFloorTree, entryHeadingOf, type FloorTree } from './floorTree';
+import { DEEP_ROOM_MIN_LEVEL, ROOM_COUNT, buildFloorTree, entryHeadingOf, roomLevels, type FloorTree } from './floorTree';
 import { createRng } from './random';
 import { analyzeSolvability } from './solver';
 import type { Heading, Position, Stage, StageDoor, StageParams } from './types';
@@ -41,28 +41,28 @@ export const floorHeadings = (seed: number, stageNo: number): { headings: [Headi
   return { headings: headingPairFromDraw(rng()), downInB: rng() < 0.5 };
 };
 
-/** The depth target of stage `stageNo` (docs/spec.md "パラメータ表"); the down-stairs room's is one more, at most 5. */
+/** The depth target of stage `stageNo` (docs/spec.md "パラメータ表"); a deep room's is one more, at most 5. */
 export const baseDepthTarget = (stageNo: number): number => Math.min(5, Math.floor(1 + stageNo / 3));
 
-/** The down-stairs room is one cell wider and taller than the baseline and aims one step deeper. */
-export const DOWN_ROOM_EXTRA_SIZE = 1;
-export const DOWN_ROOM_EXTRA_DEPTH = 1;
+/** A deep room (`DEEP_ROOM_MIN_LEVEL` tree steps or more from room A) is one cell wider and taller than the baseline and aims one step deeper. */
+export const DEEP_ROOM_EXTRA_SIZE = 1;
+export const DEEP_ROOM_EXTRA_DEPTH = 1;
 
-/** The parameters a room of stage `stageNo` starts from: the down-stairs room is bigger and aims one step deeper. */
-export const roomParams = (stageNo: number, isDownRoom: boolean): StageParams =>
+/** The parameters a room of stage `stageNo` starts from: a deep room is bigger and aims one step deeper. */
+export const roomParams = (stageNo: number, deep: boolean): StageParams =>
   stageParams(
     stageNo,
-    isDownRoom ? Math.min(5, baseDepthTarget(stageNo) + DOWN_ROOM_EXTRA_DEPTH) : baseDepthTarget(stageNo),
-    isDownRoom
+    deep ? Math.min(5, baseDepthTarget(stageNo) + DEEP_ROOM_EXTRA_DEPTH) : baseDepthTarget(stageNo),
+    deep
   );
 
 /**
- * The parameters of a room of stage `stageNo` (docs/spec/rooms-and-floors.md "▼ の部屋の難しさ"). `isDownRoom`: the
- * room that holds the down-stairs is `DOWN_ROOM_EXTRA_SIZE` bigger; the bomb formula is the same on the bigger area
+ * The parameters of a room of stage `stageNo` (docs/spec/rooms-and-floors.md "部屋の難しさ"). `deep`: a deep room
+ * is `DEEP_ROOM_EXTRA_SIZE` bigger; the bomb formula is the same on the bigger area
  * (its linear term and density stay those of stage `stageNo`). `depthTarget` is what the generation starts from.
  */
-export const stageParams = (stageNo: number, depthTarget: number, isDownRoom = false): StageParams => {
-  const width = 7 + stageNo + (isDownRoom ? DOWN_ROOM_EXTRA_SIZE : 0);
+export const stageParams = (stageNo: number, depthTarget: number, deep = false): StageParams => {
+  const width = 7 + stageNo + (deep ? DEEP_ROOM_EXTRA_SIZE : 0);
   const height = width;
   const area = width * height;
   const density = Math.min(MAX_BOMB_DENSITY, BASE_BOMB_DENSITY + stageNo * DENSITY_INCREASE_PER_STAGE);
@@ -88,6 +88,8 @@ export type GenerateOptions = {
   heading2?: Heading;
   /** `false`: a dead-end room (no down-stairs). Default `true`. */
   withDown?: boolean;
+  /** `true`: a deep room (bigger, aims one step deeper). Default `false`; room A (the Title demo's room) is never deep. */
+  deep?: boolean;
   /** The walls of a branching room's exits (role `C`), in child order. */
   exits?: Heading[];
   /** Anchors to keep (a room made again with the same start, doors and down-stairs). */
@@ -122,9 +124,9 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   const altStarts = options?.altStarts ?? [];
   const rng = createRng(baseSeed + stageNo * STAGE_SEED_STRIDE);
 
-  // The room with the down-stairs (a leaf with `withDown`) is bigger and aims one step deeper.
-  const isDownRoom = role === 'B' && (options?.withDown ?? true);
-  let depthTarget = roomParams(stageNo, isDownRoom).depthTarget;
+  // A deep room (the floor's tree decides) is bigger and aims one step deeper.
+  const deep = role !== 'A' && (options?.deep ?? false);
+  let depthTarget = roomParams(stageNo, deep).depthTarget;
   let bombPenalty = 0;
   let retries = 0;
 
@@ -134,7 +136,7 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   while (retries < maxRetries) {
     retries += 1;
 
-    const params = stageParams(stageNo, depthTarget, isDownRoom);
+    const params = stageParams(stageNo, depthTarget, deep);
     params.bombCount = Math.max(1, params.bombCount - bombPenalty);
 
     const stage = createRandomStage(params, rng, role, heading, roomOptions);
@@ -178,7 +180,7 @@ export const generateStage = (stageNo: number, options?: GenerateOptions): Stage
   }
 
   const fallback = createRandomStage(
-    stageParams(Math.max(1, stageNo - 1), 1, isDownRoom),
+    stageParams(Math.max(1, stageNo - 1), 1, deep),
     rng,
     role,
     heading,
@@ -216,7 +218,7 @@ export type Floor = {
 
 export type FloorOptions = Omit<
   GenerateOptions,
-  'role' | 'heading' | 'heading2' | 'withDown' | 'exits' | 'anchors' | 'extraDoors' | 'altStarts'
+  'role' | 'heading' | 'heading2' | 'withDown' | 'deep' | 'exits' | 'anchors' | 'extraDoors' | 'altStarts'
 > & {
   /** How many times a parent and child may be made again when a corridor cannot be placed (default `LAYOUT_REBUILDS`). */
   layoutRebuilds?: number;
@@ -246,9 +248,10 @@ const tryFloor = (stageNo: number, seed: number, options: FloorOptions | undefin
   const layoutRetries = options?.layoutRetries ?? LAYOUT_RETRIES;
   const tree = buildFloorTree(createRng(seed + stageNo * STAGE_SEED_STRIDE + HEADING_SEED_OFFSET), roomCount);
   const childOrder = (room: number): number => tree.children[tree.parent[room]].indexOf(room);
+  const levels = roomLevels(tree.parent);
 
   const make = (room: number, again?: Pick<GenerateOptions, 'anchors' | 'extraDoors' | 'altStarts'>): Stage => {
-    const extra: Partial<GenerateOptions> = { ...again };
+    const extra: Partial<GenerateOptions> = { ...again, deep: levels[room] >= DEEP_ROOM_MIN_LEVEL };
     let role: RoomRole;
     let heading: Heading;
     if (room === 0) {

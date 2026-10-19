@@ -6,6 +6,17 @@ import type { Heading } from './types';
 export const ROOM_COUNT = 5;
 /** A room other than A has at most this many exits (children). */
 const MAX_CHILDREN = 2;
+/** A room this many tree steps (or more) away from room A is a deep room: bigger and harder (docs/spec/rooms-and-floors.md "部屋の難しさ"). */
+export const DEEP_ROOM_MIN_LEVEL = 2;
+
+/** The level of each room: its distance from room A counted in tree edges (A = 0, B and C = 1); loops are not counted. */
+export const roomLevels = (parent: number[]): number[] => {
+  const levels: number[] = [];
+  for (const p of parent) {
+    levels.push(p < 0 ? 0 : levels[p] + 1);
+  }
+  return levels;
+};
 
 /** The rooms of a floor as a tree: room 0 (A) has two exits; every other room has an entry and 0-2 exits. */
 export type FloorTree = {

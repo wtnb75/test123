@@ -80,3 +80,9 @@
 - `core/floor.fixture.test.ts` 「輪を足しても木・通路・部屋 A は動かない」の旧 fixture との比較が無い: `generator.loops.test.ts` が、同じシード・ステージの `maxLoops: 0` と比べて、木・伸ばしたマス・部屋の座標・部屋 A を見ている — 理由: 別のテストが守っている
 - `core/roomParams.test.ts` 爆弾数の期待値を `roomParams()` から出している・深さの式を複製している: 手計算の値は別のテストが固定しており、この箇所は式の関係を見るためのもの — 理由: 独立した値は別にある
 - `core/generator.ts` `stageParams(n, d, true)` を直接呼ぶと深さの +1 が付かない: `roomParams` が仕様の入口で、生成は `roomParams` を使う。`stageParams` の既存の呼び出しは変えない（回帰条件）— 理由: 仕様どおり
+- `core/generator.ts` / `core/floorTree.ts`（上乗せの定数が大きさと深さで 2 つ。spec の `DeepRoomExtra` は 1 つ）— 理由: 変更前も大きさ・深さで別の定数で、値は同じ。spec は「大きさ・深さ目標の上乗せ」と読める
+- `core/floorTree.ts`（`roomLevels` が親の順序（親 < 子）を検査しない）— 理由: `buildFloorTree` が保証し、型の注釈にも書いてある。壊れたときは別の変更の責任（推測の域）
+- `core/generator.ts`（奥の部屋が 2 つになり、ステージ 30 のフロア生成で中央値約 1.5 秒・最大約 5 秒）— 理由: spec の完了条件で測定・合意済み。短縮は `docs/backlog.md` の `generator-fast`
+- `core/generator.ts`（`role !== 'A'` の守りが `tryFloor` の段の判定と二重）— 理由: 部屋 A を基準のままにする不変条件（Title のデモと一致）を `generateStage` の入口でも守る意図した二重
+- `core/roomParams.test.ts`（「部屋 A は deep にならない」のテストが `maxRetries: 1` の経路だけ）— 理由: 幅と爆弾配置を比べていて、代替の生成も同じ `deep` を使う
+- `core/floor.fixture.test.ts`（部屋 [0, 1, 2] の決め打ち）— 理由: `buildFloorTree` が部屋 1・2 を部屋 A の子と定めている（`parent = [-1, 0, 0]`）
