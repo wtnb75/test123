@@ -4,7 +4,7 @@ import floors from './__fixtures__/floors.json';
 import beforeDownRoom from './__fixtures__/floors.before-down-room.json';
 import threeRooms from './__fixtures__/floors.three-rooms.json';
 import { enterableDoors } from './floorLoops';
-import { buildFloorTree } from './floorTree';
+import { buildFloorTree, roomLevels } from './floorTree';
 import { floorHeadings, generateFloor, type Floor } from './generator';
 import { createRng } from './random';
 import type { Position } from './types';
@@ -158,30 +158,36 @@ describe('floor fixture (the rooms, corridors and loops of a seed and stage do n
     expect(roomA).toBeGreaterThan(150);
   });
 
-  it('keeps the board of every room but the down-stairs room where nothing was made again (no loop, same exit walls)', () => {
+  it('keeps the board of rooms A, B and C (a down-stairs room at level 1 included: it is the baseline again) where nothing was made again (no loop, same exit walls)', () => {
     let compared = 0;
     for (const now of recorded.filter((floor) => floor.rerolls === 0 && floor.loops.length === 0)) {
       const before = (beforeDownRoom as LoopFloorRecord[]).find((old) => old.seed === now.seed && old.stageNo === now.stageNo);
       if (!before || before.loops.length > 0 || before.exitHeadings.flat().join() !== now.exitHeadings.flat().join()) {
         continue;
       }
-      now.rooms.forEach((room, index) => {
-        if (index !== now.downRoom) {
-          expect(room).toEqual(before.rooms[index]);
-          compared += 1;
-        }
+      [0, 1, 2].forEach((index) => {
+        expect(now.rooms[index]).toEqual(before.rooms[index]);
+        compared += 1;
       });
     }
     expect(compared).toBeGreaterThan(100);
   });
 
-  it('gives the down-stairs room one more cell than the others and every other room the baseline size (7 + n)', () => {
+  it('gives a room 2 or more tree steps from room A one more cell, and rooms A, B and C (down-stairs or not) the baseline size (7 + n)', () => {
+    let downAtLevelOne = 0;
+    let downDeep = 0;
     for (const floor of recorded) {
+      const levels = roomLevels(floor.parent);
       floor.rooms.forEach((room, index) => {
-        expect(room.width).toBe(7 + floor.stageNo + (index === floor.downRoom ? 1 : 0));
+        expect(room.width).toBe(7 + floor.stageNo + (levels[index] >= 2 ? 1 : 0));
         expect(room.height).toBe(room.width);
       });
+      downAtLevelOne += levels[floor.downRoom] === 1 ? 1 : 0;
+      downDeep += levels[floor.downRoom] >= 2 ? 1 : 0;
     }
+    // Both kinds of floors are in the record (the guard against a loop that checks one kind only): spec 5/18 have a down-stairs room at level 1.
+    expect(downAtLevelOne).toBeGreaterThan(20);
+    expect(downDeep).toBeGreaterThan(100);
   });
 
   it('keeps room A of the three-room floors when room A was not made again (same seed and stage)', () => {

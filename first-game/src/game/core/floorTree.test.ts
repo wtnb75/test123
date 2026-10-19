@@ -3,7 +3,7 @@ import { chooseRoomAnchors } from './board';
 import { FloorState } from './floor';
 import { corridorFrom, type FloorGraph } from './floorGraph';
 import { exitMarkers, extendShape, layoutTree, placeFloor, placementFitsApart, type PlacedRoom } from './floorLayout';
-import { buildFloorTree, entryHeadingOf, exitWalls } from './floorTree';
+import { DEEP_ROOM_MIN_LEVEL, buildFloorTree, entryHeadingOf, exitWalls, roomLevels } from './floorTree';
 import { generateFloor } from './generator';
 import type { Position, Stage } from './types';
 
@@ -319,5 +319,55 @@ describe('generateFloor safety valve', () => {
       rerolled += floor.rerolls > 0 ? 1 : 0;
     }
     expect(rerolled).toBeGreaterThan(0);
+  });
+});
+
+describe('roomLevels (docs/spec/rooms-and-floors.md "部屋の難しさ": tree steps from room A)', () => {
+  it('counts the tree edges from room A: A = 0, B and C = 1, a child is its parent + 1 (deep from level 2)', () => {
+    expect(DEEP_ROOM_MIN_LEVEL).toBe(2);
+    expect(roomLevels([-1, 0, 0, 1, 3])).toEqual([0, 1, 1, 2, 3]);
+    expect(roomLevels([-1, 0, 0, 1, 1])).toEqual([0, 1, 1, 2, 2]);
+    expect(roomLevels([-1, 0, 0, 2, 1])).toEqual([0, 1, 1, 2, 2]);
+    expect(roomLevels([-1, 0, 0, 1])).toEqual([0, 1, 1, 2]);
+    expect(roomLevels([-1, 0, 0, 1, 1, 2])).toEqual([0, 1, 1, 2, 2, 2]);
+  });
+
+  it('has RoomCount - 3 deep rooms for every tree of 4, 5 and 6 rooms (draws of every parent)', () => {
+    for (const roomCount of [4, 5, 6]) {
+      for (const a of [0.1, 0.5, 0.9]) {
+        for (const b of [0.1, 0.5, 0.9]) {
+          for (const c of [0.1, 0.5, 0.9]) {
+            const tree = buildFloorTree(scripted([0.5, a, b, c, 0.5]), roomCount);
+            const deep = roomLevels(tree.parent).filter((level) => level >= DEEP_ROOM_MIN_LEVEL);
+
+            expect(deep).toHaveLength(roomCount - 3);
+          }
+        }
+      }
+    }
+  });
+
+  it('puts the down-stairs room at level 1 in 5/18 of the five-room trees (every parent draw, every leaf)', () => {
+    let weight = 0;
+    let seen = 0;
+    // Room D picks its parent among B, C; room E among B, C, D (all with fewer than two children): 6 equal trees.
+    for (const d of [0.25, 0.75]) {
+      for (const e of [0.1, 0.5, 0.9]) {
+        const leaves = [1, 2, 3, 4].filter((room) => {
+          const tree = buildFloorTree(scripted([0.5, d, e, 0.5]), 5);
+          return tree.children[room].length === 0;
+        });
+        for (let i = 0; i < leaves.length; i += 1) {
+          const tree = buildFloorTree(scripted([0.5, d, e, (i + 0.5) / leaves.length]), 5);
+
+          expect(tree.downRoom).toBe(leaves[i]);
+          weight += roomLevels(tree.parent)[tree.downRoom] === 1 ? 1 / 6 / leaves.length : 0;
+          seen += 1;
+        }
+      }
+    }
+    // Leaves of the three trees under one parent of D: 3 (E shares D's parent), 2 (E under the other), 2 (E under D).
+    expect(seen).toBe(14);
+    expect(weight).toBeCloseTo(5 / 18, 10);
   });
 });
