@@ -42,6 +42,7 @@ import { BoardView } from './boardView';
 import { PressTracker, StageFlow, gameOverKeyAction } from '../core/flow';
 import {
     GRAVE_ART_FONT,
+    GRAVE_CHAR_WIDTH,
     GRAVE_DIM_ALPHA,
     GRAVE_DIM_COLOR,
     GRAVE_DIM_DEPTH,
@@ -276,6 +277,8 @@ export class Game extends Scene
     restartLayout?: RestartButtonLayout;
     /** What the gravestone panel says (set at the death), and the objects of the gravestone screen while it is shown. */
     graveInfo?: GraveInfo;
+    /** The measured width of one character at the base size (0: not measured yet). */
+    private graveCharWidth = 0;
     graveDim?: Phaser.GameObjects.Rectangle;
     gravePanel?: { bg: Phaser.GameObjects.Rectangle; rows: Phaser.GameObjects.Text[] };
     /** When the gravestone screen appeared (`time.now`): the inputs of the first `GRAVE_INPUT_LOCK_MS` are ignored. */
@@ -974,6 +977,19 @@ export class Game extends Scene
             const cellNow = (): number => this.cell;
             const areaNow = (): BoardArea => this.area;
             const originNow = (): Position => this.roomOriginPx(this.floorState.roomIndex);
+            const graveNow = (): { charWidth: number; layout: ReturnType<typeof gravePanelLayout>; rowWidth: number; rowLength: number } | null => {
+                const info = this.graveInfo;
+                const first = this.gravePanel?.rows[0];
+                if (!info || !first) {
+                    return null;
+                }
+                return {
+                    charWidth: this.graveCharWidth,
+                    layout: gravePanelLayout(this.camera.width, this.camera.height, this.hudBand.height, info, this.graveCharWidth),
+                    rowWidth: first.width,
+                    rowLength: first.text.length
+                };
+            };
             (window as unknown as { __qa?: unknown }).__qa = {
                 get phase () { return flow.phase; },
                 get mapAlpha () { return mapElapsedNow() === null ? 0 : mapAlpha(mapElapsedNow() as number); },
@@ -981,6 +997,10 @@ export class Game extends Scene
                 message,
                 get cell () { return cellNow(); },
                 get origin () { return originNow(); },
+                get grave () {
+                    const g = graveNow();
+                    return g ? { charWidth: g.charWidth, variant: g.layout.variant, fontPx: g.layout.fontPx, rowHeight: g.layout.rowHeight, rowWidth: g.rowWidth, rowLength: g.rowLength } : null;
+                },
                 get scroll () { return { x: camera.scrollX, y: camera.scrollY }; },
                 get area () { return { ...areaNow() }; },
                 room: String.fromCharCode(65 + this.floorState.roomIndex),
@@ -1675,7 +1695,8 @@ export class Game extends Scene
             return;
         }
         this.graveDim.setSize(this.camera.width, this.camera.height);
-        const layout = gravePanelLayout(this.camera.width, this.camera.height, this.hudBand.height, info);
+        const charWidth = this.graveCharWidthAtBase();
+        const layout = gravePanelLayout(this.camera.width, this.camera.height, this.hudBand.height, info, charWidth);
         for (const text of panel.rows) {
             text.destroy();
         }
@@ -1683,7 +1704,7 @@ export class Game extends Scene
         // so the walls beside the words keep the body colour. `rows` keeps every Text, the base of row 0 first.
         const drawLine = (text: string, y: number, color: string): Phaser.GameObjects.Text => this.add.text(layout.centerX, y, text, {
             fontFamily: 'monospace',
-            fontSize: GRAVE_ART_FONT,
+            fontSize: layout.fontPx,
             color
         }).setOrigin(0.5).setScrollFactor(0).setDepth(GRAVE_TEXT_DEPTH);
         panel.rows = [];
@@ -1694,11 +1715,28 @@ export class Game extends Scene
                 panel.rows.push(drawLine(parts.accent, layout.rowCenterY[i], GRAVE_RECORD_COLOR));
             }
         });
-        // Every row has the same number of characters, so one measured row gives the width of one character.
+        // The plate is as wide as the art at the size it was drawn: every row has the same number of characters, so one drawn
+        // row gives the width of one character (the scaled probe width when it reads 0).
         const first = panel.rows[0];
-        const charWidth = first && first.text.length > 0 ? first.width / first.text.length : 0;
-        panel.bg.setSize(gravePlateWidth(layout.rows, charWidth), layout.height)
+        const drawn = first && first.text.length > 0 && first.width > 0 ? first.width / first.text.length : (charWidth * layout.fontPx) / GRAVE_ART_FONT;
+        panel.bg.setSize(gravePlateWidth(layout.rows, drawn, layout.platePadX), layout.height)
             .setPosition(layout.centerX, layout.top + layout.height / 2);
+    }
+
+    /** One character's width (px) of the art's monospace font at the base size, measured once with a probe text (the assumed width, not kept, when it reads 0). */
+    private graveCharWidthAtBase (): number
+    {
+        if (this.graveCharWidth <= 0) {
+            const probeLength = 20;
+            const probe = this.add.text(0, 0, 'M'.repeat(probeLength), { fontFamily: 'monospace', fontSize: GRAVE_ART_FONT });
+            const measured = probe.width / probeLength;
+            probe.destroy();
+            if (measured <= 0) {
+                return GRAVE_CHAR_WIDTH;
+            }
+            this.graveCharWidth = measured;
+        }
+        return this.graveCharWidth;
     }
 
     private hideGravePanel (): void
