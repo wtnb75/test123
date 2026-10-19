@@ -117,6 +117,17 @@ describe('cellAtWorld', () => {
     expect(cellAtWorld(50, 200, 20, 170, 30)).toEqual({ x: 1, y: 1 });
     expect(cellAtWorld(49, 199, 20, 170, 30)).toEqual({ x: 0, y: 0 });
   });
+
+  // docs/spec/board-render.md "盤面の大きさと位置": the cell the tap lands on follows the cell size of the floor.
+  it('cell 44 (origin (20, 80), scroll 0): (153, 169) is cell (3, 2); one pixel before the edge, (151, 167), is cell (2, 1)', () => {
+    expect(cellAtWorld(153, 169, 20, 80, 44)).toEqual({ x: 3, y: 2 });
+    expect(cellAtWorld(20 + 44 * 3 - 1, 80 + 44 * 2 - 1, 20, 80, 44)).toEqual({ x: 2, y: 1 });
+  });
+
+  it('cell 52 (origin (20, 80)): (176, 184) is the top-left corner of cell (3, 2); (175, 183) is cell (2, 1)', () => {
+    expect(cellAtWorld(176, 184, 20, 80, 52)).toEqual({ x: 3, y: 2 });
+    expect(cellAtWorld(175, 183, 20, 80, 52)).toEqual({ x: 2, y: 1 });
+  });
 });
 
 describe('cameraBounds', () => {

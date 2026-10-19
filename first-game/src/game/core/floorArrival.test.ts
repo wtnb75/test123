@@ -95,6 +95,21 @@ describe('arriveAtDoor', () => {
   });
 });
 
+describe('FloorState.roomAt', () => {
+  it('gives the state of any room, the committed one of the room the player is in included', () => {
+    const a = room([entry]);
+    const b = room([entry, loopDoor]);
+    const floor = new FloorState([a, b]);
+
+    expect(floor.roomAt(0)).toBe(a);
+    expect(floor.roomAt(1)).toBe(b);
+    const moved: Stage = { ...a, player: { x: 1, y: 1 } };
+    floor.commit(moved);
+    expect(floor.roomAt(0)).toBe(moved);
+    expect(floor.current).toBe(floor.roomAt(floor.roomIndex));
+  });
+});
+
 describe('FloorState.cross arrives on the door at the other end of the corridor', () => {
   // Room 0 door 0 ends in room 1's door 1 (a loop door), not in its entry (door 0).
   const graph = { startRoom: 0, corridors: [{ from: { room: 0, door: 0 }, to: { room: 1, door: 1 } }] };
