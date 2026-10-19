@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { P } from '../params';
 import type { Plan } from './ai';
-import { remainingTurns, telegraphView, turnCount } from './telegraph';
+import { createGrid, type Grid } from './board';
+import { frameView, remainingTurns, telegraphView, turnCount } from './telegraph';
 import { KIND_COUNT, ROTATION_COUNT, shapeCells } from './pieces';
 
 const key = (cells: readonly { c: number; r: number }[]): string =>
@@ -181,5 +182,83 @@ describe('telegraphView', () => {
         expect(start.rot).toBe(0);
         expect(start.col).toBe(P.COLS - 4);
         expect(telegraphView(edge, P.TELEGRAPH_TIME).col).toBe(8);
+    });
+});
+
+describe('frameView', () => {
+    const emptyGrid = (): Grid => createGrid();
+    /** A grid whose column `col` is filled up from the floor, `height` rows high. */
+    const withColumn = (col: number, height: number): Grid => {
+        const grid = createGrid();
+        for (let r = P.ROWS - height; r < P.ROWS; r++) grid[r][col] = 1;
+        return grid;
+    };
+
+    it('follows the displayed shape: an I with one turn is vertical landing on row 16 before 0.30 and flat on row 19 after', () => {
+        const p = { ...plan(0, 0, 3), row: P.ROWS - 1 }; // I, final flat, col 3: (0 + 0 + 21) % 4 = 1 turn
+        const before = frameView(emptyGrid(), p, 0.29);
+        expect(key(before.cells)).toBe(key(shapeCells(0, 3)));
+        expect(before.col).toBe(3);
+        expect(before.row).toBe(P.ROWS - 4); // vertical, 4 tall: its top is row 16 so that its bottom is row 19
+        const after = frameView(emptyGrid(), p, 0.3);
+        expect(key(after.cells)).toBe(key(shapeCells(0, 0)));
+        expect(after.row).toBe(P.ROWS - 1);
+    });
+
+    it('lands the displayed shape on the current board, not on the chosen landing row', () => {
+        const p = { ...plan(0, 0, 3), row: 5 }; // plan.row is deliberately unrelated to the board
+        // Column 3 is 5 high (rows 15-19): the vertical I (4 tall) stops with its bottom on row 14, its top on row 11.
+        expect(frameView(withColumn(3, 5), p, 0.29).row).toBe(11);
+    });
+
+    it('keeps the chosen position for a mino that never turns, whatever the board', () => {
+        const p = { ...plan(0, 0, 0), row: 10 }; // I, n = 0
+        for (const t of [0, 0.3, 0.6, P.TELEGRAPH_TIME]) {
+            const f = frameView(withColumn(0, 5), p, t); // computed from the board it would rest on row 14
+            expect([f.col, f.row, key(f.cells)]).toEqual([0, 10, key(shapeCells(0, 0))]);
+        }
+    });
+
+    it('sits exactly on the chosen landing from 0.6 s on, even if the board changed since (a crumble)', () => {
+        const p = { ...plan(2, 1, 4), row: 12 }; // T, n = 3, final rot 1
+        const board = withColumn(4, 3);
+        for (const t of [0.6, 0.6 - 1e-12, 0.75, P.TELEGRAPH_TIME]) {
+            const f = frameView(board, p, t);
+            expect([f.col, f.row, key(f.cells)]).toEqual([4, 12, key(shapeCells(2, 1))]);
+        }
+    });
+
+    it('still computes the row from the board just before 0.6 s (3 turns, one turn still to go)', () => {
+        const p = { ...plan(2, 1, 4), row: 12 };
+        const f = frameView(emptyGrid(), p, 0.6 - 2e-9);
+        expect(key(f.cells)).toBe(key(telegraphView(p, 0.6 - 2e-9).cells));
+        expect(f.row).not.toBe(12); // on an empty board the T lands on the floor, not on row 12
+    });
+
+    it('gives the same shape and column as the displayed mino at every time before 0.6 s, for every plan', () => {
+        for (let kind = 0; kind < KIND_COUNT; kind++) {
+            for (let rot = 0; rot < ROTATION_COUNT; rot++) {
+                for (let col = 0; col < P.COLS; col++) {
+                    for (const t of [0, 0.15, 0.35, 0.59]) {
+                        const p = plan(kind, rot, col);
+                        const view = telegraphView(p, t);
+                        const f = frameView(emptyGrid(), p, t);
+                        if (turnCount(p) === 0) continue;
+                        if (f.col !== view.col || key(f.cells) !== key(view.cells)) {
+                            expect.fail(`frame differs from mino at t=${t} for ${kind}/${rot}/${col}`);
+                        }
+                        // On an empty board the shape rests on the floor.
+                        const bottom = Math.max(...f.cells.map((cell) => cell.r));
+                        if (f.row + bottom !== P.ROWS - 1) expect.fail(`not on the floor at t=${t} for ${kind}/${rot}/${col}`);
+                    }
+                }
+            }
+        }
+    });
+
+    it('puts the rows of a shape that cannot come to rest in the field above row 0 (the Scene leaves them out)', () => {
+        const p = { ...plan(0, 0, 3), row: 5 };
+        const f = frameView(withColumn(3, P.ROWS), p, 0.29); // column 3 is full to the top
+        expect(f.row + Math.max(...f.cells.map((cell) => cell.r))).toBeLessThan(0);
     });
 });
