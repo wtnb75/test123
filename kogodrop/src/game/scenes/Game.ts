@@ -483,6 +483,18 @@ export class Game extends Scene {
         this.updateGauge();
     }
 
+    /**
+     * Re-draws the questions after the current one. The entry right after the
+     * current one is already shown on the NEXT card, so it is kept as is.
+     */
+    private rebuildUpcomingQuestions() {
+        const keep = this.currentIndex + 2;
+        const remaining = this.totalQuestions - keep;
+        if (remaining <= 0) return;
+        const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
+        this.questions = [...this.questions.slice(0, keep), ...newSeq];
+    }
+
     private updateGauge() {
         const answered = this.results.length;
         this.progressText.setText(`${answered} / ${this.totalQuestions}`);
@@ -539,13 +551,7 @@ export class Game extends Scene {
         this.results.push(correct);
         this.evaluateAdaptive();
 
-        if (correct && !this.isRetry) {
-            const remaining = this.totalQuestions - this.currentIndex - 1;
-            if (remaining > 0) {
-                const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
-                this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
-            }
-        }
+        if (correct && !this.isRetry) this.rebuildUpcomingQuestions();
         this.updateComboHud();
 
         const tileVal = getLangValue(entry, this.config.langMode.tile);
@@ -740,11 +746,7 @@ export class Game extends Scene {
         const ignoreVerified = import.meta.env.VITE_DEV_IGNORE_VERIFIED === 'true';
         this.adaptivePool = getPool(kogoList, poolDiff, ignoreVerified);
 
-        const remaining = this.totalQuestions - this.currentIndex - 1;
-        if (remaining > 0) {
-            const newSeq = createQuestionSequence(this.adaptivePool, remaining, Math.random, this.masteredIds);
-            this.questions = [...this.questions.slice(0, this.currentIndex + 1), ...newSeq];
-        }
+        this.rebuildUpcomingQuestions();
 
         const msg = upgraded
             ? `難易度 UP  スロット ${this.adaptiveSlotCount}個`
