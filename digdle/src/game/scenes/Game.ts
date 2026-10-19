@@ -10,6 +10,12 @@ import {
 } from '../logic/gameLayout';
 import { getSharedPrimeMap } from '../logic/primes';
 import { isDigitOption, modeFromData } from '../logic/selectLayout';
+import {
+    getEntry, getStatsStorage, pressClear, shouldRecordRound, statsLines, statsParts, STATS_CLEAR_CONFIRM_MS
+} from '../logic/stats';
+import {
+    computeStatsLayout, STATS_CLEAR_FONT_PX, STATS_FONT_PX, STATS_PENDING_FONT_PX, STATS_PENDING_PADDING
+} from '../logic/statsLayout';
 import type {
     DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData, TitleMode
 } from '../types';
@@ -54,6 +60,9 @@ export class Game extends Scene {
     private locale: Locale = 'ja';
     private startDigits: DigitOption | null = null;
     private startedAt = 0;
+    /** The time of the first press of "clear stats" that waits for its second press. */
+    private clearArmedAt: number | null = null;
+    private clearTimer: Time.TimerEvent | null = null;
     private readonly onResize = (): void => {
         this.relayoutCurrentPhase();
     };
@@ -80,6 +89,8 @@ export class Game extends Scene {
         this.keyboardObjects = [];
         this.layout = null;
         this.endClickOverlay = null;
+        this.clearArmedAt = null;
+        this.clearTimer = null;
     }
 
     create(): void {
@@ -458,6 +469,7 @@ export class Game extends Scene {
             return;
         }
 
+        const statusBefore = this.round.status;
         const result = applyGuess(this.round, this.currentGuess);
         if (!result.accepted) {
             this.showToast(this.localizeValidationMessage(result.message ?? this.t('checkInput')));
@@ -473,6 +485,10 @@ export class Game extends Scene {
         }
         if (result.colors) {
             this.updateKeyStatus(result.round.history[result.round.history.length - 1].guess, result.colors);
+        }
+
+        if (shouldRecordRound(statusBefore, this.round.status)) {
+            getStatsStorage().record(this.selectedMode, this.round.n as DigitOption, this.round.status === 'won', this.round.attemptsUsed);
         }
 
         if (this.round.status === 'won') {
@@ -523,6 +539,69 @@ export class Game extends Scene {
             () => this.goToTitle(),
             this.endUiObjects
         );
+
+        if (this.layout && this.round) {
+            this.buildStatsUi(this.layout, this.round.n as DigitOption);
+        }
+    }
+
+    /** The stats of the finished round's mode and digit count, and the "clear stats" button (spec: stats.md). */
+    private buildStatsUi(layout: LayoutMetrics, digits: DigitOption): void {
+        const entry = getEntry(getStatsStorage().load(), this.selectedMode, digits);
+        const empty = entry.played === 0;
+        const lines = statsLines(this.locale, entry);
+        const color = '#cbd5e1';
+        const store = this.endUiObjects;
+        const probe = createText(this, 0, 0, empty ? this.t('statsEmpty') : lines.one, STATS_FONT_PX, color, 0.5, store);
+        const placement = computeStatsLayout({ layout, oneLineWidth: probe.width, empty });
+        const [first, ...rest] = placement.lineCenters;
+        const parts = statsParts(this.locale, entry);
+        const texts = {
+            empty: [this.t('statsEmpty')],
+            one: [lines.one],
+            two: [lines.first, lines.second],
+            rows: [parts.rate, parts.record, parts.streak, parts.average]
+        }[placement.kind];
+
+        probe.setText(texts[0]).setPosition(placement.centerX, first);
+        rest.forEach((y, index) => {
+            createText(this, placement.centerX, y, texts[index + 1], STATS_FONT_PX, color, 0.5, store);
+        });
+
+        const { button } = placement;
+        const clear = createButton(
+            this, button.x, button.y, button.width, button.height, this.t('statsClear'),
+            () => this.onClearPress(clear.text, button.width), store, STATS_CLEAR_FONT_PX
+        );
+    }
+
+    /** First press: asks for a second one (the label says so for a while). Second press in time: erases all stats. */
+    private onClearPress(label: GameObjects.Text, buttonWidth: number): void {
+        const press = pressClear(this.clearArmedAt, this.time.now);
+
+        this.cancelClearTimer();
+        this.clearArmedAt = press.armedAt;
+
+        if (press.action === 'erase') {
+            getStatsStorage().clear();
+            this.showEndUiForPhase();
+            return;
+        }
+
+        label.setText(this.t('statsClearConfirm'))
+            .setFontSize(STATS_PENDING_FONT_PX)
+            .setAlign('center')
+            .setWordWrapWidth(buttonWidth - STATS_PENDING_PADDING, true);
+        this.clearTimer = this.time.delayedCall(STATS_CLEAR_CONFIRM_MS, () => {
+            this.clearTimer = null;
+            this.clearArmedAt = null;
+            label.setText(this.t('statsClear')).setFontSize(STATS_CLEAR_FONT_PX).setWordWrapWidth(null);
+        });
+    }
+
+    private cancelClearTimer(): void {
+        this.clearTimer?.destroy();
+        this.clearTimer = null;
     }
 
     private formatAnswerReveal(answer: string): string {
@@ -664,6 +743,9 @@ export class Game extends Scene {
     }
 
     private clearEndUi(): void {
+        this.cancelClearTimer();
+        this.clearArmedAt = null;
+
         if (this.endClickOverlay) {
             this.endClickOverlay.destroy();
             this.endClickOverlay = null;
