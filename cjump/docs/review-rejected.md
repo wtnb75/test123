@@ -7,3 +7,11 @@
 - `logic/polyline.ts`: the final fallback return is unreachable — 理由: kept as a defensive default against float differences between the two summations
 - `logic/simulation.ts`: a zero-length route gives `speedPerMs = Infinity` — 理由: routes always come from `generateWaypoints`, which never yields a zero-length route; the spec only requires `polylinePointAt` to be safe
 - `logic/bots.ts`: reflex cannot react on the landing frame, so its clear rate partly reflects landing luck — 理由: this is what the spec defines (bots are not asked while jumping) and what `Game` allows the player to do; not a defect
+- `src/game/logic/difficulty.ts`（`ROUTE_SEEDS`）: 移動時間を折れ線で測っているが、ゲームの移動は `Phaser` のスプライン上で、長さが違う — 理由: 測定は折れ線で近似すると spec が決めている（難易度の測定）。ステージ間の長さの順序は保たれ、スプラインとの差は全ステージで同じ向き。実際の長さは別の測定になる。
+- `src/game/logic/measure.test.ts`: reflex のクリア率の落ち幅の上限 0.40 が、測定の最大 0.385 にあわせた値で、余裕が小さい — 理由: ユーザーとの合意（落ち幅 0.40 以下。今までのルートでは 0.495 で不合格）。シード・試行数を固定した決定的なテストで、終盤の落ちは発生間隔の式による（式は変えない）。
+- `src/game/logic/difficulty.ts`: ステージ 2 と 3 が同じシード 1 で、ルートの形が似る — 理由: 「最小のシード」が spec の規則。ウェイポイント数・`θ_max` が違うので形は同じにならない。形の個性を足すなら別の変更。
+- `src/game/scenes/Game.ts` / `measure.ts`: ルートの組み立て（`generateWaypoints` の呼び出し）が 2 か所にある — 理由: 前からの作りで、整理は無関係な変更になる。spec が共有を求めるのはシードの関数だけ。
+- `src/game/logic/constants.ts`: `ROUTE_TIME_*` が本番のコードで使われない — 理由: spec のパラメータ表の値で、テストが使う（シード表の規則）。シード表を作り直すときの根拠として定数に置く。
+- `src/game/logic/difficulty.ts`（`routeSeed`）: 小数・`NaN` のステージ番号を守らない — 理由: ステージ番号は `StageSelect` が渡す 1〜10 の整数だけ。`getDifficultyParams` と同じ扱いにするのが spec。
+- `src/game/logic/difficulty.ts`: `ROUTE_SEEDS` の置き場所が難易度の関数と別の性質 — 理由: 置き場所は実装裁量（`constants.ts` か `difficulty.ts`）。
+- `src/game/logic/regression.test.ts`: import の並び・`it.each` の変数名が `stage` のまま — 理由: 見た目だけの指摘。
