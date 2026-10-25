@@ -485,6 +485,110 @@ describe('generateSlots', () => {
         // mousu can appear as a dummy when tileLang is not provided
         expect(allSlotIds.has(mousu.id)).toBe(true);
     });
+
+    describe('same part of speech first', () => {
+        const correctPos = '名詞' as const;
+        const otherPos = '副詞' as const;
+
+        it('uses only same-pos dummies when three distinct same-pos values exist', () => {
+            const correct = makeEntry('c', 'basic', { shortMeaning: ['あ'], pos: correctPos });
+            const same1 = makeEntry('s1', 'basic', { shortMeaning: ['い'], pos: correctPos });
+            const same2 = makeEntry('s2', 'basic', { shortMeaning: ['う'], pos: correctPos });
+            const same3 = makeEntry('s3', 'basic', { shortMeaning: ['え'], pos: correctPos });
+            const other = makeEntry('o1', 'basic', { shortMeaning: ['お'], pos: otherPos });
+
+            for (let i = 0; i < 30; i++) {
+                const slots = generateSlots(correct, [correct, same1, same2, same3, other], 'jp');
+                const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+                expect(dummies).toHaveLength(3);
+                expect(dummies.every((s) => s.pos === correctPos)).toBe(true);
+            }
+        });
+
+        it('fills the rest from another pos only after the same-pos values run out', () => {
+            const correct = makeEntry('c', 'basic', { shortMeaning: ['あ'], pos: correctPos });
+            const same1 = makeEntry('s1', 'basic', { shortMeaning: ['い'], pos: correctPos });
+            const same2 = makeEntry('s2', 'basic', { shortMeaning: ['う'], pos: correctPos });
+            const other = makeEntry('o1', 'basic', { shortMeaning: ['お'], pos: otherPos });
+
+            for (let i = 0; i < 30; i++) {
+                const slots = generateSlots(correct, [correct, same1, same2, other], 'jp');
+                const dummyIds = slots.filter((s) => !isCorrect(correct, s, 'jp')).map((s) => s.id);
+                expect(dummyIds).toHaveLength(3);
+                expect(dummyIds).toContain(same1.id);
+                expect(dummyIds).toContain(same2.id);
+                expect(dummyIds).toContain(other.id);
+            }
+        });
+
+        it('still uses a same-pos candidate whose value shares a confusing prefix with the correct one', () => {
+            const correct = makeEntry('c', 'basic', { shortMeaning: ['あいし'], pos: correctPos });
+            const confusing = makeEntry('cf', 'basic', { shortMeaning: ['あいして'], pos: correctPos });
+            const same2 = makeEntry('s2', 'basic', { shortMeaning: ['ねむり'], pos: correctPos });
+            const same3 = makeEntry('s3', 'basic', { shortMeaning: ['こころ'], pos: correctPos });
+            const other = makeEntry('o1', 'basic', { shortMeaning: ['はしる'], pos: otherPos });
+
+            for (let i = 0; i < 30; i++) {
+                const slots = generateSlots(correct, [correct, confusing, same2, same3, other], 'jp');
+                const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+                expect(dummies.every((s) => s.pos === correctPos)).toBe(true);
+                expect(dummies.some((s) => s.id === confusing.id)).toBe(true);
+            }
+        });
+
+        it('keeps the same-pos rule at every difficulty, since the question pool comes from getPool', () => {
+            const entries = [
+                makeEntry('c', 'basic', { shortMeaning: ['あ'], pos: correctPos }),
+                makeEntry('s1', 'basic', { shortMeaning: ['い'], pos: correctPos }),
+                makeEntry('s2', 'basic', { shortMeaning: ['う'], pos: correctPos }),
+                makeEntry('s5', 'basic', { shortMeaning: ['き'], pos: correctPos }),
+                makeEntry('s3', 'standard', { shortMeaning: ['え'], pos: correctPos }),
+                makeEntry('s4', 'advanced', { shortMeaning: ['か'], pos: correctPos }),
+                makeEntry('o1', 'basic', { shortMeaning: ['お'], pos: otherPos })
+            ];
+            const correct = entries[0];
+
+            for (const difficulty of ['easy', 'normal', 'hard'] as const) {
+                const pool = getPool(entries, difficulty, true);
+                for (let i = 0; i < 20; i++) {
+                    const slots = generateSlots(correct, pool, 'jp');
+                    const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+                    expect(dummies).toHaveLength(3);
+                    expect(dummies.every((s) => s.pos === correctPos)).toBe(true);
+                }
+            }
+        });
+
+        it('fills from another pos when the same-pos candidates have only two distinct display values', () => {
+            const correct = makeEntry('c', 'basic', { shortMeaning: ['あ'], pos: correctPos });
+            const sameA = makeEntry('sa', 'basic', { shortMeaning: ['い'], pos: correctPos });
+            const sameB = makeEntry('sb', 'basic', { shortMeaning: ['う'], pos: correctPos });
+            const sameC = makeEntry('sc', 'basic', { shortMeaning: ['い'], pos: correctPos });
+            const other = makeEntry('o1', 'basic', { shortMeaning: ['お'], pos: otherPos });
+
+            for (let i = 0; i < 30; i++) {
+                const slots = generateSlots(correct, [correct, sameA, sameB, sameC, other], 'jp');
+                const dummies = slots.filter((s) => !isCorrect(correct, s, 'jp'));
+                expect(slots.filter((s) => isCorrect(correct, s, 'jp'))).toHaveLength(1);
+                expect(dummies.some((s) => s.id === other.id)).toBe(true);
+                const sameDummyValues = dummies.filter((s) => s.pos === correctPos).map((s) => getLangValue(s, 'jp'));
+                expect(new Set(sameDummyValues).size).toBe(sameDummyValues.length);
+            }
+        });
+
+        it('keeps dummy display values distinct when the same-pos candidates are enough', () => {
+            const correct = makeEntry('c', 'basic', { shortMeaning: ['あ'], pos: correctPos });
+            const same1 = makeEntry('s1', 'basic', { shortMeaning: ['い'], pos: correctPos });
+            const same2 = makeEntry('s2', 'basic', { shortMeaning: ['う'], pos: correctPos });
+            const same3 = makeEntry('s3', 'basic', { shortMeaning: ['え'], pos: correctPos });
+
+            for (let i = 0; i < 30; i++) {
+                const slots = generateSlots(correct, [correct, same1, same2, same3], 'jp');
+                const dummyValues = slots.filter((s) => !isCorrect(correct, s, 'jp')).map((s) => getLangValue(s, 'jp'));
+                expect(new Set(dummyValues).size).toBe(3);
+            }
+        });
+    });
 });
 
 describe('sharesConfusingPrefix', () => {
@@ -585,6 +689,28 @@ describe('findExampleSentences', () => {
     it('respects custom max', () => {
         expect(findExampleSentences('wordA', [ex1, ex3, ex4], 3)).toEqual([ex1, ex3, ex4]);
         expect(findExampleSentences('wordA', [ex1, ex3, ex4], 1)).toEqual([ex1]);
+    });
+});
+
+describe('data integrity: dummy slots on the real word data', () => {
+    // Every real question pool must give a 4-slot board in each language mode, with one correct slot and
+    // no dummy that shows the correct value (the candidates never run out on the shipped data).
+    const modes = [
+        { slot: 'jp' as const, tile: 'kogo' as const },
+        { slot: 'en' as const, tile: 'kogo' as const },
+        { slot: 'kogo' as const, tile: 'en' as const }
+    ];
+
+    it.each(['easy', 'normal', 'hard'] as const)('%s pool: every word gets exactly one correct slot and no correct-valued dummy', (difficulty) => {
+        const pool = getPool(kogoList, difficulty);
+        for (const { slot, tile } of modes) {
+            for (const correct of pool) {
+                const slots = generateSlots(correct, pool, slot, Math.random, 4, tile);
+                expect(slots).toHaveLength(4);
+                const correctSlots = slots.filter((s) => isCorrect(correct, s, slot));
+                expect(correctSlots, `${correct.id} in ${slot} mode`).toHaveLength(1);
+            }
+        }
     });
 });
 

@@ -120,39 +120,41 @@ export const generateSlots = (
         }),
         rng
     );
+    const sameGroup = candidates.filter((e) => e.pos === correct.pos);
+    const otherGroup = candidates.filter((e) => e.pos !== correct.pos);
 
     const dummies: KogoEntry[] = [];
     const usedValues = new Set<string>(allCorrectValues);
 
-    // First pass: distinct values AND no confusing 2-char prefix with any correct value
-    for (const e of candidates) {
-        if (dummies.length >= dummyTarget) break;
-        const val = getLangValue(e, slotLang);
-        const confusing = [...allCorrectValues].some((cv) => sharesConfusingPrefix(val, cv));
-        if (!usedValues.has(val) && !confusing) {
+    // Takes distinct display values from `list` until the slots are full. A strict take skips a candidate whose
+    // value shares a confusing 2-char prefix with a correct value; a loose take allows it.
+    const take = (list: KogoEntry[], allowConfusing: boolean): void => {
+        for (const e of list) {
+            if (dummies.length >= dummyTarget) break;
+            const val = getLangValue(e, slotLang);
+            if (usedValues.has(val)) continue;
+            const confusing = [...allCorrectValues].some((cv) => sharesConfusingPrefix(val, cv));
+            if (confusing && !allowConfusing) continue;
             dummies.push(e);
             usedValues.add(val);
         }
-    }
+    };
 
-    // Second pass: allow confusing prefix when first pass couldn't fill all slots
-    for (const e of candidates) {
-        if (dummies.length >= dummyTarget) break;
-        const val = getLangValue(e, slotLang);
-        if (!usedValues.has(val)) {
-            dummies.push(e);
-            usedValues.add(val);
-        }
-    }
+    // Same part of speech first (strict, then loose); other parts of speech only fill what is left.
+    take(sameGroup, false);
+    take(sameGroup, true);
+    take(otherGroup, false);
+    take(otherGroup, true);
 
-    // Third pass: allow repeated display values when pool is too small
-    for (const e of candidates) {
+    // Last: allow repeated display values among the dummies when the candidates run short
+    const ordered = [...sameGroup, ...otherGroup];
+    for (const e of ordered) {
         if (dummies.length >= dummyTarget) break;
         if (!dummies.includes(e)) dummies.push(e);
     }
 
-    // Last resort: pad when pool is tiny
-    const padSource = candidates.length > 0 ? candidates : [correct];
+    // Last resort: pad when the candidates are empty. The shipped pools never reach this (see the real-data test).
+    const padSource = ordered.length > 0 ? ordered : [correct];
     while (dummies.length < dummyTarget) {
         dummies.push(padSource[dummies.length % padSource.length]);
     }
