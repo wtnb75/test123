@@ -8,8 +8,10 @@ import {
     MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
     MINE_RIPPLE_START_RADIUS, MINE_RIPPLE_ALPHA,
-    ENEMY_SPEED
+    ENEMY_SPEED,
+    BG_STAR_COUNT, BG_STAR_SPEED_MIN, BG_STAR_SPEED_MAX, BG_SCANLINE_GAP, BG_SCANLINE_ALPHA
 } from '../core/constants';
+import { advanceStar, backdropColorOf, ENEMY_SHAPE, PLAYER_SHAPE } from '../core/look';
 import { bulletRotation, countdownRingRadius, isInBlastWarning, rippleState } from '../core/visuals';
 import { bulletTextureKey } from './bulletTextures';
 import {
@@ -37,7 +39,7 @@ type Enemy = {
     vx: number;
     fireTimer: number;
     bulletType: BulletType;
-    gfx: Phaser.GameObjects.Arc;
+    gfx: Phaser.GameObjects.Graphics;
 };
 
 type Mine = {
@@ -66,9 +68,20 @@ const JOYSTICK_DEADZONE = 8;
 const BOMB_BTN_RADIUS = 36;
 const MINE_RING_DEPTH = 4.5;
 
+// Fills a convex polygon given as offsets from the origin (a fan of triangles from the first vertex).
+function drawPolygon(g: Phaser.GameObjects.Graphics, shape: ReadonlyArray<readonly [number, number]>, color: number): void {
+    g.fillStyle(color, 1);
+    for (let i = 1; i < shape.length - 1; i += 1) {
+        g.fillTriangle(shape[0][0], shape[0][1], shape[i][0], shape[i][1], shape[i + 1][0], shape[i + 1][1]);
+    }
+}
+
 export class Game extends Scene {
     // ゲームオブジェクト
-    private playerGfx!: Phaser.GameObjects.Arc;
+    private playerGfx!: Phaser.GameObjects.Graphics;
+    private backdrop!: Phaser.GameObjects.Rectangle;
+    private backdropColor = -1;
+    private stars: { gfx: Phaser.GameObjects.Arc; speed: number }[] = [];
     private bullets: Bullet[] = [];
     private enemies: Enemy[] = [];
     private mines: Mine[] = [];
@@ -122,11 +135,25 @@ export class Game extends Scene {
         this.px = GAME_WIDTH / 2;
         this.py = GAME_HEIGHT - 80;
 
-        // 背景
-        this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0a0a1a);
+        // 背景（下地・走査線・流れる星。すべて他の描画より下）
+        this.backdropColor = -1;
+        this.backdrop = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0a0a1a).setDepth(-10);
+        const scanlines = this.add.graphics().setDepth(-9);
+        scanlines.lineStyle(1, 0xffffff, BG_SCANLINE_ALPHA);
+        for (let y = 0; y < GAME_HEIGHT; y += BG_SCANLINE_GAP) {
+            scanlines.lineBetween(0, y, GAME_WIDTH, y);
+        }
+        this.stars = [];
+        for (let i = 0; i < BG_STAR_COUNT; i += 1) {
+            const x = Math.random() * GAME_WIDTH;
+            const y = Math.random() * GAME_HEIGHT;
+            const speed = BG_STAR_SPEED_MIN + Math.random() * (BG_STAR_SPEED_MAX - BG_STAR_SPEED_MIN);
+            this.stars.push({ gfx: this.add.circle(x, y, 1, 0xffffff, 0.6).setDepth(-9), speed });
+        }
 
-        // プレイヤー
-        this.playerGfx = this.add.circle(this.px, this.py, PLAYER_RADIUS, 0x00e5ff);
+        // プレイヤー（頂点が上の三角形。当たり判定は円のまま）
+        this.playerGfx = this.add.graphics({ x: this.px, y: this.py });
+        drawPolygon(this.playerGfx, PLAYER_SHAPE, 0x00e5ff);
 
         // キー設定
         this.cursors = this.input.keyboard!.createCursorKeys();
@@ -316,7 +343,9 @@ export class Game extends Scene {
         const bulletType: BulletType = useV ? 'aimed' : 'straight';
 
         for (const pos of positions) {
-            const gfx = this.add.circle(pos.x, pos.y, ENEMY_RADIUS, 0xff4444).setDepth(4);
+            // 敵機は菱形で描く（当たり判定は ENEMY_RADIUS の円のまま）
+            const gfx = this.add.graphics({ x: pos.x, y: pos.y }).setDepth(4);
+            drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
             this.enemies.push({
                 x: pos.x,
                 y: pos.y,
@@ -501,6 +530,16 @@ export class Game extends Scene {
         if (this.startTime < 0) this.startTime = this.time.now;
         const dt = delta / 1000;
         const elapsedSec = (this.time.now - this.startTime) / 1000;
+
+        // --- 背景（段階が変わったときだけ下地色を変える。星は流す）---
+        const stage = backdropColorOf(elapsedSec);
+        if (stage !== this.backdropColor) {
+            this.backdropColor = stage;
+            this.backdrop.setFillStyle(stage);
+        }
+        for (const star of this.stars) {
+            star.gfx.y = advanceStar(star.gfx.y, star.speed, dt, GAME_HEIGHT);
+        }
 
         // --- プレイヤー移動 ---
         let vx: number;

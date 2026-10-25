@@ -24,6 +24,14 @@ export const MINE_RIPPLE_ALPHA = 0.8;
 export const BULLET_VISUAL_RADIUS_MAX = 6;
 export const BULLET_TAIL_LENGTH = 14;
 
+// Backdrop (retro look). Colours are per difficulty stage 1–6.
+export const BG_COLORS = [0x0a0a1a, 0x100a1e, 0x160a22, 0x1c0a26, 0x220a2a, 0x280a2e];
+export const BG_STAR_COUNT = 40;
+export const BG_STAR_SPEED_MIN = 30;
+export const BG_STAR_SPEED_MAX = 60;
+export const BG_SCANLINE_GAP = 4;
+export const BG_SCANLINE_ALPHA = 0.06;
+
 export const FORMATION_INTERVAL_EARLY_SEC = 4;
 export const FORMATION_INTERVAL_SEC = 6;
 export const ENEMY_SPEED = 80;
