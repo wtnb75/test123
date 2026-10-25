@@ -14,8 +14,8 @@ export const GRAVE_ROW_HEIGHT_A = 24;
 export const GRAVE_INNER = 22;
 export const GRAVE_STONE_WIDTH = 24;
 export const GRAVE_GROUND_EXTRA = 4;
-/** Variant A has more grass on both sides. */
-export const GRAVE_GROUND_EXTRA_A = 8;
+/** Variant A has a lot of grass on both sides of the stone. */
+export const GRAVE_GROUND_EXTRA_A = 12;
 /** Width of the whole art: the stone plus the ground on both sides (variants B and C; A has its own below). */
 export const GRAVE_ART_WIDTH = GRAVE_STONE_WIDTH + 2 * GRAVE_GROUND_EXTRA;
 export const GRAVE_ART_WIDTH_A = GRAVE_STONE_WIDTH + 2 * GRAVE_GROUND_EXTRA_A;
@@ -82,8 +82,12 @@ export const centerText = (s: string, width: number): string => {
   return ' '.repeat(left) + s + ' '.repeat(width - s.length - left);
 };
 
-/** The grass of the ground line, as wide as the stone. */
+/** The grass of the ground line of variants B and C, as wide as the stone. */
 const GRASS = '_)/\\_//(\\/(/\\)/\\//\\/|_)_';
+/** Variant A: the short grass under the stone, and the tufts beside its last three rows (12 characters each, top to bottom). */
+const GROUND_UNDER_STONE = '_._,_._.,_._,_._._,_._,_';
+const TUFTS_LEFT = ['   \\|/ \\ |/ ', ' \\\\|/|/\\|\\|/', '\\|/\\|/|/\\|//'] as const;
+const TUFTS_RIGHT = [' \\|/ / \\|/  ', '/|\\|//\\|\\/|\\', '\\\\/|\\|/|\\/|/'] as const;
 const RECORD_TEXT = 'New record!';
 
 /** The rows of a variant, top to bottom, before padding. */
@@ -120,8 +124,6 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
   add(stone(`    ${'_'.repeat(16)}`));
   add(stone(`   /${' '.repeat(16)}\\`));
   if (variant === 'A') {
-    // The blank arch row once more: room above the first words.
-    add(stone(`   /${' '.repeat(16)}\\`));
     add(stone(`  /${centerText('REST', 18)}\\`));
     add(stone(` /${centerText('IN', 20)}\\`));
     add(stone(`/${centerText('PEACE', 22)}\\`));
@@ -138,8 +140,15 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
   add(wall(score));
   record();
   if (variant === 'A') {
-    // A blank wall row under the words: room above the ground.
+    // A blank wall row under the words: room above the ground. The last three rows above the ground grow grass on
+    // both sides: the left tuft replaces the margin, the right tuft follows the row's right wall.
     add(wall(''));
+    for (let k = 0; k < TUFTS_LEFT.length; k += 1) {
+      const at = rows.length - TUFTS_LEFT.length + k;
+      rows[at][0] = TUFTS_LEFT[k] + rows[at][0].slice(extra) + TUFTS_RIGHT[k];
+    }
+    add(`${sideGround}${GROUND_UNDER_STONE}${sideGround}`);
+    return rows;
   }
   add(`${sideGround}${GRASS}${sideGround}`);
   return rows;
