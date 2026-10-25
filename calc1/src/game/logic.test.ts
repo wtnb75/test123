@@ -39,8 +39,24 @@ describe('getDifficulty', () => {
         expect(getDifficulty(0)).toEqual(DIFFICULTY_TABLE[0]);
     });
 
-    it('caps at the last entry', () => {
-        expect(getDifficulty(99)).toEqual(DIFFICULTY_TABLE[4]);
+    it('gives the spec values for Lv.1 to Lv.5', () => {
+        expect(getDifficulty(1)).toEqual({ initialValueMin: 1, initialValueMax: 5, targetMin: 20, targetMax: 50, maxTurns: 12 });
+        expect(getDifficulty(2)).toEqual({ initialValueMin: 1, initialValueMax: 10, targetMin: 50, targetMax: 100, maxTurns: 10 });
+        expect(getDifficulty(3)).toEqual({ initialValueMin: 1, initialValueMax: 15, targetMin: 80, targetMax: 150, maxTurns: 9 });
+        expect(getDifficulty(4)).toEqual({ initialValueMin: 1, initialValueMax: 20, targetMin: 100, targetMax: 200, maxTurns: 8 });
+        expect(getDifficulty(5)).toEqual({ initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 8 });
+    });
+
+    it('gives 7 turns at Lv.6 with the Lv.5 initial and target ranges', () => {
+        expect(getDifficulty(6)).toEqual({ initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 7 });
+    });
+
+    it('gives 6 turns at Lv.7 with the Lv.5 initial and target ranges', () => {
+        expect(getDifficulty(7)).toEqual({ initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 6 });
+    });
+
+    it('keeps 6 turns for every level past Lv.7', () => {
+        expect(getDifficulty(99)).toEqual({ initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 6 });
     });
 });
 

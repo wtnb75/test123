@@ -120,17 +120,19 @@ describe('winCountDistance and the ranges', () => {
         expect(winCountDistance(1600, range)).toBeCloseTo(Math.log(2), 12);
     });
 
-    it('gives the per-level ranges of the spec, and the Lv.5 range for every later level', () => {
+    it('gives the per-level ranges of the spec, and the Lv.7 range for every later level', () => {
         expect(WIN_COUNT_RANGES).toEqual([
             { min: 500000, max: 2200000 },
             { min: 6000, max: 42000 },
             { min: 500, max: 5500 },
             { min: 50, max: 800 },
             { min: 15, max: 480 },
+            { min: 3, max: 100 },
+            { min: 1, max: 25 },
         ]);
-        expect([1, 2, 3, 4, 5].map((l) => getWinCountRange(l))).toEqual(WIN_COUNT_RANGES);
-        expect(getWinCountRange(6)).toEqual({ min: 15, max: 480 });
-        expect(getWinCountRange(99)).toEqual({ min: 15, max: 480 });
+        expect([1, 2, 3, 4, 5, 6, 7].map((l) => getWinCountRange(l))).toEqual(WIN_COUNT_RANGES);
+        expect(WIN_COUNT_RANGES).toHaveLength(DIFFICULTY_TABLE.length);
+        expect(getWinCountRange(99)).toEqual({ min: 1, max: 25 });
         expect(getWinCountRange(0)).toEqual({ min: 500000, max: 2200000 }); // never used, but safe
     });
 });
@@ -142,7 +144,7 @@ describe('generateProblem', () => {
         return v;
     };
 
-    it.each([1, 2, 3, 4, 5, 6, 9])('level %i: gives a solvable problem within the level table and the win-count range', (level) => {
+    it.each([1, 2, 3, 4, 5, 6, 7, 9])('level %i: gives a solvable problem within the level table and the win-count range', (level) => {
         const rng = seeded(level * 1000 + 3);
         const diff = getDifficulty(level);
         const range = getWinCountRange(level);
