@@ -32,6 +32,8 @@ export const DIFFICULTY_TABLE: DifficultyLevel[] = [
     { initialValueMin: 1, initialValueMax: 15, targetMin: 80,  targetMax: 150, maxTurns: 9  },
     { initialValueMin: 1, initialValueMax: 20, targetMin: 100, targetMax: 200, maxTurns: 8  },
     { initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 8  },
+    { initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 7  },
+    { initialValueMin: 1, initialValueMax: 20, targetMin: 150, targetMax: 300, maxTurns: 6  },
 ];
 
 export const ROUND_TIME_MS = 60000;
@@ -339,6 +341,8 @@ export const WIN_COUNT_RANGES: WinCountRange[] = [
     { min: 500, max: 5500 },
     { min: 50, max: 800 },
     { min: 15, max: 480 },
+    { min: 3, max: 100 },
+    { min: 1, max: 25 },
 ];
 
 export const MAX_GENERATION_ATTEMPTS = 200;
