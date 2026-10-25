@@ -64,8 +64,6 @@ export class Game extends Scene
     private currentValueTopText!: GameObjects.Text;
     private dropZoneTop = 0;
     private dragging = false;
-    private arrowLeft?: Input.Keyboard.Key;
-    private arrowRight?: Input.Keyboard.Key;
     private difficulty: Difficulty = { ...DEFAULT_DIFFICULTY };
     private distributionState: DistributionState = createDistributionState();
     private isEntering = true;
@@ -164,8 +162,8 @@ export class Game extends Scene
                 this.waitTotalMs = this.waitLeftMs;
             }
         } else if (!this.isResolving && this.waitLeftMs > 0) {
-            // the wait runs only while the number is at READY; a held number (dragged, or an arrow key down) is frozen. The frame it arrives in does not count.
-            this.waitLeftMs = stepWait(this.waitLeftMs, delta, this.dragging || this.isArrowHeld());
+            // the wait runs only while the number is at READY; holding it does not stop the wait. The frame it arrives in does not count.
+            this.waitLeftMs = stepWait(this.waitLeftMs, delta);
 
             if (this.waitLeftMs === 0) {
                 this.confirmDrop(true);
@@ -239,9 +237,6 @@ export class Game extends Scene
 
     private buildInputHandlers (width: number)
     {
-        this.arrowLeft = this.input.keyboard?.addKey('LEFT');
-        this.arrowRight = this.input.keyboard?.addKey('RIGHT');
-
         this.currentValueText.on('pointerdown', (pointer: Input.Pointer) => {
             if (this.isGameOver || this.isEntering || this.isResolving) {
                 return;
@@ -509,13 +504,7 @@ export class Game extends Scene
         this.boxesView.update(this.boxes);
     }
 
-    /** A left or right key held counts as a grab, like a drag: the wait stops. */
-    private isArrowHeld (): boolean
-    {
-        return Boolean(this.arrowLeft?.isDown || this.arrowRight?.isDown);
-    }
-
-    /** The wait's remaining seconds and bar, shown while a number is at READY (frozen while held); empty otherwise. */
+    /** The wait's remaining seconds and bar, shown while a number is at READY (also while held); empty otherwise. */
     private refreshWaitText ()
     {
         const waiting = !this.isEntering && !this.isResolving && !this.isGameOver;

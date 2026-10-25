@@ -22,19 +22,19 @@ describe('waitMs (the wait for the READY number, by the count of numbers dropped
 });
 
 describe('stepWait (one frame of the wait)', () => {
-    it('counts the frame down while the number is free', () => {
-        expect(stepWait(8000, 16, false)).toBe(7984);
+    it('counts the frame down', () => {
+        expect(stepWait(8000, 16)).toBe(7984);
     });
 
-    it('stays frozen while the number is held (held for three seconds loses nothing)', () => {
+    it('keeps counting down while the number is held (three seconds of holding spend three seconds)', () => {
         let left = 7000;
-        for (let i = 0; i < 180; i++) left = stepWait(left, 16.7, true);
-        expect(left).toBe(7000);
+        for (let i = 0; i < 180; i++) left = stepWait(left, 16.7);
+        expect(left).toBeCloseTo(3994, 6); // 7000 − 180 × 16.7
     });
 
     it('never goes below 0 and then stays at 0', () => {
-        expect(stepWait(10, 16, false)).toBe(0);
-        expect(stepWait(0, 16, false)).toBe(0);
+        expect(stepWait(10, 16)).toBe(0);
+        expect(stepWait(0, 16)).toBe(0);
     });
 });
 
