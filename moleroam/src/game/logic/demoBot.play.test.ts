@@ -25,6 +25,7 @@ function seeded(seed: number): () => number {
 interface RunResult {
     moles: number;
     cats: number;
+    clocks: number;
     distance: number;
     passedDecoy: boolean;
 }
@@ -39,7 +40,7 @@ function playDemo(layout: Layout, seed: number): RunResult {
     let view = { x: start.x, y: start.y };
     const sight: DemoSight = { now: 0, view: { x: 0, y: 0, w: layout.viewW, h: layout.viewH }, layout, pops: [] };
     const move = newDemoMove();
-    const result: RunResult = { moles: 0, cats: 0, distance: 0, passedDecoy: false };
+    const result: RunResult = { moles: 0, cats: 0, clocks: 0, distance: 0, passedDecoy: false };
     const frames = Math.round((PARAMS.demoRunSeconds * 1000) / DT);
     let now = 0;
     const step = (PARAMS.scrollSpeed * PARAMS.demoScrollRatio * DT) / 1000;
@@ -53,8 +54,10 @@ function playDemo(layout: Layout, seed: number): RunResult {
         if (move.strike) {
             const at = { x: view.x + move.strikeX, y: view.y + move.strikeY };
             const hit = judgeStrike(at, pops, now, layout);
-            if (hit) {
-                score = applyStrike(score, hit.kind).score;
+            if (hit && hit.kind === 'clock') {
+                result.clocks++; // a clock adds time and no score (docs/spec/items.md)
+            } else if (hit) {
+                score = applyStrike(score, hit.kind === 'mole' ? 'mole' : 'cat').score;
                 if (hit.kind === 'mole') result.moles++;
                 else result.cats++;
                 pops = pops.filter((p) => p !== hit);
@@ -93,6 +96,10 @@ describe.each(LAYOUTS)('the demo bot playing alone on $name', ({ layout }) => {
 
     it('never taps a cat', () => {
         expect(runs.every((r) => r.cats === 0)).toBe(true);
+    });
+
+    it('never taps a clock (docs/spec/title-demo.md: the bot does not tap clocks)', () => {
+        expect(runs.every((r) => r.clocks === 0)).toBe(true);
     });
 
     it('scrolls at least 2000 px in at least 90% of the runs', () => {

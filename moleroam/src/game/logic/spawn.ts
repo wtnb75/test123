@@ -1,7 +1,8 @@
 import { PARAMS } from '../params';
 import { LANDSCAPE, type Layout } from './layout';
 
-export type Kind = 'mole' | 'cat';
+/** A mole, a cat to avoid, or a clock (docs/spec/items.md: a clock adds time when hit). */
+export type Kind = 'mole' | 'cat' | 'clock';
 
 export interface SpawnPlan {
     hole: number;
@@ -76,7 +77,14 @@ const freeHoles = (used: readonly number[], layout: Layout): number[] => {
     return free;
 };
 
-const toKind = (rand: () => number): Kind => (rand() < PARAMS.friendRate ? 'cat' : 'mole');
+/**
+ * The kind of one spawned pop: a cat with `friendRate`; otherwise one more draw decides a clock with
+ * `itemRate` (docs/spec/items.md), else a mole. The clock draw happens only for a non-cat, right after its cat draw.
+ */
+const toKind = (rand: () => number): Kind => {
+    if (rand() < PARAMS.friendRate) return 'cat';
+    return rand() < PARAMS.itemRate ? 'clock' : 'mole';
+};
 
 /**
  * Whether a freshly spawned pop is a decoy (a cat that also gets a direction arrow). Drawn once at spawn,
@@ -110,7 +118,7 @@ const comboHoles = (free: readonly number[], rand: () => number, layout: Layout)
 /**
  * What to spawn at one spawn check, given the holes in use (telegraph and up pops).
  * Random draws in order: combo roll (only when there is room for a combo), anchor hole,
- * neighbour holes, then one kind roll per spawned pop.
+ * neighbour holes, then per spawned pop its kind roll, and for a non-cat a clock roll right after it (see toKind).
  */
 export const planSpawn = (
     usedHoles: readonly number[],

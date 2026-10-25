@@ -7,11 +7,33 @@ import { DEPTH } from './ui';
 
 const MOLE_COLOR = 0x8d6e63;
 const CAT_COLOR = 0xffb74d;
+const CLOCK_FACE_COLOR = 0xffffff;
+const CLOCK_RIM_COLOR = 0x333333;
+const CAT_HIT_COLOR = 0xff1744;
+
+/**
+ * A clock's body (docs/spec/items.md): a white face with a dark rim and two hands, drawn once at the origin
+ * so the same tweens that move a round body move it.
+ */
+const drawClock = (scene: Scene, x: number, y: number): GameObjects.Container => {
+    const r = PARAMS.bodyRadius;
+    const g = scene.add.graphics();
+    g.fillStyle(CLOCK_FACE_COLOR, 1);
+    g.fillCircle(0, 0, r);
+    // the rim is drawn inside the radius so the clock's diameter matches a mole body's
+    g.lineStyle(6, CLOCK_RIM_COLOR, 1);
+    g.strokeCircle(0, 0, r - 3);
+    g.lineBetween(0, 0, 0, -r * 0.6);
+    g.lineBetween(0, 0, r * 0.45, 0);
+    return scene.add.container(x, y, [g]);
+};
 
 /** The objects that show one pop: a shaking dust cloud while it telegraphs, then its body. */
 export class PopView {
     readonly center: Pt;
-    body: GameObjects.Arc | null = null;
+    body: GameObjects.Arc | GameObjects.Container | null = null;
+    /** The round body of a mole or cat (a clock's body is a container and never turns red). */
+    private roundBody: GameObjects.Arc | null = null;
     private dust: GameObjects.Ellipse | null;
 
     constructor(
@@ -33,12 +55,21 @@ export class PopView {
     /** End of the telegraph: the dust goes and the body rises out of the hole. */
     rise(): void {
         this.removeDust();
-        const color = this.pop.kind === 'mole' ? MOLE_COLOR : CAT_COLOR;
-        this.body = this.scene.add
-            .circle(this.center.x, this.center.y - 10, PARAMS.bodyRadius, color)
-            .setDepth(DEPTH.body)
-            .setScale(1, 0.1);
+        const x = this.center.x;
+        const y = this.center.y - 10;
+        if (this.pop.kind === 'clock') {
+            this.body = drawClock(this.scene, x, y).setDepth(DEPTH.body).setScale(1, 0.1);
+        } else {
+            const color = this.pop.kind === 'mole' ? MOLE_COLOR : CAT_COLOR;
+            this.roundBody = this.scene.add.circle(x, y, PARAMS.bodyRadius, color).setDepth(DEPTH.body).setScale(1, 0.1);
+            this.body = this.roundBody;
+        }
         this.scene.tweens.add({ targets: this.body, scaleY: 1, duration: PARAMS.riseMs, ease: 'Back.Out' });
+    }
+
+    /** A cat hit turns the body red (only a round body does; a cat is never a clock). */
+    reddenBody(): void {
+        this.roundBody?.setFillStyle(CAT_HIT_COLOR);
     }
 
     /** Pop timed out: the body sinks back into the hole. */
@@ -59,6 +90,7 @@ export class PopView {
         if (this.body) this.scene.tweens.killTweensOf(this.body);
         this.body?.destroy();
         this.body = null;
+        this.roundBody = null;
     }
 
     private removeDust(): void {

@@ -26,6 +26,9 @@ export const PARAMS = {
     maxActiveLate: 6,
     friendRate: 0.25,
     decoyRate: 0.3,
+    // clock item (docs/spec/items.md): share of non-cat pops that are clocks, and the time a clock adds
+    itemRate: 0.05,
+    itemTimeBonusMs: 3000,
     comboRate: 0.2,
     comboSize: 3,
     telegraphMs: 800,

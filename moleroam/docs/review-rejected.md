@@ -50,3 +50,6 @@
 - `src/game/logic/spawn.ts` stepSpawn: 同じ `elapsedMs` で `rampPhase` を 2 回呼ぶ — 理由: 同じ式で同じ値が出る。`nextSpawnAt` は既存のテストが使う API で、保守性だけの指摘
 - `src/game/scenes/fx.ts` playStreakAnnounce: 予告の文字を参照として持たず、シーン終了時に明示的に破棄していない — 理由: 浮かぶ文字（`floatText`）と同じ作りで、Scene の終了とともに Phaser が表示物と tween を破棄する。リスタート直後の挙動はブラウザ QA で確認する
 - `src/game/logic/spawn.ts` planSpawn: 上限の引数の既定値が前半の値 — 理由: 既存のテスト（`layout.test.ts`、`decoy.test.ts` など）が既定値に依存し、書き換えない方針。本番の経路 `stepSpawn` は段階の上限を渡すことをテストで固定している
+- `src/game/scenes/PopView.ts` drawClock: 時計の本体を Graphics と Container で毎回作る — 理由: 出現 1 回につき 2 個で、1 ラウンドに約 2 回。実害がない。テクスチャ化は別の変更
+- `src/game/scenes/DemoGame.ts` / `Game.ts` update: 終了フレームでデモのボットの叩きとスクロールが行われない — 理由: デモは 40 秒で作り直され、残り時間（60 秒）が 0 になる経路に届かない。到達しない差
+- `src/game/logic/streak.ts`: 時計の連続のルールが `nextStreak` と `resolveStrike` の早い return の 2 か所にある — 理由: 連続のルールは `nextStreak` だけが持ち、`resolveStrike` は得点の有無を決めるだけ。役割の分担で、二重管理ではない

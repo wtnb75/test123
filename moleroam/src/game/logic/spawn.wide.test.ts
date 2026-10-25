@@ -21,7 +21,7 @@ describe('planSpawn when the neighbours are mostly taken', () => {
     it('spawns fewer than comboSize holes: only the anchor and its free neighbours', () => {
         // used [1, 8] -> room 6 >= 5, so a combo is possible. Anchor pick 0 -> hole 0, whose only free
         // neighbour is 9 (1 and 8 are in use). Kind rolls: mole, cat.
-        const plan = planSpawn([1, 8], seq([0.1, 0, 0, 0.9, 0.1]));
+        const plan = planSpawn([1, 8], seq([0.1, 0, 0, 0.9, 0.99, 0.1]));
         expect(plan).toEqual([
             { hole: 0, kind: 'mole' },
             { hole: 9, kind: 'cat' },
@@ -29,7 +29,7 @@ describe('planSpawn when the neighbours are mostly taken', () => {
     });
 
     it('still spawns the anchor alone when every neighbour is in use', () => {
-        const plan = planSpawn([1, 8, 9], seq([0.1, 0, 0.9]));
+        const plan = planSpawn([1, 8, 9], seq([0.1, 0, 0.9, 0.99]));
         expect(plan).toEqual([{ hole: 0, kind: 'mole' }]);
     });
 });

@@ -79,13 +79,13 @@ describe('nextSpawnAt: the interval of the phase of the check that just ran', ()
 describe('stepSpawn across the phases', () => {
     it('keeps one check per update in the late phase: a jump to 50 s runs one check and schedules 50.8 s', () => {
         // seq allows exactly one spawn's worth of draws: a catch-up loop would run out and throw
-        const result = stepSpawn(50000, 21100, [], seq([0.5, 0, 0.5]));
+        const result = stepSpawn(50000, 21100, [], seq([0.5, 0, 0.5, 0.99]));
         expect(result.plan).toEqual([{ hole: 0, kind: 'mole' }]);
         expect(result.scheduledAt).toBe(50800);
     });
 
     it('early phase, as before the ramp: a check at 19.999 s with the same draws gives the same plan, next check 1200 ms later', () => {
-        const result = stepSpawn(19999.999, 19000, [], seq([0.5, 0, 0.5]));
+        const result = stepSpawn(19999.999, 19000, [], seq([0.5, 0, 0.5, 0.99]));
         expect(result.plan).toEqual([{ hole: 0, kind: 'mole' }]);
         expect(result.scheduledAt).toBeCloseTo(21199.999, 6);
     });
@@ -93,12 +93,12 @@ describe('stepSpawn across the phases', () => {
     it('early phase with 4 pops out spawns nothing and draws nothing; mid with 4 pops spawns one; mid with 5 spawns nothing', () => {
         expect(stepSpawn(10000, 10000, [0, 1, 2, 3], seq([])).plan).toEqual([]);
         // room 1: no combo roll; hole pick 0 -> the first free hole (4); kind roll 0.5 -> mole
-        expect(stepSpawn(25000, 25000, [0, 1, 2, 3], seq([0, 0.5])).plan).toEqual([{ hole: 4, kind: 'mole' }]);
+        expect(stepSpawn(25000, 25000, [0, 1, 2, 3], seq([0, 0.5, 0.99])).plan).toEqual([{ hole: 4, kind: 'mole' }]);
         expect(stepSpawn(25000, 25000, [0, 1, 2, 3, 4], seq([])).plan).toEqual([]);
     });
 
     it('late phase with 5 pops out spawns one; with 6 pops out spawns nothing and draws nothing', () => {
-        expect(stepSpawn(45000, 45000, [0, 1, 2, 3, 4], seq([0, 0.5])).plan).toEqual([{ hole: 5, kind: 'mole' }]);
+        expect(stepSpawn(45000, 45000, [0, 1, 2, 3, 4], seq([0, 0.5, 0.99])).plan).toEqual([{ hole: 5, kind: 'mole' }]);
         expect(stepSpawn(45000, 45000, [0, 1, 2, 3, 4, 5], seq([])).plan).toEqual([]);
     });
 
@@ -109,10 +109,11 @@ describe('stepSpawn across the phases', () => {
 });
 
 describe('combo opportunities follow the cap of the phase (comboRate itself is unchanged)', () => {
-    const comboDraws = [0.1, 0, 0, 0, 0.5, 0.5, 0.5];
+    // combo roll, anchor, two neighbours, then each mole's kind roll (0.5) and its clock roll (0.99: not a clock)
+    const comboDraws = [0.1, 0, 0, 0, 0.5, 0.99, 0.5, 0.99, 0.5, 0.99];
 
     it('early phase with 2 pops out has room 2: no combo roll, a single spawn', () => {
-        expect(stepSpawn(10000, 10000, [0, 1], seq([0, 0.5])).plan).toEqual([{ hole: 2, kind: 'mole' }]);
+        expect(stepSpawn(10000, 10000, [0, 1], seq([0, 0.5, 0.99])).plan).toEqual([{ hole: 2, kind: 'mole' }]);
     });
 
     it('mid phase with the same 2 pops out has room 3: a combo of the anchor 2 and its neighbours 3 and 9', () => {
@@ -126,7 +127,7 @@ describe('combo opportunities follow the cap of the phase (comboRate itself is u
     });
 
     it('mid phase with 3 pops out has room 2: no combo roll, a single spawn', () => {
-        expect(stepSpawn(25000, 25000, [0, 1, 2], seq([0, 0.5])).plan).toEqual([{ hole: 3, kind: 'mole' }]);
+        expect(stepSpawn(25000, 25000, [0, 1, 2], seq([0, 0.5, 0.99])).plan).toEqual([{ hole: 3, kind: 'mole' }]);
     });
 });
 
@@ -136,7 +137,7 @@ describe('planSpawn: the cap argument', () => {
     });
 
     it('uses the given cap for the room: cap 6 with 5 pops out spawns one, cap 5 with 5 spawns none', () => {
-        expect(planSpawn([0, 1, 2, 3, 4], seq([0, 0.5]), undefined, 6)).toEqual([{ hole: 5, kind: 'mole' }]);
+        expect(planSpawn([0, 1, 2, 3, 4], seq([0, 0.5, 0.99]), undefined, 6)).toEqual([{ hole: 5, kind: 'mole' }]);
         expect(planSpawn([0, 1, 2, 3, 4], seq([]), undefined, 5)).toEqual([]);
     });
 });
