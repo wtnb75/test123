@@ -21,9 +21,25 @@ describe('computeStatsLayout: portrait (hand-worked)', () => {
     it('SE (375 x 550): the button is at 428..472 and the one-line stats are centred at y 410', () => {
         const stats = statsFor(375, 550, 300, false, 6);
         expect(stats.kind).toBe('one');
-        expect(stats.button).toEqual({ x: 107.5, y: 428, width: 160, height: 44 });
+        expect(stats.button).toEqual({ x: 23.5, y: 428, width: 160, height: 44 });
+        expect(stats.copyButton).toEqual({ x: 191.5, y: 428, width: 160, height: 44 });
         expect(stats.lineCenters).toEqual([410]);
         expect(stats.centerX).toBe(187.5);
+    });
+
+    it('390 x 844: "clear stats" 31..191 and "copy" 199..359 on one row at y 722', () => {
+        const stats = statsFor(390, 844, 300);
+        expect(stats.button).toEqual({ x: 31, y: 722, width: 160, height: 44 });
+        expect(stats.copyButton).toEqual({ x: 199, y: 722, width: 160, height: 44 });
+    });
+
+    it('the two portrait buttons are 8 px apart and their pair is centred on the reselect button', () => {
+        const stats = statsFor(375, 550, 300);
+        const reselect = reselectRect(375, 550);
+        expect(stats.copyButton.x - (stats.button.x + stats.button.width)).toBe(8);
+        expect(stats.button.x + (stats.copyButton.x + stats.copyButton.width - stats.button.x) / 2).toBe(reselect.x + reselect.width / 2);
+        expect(overlaps(stats.button, stats.copyButton)).toBe(false);
+        expect(overlaps(stats.copyButton, reselect)).toBe(false);
     });
 
     it('SE N=6: the one-line stats (400..420) stay 15 px below the board bottom (385)', () => {
@@ -39,11 +55,10 @@ describe('computeStatsLayout: portrait (hand-worked)', () => {
         expect(stats.centerX).toBe(195);
     });
 
-    it('the button sits 8 px above the "choose digits again" button, with the same centre x', () => {
+    it('the buttons sit 8 px above the "choose digits again" button', () => {
         const stats = statsFor(375, 550, 300);
         const reselect = reselectRect(375, 550);
         expect(reselect.y - (stats.button.y + stats.button.height)).toBe(8);
-        expect(stats.button.x + stats.button.width / 2).toBe(reselect.x + reselect.width / 2);
         expect(overlaps(stats.button, reselect)).toBe(false);
     });
 
@@ -87,8 +102,14 @@ describe('computeStatsLayout: landscape (hand-worked)', () => {
         expect(stats.button).toEqual({ x: 514, y: 173, width: 140, height: 44 });
     });
 
-    it('667 x 310: the button does not overlap the "choose digits again" button (x 213..453, y 240..284)', () => {
-        expect(overlaps(statsFor(667, 310, 300).button, reselectRect(667, 310))).toBe(false);
+    it('667 x 310: "copy" 514..654, y 225..269, under "clear stats"', () => {
+        expect(statsFor(667, 310, 300).copyButton).toEqual({ x: 514, y: 225, width: 140, height: 44 });
+    });
+
+    it('667 x 310: the buttons do not overlap the "choose digits again" button (x 213..453, y 240..284)', () => {
+        const stats = statsFor(667, 310, 300);
+        expect(overlaps(stats.button, reselectRect(667, 310))).toBe(false);
+        expect(overlaps(stats.copyButton, reselectRect(667, 310))).toBe(false);
     });
 
     it('1280 x 720: panel 1046..1266, centre x 1156, four lines from y 290, button 378..422', () => {
@@ -96,6 +117,7 @@ describe('computeStatsLayout: landscape (hand-worked)', () => {
         expect(stats.centerX).toBe(1156);
         expect(stats.lineCenters).toEqual([300, 320, 340, 360]);
         expect(stats.button).toEqual({ x: 1046, y: 378, width: 220, height: 44 });
+        expect(stats.copyButton).toEqual({ x: 1046, y: 430, width: 220, height: 44 });
     });
 
     it('the empty state is one line at the first line position, the button stays where it is', () => {

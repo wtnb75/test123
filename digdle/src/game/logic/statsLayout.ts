@@ -8,6 +8,8 @@ export const STATS_PENDING_FONT_PX = 14;
 export const STATS_GAP = 8;
 const CLEAR_BUTTON_HEIGHT = 44;
 const PORTRAIT_CLEAR_WIDTH = 160;
+/** The gap between the "clear stats" and "copy" buttons side by side (portrait). */
+const BUTTON_PAIR_GAP = 8;
 /** The top of the "choose digits again" button above the bottom edge (the existing result layout). */
 export const RESELECT_TOP_FROM_BOTTOM = 70;
 const SIDE_MARGIN = 12;
@@ -29,7 +31,10 @@ export interface StatsLayout {
     centerX: number;
     /** The vertical centre of each stats line, top to bottom. */
     lineCenters: number[];
+    /** "Clear stats". */
     button: Rect;
+    /** "Copy" (spec: docs/spec.md, the 「コピー」 button in the Game section). */
+    copyButton: Rect;
 }
 
 export interface StatsLayoutInput {
@@ -42,12 +47,14 @@ export interface StatsLayoutInput {
 const portrait = ({ layout, oneLineWidth, empty }: StatsLayoutInput): StatsLayout => {
     const centerX = layout.width / 2;
     const buttonY = layout.height - RESELECT_TOP_FROM_BOTTOM - STATS_GAP - CLEAR_BUTTON_HEIGHT;
+    // The two buttons share one row: "clear stats" on the left, "copy" on the right, the pair centred.
     const button: Rect = {
-        x: centerX - PORTRAIT_CLEAR_WIDTH / 2,
+        x: centerX - BUTTON_PAIR_GAP / 2 - PORTRAIT_CLEAR_WIDTH,
         y: buttonY,
         width: PORTRAIT_CLEAR_WIDTH,
         height: CLEAR_BUTTON_HEIGHT
     };
+    const copyButton: Rect = { x: centerX + BUTTON_PAIR_GAP / 2, y: buttonY, width: PORTRAIT_CLEAR_WIDTH, height: CLEAR_BUTTON_HEIGHT };
     const bottom = buttonY - STATS_GAP;
 
     if (!empty && oneLineWidth > layout.width - SIDE_MARGIN * 2) {
@@ -55,11 +62,12 @@ const portrait = ({ layout, oneLineWidth, empty }: StatsLayoutInput): StatsLayou
             kind: 'two',
             centerX,
             lineCenters: [bottom - STATS_LINE_HEIGHT * 1.5, bottom - STATS_LINE_HEIGHT / 2],
-            button
+            button,
+            copyButton
         };
     }
 
-    return { kind: empty ? 'empty' : 'one', centerX, lineCenters: [bottom - STATS_LINE_HEIGHT / 2], button };
+    return { kind: empty ? 'empty' : 'one', centerX, lineCenters: [bottom - STATS_LINE_HEIGHT / 2], button, copyButton };
 };
 
 const landscape = ({ layout, empty }: StatsLayoutInput): StatsLayout => {
@@ -67,12 +75,14 @@ const landscape = ({ layout, empty }: StatsLayoutInput): StatsLayout => {
     const centerX = layout.keyboardStartX + Math.floor(panelWidth / 2);
     const top = Math.max(BOARD_TOP + 8, Math.floor(layout.height / 2) - LANDSCAPE_FIRST_LINE_FROM_CENTER);
     const count = empty ? 1 : 4;
+    const buttonY = top + LANDSCAPE_BUTTON_OFFSET;
 
     return {
         kind: empty ? 'empty' : 'rows',
         centerX,
         lineCenters: Array.from({ length: count }, (_, index) => top + index * STATS_LINE_HEIGHT + STATS_LINE_HEIGHT / 2),
-        button: { x: layout.keyboardStartX, y: top + LANDSCAPE_BUTTON_OFFSET, width: panelWidth, height: CLEAR_BUTTON_HEIGHT }
+        button: { x: layout.keyboardStartX, y: buttonY, width: panelWidth, height: CLEAR_BUTTON_HEIGHT },
+        copyButton: { x: layout.keyboardStartX, y: buttonY + CLEAR_BUTTON_HEIGHT + STATS_GAP, width: panelWidth, height: CLEAR_BUTTON_HEIGHT }
     };
 };
 
