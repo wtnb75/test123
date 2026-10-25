@@ -10,6 +10,11 @@ import {
     loadLevel,
     saveLevel,
     handleLossLevelChoice,
+    countUsedMoves,
+    loadBest,
+    saveBest,
+    clearResult,
+    type Best,
 } from '../logic';
 import { C, FONT } from '../palette';
 
@@ -40,6 +45,7 @@ export class Game extends Scene {
     private headerText!: Phaser.GameObjects.Text;
     private timerText!: Phaser.GameObjects.Text;
     private statusText!: Phaser.GameObjects.Text;
+    private scoreText!: Phaser.GameObjects.Text;
     private tableObjects: Phaser.GameObjects.GameObject[] = [];
     private actionButtons: RowButton[] = [];
 
@@ -58,6 +64,13 @@ export class Game extends Scene {
         this.statusText = this.add.text(240, 878, '', {
             fontFamily: FONT,
             fontSize: '22px',
+            color: C.TEXT,
+            align: 'center',
+        }).setOrigin(0.5);
+        // The score and best line on a clear result, under the status text (shown only after a clear).
+        this.scoreText = this.add.text(240, 912, '', {
+            fontFamily: FONT,
+            fontSize: '25px',
             color: C.TEXT,
             align: 'center',
         }).setOrigin(0.5);
@@ -94,6 +107,7 @@ export class Game extends Scene {
         this.refreshHeader();
         this.renderTable();
         this.statusText.setText('').setColor(C.TEXT);
+        this.scoreText.setText('');
     }
 
     private refreshHeader(): void {
@@ -153,6 +167,7 @@ export class Game extends Scene {
             this.statusText
                 .setText('クリア - クリックで次へ')
                 .setColor(C.WIN);
+            this.scoreText.setText(this.scoreLine());
         } else {
             this.statusText
                 .setText('ゲームオーバー - 最初から / クリックで続き')
@@ -173,6 +188,25 @@ export class Game extends Scene {
         }
         this.playResultEffect(this.roundWon);
         this.refreshHeader();
+    }
+
+    /** Score of this clear and the best, computed at the moment of the win (docs/spec.md: スコア条件). */
+    private scoreLine(): string {
+        const usedMoves = countUsedMoves(this.slots, this.progress.wonAtTurn ?? this.slots.length);
+        const { score, shownBest } = clearResult({
+            remainingMs: this.roundDeadline - this.game.loop.time,
+            maxMoves: this.slots.length,
+            usedMoves,
+            clearedLevel: this.roundLevel,
+            stored: loadBest(localStorage),
+            save: (best) => saveBest(best, localStorage),
+        });
+        const bestText = shownBest ? this.formatBest(shownBest) : 'ベスト —';
+        return `スコア ${score} / ${bestText}`;
+    }
+
+    private formatBest(best: Best): string {
+        return `ベスト Lv.${best.level} / ${best.score}`;
     }
 
     private playResultEffect(won: boolean): void {

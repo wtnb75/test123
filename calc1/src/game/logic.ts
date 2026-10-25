@@ -158,6 +158,85 @@ export function handleLossLevelChoice(
 }
 
 // ────────────────────────────────────────────────────────────
+// Score of a clear and the best record (docs/spec.md: スコア条件)
+
+export const SCORE_TIME_WEIGHT = 1;
+export const SCORE_MOVE_WEIGHT = 2;
+export const BEST_STORAGE_KEY = 'calcRushBest';
+
+export type Best = { level: number; score: number };
+
+/** Score = whole seconds left × time weight + (max moves − used moves) × move weight. */
+export function computeScore(remainingMs: number, maxMoves: number, usedMoves: number): number {
+    const seconds = Math.floor(Math.max(0, remainingMs) / 1000);
+    return seconds * SCORE_TIME_WEIGHT + (maxMoves - usedMoves) * SCORE_MOVE_WEIGHT;
+}
+
+/** Non-skip selections among the turns up to and including the winning turn (1-based). */
+export function countUsedMoves(slots: TurnSlot[], wonAtTurn: number): number {
+    return slots.slice(0, wonAtTurn).filter((slot) => slot.selected !== null).length;
+}
+
+/** The saved best, or null when there is none or it cannot be read as a best (treated as no save). */
+export function loadBest(storage: Pick<Storage, 'getItem'>): Best | null {
+    try {
+        const raw = storage.getItem(BEST_STORAGE_KEY);
+        if (raw === null) return null;
+        const parsed = JSON.parse(raw) as Partial<Best> | null;
+        if (parsed !== null && typeof parsed === 'object'
+            && typeof parsed.level === 'number' && typeof parsed.score === 'number') {
+            return { level: parsed.level, score: parsed.score };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/** The candidate replaces the stored best only when its score is strictly higher (ties keep the stored one). */
+export function updateBest(stored: Best | null, candidate: Best): Best {
+    if (stored === null || candidate.score > stored.score) return candidate;
+    return stored;
+}
+
+/**
+ * The best shown on the clear result: the stored pair when no write is needed, the new pair once it is saved, and
+ * null (shown as "ベスト —") when the write fails.
+ */
+export function bestToShow(stored: Best | null, next: Best, save: (best: Best) => boolean): Best | null {
+    if (next === stored) return next;
+    return save(next) ? next : null;
+}
+
+/**
+ * The score of a clear and the best to show on its result. The best's level is the cleared level (N), passed in
+ * explicitly, not the level after the clear.
+ */
+export function clearResult(input: {
+    remainingMs: number;
+    maxMoves: number;
+    usedMoves: number;
+    clearedLevel: number;
+    stored: Best | null;
+    save: (best: Best) => boolean;
+}): { score: number; shownBest: Best | null } {
+    const score = computeScore(input.remainingMs, input.maxMoves, input.usedMoves);
+    const candidate: Best = { level: input.clearedLevel, score };
+    const next = updateBest(input.stored, candidate);
+    return { score, shownBest: bestToShow(input.stored, next, input.save) };
+}
+
+/** Writes the best; false when the storage refuses (the game goes on). */
+export function saveBest(best: Best, storage: Pick<Storage, 'setItem'>): boolean {
+    try {
+        storage.setItem(BEST_STORAGE_KEY, JSON.stringify(best));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// ────────────────────────────────────────────────────────────
 // Problem generation with solution path guarantee
 // ────────────────────────────────────────────────────────────
 
