@@ -28,6 +28,14 @@ describe('travelRoute', () => {
     expect(travelRoute(stage, { x: 4, y: 1 })).toEqual([{ x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 }]);
   });
 
+  it('takes the diagonal first and then straight, with the fewest turns', () => {
+    const stage = createStage();
+    open(stage, Array.from({ length: 64 }, (_, i): [number, number] => [i % 8, Math.floor(i / 8)]));
+
+    expect(travelRoute(stage, { x: 4, y: 3 })).toEqual([{ x: 2, y: 2 }, { x: 3, y: 3 }, { x: 4, y: 3 }]);
+    expect(travelRoute(stage, { x: 2, y: 4 })).toEqual([{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 2, y: 4 }]);
+  });
+
   it('goes around an unopened cell over opened cells', () => {
     const stage = createStage();
     open(stage, [[2, 2], [3, 1]]);
