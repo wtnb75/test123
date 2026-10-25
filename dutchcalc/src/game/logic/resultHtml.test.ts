@@ -5,7 +5,7 @@ import { buildResultHtml } from './resultHtml';
 import { VERDICT_AT_OR_ABOVE, VERDICT_BELOW } from './profit';
 
 function render(odds: number[], totalUnits: number, unitPrice = 100): string {
-    return buildResultHtml(allocate({ odds, totalUnits, unitPrice }));
+    return buildResultHtml(allocate({ odds, totalUnits, unitPrice }), unitPrice);
 }
 
 function rowsOf(html: string): string[] {
@@ -49,28 +49,28 @@ describe('buildResultHtml table', () => {
     });
 });
 
-describe('buildResultHtml rounding', () => {
-    // Hand-made result with fractional yen: 200.4 rounds to 200, 999.6 to 1000, spread 799.2 to 799.
-    const fractional = buildResultHtml({
-        candidates: [
-            { odds: 2, units: 1, payout: 200.4, returnRate: 0.2004 },
-            { odds: 2, units: 1, payout: 999.6, returnRate: 0.9996 }
-        ],
-        totalInvestment: 1000,
-        minPayout: 200.4,
-        maxPayout: 999.6,
-        spread: 799.2
-    });
-
-    it('shows payouts as whole yen and profit from the rounded payout (200.4 -> 200 / -800, 999.6 -> 1000 / +0)', () => {
-        const rows = rowsOf(fractional);
-        expect(rows[0]).toContain('<td>200</td><td>20.0%</td><td>-800');
-        expect(rows[1]).toContain('<td>1000</td><td>100.0%</td><td>+0</td>');
+describe('buildResultHtml payouts cut down to 10 yen per 100 yen', () => {
+    // Odds 2.35 pays 230 yen per 100 yen (235 cut down), so 1 unit at 100 yen pays 230.
+    it('shows 230 for 2.35 against 200 invested, +30 and 115.0% (one unit each)', () => {
+        const rows = rowsOf(render([2.35, 2], 2));
+        expect(rows[0]).toContain('<td>230</td><td>115.0%</td><td>+30</td>');
+        expect(rows[1]).toContain('<td>200</td><td>100.0%</td><td>+0</td>');
         expect(rows[1]).not.toContain('dutchcalc-loss');
     });
 
-    it('shows the summary amounts as whole yen', () => {
-        expect(fractional).toMatch(/最小払戻: 200円 \/\s+最大払戻: 1000円 \/\s+バランス度\(差\): 799円/);
+    it('does not lose 10 yen to floating-point error: 2.3 pays 230, not 220', () => {
+        const rows = rowsOf(render([2.3, 2], 2));
+        expect(rows[0]).toContain('<td>230</td><td>115.0%</td><td>+30</td>');
+    });
+
+    it('scales with the unit price: 2.35 at 200 yen per unit pays 460 against 400 invested', () => {
+        const rows = rowsOf(render([2.35, 2], 2, 200));
+        expect(rows[0]).toContain('<td>460</td><td>115.0%</td><td>+60</td>');
+        expect(rows[1]).toContain('<td>400</td><td>100.0%</td><td>+0</td>');
+    });
+
+    it('shows the summary from the cut-down payouts: min 200, max 230, balance 30', () => {
+        expect(render([2.35, 2], 2)).toMatch(/最小払戻: 200円 \/\s+最大払戻: 230円 \/\s+バランス度\(差\): 30円/);
     });
 });
 
