@@ -33,6 +33,15 @@ export const PARAMS = {
     moveDist: [60, 44, 32, 24, 18],
     scaleDelta: [0.6, 0.45, 0.35, 0.28, 0.22],
     missPenalty: 5,
+    // HINT (see docs/spec.md "ヒント"): time cost, how long the circle shows, its radius over the judging circle
+    hintPenaltySec: 5,
+    hintShowMs: 1500,
+    hintRadiusScale: 1.5,
+    hintColor: 0x2a9d8f,
+    // the HINT button's hit square (canvas px, at least this; it grows at small FIT scales to keep 44 CSS px) and the margin from the canvas edge
+    hintHitPx: 136,
+    hintMargin: 16,
+    hintTextSize: 30,
     hitMargin: 14,
     bgDots: 14,
     bgDotRadius: { min: 8, max: 26 },

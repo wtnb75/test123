@@ -1,5 +1,6 @@
 import { PARAMS } from '../params';
 import type { Stage } from './generate';
+import { hintTarget } from './hint';
 import { judgeClick } from './judge';
 
 export type Phase = 'play' | 'clear' | 'won' | 'over' | 'paused';
@@ -40,6 +41,11 @@ export class Run {
     phase: Phase = 'play';
     /** Index of the difference found by the latest hit, or -1 (used to start its pop-in effect). */
     lastHit = -1;
+    /** Whether this stage's HINT has been used (once per stage). */
+    hintUsed = false;
+    /** Milliseconds the HINT circle still shows (counted only while playing). */
+    hintMs = 0;
+    private hintIndex = -1;
 
     private readonly makeStage: (stage: number) => Stage;
     private resumeTo: ActivePhase = 'play';
@@ -62,6 +68,11 @@ export class Run {
         return Math.ceil(this.timeLeft);
     }
 
+    /** The difference the HINT circle marks while it shows, or null. */
+    get hintShown(): number | null {
+        return this.hintMs > 0 ? this.hintIndex : null;
+    }
+
     get won(): boolean {
         return this.phase === 'paused' ? this.resumeTo === 'won' : this.phase === 'won';
     }
@@ -81,6 +92,7 @@ export class Run {
         }
         this.found.add(hit);
         this.lastHit = hit;
+        if (hit === this.hintIndex) this.hintMs = 0;
         if (this.found.size >= this.stage.diffs.length) this.stageCleared();
         return 'hit';
     }
@@ -94,6 +106,7 @@ export class Run {
         }
         if (this.phase === 'play') {
             this.timeLeft -= dtMs / 1000;
+            this.hintMs = Math.max(0, this.hintMs - dtMs);
             if (this.timeLeft <= 0) this.timeUp();
             return 'none';
         }
@@ -129,6 +142,22 @@ export class Run {
         return true;
     }
 
+    /**
+     * The HINT button: once per stage, only while playing and while a difference is left. It costs
+     * `hintPenaltySec` seconds (never below 0; reaching 0 ends the stage as time-up). Returns the marked difference, or null.
+     */
+    useHint(): number | null {
+        if (this.phase !== 'play' || this.hintUsed) return null;
+        const target = hintTarget(this.stage.diffs, this.found);
+        if (target === null) return null;
+        this.hintUsed = true;
+        this.hintIndex = target;
+        this.hintMs = PARAMS.hintShowMs;
+        this.timeLeft = Math.max(0, this.timeLeft - PARAMS.hintPenaltySec);
+        if (this.timeLeft <= 0) this.timeUp();
+        return target;
+    }
+
     private stageCleared(): void {
         this.score += Math.ceil(this.timeLeft);
         this.phase = this.stageNo >= PARAMS.stageCount ? 'won' : 'clear';
@@ -137,6 +166,7 @@ export class Run {
 
     private timeUp(): void {
         this.timeLeft = 0;
+        this.hintMs = 0;
         this.phase = 'over';
         this.waitMs = PARAMS.resultRevealMs;
     }
@@ -146,6 +176,9 @@ export class Run {
         this.stage = this.makeStage(this.stageNo);
         this.found = new Set();
         this.lastHit = -1;
+        this.hintUsed = false;
+        this.hintMs = 0;
+        this.hintIndex = -1;
         this.timeLeft = PARAMS.timeLimits[this.stageNo - 1];
         this.phase = 'play';
     }

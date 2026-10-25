@@ -11,6 +11,7 @@ import {
     msgPopScale,
     showFirstHint,
 } from '../logic/effects';
+import { inHintSquare } from '../logic/hint';
 import { Layout, hitPanel } from '../logic/layout';
 import { Phase, Run } from '../logic/run';
 import { makeStageFor } from '../logic/set';
@@ -26,8 +27,9 @@ interface GameData {
 const PHASE_MESSAGES: Record<Exclude<Phase, 'paused'>, string> = { play: '', clear: 'CLEAR!', won: 'ALL CLEAR!', over: 'TIME UP' };
 const HINT_MESSAGE = 'Tap where the pictures differ';
 const HUD_COLOR = '#ffffff';
+const HINT_OFF_COLOR = '#6b6b6b';
 
-const DEPTH = { backdrop: 0, panels: 1, marks: 2, misses: 3, text: 4, popup: 5, overlay: 10 } as const;
+const DEPTH = { backdrop: 0, panels: 1, marks: 2, hint: 3, misses: 4, text: 5, popup: 6, overlay: 10 } as const;
 
 export class Game extends Scene {
     private run!: Run;
@@ -40,6 +42,13 @@ export class Game extends Scene {
     private panels!: GameObjects.Graphics;
     private marks!: GameObjects.Graphics;
     private missGfx!: GameObjects.Graphics;
+    private hintGfx!: GameObjects.Graphics;
+    private hintBtn!: GameObjects.Text;
+    /** Centre of the HINT label; its hit square is centred here too (canvas px). */
+    private hintCenter = { x: 0, y: 0 };
+    /** The difference index the HINT circle was last drawn for (-1: none). */
+    private hintDrawn = -1;
+    private hintOn = false;
     private hud!: GameObjects.Text;
     private message!: GameObjects.Text;
     private popups: GameObjects.Text[] = [];
@@ -96,6 +105,10 @@ export class Game extends Scene {
         this.revealed = false;
         this.resetPops();
         this.createObjects();
+        // the scene instance is reused: force the first sync to set the HINT label's look, whatever the run starts as
+        this.hintDrawn = -1;
+        this.hintOn = true;
+        this.syncHint();
 
         this.layout = bindOrientation(this, (layout) => this.relayout(layout));
         this.relayout(this.layout);
@@ -124,6 +137,7 @@ export class Game extends Scene {
         }
         this.syncPhase();
         this.syncMessage();
+        this.syncHint();
         if (this.run.phase !== 'paused') this.advanceEffects(delta);
         this.updateHud();
         this.updateHudPulse(delta);
@@ -134,7 +148,9 @@ export class Game extends Scene {
         this.backdrop = this.add.graphics().setDepth(DEPTH.backdrop);
         this.panels = this.add.graphics().setDepth(DEPTH.panels);
         this.marks = this.add.graphics().setDepth(DEPTH.marks);
+        this.hintGfx = this.add.graphics().setDepth(DEPTH.hint);
         this.missGfx = this.add.graphics().setDepth(DEPTH.misses);
+        this.hintBtn = this.add.text(0, 0, 'HINT', text(PARAMS.hintTextSize, HUD_COLOR)).setOrigin(0.5).setDepth(DEPTH.text);
         this.hud = this.add.text(0, 0, '', text(30, HUD_COLOR)).setOrigin(0.5).setDepth(DEPTH.text);
         this.message = this.add.text(0, 0, '', text(28, '#ffd166')).setOrigin(0.5).setDepth(DEPTH.text);
         this.popups = Array.from({ length: PARAMS.missMarkMax }, () =>
@@ -156,6 +172,10 @@ export class Game extends Scene {
         // the wide layout's HUD and message rows (y = 34 / 78) are only 44px apart, so they use the 32px minimum
         const rowSize = layout.kind === 'wide' ? 32 : 36;
         this.hud.setFontSize(big ? rowSize : 30).setPosition(layout.hud.x, layout.hud.y);
+        // the HINT label sits at the right end of the HUD row, its hit square reaches past the label (transparent)
+        this.hintBtn.setFontSize(big ? rowSize : PARAMS.hintTextSize);
+        this.hintCenter = { x: layout.width - PARAMS.hintMargin - this.hintBtn.width / 2, y: layout.hud.y };
+        this.hintBtn.setPosition(this.hintCenter.x, this.hintCenter.y);
         this.message.setFontSize(big ? rowSize : 28).setPosition(layout.message.x, layout.message.y);
         for (const p of this.popups) p.setFontSize(big ? 36 : 30);
         this.pausedTitle.setPosition(layout.center.x, layout.center.y - 40);
@@ -170,6 +190,7 @@ export class Game extends Scene {
         });
         this.drawStage();
         this.drawMisses();
+        this.drawHint();
         this.updateHud(true);
     }
 
@@ -180,6 +201,32 @@ export class Game extends Scene {
         drawPanel(this.panels, this.frames[0], stage.left, stage);
         drawPanel(this.panels, this.frames[1], stage.right, stage);
         this.drawMarks();
+    }
+
+    /** The HINT circle around the marked difference, on both panels, while it shows. */
+    private drawHint() {
+        this.hintGfx.clear();
+        const index = this.run.hintShown;
+        this.hintDrawn = index ?? -1;
+        if (index === null) return;
+        const d = this.run.stage.diffs[index];
+        this.hintGfx.lineStyle(PARAMS.markLineWidth, PARAMS.hintColor);
+        for (const frame of this.frames) {
+            this.hintGfx.strokeCircle(
+                frame.x + d.x * frame.scale,
+                frame.y + d.y * frame.scale,
+                d.r * PARAMS.hintRadiusScale * frame.scale,
+            );
+        }
+    }
+
+    /** Keeps the HINT circle in step with the run, and the HINT label grey once it cannot be used. */
+    private syncHint() {
+        if ((this.run.hintShown ?? -1) !== this.hintDrawn) this.drawHint();
+        const on = this.run.phase === 'play' && !this.run.hintUsed;
+        if (on === this.hintOn) return;
+        this.hintOn = on;
+        this.hintBtn.setColor(on ? HUD_COLOR : HINT_OFF_COLOR);
     }
 
     /** Found differences in red (growing while they pop in); on time-up the missed ones in yellow. */
@@ -308,9 +355,9 @@ export class Game extends Scene {
         this.hudFound = found;
         this.hudTotal = total;
         this.hudSeconds = sec;
-        this.hud.setText(`SET ${r.setNo}   STAGE ${r.stageNo}/${PARAMS.stageCount}   ${found}/${total}   TIME ${sec}`).setScale(1);
-        // fit so that even the peak of the low-time pulse stays inside the canvas
-        const maxWidth = (this.layout.width - 16) / (1 + PARAMS.lowTimePulse);
+        this.hud.setText(`${r.setNo}   ${r.stageNo}/${PARAMS.stageCount}   ${found}/${total}   TIME ${sec}`).setScale(1);
+        // the HUD is centred, so it keeps clear of the HINT label on both sides; fit so that even the peak of the low-time pulse stays inside
+        const maxWidth = (this.layout.width - 2 * (this.hintBtn.width + PARAMS.hintMargin)) / (1 + PARAMS.lowTimePulse);
         this.hudFit = this.hud.width > maxWidth ? maxWidth / this.hud.width : 1;
         this.hud.setScale(this.hudFit * this.hudPulse);
     }
@@ -349,6 +396,18 @@ export class Game extends Scene {
             if (this.run.resume()) this.showOverlay(false);
             return;
         }
+        // the HINT is no panel input: a press on it never counts as a hit or a miss
+        // at a small FIT scale the square grows (in canvas px) so that it stays 44 CSS px on screen
+        const side = Math.max(PARAMS.hintHitPx, 44 / this.scale.displayScale.x);
+        if (inHintSquare(pointer.x, pointer.y, this.hintCenter.x, this.hintCenter.y, side)) {
+            if (this.run.useHint() !== null) {
+                this.syncPhase();
+                this.syncMessage();
+                this.syncHint();
+                this.updateHud();
+            }
+            return;
+        }
         const hit = hitPanel(this.layout, pointer.x, pointer.y);
         if (!hit) return;
         const outcome = this.run.click(hit.x, hit.y);
@@ -365,6 +424,7 @@ export class Game extends Scene {
         }
         this.syncPhase();
         this.syncMessage();
+        this.syncHint();
         this.updateHud();
     }
 
