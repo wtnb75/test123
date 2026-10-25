@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Stage } from './types';
-import { RUN_STEP_MS, flagWaitAction, isDoorExit, runBlockAt, runSteps } from './run';
+import { RUN_STEP_MS, flagWaitAction, isDoorExit, runBlockAt, runStopAt, runSteps } from './run';
 import { indexOf } from './board';
 
 const createStage = (): Stage => ({
@@ -8,8 +8,8 @@ const createStage = (): Stage => ({
   height: 3,
   stageNo: 1,
   player: { x: 1, y: 1 },
-  start: { x: 1, y: 1 },
-  goal: { x: 5, y: 2 },
+  start: { x: 0, y: 0 },
+  goal: { x: 0, y: 2 },
   generation: { retries: 0, depthTarget: 1, solverDepth: 0, generationMs: 0 },
   cells: Array.from({ length: 18 }, () => ({ hasBomb: false, flagged: false, revealed: false, hint: 0 }))
 });
@@ -43,16 +43,47 @@ describe('run', () => {
     expect(runBlockAt(stage, { x: -1, y: 1 })).toBe('edge');
   });
 
-  it('stops before a door cell even when it is opened', () => {
+  it('may step onto a door cell even when it is not opened yet (it is bomb-free)', () => {
     const stage = createStage();
     stage.doors = [{ cell: { x: 3, y: 1 }, side: 'E' }];
-    open(stage, 3, 1);
 
-    expect(runBlockAt(stage, { x: 3, y: 1 })).toBe('door');
+    expect(runBlockAt(stage, { x: 3, y: 1 })).toBeNull();
+    expect(runBlockAt(stage, { x: 3, y: 2 })).toBe('closed');
+  });
+
+  it('stops on a door cell it has stepped onto, and on a cell next to the start or the down-stairs (diagonals too)', () => {
+    const stage = createStage();
+    stage.goal = { x: 5, y: 2 };
+    stage.doors = [{ cell: { x: 3, y: 1 }, side: 'E' }];
+
+    expect(runStopAt(stage, { x: 3, y: 1 })).toBe(true);
+    expect(runStopAt(stage, { x: 1, y: 1 })).toBe(true);
+    expect(runStopAt(stage, { x: 4, y: 2 })).toBe(true);
+    expect(runStopAt(stage, { x: 2, y: 1 })).toBe(false);
+  });
+
+  it('stops next to the down-stairs only where the room has them', () => {
+    const stage = createStage();
+    stage.goal = { x: 5, y: 2 };
+
+    expect(runStopAt(stage, { x: 4, y: 1 })).toBe(true);
+    stage.goalKind = 'door';
+    expect(runStopAt(stage, { x: 4, y: 1 })).toBe(false);
+    stage.goalKind = 'none';
+    expect(runStopAt(stage, { x: 4, y: 1 })).toBe(false);
+  });
+
+  it('stops next to the start whatever its kind is', () => {
+    const stage = createStage();
+    stage.start = { x: 0, y: 0 };
+    stage.startKind = 'door';
+
+    expect(runStopAt(stage, { x: 1, y: 0 })).toBe(true);
   });
 
   it('stops before the down-stairs, and an opened goal cell is not a stop for a room without them', () => {
     const stage = createStage();
+    stage.goal = { x: 5, y: 2 };
     open(stage, 5, 2);
 
     expect(runBlockAt(stage, { x: 5, y: 2 })).toBe('goal');
@@ -111,14 +142,24 @@ describe('run', () => {
     expect(runSteps(stage, { x: 1, y: 0 })).toBe(2);
   });
 
-  it('stops before a door cell, so the steps end at the cell before it', () => {
+  it('ends on a door cell it steps onto, even when the door cell is not opened', () => {
     const stage = createStage();
     stage.player = { x: 1, y: 1 };
     stage.doors = [{ cell: { x: 3, y: 1 }, side: 'E' }];
     open(stage, 2, 1);
-    open(stage, 3, 1);
 
-    expect(runSteps(stage, { x: 1, y: 0 })).toBe(1);
+    expect(runSteps(stage, { x: 1, y: 0 })).toBe(2);
+  });
+
+  it('ends on the cell next to the down-stairs, and does not reach the stairs', () => {
+    const stage = createStage();
+    stage.player = { x: 1, y: 1 };
+    stage.goal = { x: 4, y: 1 };
+    open(stage, 2, 1);
+    open(stage, 3, 1);
+    open(stage, 4, 1);
+
+    expect(runSteps(stage, { x: 1, y: 0 })).toBe(2);
   });
 
   it('gives no steps when the first cell is not open', () => {

@@ -1299,8 +1299,10 @@ export class Game extends Scene
         }
         const steps = runSteps(stage, direction);
         if (steps === 0) {
-            // The wall gives its message; a cell not open yet, a door or the stairs gives nothing.
-            if (runBlockAt(stage, next) === 'edge') {
+            // The wall gives its message; the down-stairs take one ordinary step (the run cannot enter them, but the
+            // key still moves); a cell not open yet gives nothing.
+            const block = runBlockAt(stage, next);
+            if (block === 'edge' || block === 'goal') {
                 this.applyDirectionInput(direction, false);
             }
             return;
