@@ -146,18 +146,18 @@ export class Game extends Scene {
 
         try {
             const result = allocate({ odds, totalUnits, unitPrice });
-            this.renderResult(result);
+            this.renderResult(result, unitPrice);
         } catch (err) {
             this.ui.error.textContent = err instanceof Error ? err.message : String(err);
         }
     }
 
-    private renderResult(result: AllocationResult): void {
+    private renderResult(result: AllocationResult, unitPrice: number): void {
         if (!this.ui) {
             return;
         }
 
-        this.ui.result.innerHTML = buildResultHtml(result);
+        this.ui.result.innerHTML = buildResultHtml(result, unitPrice);
     }
 
     private onResize(): void {

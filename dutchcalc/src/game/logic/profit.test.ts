@@ -5,23 +5,58 @@ import {
     formatPercent,
     formatProfit,
     isLoss,
+    payoutFor,
+    payoutPer100Yen,
     profitOf,
     theoreticalReturnRate,
     verdictOf
 } from './profit';
 
+describe('payoutPer100Yen', () => {
+    it('keeps a payout that is already a multiple of 10 yen (1.5 -> 150)', () => {
+        expect(payoutPer100Yen(1.5)).toBe(150);
+    });
+
+    it('cuts 235 yen down to 230 (2.35)', () => {
+        expect(payoutPer100Yen(2.35)).toBe(230);
+    });
+
+    it('cuts 299.9 yen down to 290 (2.999)', () => {
+        expect(payoutPer100Yen(2.999)).toBe(290);
+    });
+
+    it('cuts 109 yen down to 100 (1.09)', () => {
+        expect(payoutPer100Yen(1.09)).toBe(100);
+    });
+
+    it('reads 2.3 * 100 = 229.99999999999997 as 230 yen, not 220 yen', () => {
+        expect(2.3 * 100).toBeLessThan(230);
+        expect(payoutPer100Yen(2.3)).toBe(230);
+    });
+});
+
+describe('payoutFor', () => {
+    it('multiplies the cut-down payout per 100 yen by units and unit price / 100 (2.35, 1 unit at 200 yen -> 460)', () => {
+        expect(payoutFor(2.35, 1, 200)).toBe(460);
+    });
+
+    it('is 750 for 5 units of 1.5 at 100 yen', () => {
+        expect(payoutFor(1.5, 5, 100)).toBe(750);
+    });
+});
+
 describe('profitOf', () => {
-    it('returns payout minus investment for whole-yen values', () => {
+    it('returns payout minus investment', () => {
         expect(profitOf(1300, 1000)).toBe(300);
         expect(profitOf(200, 1000)).toBe(-800);
     });
 
-    it('rounds the payout before subtracting (999.6 against 1000 is break-even)', () => {
-        expect(profitOf(999.6, 1000)).toBe(0);
+    it('is 0 when the payout equals the investment', () => {
+        expect(profitOf(1000, 1000)).toBe(0);
     });
 
-    it('rounds a payout just below half a yen down (999.4 against 1000 is -1)', () => {
-        expect(profitOf(999.4, 1000)).toBe(-1);
+    it('is -10 for a payout 10 yen under the investment', () => {
+        expect(profitOf(990, 1000)).toBe(-10);
     });
 });
 
