@@ -16,6 +16,7 @@ import {
 import {
     computeStatsLayout, STATS_CLEAR_FONT_PX, STATS_FONT_PX, STATS_PENDING_FONT_PX, STATS_PENDING_PADDING
 } from '../logic/statsLayout';
+import { copyToClipboard, shareText } from '../logic/shareText';
 import type {
     DigitOption, DigitStatus, GameMode, GameStartData, RoundState, TitleData, TitleMode
 } from '../types';
@@ -23,6 +24,9 @@ import {
     BACKGROUND_COLOR, createButton, createHomeIcon, createReselectIcon, createText, detectLocale, translate,
     type Locale, type TextKey
 } from './ui';
+
+/** How long the "could not copy" note stays on the copy button (the same time as the input note). */
+const COPY_FAILED_MS = 2200;
 
 type UiPhase = 'playing' | 'won' | 'lost';
 
@@ -573,6 +577,33 @@ export class Game extends Scene {
             this, button.x, button.y, button.width, button.height, this.t('statsClear'),
             () => this.onClearPress(clear.text, button.width), store, STATS_CLEAR_FONT_PX
         );
+
+        const copyRect = placement.copyButton;
+        const copy = createButton(
+            this, copyRect.x, copyRect.y, copyRect.width, copyRect.height, this.t('copy'),
+            () => this.onCopyPress(copy.text, copyRect.width), store, STATS_CLEAR_FONT_PX
+        );
+    }
+
+    /** Copies the finished round (spec: docs/spec.md, 「コピー」). A refused write shows a short note on the button. */
+    private async onCopyPress(label: GameObjects.Text, buttonWidth: number): Promise<void> {
+        if (!this.round) {
+            return;
+        }
+        const copied = await copyToClipboard(shareText(this.round));
+        if (copied || !label.active) {
+            return;
+        }
+
+        label.setText(this.t('copyFailed'))
+            .setFontSize(STATS_PENDING_FONT_PX)
+            .setAlign('center')
+            .setWordWrapWidth(buttonWidth - STATS_PENDING_PADDING, true);
+        this.time.delayedCall(COPY_FAILED_MS, () => {
+            if (label.active) {
+                label.setText(this.t('copy')).setFontSize(STATS_CLEAR_FONT_PX).setWordWrapWidth(null);
+            }
+        });
     }
 
     /** First press: asks for a second one (the label says so for a while). Second press in time: erases all stats. */

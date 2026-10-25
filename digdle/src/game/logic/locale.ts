@@ -10,7 +10,9 @@ export type TextKey =
     | 'dailyMode'
     | 'statsEmpty'
     | 'statsClear'
-    | 'statsClearConfirm';
+    | 'statsClearConfirm'
+    | 'copy'
+    | 'copyFailed';
 
 const JA: Record<TextKey, string> = {
     clear: 'Clear',
@@ -22,7 +24,9 @@ const JA: Record<TextKey, string> = {
     dailyMode: 'デイリー',
     statsEmpty: '戦績は空です',
     statsClear: '戦績を消す',
-    statsClearConfirm: 'もう 1 回押すと\nすべて消えます'
+    statsClearConfirm: 'もう 1 回押すと\nすべて消えます',
+    copy: 'コピー',
+    copyFailed: 'コピーできませんでした'
 };
 
 const EN: Record<TextKey, string> = {
@@ -35,7 +39,9 @@ const EN: Record<TextKey, string> = {
     dailyMode: 'Daily',
     statsEmpty: 'No stats',
     statsClear: 'Clear stats',
-    statsClearConfirm: 'Press again to erase all'
+    statsClearConfirm: 'Press again to erase all',
+    copy: 'Copy',
+    copyFailed: 'Could not copy'
 };
 
 /** `ja` when the browser language starts with "ja", otherwise `en`. */
