@@ -78,6 +78,7 @@ canvas {
 .editmin-board-grid.paint-mines .editmin-cell.mine {
     background: #8f1c1c;
     border-color: #6e1414;
+    color: #fff; /* a painted mine's "B" (the play's reveal) must read on the dark face */
 }
 
 /* 絵 mode: non-mine cells are paler; the start and forbidden cells keep their own look. */
@@ -146,8 +147,8 @@ canvas {
     cursor: pointer;
 }
 
-.editmin-row button:hover,
-.editmin-sidebar button:hover {
+.editmin-row button:hover:not(:disabled),
+.editmin-sidebar button:hover:not(:disabled) {
     border-color: #baab90;
 }
 
@@ -171,6 +172,26 @@ canvas {
     min-height: 2.6em;
     color: #7a2d19;
     font-size: 13px;
+}
+
+/* The play (docs/spec/play-test.md): the state line is main information (14 px), the hint is a note (12 px). */
+.editmin-play-status {
+    font-size: 14px;
+    font-weight: 600;
+    color: #7a2d19;
+    overflow-wrap: anywhere;
+}
+
+.editmin-play-hint {
+    margin: -4px 0 10px;
+    font-size: 12px;
+    color: #685f51;
+}
+
+.editmin-sidebar button:disabled,
+.editmin-row button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .editmin-metric {

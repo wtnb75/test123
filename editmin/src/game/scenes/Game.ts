@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import {
     evaluateDifficulty,
+    getNeighbors as neighborsOf,
     type BoardCell,
     type BoardState,
     type DifficultyEvaluation
@@ -9,6 +10,7 @@ import {
     ZOOM_DEFAULT,
     anchoredScroll,
     fitZoom,
+    isCompact,
     maxScroll,
     nextZoom,
     wheelDirection,
@@ -16,6 +18,7 @@ import {
     zoomKeyAction,
     type ZoomAction
 } from '../logic/zoom';
+import { openCell, playCellView, startPlay, type PlayState } from '../logic/play';
 import {
     DISPLAY_MODE_DEFAULT,
     displayModeButtonLabel,
@@ -47,12 +50,15 @@ type UiRefs = {
     applySizeBtn: HTMLButtonElement;
     startBtn: HTMLButtonElement;
     copyBtn: HTMLButtonElement;
+    playToggleBtn: HTMLButtonElement;
+    playHint: HTMLDivElement;
     zoomOutBtn: HTMLButtonElement;
     zoomInBtn: HTMLButtonElement;
     zoomFitBtn: HTMLButtonElement;
     zoomLabel: HTMLSpanElement;
     displayModeBtn: HTMLButtonElement;
     status: HTMLDivElement;
+    playStatus: HTMLDivElement;
     rank: HTMLDivElement;
     evidence: HTMLDivElement;
     logical: HTMLDivElement;
@@ -67,6 +73,8 @@ export class Game extends Scene {
     private cellSize = ZOOM_DEFAULT;
     private lastWheelZoomAt: number | null = null;
     private displayMode: DisplayMode = DISPLAY_MODE_DEFAULT;
+    /** The play of docs/spec/play-test.md; null while editing. Never saved. */
+    private play: PlayState | null = null;
     private ui?: UiRefs;
 
     constructor() {
@@ -75,6 +83,10 @@ export class Game extends Scene {
 
     create() {
         this.cells = this.createCells(this.widthCells * this.heightCells);
+        // A restart starts editing again, with no play and no start cell.
+        this.play = null;
+        this.startIndex = null;
+        this.startMode = false;
         this.cameras.main.setBackgroundColor(0xf4f1e8);
 
         const el = this.add.dom(0, 0).createFromHTML(this.buildUiHtml()) as Phaser.GameObjects.DOMElement;
@@ -91,12 +103,15 @@ export class Game extends Scene {
             applySizeBtn: root.querySelector('[data-role="apply-size"]') as HTMLButtonElement,
             startBtn: root.querySelector('[data-role="start-mode"]') as HTMLButtonElement,
             copyBtn: root.querySelector('[data-role="copy-board"]') as HTMLButtonElement,
+            playToggleBtn: root.querySelector('[data-role="play-toggle"]') as HTMLButtonElement,
+            playHint: root.querySelector('[data-role="play-hint"]') as HTMLDivElement,
             zoomOutBtn: root.querySelector('[data-role="zoom-out"]') as HTMLButtonElement,
             zoomInBtn: root.querySelector('[data-role="zoom-in"]') as HTMLButtonElement,
             zoomFitBtn: root.querySelector('[data-role="zoom-fit"]') as HTMLButtonElement,
             zoomLabel: root.querySelector('[data-role="zoom-label"]') as HTMLSpanElement,
             displayModeBtn: root.querySelector('[data-role="display-mode"]') as HTMLButtonElement,
             status: root.querySelector('[data-role="status"]') as HTMLDivElement,
+            playStatus: root.querySelector('[data-role="play-status"]') as HTMLDivElement,
             rank: root.querySelector('[data-role="rank"]') as HTMLDivElement,
             evidence: root.querySelector('[data-role="evidence"]') as HTMLDivElement,
             logical: root.querySelector('[data-role="logical"]') as HTMLDivElement
@@ -129,6 +144,10 @@ export class Game extends Scene {
               <button data-role="start-mode">開始マスを指定</button>
                             <button data-role="copy-board">盤面テキストをコピー</button>
             </div>
+            <div class="editmin-row">
+              <button data-role="play-toggle">プレイ</button>
+            </div>
+            <div class="editmin-play-hint" data-role="play-hint">開始マスを指定するとプレイできます</div>
             <div class="editmin-row editmin-zoom-row">
               <button data-role="zoom-out" aria-label="縮小">−</button>
               <span class="editmin-zoom-label" data-role="zoom-label">表示 ${this.cellSize}px</span>
@@ -140,10 +159,11 @@ export class Game extends Scene {
             </div>
             <div class="editmin-status" data-role="status"></div>
             <hr />
+            <div class="editmin-play-status" data-role="play-status"></div>
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />プレイ: 開始マスから左クリックで開く（数字はマスが 20 px 以上のときに出ます）</p>
           </div>
         </div>`;
     }
@@ -187,13 +207,24 @@ export class Game extends Scene {
             const copied = await this.copyTextToClipboard(text);
             this.setStatus(copied ? '盤面テキストをクリップボードにコピーしました。' : 'コピーに失敗しました。');
         });
+        this.ui.playToggleBtn.addEventListener('click', () => this.togglePlay());
+        // A right click on the board opens no menu while the play is on (no flags in the play).
+        this.ui.boardGrid.addEventListener('contextmenu', this.onBoardContextMenu);
     }
 
     private removeInputListeners(): void {
         window.removeEventListener('keydown', this.onZoomKey);
         window.removeEventListener('keydown', this.onDisplayKey);
         this.ui?.boardScroll.removeEventListener('wheel', this.onBoardWheel);
+        this.ui?.boardGrid.removeEventListener('contextmenu', this.onBoardContextMenu);
+        this.scale.off('resize', this.onResize, this);
     }
+
+    private readonly onBoardContextMenu = (event: MouseEvent): void => {
+        if (this.play !== null) {
+            event.preventDefault();
+        }
+    };
 
     private readonly onDisplayKey = (event: KeyboardEvent): void => {
         if (isDisplayModeKey(event, isTypingInInput(event))) {
@@ -274,38 +305,86 @@ export class Game extends Scene {
         this.applyGridDisplayClasses();
     }
 
-    /** Digits, "B" and the mine paint follow the mode and the cell side, through classes only. */
+    /**
+     * Digits, "B" and the mine paint follow the mode and the cell side, through classes only. During the play the
+     * digits and "B" follow the cell side alone, and the paint is kept for the mines the play has revealed.
+     */
     private applyGridDisplayClasses(): void {
         if (!this.ui) {
             return;
         }
         const grid = this.ui.boardGrid;
-        grid.classList.toggle('hide-numbers', !showNumbers(this.displayMode, this.cellSize));
-        grid.classList.toggle('hide-mine-label', !showMineLabel(this.displayMode, this.cellSize));
-        grid.classList.toggle('paint-mines', paintMines(this.displayMode, this.cellSize));
+        if (this.play !== null) {
+            grid.classList.toggle('hide-numbers', isCompact(this.cellSize));
+            grid.classList.toggle('hide-mine-label', isCompact(this.cellSize));
+            grid.classList.add('paint-mines');
+        } else {
+            grid.classList.toggle('hide-numbers', !showNumbers(this.displayMode, this.cellSize));
+            grid.classList.toggle('hide-mine-label', !showMineLabel(this.displayMode, this.cellSize));
+            grid.classList.toggle('paint-mines', paintMines(this.displayMode, this.cellSize));
+        }
         this.ui.displayModeBtn.textContent = displayModeButtonLabel(this.displayMode);
     }
 
-    /** 絵 → 数字 → 両方 → 絵. Only classes change; no cell button is rebuilt. */
+    /** 絵 → 数字 → 両方 → 絵. Only classes change; no cell button is rebuilt. Not during the play. */
     private cycleDisplayMode(): void {
-        if (!this.ui) {
+        if (!this.ui || this.play !== null) {
             return;
         }
         this.displayMode = nextDisplayMode(this.displayMode);
         this.applyGridDisplayClasses();
-        this.applyPaleClasses();
+        this.applyCellViews();
     }
 
-    /** The pale look of 絵 is per cell; the buttons are in cell order, as renderBoard creates them. */
-    private applyPaleClasses(): void {
+    /** Sets each cell's text and classes from the mode (or the play) and the cell state. No button is created here. */
+    private applyCellViews(): void {
         if (!this.ui) {
             return;
         }
+        const board = this.play !== null ? this.toBoardState() : null;
         const forbidden = this.forbiddenCells();
-        const buttons = this.ui.boardGrid.querySelectorAll<HTMLElement>('.editmin-cell');
+        const buttons = this.ui.boardGrid.querySelectorAll<HTMLButtonElement>('.editmin-cell');
         buttons.forEach((button, i) => {
+            const cell = this.cells[i];
+            const isStart = this.startIndex === i;
+            button.className = 'editmin-cell';
+            button.classList.toggle('start', isStart);
+            if (this.play !== null && board !== null) {
+                this.applyPlayCellView(button, i, board, this.play, forbidden);
+                return;
+            }
+            button.classList.toggle('forbidden', forbidden.has(i));
+            button.classList.toggle('mine', cell.hasMine);
             button.classList.toggle('pale', isPaleCell(this.displayMode, this.cellState(i, forbidden)));
+            if (cell.hasMine) {
+                button.textContent = 'B';
+                return;
+            }
+            const count = this.computeAdjacentMineCount(i);
+            button.textContent = String(count);
+            if (count >= 1 && count <= 8) {
+                button.classList.add(`n${count}`);
+            }
         });
+    }
+
+    /** A closed cell looks closed; an open one is pale (except the start) and shows its count; a revealed mine is dark. */
+    private applyPlayCellView(
+        button: HTMLButtonElement,
+        index: number,
+        board: BoardState,
+        state: PlayState,
+        forbidden: Set<number>
+    ): void {
+        const view = playCellView(board, state, index);
+        const isMine = this.cells[index].hasMine;
+        button.classList.toggle('forbidden', forbidden.has(index) && !view.opened);
+        button.classList.toggle('pale', view.opened && !isMine && this.startIndex !== index);
+        button.classList.toggle('mine', view.revealedMine);
+        if (view.opened && !isMine && view.label !== '') {
+            button.classList.add(`n${view.label}`);
+        }
+        button.textContent = view.label;
     }
 
     private forbiddenCells(): Set<number> {
@@ -384,32 +463,8 @@ export class Game extends Scene {
         return Array.from({ length: size }, () => ({ hasMine: false }));
     }
 
-    private indexToXY(index: number): { x: number; y: number } {
-        return {
-            x: index % this.widthCells,
-            y: Math.floor(index / this.widthCells)
-        };
-    }
-
     private getNeighbors(index: number): number[] {
-        const { x, y } = this.indexToXY(index);
-        const out: number[] = [];
-
-        for (let dy = -1; dy <= 1; dy += 1) {
-            for (let dx = -1; dx <= 1; dx += 1) {
-                if (dx === 0 && dy === 0) {
-                    continue;
-                }
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx < 0 || ny < 0 || nx >= this.widthCells || ny >= this.heightCells) {
-                    continue;
-                }
-                out.push(ny * this.widthCells + nx);
-            }
-        }
-
-        return out;
+        return neighborsOf(index, this.widthCells, this.heightCells);
     }
 
     private getForbiddenSet(startIndex: number): Set<number> {
@@ -434,7 +489,15 @@ export class Game extends Scene {
         return this.getNeighbors(index).reduce((sum, n) => sum + (this.cells[n].hasMine ? 1 : 0), 0);
     }
 
-    private onCellClick(index: number): void {
+    private onCellClick(index: number, event: MouseEvent): void {
+        if (this.play !== null) {
+            // A keyboard "click" (Space or Enter on a focused cell) has detail 0: the play opens cells by mouse only.
+            if (event.detail !== 0) {
+                this.openPlayCell(index);
+            }
+            return;
+        }
+
         if (this.startMode) {
             if (this.hasMineInZone(index)) {
                 this.setStatus('開始マス周囲に爆弾があるため、開始マス設定を拒否しました。');
@@ -520,35 +583,82 @@ export class Game extends Scene {
         grid.innerHTML = '';
         this.applyCellSize();
 
-        const forbidden = this.startIndex === null ? new Set<number>() : this.getForbiddenSet(this.startIndex);
-
         for (let i = 0; i < this.cells.length; i += 1) {
             const cellBtn = document.createElement('button');
             cellBtn.className = 'editmin-cell';
-            if (this.startIndex === i) {
-                cellBtn.classList.add('start');
-            }
-            if (forbidden.has(i)) {
-                cellBtn.classList.add('forbidden');
-            }
-            if (this.cells[i].hasMine) {
-                cellBtn.classList.add('mine');
-                cellBtn.textContent = 'B';
-            } else {
-                const count = this.computeAdjacentMineCount(i);
-                cellBtn.textContent = String(count);
-                if (count >= 1 && count <= 8) {
-                    cellBtn.classList.add(`n${count}`);
-                }
-            }
-            cellBtn.addEventListener('click', () => this.onCellClick(i));
+            cellBtn.addEventListener('click', (event) => this.onCellClick(i, event));
             grid.appendChild(cellBtn);
         }
-        this.applyPaleClasses();
+        this.applyCellViews();
     }
 
     private renderAll(): void {
         this.renderBoard();
         this.updateAnalysis();
+        this.updatePlayUi();
+    }
+
+    /** Starts the play from the start cell, or goes back to editing. Neither rebuilds a cell button. */
+    private togglePlay(): void {
+        if (!this.ui) {
+            return;
+        }
+        if (this.play !== null) {
+            this.play = null;
+        } else {
+            const result = startPlay(this.toBoardState());
+            if (!result.ok) {
+                return;
+            }
+            this.play = result.state;
+            this.startMode = false;
+            this.ui.startBtn.classList.remove('active');
+        }
+        this.setStatus('');
+        this.updatePlayUi();
+    }
+
+    private openPlayCell(index: number): void {
+        const board = this.toBoardState();
+        if (!board || this.play === null) {
+            return;
+        }
+        const result = openCell(board, this.play, index);
+        if (result.ok) {
+            this.play = result.state;
+        }
+        this.updatePlayUi();
+    }
+
+    /** The play's buttons, state line, and what is locked during the play; the cells follow the play state. */
+    private updatePlayUi(): void {
+        if (!this.ui) {
+            return;
+        }
+        const playing = this.play !== null;
+        const hasStart = this.startIndex !== null;
+        this.ui.playToggleBtn.textContent = playing ? '編集に戻る' : 'プレイ';
+        this.ui.playToggleBtn.disabled = !playing && !hasStart;
+        this.ui.playHint.hidden = playing || hasStart;
+        for (const el of [this.ui.applySizeBtn, this.ui.startBtn, this.ui.widthInput, this.ui.heightInput, this.ui.displayModeBtn]) {
+            el.disabled = playing;
+        }
+        this.ui.playStatus.textContent = this.playStatusText();
+        this.applyGridDisplayClasses();
+        this.applyCellViews();
+    }
+
+    private playStatusText(): string {
+        if (this.play === null) {
+            return '';
+        }
+        switch (this.play.status) {
+            case 'exploded':
+                return '爆死。爆弾を見せています';
+            case 'cleared':
+                return 'クリア';
+            default:
+                return this.play.opened.some((o) => o) ? 'プレイ中' : '開始マスを開いてください';
+        }
     }
 }
