@@ -92,4 +92,13 @@
 - `scenes/Game.ts`（`updateCameraRange` を `renderBoard` ごとに計算。移動のたびに `roomCenterScroll` を呼ぶ）— 理由: 部屋は 5 つで、1 回数 μs。変更前も `renderBoard` で境界を計算していた
 - `scenes/Game.ts`（`setFontSize` / `setStroke` の `as number` のキャスト）— 理由: 値は `scaledFont` / `scaledDimension` の数値。Phaser の型が広いだけ
 - `core/boardFit.ts`（`followScroll` が逆転した範囲（min > max）を検査しない）— 理由: `cameraScrollRange` が常に `min ≤ 0 ≤ max` を保証している
+- `core/gravePanel.ts`（変形 A の幅の判断が、実際の行ではなく探りの値（ステージ 2・ハイスコア 0）で行われる。9 桁のステージ・スコアで絵が 41 文字以上になる）— 理由: ステージは 100 まで（`StageMax`）でスコアは 99 以下。桁が増える例は 7 桁のテスト用の入力だけ
+- `scenes/Game.ts`（墓石画面のリサイズのたびに、全部の行の `Text` を作り直す。文字が大きくなって重い）— 理由: リサイズでの作り直しは変更前からの方式で、spec が許容している（board-fit と同じ方針）
+- `core/gravePanel.ts`（絵の位置が小数で、文字がぼける。下端 H × 0.72 − 34、中心 x = W / 2）— 理由: 変更前からの挙動。spec が下端を式で固定している
+- `core/gravePanel.ts`（行の高さ floor(fontPx × 18 / 14) が文字の箱の高さより小さく、行の箱が重なる）— 理由: 文字は行の中心に置くので見た目は変わらない。倍率 1 でも 18 / 14 で同じ関係
+- `core/gravePanel.test.ts`（測った文字幅（0.6 以外）を通すテストが無い）— 理由: 文字幅の注入は別のテスト（8.5 px の例）で確認済み。実測の経路は Scene で、QA で確認する
+- `scenes/Game.ts`（文字幅の探りの `Text` を作って捨てる）・測定が 0 のときの毎回の再測定 — 理由: 1 回だけで、無害。結果は正しい
+- `core/gravePanel.ts`（変形 A が、スマホの縦画面（W < 436）で一度も出ない。草の飾りが主な変形を消している）— 理由: 草を左右 12 文字に広げる選択として、ユーザーに結果（スマホは変形 B になる）を伝えて決めた。spec にも書いてある
+- `core/gravePanel.ts`（草の文字列 `TUFTS_LEFT` / `TUFTS_RIGHT` と余白 `GRAVE_GROUND_EXTRA_A` が、コードの上で結ばれていない）— 理由: テストが、実装の出す行の左右 12 文字を文字列で固定している。長さが変われば落ちる
+- `core/gravePanel.ts`（7 桁のスコアで、隣の草の行の列がずれる。草が石の外に浮く）— 理由: spec が定めている（右の草は行の壁の右に付く）。実際のスコアは 2 桁まで（ステージは 100 まで）
 - `core/floor.fixture.test.ts`（部屋 [0, 1, 2] の決め打ち）— 理由: `buildFloorTree` が部屋 1・2 を部屋 A の子と定めている（`parent = [-1, 0, 0]`）
