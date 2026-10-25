@@ -9,7 +9,6 @@ import {
     ZOOM_DEFAULT,
     anchoredScroll,
     fitZoom,
-    isCompact,
     maxScroll,
     nextZoom,
     wheelDirection,
@@ -17,9 +16,27 @@ import {
     zoomKeyAction,
     type ZoomAction
 } from '../logic/zoom';
+import {
+    DISPLAY_MODE_DEFAULT,
+    displayModeButtonLabel,
+    isDisplayModeKey,
+    isPaleCell,
+    nextDisplayMode,
+    paintMines,
+    showMineLabel,
+    showNumbers,
+    type DisplayMode,
+    type PaleCellState
+} from '../logic/displayMode';
 
 const MIN_SIZE = 2;
 const MAX_SIZE = 50;
+
+/** Whether the key event comes from a text field (the W and H inputs), where the shortcuts must not act. */
+const isTypingInInput = (event: KeyboardEvent): boolean => {
+    const target = event.target as HTMLElement | null;
+    return target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+};
 
 type UiRefs = {
     root: HTMLDivElement;
@@ -34,6 +51,7 @@ type UiRefs = {
     zoomInBtn: HTMLButtonElement;
     zoomFitBtn: HTMLButtonElement;
     zoomLabel: HTMLSpanElement;
+    displayModeBtn: HTMLButtonElement;
     status: HTMLDivElement;
     rank: HTMLDivElement;
     evidence: HTMLDivElement;
@@ -48,6 +66,7 @@ export class Game extends Scene {
     private startMode = false;
     private cellSize = ZOOM_DEFAULT;
     private lastWheelZoomAt: number | null = null;
+    private displayMode: DisplayMode = DISPLAY_MODE_DEFAULT;
     private ui?: UiRefs;
 
     constructor() {
@@ -76,6 +95,7 @@ export class Game extends Scene {
             zoomInBtn: root.querySelector('[data-role="zoom-in"]') as HTMLButtonElement,
             zoomFitBtn: root.querySelector('[data-role="zoom-fit"]') as HTMLButtonElement,
             zoomLabel: root.querySelector('[data-role="zoom-label"]') as HTMLSpanElement,
+            displayModeBtn: root.querySelector('[data-role="display-mode"]') as HTMLButtonElement,
             status: root.querySelector('[data-role="status"]') as HTMLDivElement,
             rank: root.querySelector('[data-role="rank"]') as HTMLDivElement,
             evidence: root.querySelector('[data-role="evidence"]') as HTMLDivElement,
@@ -87,7 +107,7 @@ export class Game extends Scene {
         this.renderAll();
 
         this.scale.on('resize', this.onResize, this);
-        this.events.once('shutdown', this.removeZoomListeners, this);
+        this.events.once('shutdown', this.removeInputListeners, this);
     }
 
     private buildUiHtml(): string {
@@ -115,12 +135,15 @@ export class Game extends Scene {
               <button data-role="zoom-in" aria-label="拡大">＋</button>
               <button data-role="zoom-fit">フィット</button>
             </div>
+            <div class="editmin-row">
+              <button data-role="display-mode">${displayModeButtonLabel(DISPLAY_MODE_DEFAULT)}</button>
+            </div>
             <div class="editmin-status" data-role="status"></div>
             <hr />
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）</p>
           </div>
         </div>`;
     }
@@ -153,7 +176,9 @@ export class Game extends Scene {
         this.ui.zoomOutBtn.addEventListener('click', () => this.applyZoomAction('out'));
         this.ui.zoomInBtn.addEventListener('click', () => this.applyZoomAction('in'));
         this.ui.zoomFitBtn.addEventListener('click', () => this.applyZoomAction('fit'));
+        this.ui.displayModeBtn.addEventListener('click', () => this.cycleDisplayMode());
         window.addEventListener('keydown', this.onZoomKey);
+        window.addEventListener('keydown', this.onDisplayKey);
         // Not passive: Ctrl+wheel over the board must not trigger the browser's page zoom.
         this.ui.boardScroll.addEventListener('wheel', this.onBoardWheel, { passive: false });
 
@@ -164,15 +189,20 @@ export class Game extends Scene {
         });
     }
 
-    private removeZoomListeners(): void {
+    private removeInputListeners(): void {
         window.removeEventListener('keydown', this.onZoomKey);
+        window.removeEventListener('keydown', this.onDisplayKey);
         this.ui?.boardScroll.removeEventListener('wheel', this.onBoardWheel);
     }
 
+    private readonly onDisplayKey = (event: KeyboardEvent): void => {
+        if (isDisplayModeKey(event, isTypingInInput(event))) {
+            this.cycleDisplayMode();
+        }
+    };
+
     private readonly onZoomKey = (event: KeyboardEvent): void => {
-        const target = event.target as HTMLElement | null;
-        const typing = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
-        const action = zoomKeyAction(event, typing);
+        const action = zoomKeyAction(event, isTypingInInput(event));
         if (action !== null) {
             event.preventDefault();
             this.applyZoomAction(action);
@@ -240,8 +270,54 @@ export class Game extends Scene {
         grid.style.setProperty('--cell', `${this.cellSize}px`);
         grid.style.gridTemplateColumns = `repeat(${this.widthCells}, ${this.cellSize}px)`;
         grid.style.gridTemplateRows = `repeat(${this.heightCells}, ${this.cellSize}px)`;
-        grid.classList.toggle('compact', isCompact(this.cellSize));
         this.ui.zoomLabel.textContent = `表示 ${this.cellSize}px`;
+        this.applyGridDisplayClasses();
+    }
+
+    /** Digits, "B" and the mine paint follow the mode and the cell side, through classes only. */
+    private applyGridDisplayClasses(): void {
+        if (!this.ui) {
+            return;
+        }
+        const grid = this.ui.boardGrid;
+        grid.classList.toggle('hide-numbers', !showNumbers(this.displayMode, this.cellSize));
+        grid.classList.toggle('hide-mine-label', !showMineLabel(this.displayMode, this.cellSize));
+        grid.classList.toggle('paint-mines', paintMines(this.displayMode, this.cellSize));
+        this.ui.displayModeBtn.textContent = displayModeButtonLabel(this.displayMode);
+    }
+
+    /** 絵 → 数字 → 両方 → 絵. Only classes change; no cell button is rebuilt. */
+    private cycleDisplayMode(): void {
+        if (!this.ui) {
+            return;
+        }
+        this.displayMode = nextDisplayMode(this.displayMode);
+        this.applyGridDisplayClasses();
+        this.applyPaleClasses();
+    }
+
+    /** The pale look of 絵 is per cell; the buttons are in cell order, as renderBoard creates them. */
+    private applyPaleClasses(): void {
+        if (!this.ui) {
+            return;
+        }
+        const forbidden = this.forbiddenCells();
+        const buttons = this.ui.boardGrid.querySelectorAll<HTMLElement>('.editmin-cell');
+        buttons.forEach((button, i) => {
+            button.classList.toggle('pale', isPaleCell(this.displayMode, this.cellState(i, forbidden)));
+        });
+    }
+
+    private forbiddenCells(): Set<number> {
+        return this.startIndex === null ? new Set<number>() : this.getForbiddenSet(this.startIndex);
+    }
+
+    private cellState(index: number, forbidden: Set<number>): PaleCellState {
+        return {
+            hasMine: this.cells[index].hasMine,
+            isStart: this.startIndex === index,
+            isForbidden: forbidden.has(index)
+        };
     }
 
     private toBoardText(): string {
@@ -468,6 +544,7 @@ export class Game extends Scene {
             cellBtn.addEventListener('click', () => this.onCellClick(i));
             grid.appendChild(cellBtn);
         }
+        this.applyPaleClasses();
     }
 
     private renderAll(): void {

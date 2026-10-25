@@ -5,3 +5,5 @@
 - `src/game/scenes/Game.ts`（`applyCellSize`）: マスのクリックのたびにグリッドの定義も書き直す（`--cell` を使えば倍率の変更でだけ書けばよい） — 理由: 倍率の変更もクリックも、全マスのボタンを作り直す（`renderBoard`）より軽く、`--cell` と定義の二重管理は小さい。ズームは 1 操作に 1 回で、測定できる差ではない。
 - `src/game/scenes/Game.ts`（`create` の `resize` リスナー）: Scene の再起動で解除されない。倍率・ホイールの時刻のフィールドが `create` で初期化されない — 理由: `resize` のリスナーは前からの作りで、この変更の範囲外。Scene は 1 つだけで再起動しない（spec: 単一 Scene。リロードで 32 px に戻る）。
 - `src/game/logic/zoom.test.ts`: `Game.ts` のつなぎ（スクロール値を読む順序、入力欄の判定、ホイールの時刻、アンカーの座標）が単体テストされない — 理由: Scene の処理は spec で「ブラウザの確認」とした（DOM 側の確認）。スクロールの読む順序の不具合は修正し、ブラウザで「マスが動かない」ことを確かめる。
+- `src/game/scenes/Game.ts`（`displayMode` の初期化）: `create` で `displayMode` を初期化しない — 理由: Scene は再起動しない（単一 Scene。リロードで「数字」に戻る）。再起動を入れる変更のときに `create` の先頭で `DISPLAY_MODE_DEFAULT` を入れる。
+- `src/game/logic/displayMode.ts` と `public/style.css`（表示の規則が TS と CSS の 2 か所にある）: 数字・B・地雷の塗りの規則が、TS（`showNumbers` など）と CSS（`hide-numbers` など）に分かれている — 理由: 規則の判断は単体テストで固定している。CSS はクラスを当てるだけで、組み合わせの表を DOM で確かめるのは重い。規則を変えるときは `displayMode.test.ts` と CSS を同じ変更で直す。

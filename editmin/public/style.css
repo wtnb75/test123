@@ -66,14 +66,23 @@ canvas {
     padding: 0;
 }
 
-/* Cell side under COMPACT_CELL_PX: no digits and no "B", mines are painted dark red. */
-.editmin-board-grid.compact .editmin-cell {
+/* Display modes (classes set by the Scene; see the 表示モード section of docs/spec.md). */
+.editmin-board-grid.hide-numbers .editmin-cell {
     font-size: 0;
 }
 
-.editmin-board-grid.compact .editmin-cell.mine {
+.editmin-board-grid.hide-mine-label .editmin-cell.mine {
+    font-size: 0;
+}
+
+.editmin-board-grid.paint-mines .editmin-cell.mine {
     background: #8f1c1c;
     border-color: #6e1414;
+}
+
+/* 絵 mode: non-mine cells are paler; the start and forbidden cells keep their own look. */
+.editmin-cell.pale {
+    background: #e4e7ea;
 }
 
 .editmin-cell.forbidden {
