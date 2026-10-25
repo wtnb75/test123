@@ -15,4 +15,9 @@
 - `src/game/scenes/Game.ts`: お題を `registry` で受け渡す部分（読む・書く・`Result` への番号）に単体テストが無い — 理由: Scene の処理は spec で `game-qa`（「もう一度」を数回押して元絵の顔が毎回変わる・採点と小さい正解の顔が同じお題）で確かめるとした。`pickTopic` は単体テスト済み。
 - `src/game/scenes/Game.ts`: `answers` と `topicIndex` が 2 つのフィールドで、同期が必要 — 理由: `create` の 1 か所で続けて代入し、他では書き換えない。getter にする整理は、この変更の範囲外。
 - `docs/spec.md`: 採点のカーブの測定値が、QA 前なのに事実として書かれている — 理由: 値は実ブラウザの測定で、`game-qa` で同じ測定を（実際のお題のデータで）やり直して確かめる。
+- `src/game/logic/outline.ts`（`dashSegments`）: 頂点をまたぐ破線が弦になり、角が 1〜2px 切られる（鼻の三角形）— 理由: 見た目の細部で、破線の描き方は spec の実装裁量。頂点で分けると位相の処理が増える。
+- `src/game/logic/outline.ts`（`dashSegments`）: 閉じた輪郭の継ぎ目で、開いたままの破線が捨てられ欠けて見える — 理由: 同上（実装裁量。関数のコメントに明記済み）。
+- `src/game/logic/outline.ts`（`dashSegments` / `faceOverlaySegments` の dash・gap 引数）: 本番は既定値（定数）しか渡さない — 理由: テストで手計算の値（4px・4px など）を直接検証するため。変えるときは定数と合わせる。
+- `src/game/logic/resultLayout.test.ts`: 重ねの定数（`RESULT_FACE_CENTER_Y` 210・`RESULT_OVERLAY_LINE_PX` 3）を literal で固定 — 理由: spec のパラメータ表の値そのものを回帰条件として固定している（完了条件）。
+- `docs/spec.md`（frontmatter）: 公開後改訂の `game:reset` で `qa` 以降が `pending` に戻る差分 — 理由: `game-spec` の手順による意図的な再初期化（公開済みの仕様を変えたため）。
 

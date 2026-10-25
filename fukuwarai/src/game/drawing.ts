@@ -1,9 +1,8 @@
 import type { GameObjects, Scene } from 'phaser';
 import { BACKGROUND_CSS, SCORE_BLUR_RADIUS_PX } from './logic/constants';
-import { PART_IDS, PART_SHAPES, type PartShape } from './logic/parts';
+import { FACE_IDS, PART_IDS, PART_SHAPES, type PartShape } from './logic/parts';
+import { faceOverlaySegments } from './logic/outline';
 import type { DraggablePartId, PartId, PartTransform, Point } from './logic/types';
-
-const FULL_FACE_IDS: PartId[] = ['outline', ...PART_IDS];
 
 /** Faint outline showing the part's actual (circular) hit area, so the
  * player can see exactly where to grab it (docs/spec.md 操作仕様). */
@@ -147,7 +146,7 @@ export function drawFaceOnCanvas(
  */
 export function drawFaceGroup(scene: Scene, transforms: Record<PartId, PartTransform>): GameObjects.Container {
     const group = scene.add.container(0, 0);
-    for (const id of FULL_FACE_IDS) {
+    for (const id of FACE_IDS) {
         const t = transforms[id];
         const g = scene.add.graphics();
         drawPartShape(g, PART_SHAPES[id]);
@@ -156,4 +155,22 @@ export function drawFaceGroup(scene: Scene, transforms: Record<PartId, PartTrans
         group.add(part);
     }
     return group;
+}
+
+/**
+ * Dashed outline of a full face (outline + 6 parts) at the given transforms,
+ * drawn around the Graphics object's own origin. Used for the Result overlay
+ * that shows where the correct parts are (docs/spec.md「Result の重ね表示」).
+ */
+export function drawDashedFaceOutline(
+    g: GameObjects.Graphics,
+    transforms: Record<PartId, PartTransform>,
+    color: number,
+    lineWidth: number,
+): void {
+    g.clear();
+    g.lineStyle(lineWidth, color, 1);
+    for (const [from, to] of faceOverlaySegments(transforms)) {
+        g.lineBetween(from.x, from.y, to.x, to.y);
+    }
 }
