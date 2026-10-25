@@ -23,6 +23,7 @@ import type { FloorGraph } from '../core/floorGraph';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { RUN_STEP_MS, flagWaitAction, isDoorExit, runBlockAt, runSteps } from '../core/run';
 import { travelRoute } from '../core/travel';
+import { LONG_PRESS_MS, isLongPress, readPadHidden } from '../core/padSetting';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR, scaledDimension, scaledFont } from '../core/cellAppearance';
@@ -260,6 +261,12 @@ export class Game extends Scene
     private run?: { dir: Position; left: number; nextAt: number };
     /** The walk after a tap on a non-adjacent opened cell (docs/spec.md "タップで歩く"): the cells still to step on. */
     private travel?: { cells: Position[]; nextAt: number };
+    /** The board press in progress: when it started (its length decides a long press or a short tap). */
+    private boardPress?: { pointerId: number; startedAt: number };
+    /** A press on an unopened neighbour: its flag is set after LONG_PRESS_MS while it is held (docs/spec.md). */
+    private hold?: { pointerId: number; x: number; y: number; cell: Position; fired: boolean; timer?: Phaser.Time.TimerEvent };
+    /** Whether the virtual pad and FLAG are hidden (docs/spec.md "隠す設定"): read once when `Game` starts. */
+    private padHidden = false;
     /** `f` was pressed: the next move key sets the flag of that neighbour; the message to restore if it is cancelled. */
     private flagWait = false;
     private messageBeforeWait = '';
@@ -359,6 +366,9 @@ export class Game extends Scene
         this.flagWait = false;
         this.inputLockUntil = 0;
         this.startFirstStage();
+        this.padHidden = readPadHidden(this.store);
+        this.boardPress = undefined;
+        this.hold = undefined;
         this.createVirtualControls();
 
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
@@ -414,6 +424,8 @@ export class Game extends Scene
         this.hideMap();
         this.flow.reset();
         this.presses.clear();
+        this.cancelHold();
+        this.boardPress = undefined;
         this.run = undefined;
         this.travel = undefined;
         this.flagWait = false;
@@ -794,7 +806,7 @@ export class Game extends Scene
             this.joystickThumb.setPosition(jsX, jsY);
         }
         this.joystickThumb.setSize(thumbR * 2, thumbR * 2);
-        this.joystickHitArea = new Phaser.Geom.Circle(jsX, jsY, baseR + 14);
+        this.joystickHitArea = this.padHidden ? undefined : new Phaser.Geom.Circle(jsX, jsY, baseR + 14);
 
         // FLAG button: bottom-right
         const flagX = controls.flag.x;
@@ -802,7 +814,7 @@ export class Game extends Scene
         this.flagBaseSize = flagSize;
         this.flagBg.setPosition(flagX, flagY);
         this.flagLabel.setPosition(flagX, flagY).setFontSize(flagFontSize);
-        this.flagHitArea = new Phaser.Geom.Circle(flagX, flagY, controls.flag.hitRadius);
+        this.flagHitArea = this.padHidden ? undefined : new Phaser.Geom.Circle(flagX, flagY, controls.flag.hitRadius);
 
         // MAP button: right above FLAG, the same size; its hit circle only touches FLAG's.
         if (this.mapBg && this.mapLabel) {
@@ -823,6 +835,9 @@ export class Game extends Scene
 
         // The FLAG circle (its frame is inside it), the pad colours and the lit sector follow the new layout.
         this.updateFlagButtonVisual();
+
+        // A hidden pad and FLAG are not drawn and take no press (docs/spec.md "隠す設定").
+        this.setPadVisible(!this.padHidden);
 
         // The HUD rows stay left of the STAGE button (when there is one): lay them out again with its size.
         this.layoutHud();
@@ -923,6 +938,8 @@ export class Game extends Scene
     private discardPointerState (): void
     {
         this.presses.clear();
+        this.cancelHold();
+        this.boardPress = undefined;
         this.resetJoystickThumb();
         this.dragState.active = false;
     }
@@ -1251,12 +1268,7 @@ export class Game extends Scene
         }
         if (!direction) {
             if (event.code === 'KeyS' || event.code === 'Numpad5') {
-                const out = chordAtPlayer(this.stageData);
-                if (out.result.status === 'alive' && out.stage === this.stageData) {
-                    this.refreshHud(this.messageOf(out));
-                    return;
-                }
-                this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
+                this.chordHere();
             }
             return;
         }
@@ -1282,14 +1294,93 @@ export class Game extends Scene
     /** Toggles the flag of the neighbour in `direction` (the flag key's second stroke, and the FLAG mode of the pad). */
     private toggleFlagAt (direction: Position): void
     {
-        const target = {
+        this.toggleFlagAtCell({
             x: this.stageData.player.x + direction.x,
             y: this.stageData.player.y + direction.y
-        };
+        });
+    }
+
+    /** Toggles the flag of `target` (a neighbour of the player, unopened; `toggleFlag` ignores anything else). */
+    private toggleFlagAtCell (target: Position): void
+    {
         const nextStage = toggleFlag(this.stageData, target);
         const changedCellIndices = nextStage === this.stageData ? [] : [indexOf(this.stageData, target)];
         const after = nextStage === this.stageData ? null : nextStage.cells[indexOf(nextStage, target)].flagged;
         this.applyResult(nextStage, 'alive', flagMessage(after), changedCellIndices);
+    }
+
+    /** The chord at the player's cell: S, the numpad 5 key, or a tap on the player's own cell (docs/spec.md). */
+    private chordHere (): void
+    {
+        const out = chordAtPlayer(this.stageData);
+        if (out.result.status === 'alive' && out.stage === this.stageData) {
+            this.refreshHud(this.messageOf(out));
+            return;
+        }
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
+    }
+
+    /** The board cell under a pointer, or null when it is off the board. */
+    private boardCellAt (pointer: Phaser.Input.Pointer): Position | null
+    {
+        const world = pointer.positionToCamera(this.camera) as Phaser.Math.Vector2;
+        const origin = this.roomOriginPx(this.floorState.roomIndex);
+        const target = cellAtWorld(world.x, world.y, origin.x, origin.y, this.cell);
+        return inBounds(this.stageData, target) ? target : null;
+    }
+
+    /** A press on an unopened neighbour starts the long-press timer (docs/spec.md "長押しでフラグ"). */
+    private startHold (pointer: Phaser.Input.Pointer): void
+    {
+        const cell = this.boardCellAt(pointer);
+        const player = this.stageData.player;
+        if (!cell || Math.max(Math.abs(cell.x - player.x), Math.abs(cell.y - player.y)) !== 1) {
+            return;
+        }
+        if (this.stageData.cells[indexOf(this.stageData, cell)].revealed) {
+            return;
+        }
+        const pointerId = pointer.id;
+        this.hold = {
+            pointerId,
+            x: pointer.x,
+            y: pointer.y,
+            cell,
+            fired: false,
+            timer: this.time.delayedCall(LONG_PRESS_MS, () => this.fireHold(pointerId))
+        };
+    }
+
+    private fireHold (pointerId: number): void
+    {
+        const hold = this.hold;
+        if (!hold || hold.pointerId !== pointerId || hold.fired || !this.flow.playing) {
+            return;
+        }
+        // The player may have moved while the press was held: only a cell still next to the player gets the flag.
+        const player = this.stageData.player;
+        if (Math.max(Math.abs(hold.cell.x - player.x), Math.abs(hold.cell.y - player.y)) !== 1) {
+            this.cancelHold();
+            return;
+        }
+        hold.fired = true;
+        this.toggleFlagAtCell(hold.cell);
+    }
+
+    private cancelHold (): void
+    {
+        this.hold?.timer?.remove(false);
+        this.hold = undefined;
+    }
+
+    /** Shows or hides the virtual pad and FLAG; a hidden one is not drawn and takes no press (docs/spec.md "隠す設定"). */
+    private setPadVisible (visible: boolean): void
+    {
+        this.joystickBase?.setVisible(visible);
+        this.joystickThumb?.setVisible(visible);
+        this.padSectorGraphics?.setVisible(visible);
+        this.flagBg?.setVisible(visible);
+        this.flagLabel?.setVisible(visible);
     }
 
     /** Shift + a move key: a run (docs/spec.md "走る"). The first step is taken at once, the next ones every RUN_STEP_MS. */
@@ -2066,6 +2157,8 @@ export class Game extends Scene
             lastX: pointer.x,
             lastY: pointer.y
         };
+        this.boardPress = { pointerId: pointer.id, startedAt: this.time.now };
+        this.startHold(pointer);
     }
 
     private onPointerMove (pointer: Phaser.Input.Pointer): void
@@ -2090,6 +2183,11 @@ export class Game extends Scene
         const dxFromStart = pointer.x - this.dragState.startX;
         const dyFromStart = pointer.y - this.dragState.startY;
         const distance = Math.hypot(dxFromStart, dyFromStart);
+
+        // Moving on from a press on a neighbour turns it into a scroll: the long press is cancelled (no flag).
+        if (this.hold?.pointerId === pointer.id && distance >= SCROLL_THRESHOLD) {
+            this.cancelHold();
+        }
 
         if (!this.dragState.active && distance >= SCROLL_THRESHOLD) {
             this.dragState.active = true;
@@ -2118,9 +2216,15 @@ export class Game extends Scene
     private onPointerUp (pointer: Phaser.Input.Pointer): void
     {
         if (pointer.wasCanceled) {
-            // A touch the system cancelled never acts: drop what it started.
+            // A touch the system cancelled never acts: drop what it started (a long press too).
             const ownsDrag = this.presses.holds(pointer.id, 'board');
             this.presses.cancel(pointer.id);
+            if (this.hold?.pointerId === pointer.id) {
+                this.cancelHold();
+            }
+            if (this.boardPress?.pointerId === pointer.id) {
+                this.boardPress = undefined;
+            }
             if (this.joystickState.active && pointer.id === this.joystickState.pointerId) {
                 this.resetJoystickThumb();
             }
@@ -2169,21 +2273,33 @@ export class Game extends Scene
             return;
         }
 
+        // How long this press was, and its long-press state (docs/spec.md "長押しでフラグ"); the press ends here.
+        const held = this.boardPress?.pointerId === pointer.id ? this.time.now - this.boardPress.startedAt : 0;
+        const hold = this.hold?.pointerId === pointer.id ? this.hold : undefined;
+        this.boardPress = undefined;
+        this.cancelHold();
+
         if (this.time.now < this.inputLockUntil) {
             return;
         }
 
-        const world = pointer.positionToCamera(this.camera) as Phaser.Math.Vector2;
-        const origin = this.roomOriginPx(this.floorState.roomIndex);
-        const target = cellAtWorld(world.x, world.y, origin.x, origin.y, this.cell);
-
-        if (!inBounds(this.stageData, target)) {
+        const target = this.boardCellAt(pointer);
+        if (!target) {
             return;
         }
 
         const dx = Math.abs(target.x - this.stageData.player.x);
         const dy = Math.abs(target.y - this.stageData.player.y);
         if (dx === 0 && dy === 0) {
+            // A tap (or a long press) on the player's own cell is the chord.
+            this.chordHere();
+            return;
+        }
+        if (isLongPress(held)) {
+            // A long press on an unopened neighbour sets its flag (when the timer was late, now); on an opened one, nothing.
+            if (hold && !hold.fired && this.flow.playing) {
+                this.toggleFlagAtCell(hold.cell);
+            }
             return;
         }
         if (dx > 1 || dy > 1) {

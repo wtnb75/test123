@@ -2,7 +2,9 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { DemoDirector, StartGate } from 'title-demo';
 import type { DemoAction } from '../core/demoBot';
-import { REFERENCE_CELL, demoLayout, isStartKey, titleLayout } from '../core/title';
+import { browserStore } from '../core/highScore';
+import { padSettingLabel, readPadHidden, writePadHidden } from '../core/padSetting';
+import { REFERENCE_CELL, demoLayout, isStartKey, titleLayout, titleSettingsLayout } from '../core/title';
 import {
     TITLE_DEMO_OPTIONS,
     createTitleDemoGame,
@@ -21,8 +23,9 @@ type Demo = DemoDirector<TitleDemoState, DemoAction, TitleDemoDetail>;
 
 /**
  * The title screen (docs/spec/title.md, docs/spec/title-demo.md): the game name, a demo of a bot playing the
- * first stages, and a Start button. Start (a release over the button, Enter or Space) starts `Game`; the first
- * request wins. It reads and writes no storage and never looks at the start stage.
+ * first stages, a Start button, and the 「パッド」button that hides the virtual pad and FLAG in `Game`. Start (a
+ * release over the button, Enter or Space) starts `Game`; the first request wins. The only storage it touches is the
+ * pad setting; it never looks at the start stage or the high score.
  */
 export class Title extends Scene
 {
@@ -30,6 +33,12 @@ export class Title extends Scene
     private nameText!: Phaser.GameObjects.Text;
     private buttonBg!: Phaser.GameObjects.Rectangle;
     private buttonLabel!: Phaser.GameObjects.Text;
+    private padBg!: Phaser.GameObjects.Rectangle;
+    private padLabel!: Phaser.GameObjects.Text;
+    /** Whether `Game` hides the virtual pad and FLAG (the saved setting; the button switches it). */
+    private padHidden = false;
+    /** The pointer whose press started on the 「パッド」button (a release switches the setting only for it). */
+    private padPressId: number | null = null;
     private view!: BoardView;
     private demo?: Demo;
     /** Elapsed time of this Scene (ms), counted from `update`'s delta. */
@@ -68,7 +77,25 @@ export class Title extends Scene
             color: '#93c5fd'
         }).setOrigin(0.5);
 
+        this.padHidden = readPadHidden(browserStore());
+        this.padPressId = null;
+        this.padBg = this.add.rectangle(0, 0, 1, 1, BUTTON_FILL, 0.95)
+            .setStrokeStyle(2, BUTTON_STROKE)
+            .setInteractive({ useHandCursor: true });
+        this.padLabel = this.add.text(0, 0, padSettingLabel(this.padHidden), {
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontStyle: 'bold',
+            color: '#93c5fd'
+        }).setOrigin(0.5);
+
         this.buttonBg.on('pointerup', this.onButtonUp, this);
+        this.padBg.on('pointerdown', this.onPadDown, this);
+        this.padBg.on('pointerup', this.onPadUp, this);
+        // A press that ends off the button does not count for a later release over it.
+        this.padBg.on('pointerupoutside', () => {
+            this.padPressId = null;
+        });
         this.input.keyboard?.on('keydown', this.onKeyDown, this);
         // Space must not scroll the page; the capture belongs to the KeyboardManager, so it is released on shutdown.
         this.input.keyboard?.addCapture('SPACE');
@@ -122,6 +149,9 @@ export class Title extends Scene
         this.nameText.setFontSize(l.fontSize).setPosition(l.centerX, l.nameY);
         this.buttonBg.setSize(l.buttonWidth, l.buttonHeight).setPosition(l.centerX, l.buttonY);
         this.buttonLabel.setPosition(l.centerX, l.buttonY);
+        const p = titleSettingsLayout(width);
+        this.padBg.setSize(p.width, p.height).setPosition(p.centerX, p.centerY);
+        this.padLabel.setPosition(p.centerX, p.centerY);
 
         if (!demoLayout(width, height).visible) {
             // Too small to read: the demo stops and is dropped; a new run starts when it fits again.
@@ -168,6 +198,24 @@ export class Title extends Scene
         if (!pointer.wasCanceled) {
             this.begin();
         }
+    }
+
+    private onPadDown (pointer: Phaser.Input.Pointer): void
+    {
+        this.padPressId = pointer.id;
+    }
+
+    /** A release over the 「パッド」button, of the press that started on it, switches the setting (not a start). */
+    private onPadUp (pointer: Phaser.Input.Pointer): void
+    {
+        const own = this.padPressId === pointer.id;
+        this.padPressId = null;
+        if (!own || pointer.wasCanceled) {
+            return;
+        }
+        this.padHidden = !this.padHidden;
+        writePadHidden(browserStore(), this.padHidden);
+        this.padLabel.setText(padSettingLabel(this.padHidden));
     }
 
     private onKeyDown (event: KeyboardEvent): void

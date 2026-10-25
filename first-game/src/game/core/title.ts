@@ -39,6 +39,23 @@ export const titleLayout = (width: number, height: number): TitleLayout => {
   };
 };
 
+/** The 「パッド」settings button (docs/spec/title.md): its size in px. It sits in a row under the name, at the right. */
+export const TITLE_SETTINGS_WIDTH = 110;
+export const TITLE_SETTINGS_HEIGHT = 34;
+
+export type TitleSettingsLayout = { centerX: number; centerY: number; width: number; height: number };
+
+/** Where the 「パッド」button goes: the right end of the row under the name (the demo starts below that row). */
+export const titleSettingsLayout = (width: number): TitleSettingsLayout => {
+  const top = TITLE_MARGIN + titleFontSize(width) + DEMO_GAP;
+  return {
+    centerX: Math.round(width - TITLE_MARGIN - TITLE_SETTINGS_WIDTH / 2),
+    centerY: Math.round(top + TITLE_SETTINGS_HEIGHT / 2),
+    width: TITLE_SETTINGS_WIDTH,
+    height: TITLE_SETTINGS_HEIGHT
+  };
+};
+
 /** The size of one cell in `Game` (px). The demo scales every dimension of the board by `cell / REFERENCE_CELL`. */
 export const REFERENCE_CELL = 30;
 /** Biggest cell of the demo board (the size `Game` draws). */
@@ -69,7 +86,7 @@ export type DemoLayout = {
 /** Where the demo board goes between the name and the button. */
 export const demoLayout = (width: number, height: number): DemoLayout => {
   const fontSize = titleFontSize(width);
-  const regionTop = TITLE_MARGIN + fontSize + DEMO_GAP;
+  const regionTop = TITLE_MARGIN + fontSize + DEMO_GAP + TITLE_SETTINGS_HEIGHT + DEMO_GAP;
   const regionBottom = height - TITLE_MARGIN - TITLE_BUTTON_HEIGHT - DEMO_GAP;
   const regionHeight = Math.max(0, regionBottom - regionTop);
   const regionWidth = Math.max(0, width - TITLE_MARGIN * 2);
