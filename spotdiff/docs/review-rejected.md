@@ -45,3 +45,4 @@
 - `src/game/scenes/Help.ts`（作成時の文字サイズのリテラル、促し文の 36）: params と二重 — 理由: 見出し・説明・種類名は `place()` が上書きする。促し文の 36 は Title の "TAP TO START" と同じ書き方
 - `src/game/scenes/Help.ts`（`shutdown` での `input.off` が冗長）: Phaser が後始末する — 理由: `Result.ts` と同じパターンで無害。早い入力を無視するため `input.once` は使えない
 - `src/game/scenes/Help.ts`（開発ビルドの `__qa` の形が Title 用の QA スクリプトと違う）: — 理由: 開発ビルド専用で本番に含まれない。Help 用のシナリオは `scene: 'Help'` を見て読める
+- `src/game/scenes/Game.ts`（HUD の文字が、縦の狭い画面（SE 縦）で CSS 14 px を下回る）: 主な情報の 14 px の規則に届かない — 理由: HUD の文字は既存の規定（キャンバス上で 32 px 以上）のまま、横長の 16 CSS px 規定だけ HUD を例外とすると、ユーザーが決めた（HINT の拡張の承認時）。HUD の大きさを変えるなら spec で決める
