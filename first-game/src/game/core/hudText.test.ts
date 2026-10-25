@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    FLAG_WAIT_MESSAGE,
     GOAL_MESSAGE,
     KEY_HINT,
     LEGEND_TEXT,
@@ -71,8 +72,9 @@ describe('resultMessage', () => {
 
 describe('fixed sentences', () => {
     it('shows the key hint at a stage start for keys and the stage line for touch', () => {
-        expect(stageStartMessage('keys', 7)).toBe('Move: arrows/QWEA-XZDC/hjklyubn  Flag: Shift+dir  Chord: S');
+        expect(stageStartMessage('keys', 7)).toBe('Move: arrows/QWEA-XZDC/hjklyubn  Run: Shift+dir  Flag: f+dir  Chord: S');
         expect(stageStartMessage('keys', 7)).toBe(KEY_HINT);
+        expect(FLAG_WAIT_MESSAGE).toBe('Flag: pick a direction (Esc cancels)');
         expect(stageStartMessage('touch', 7)).toBe('You enter stage 7.');
     });
 
