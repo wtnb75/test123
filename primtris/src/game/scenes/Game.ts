@@ -9,12 +9,15 @@ import {
     createQueue,
     getBoxOrder,
     resolvePlacement,
+    resolveTimeout,
     stackDigits,
     type BoxKey,
+    type PlacementResult,
     type DistributionState,
     type Difficulty,
     type QueueState
 } from '../logic/primtris';
+import { remainingSeconds, stepWait, waitMs } from '../logic/timer';
 import { BoxesView, type BoxesViewStyle } from './boxesView';
 
 const DEFAULT_DIFFICULTY: Difficulty = {
@@ -71,6 +74,13 @@ export class Game extends Scene
     private score = 0;
     private scoreText!: GameObjects.Text;
     private activeBoxes: BoxKey[] = [...BOX_ORDER];
+    /** Numbers dropped so far (manual, time-out and game-over drops alike); sets the next wait. */
+    private placed = 0;
+    /** Milliseconds left before the READY number falls on its own. */
+    private waitLeftMs = 0;
+    private waitText!: GameObjects.Text;
+    /** The tenth of a second the WAIT text was last built for (-1: none shown). */
+    private lastWaitTenths = -1;
 
     constructor ()
     {
@@ -120,6 +130,9 @@ export class Game extends Scene
         this.isResolving = false;
         this.logLines = [];
         this.score = 0;
+        this.placed = 0;
+        this.waitLeftMs = 0;
+        this.lastWaitTenths = -1;
         this.distributionState = createDistributionState();
     }
 
@@ -135,6 +148,14 @@ export class Game extends Scene
             if (this.currentY >= READY_Y) {
                 this.currentY = READY_Y;
                 this.isEntering = false;
+                this.waitLeftMs = waitMs(this.placed);
+            }
+        } else if (!this.isResolving && this.waitLeftMs > 0) {
+            // the wait runs only while the number is at READY; a held number is frozen. The frame it arrives in does not count.
+            this.waitLeftMs = stepWait(this.waitLeftMs, delta, this.dragging);
+
+            if (this.waitLeftMs === 0) {
+                this.confirmDrop(true);
             }
         }
 
@@ -142,6 +163,7 @@ export class Game extends Scene
             this.currentValueText.setPosition(this.currentX, this.currentY);
         }
 
+        this.refreshWaitText();
         this.updateHighlightedBox();
     }
 
@@ -175,6 +197,13 @@ export class Game extends Scene
             fontStyle: 'bold',
             lineSpacing: 8
         }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+
+        this.waitText = this.add.text(width - 24, 72, '', {
+            color: '#ffd166',
+            fontFamily: 'sans-serif',
+            fontSize: '26px',
+            fontStyle: 'bold'
+        }).setOrigin(1, 0);
 
         this.logText = this.add.text(24, height - 260, '', {
             color: '#d7e3fc',
@@ -213,11 +242,17 @@ export class Game extends Scene
         });
 
         this.input.on('pointerup', (pointer: Input.Pointer) => {
-            if (!this.dragging || this.isResolving) {
+            if (!this.dragging) {
                 return;
             }
 
+            // release the grab even while a drop is resolving, so that the next number is not left held
             this.dragging = false;
+
+            if (this.isResolving) {
+                return;
+            }
+
             this.syncPointerX(pointer.x, width);
             this.confirmDrop();
         });
@@ -259,18 +294,24 @@ export class Game extends Scene
         });
     }
 
-    private confirmDrop ()
+    /** A manual drop, or (`timedOut`) the drop the timer makes at the lane the number is in: always a miss. */
+    private confirmDrop (timedOut = false)
     {
         if (this.isResolving) {
             return;
         }
 
         const selectedBox = this.getBoxForX(this.currentX);
-        const previewResult = resolvePlacement(this.queue.current, selectedBox, this.boxes, this.difficulty.boxCapacity);
-        const dropDuration = previewResult.gameOver ? GAME_OVER_DROP_COMMIT_MS : NORMAL_DROP_COMMIT_MS;
+        const cap = this.difficulty.boxCapacity;
+        const previewResult = timedOut
+            ? resolveTimeout(this.queue.current, selectedBox, this.boxes, cap)
+            : resolvePlacement(this.queue.current, selectedBox, this.boxes, cap);
+        const dropDuration = previewResult.gameOver
+            ? GAME_OVER_DROP_COMMIT_MS
+            : NORMAL_DROP_COMMIT_MS;
 
         this.isResolving = true;
-        this.pushLog(`DROP -> ${selectedBox}`);
+        this.pushLog(`${timedOut ? 'TIMEOUT' : 'DROP'} -> ${selectedBox}`);
 
         this.tweens.add({
             targets: this.currentValueText,
@@ -278,24 +319,25 @@ export class Game extends Scene
             duration: dropDuration,
             ease: 'Quad.easeIn',
             onComplete: () => {
-                this.commitDrop(selectedBox, previewResult);
+                this.commitDrop(selectedBox, previewResult, timedOut);
             }
         });
     }
 
-    private commitDrop (box: BoxKey, preparedResult?: ReturnType<typeof resolvePlacement>)
+    /** Applies the drop that `confirmDrop` previewed (`result`); `timedOut` only changes the log label. */
+    private commitDrop (box: BoxKey, result: PlacementResult, timedOut: boolean)
     {
         const value = this.queue.current;
-        const result = preparedResult ?? resolvePlacement(value, box, this.boxes, this.difficulty.boxCapacity);
         const factorExpression = this.createFactorExpression(value);
 
         this.playFactorizationEffect(box, result.isCorrect, factorExpression);
 
         this.boxes = result.boxes;
         this.score += result.scoreDelta;
+        this.placed += 1;
         this.collateralClears += result.clearedDigits.length;
 
-        const eventLabel = result.isCorrect ? 'HIT' : 'MISS';
+        const eventLabel = timedOut ? 'TIMEOUT' : (result.isCorrect ? 'HIT' : 'MISS');
         const collateral = result.clearedDigits.length > 0 ? ` collateral: [${result.clearedDigits.join(',')}]` : '';
         this.pushLog(`${value} -> ${box} ${eventLabel} (${factorExpression})${collateral}`);
 
@@ -444,8 +486,22 @@ export class Game extends Scene
         this.currentValueTopText.setText(`CURRENT: ${this.queue.current}`);
         this.nextText.setText(`NEXT: [ ${this.queue.next[0]} ] [ ${this.queue.next[1]} ]`);
         this.syncCurrentValueDisplay();
+        this.refreshWaitText();
 
         this.boxesView.update(this.boxes);
+    }
+
+    /** The wait's remaining seconds, shown while a number is at READY (frozen while held); empty otherwise. */
+    private refreshWaitText ()
+    {
+        const waiting = !this.isEntering && !this.isResolving && !this.isGameOver;
+        // the text changes ten times a second: rebuild it only when the tenth changes
+        const tenths = waiting ? Math.floor(this.waitLeftMs / 100) : -1;
+
+        if (tenths !== this.lastWaitTenths) {
+            this.lastWaitTenths = tenths;
+            this.waitText.setText(waiting ? `WAIT ${remainingSeconds(this.waitLeftMs).toFixed(1)}` : '');
+        }
     }
 
     private syncCurrentValueDisplay ()

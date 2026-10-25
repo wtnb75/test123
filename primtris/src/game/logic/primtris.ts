@@ -274,17 +274,21 @@ const removeNewestMatchingDigit = (digits: number[], target: number): { nextDigi
     return { nextDigits: digits, cleared: false };
 };
 
+/**
+ * Places a number. A timed-out drop (`timedOut`) is always a miss, even into a box that would be correct: the digits stay.
+ */
 export const resolvePlacement = (
     value: number,
     box: BoxKey,
     boxes: Record<BoxKey, number[]>,
-    boxCapacity: number
+    boxCapacity: number,
+    timedOut = false
 ): PlacementResult => {
     const nextBoxes = Object.fromEntries(
         BOX_ORDER.map((boxKey) => [boxKey, [...boxes[boxKey]]])
     ) as Record<BoxKey, number[]>;
     const digits = splitDigits(value);
-    const isCorrect = isCorrectPlacement(value, box);
+    const isCorrect = !timedOut && isCorrectPlacement(value, box);
 
     if (isCorrect) {
         const clearedDigits: number[] = [];
@@ -319,6 +323,14 @@ export const resolvePlacement = (
         isCorrect: false
     };
 };
+
+/** The time-out drop: a miss wherever it lands (see `resolvePlacement`). */
+export const resolveTimeout = (
+    value: number,
+    box: BoxKey,
+    boxes: Record<BoxKey, number[]>,
+    boxCapacity: number
+): PlacementResult => resolvePlacement(value, box, boxes, boxCapacity, true);
 
 const BOX_DIGITS_PER_LINE = 5;
 const BOX_MAX_LINES = 3;
