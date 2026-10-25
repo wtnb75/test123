@@ -112,6 +112,57 @@ describe('the pause in Round: timing on the round clock', () => {
     });
 });
 
+/** Random values in the given order, then 0.5 forever: the first is the AI's well side, the rest the sway steps. */
+const seqRng = (...values: number[]): (() => number) => {
+    let i = 0;
+    return () => values[i++] ?? 0.5;
+};
+
+/**
+ * A round whose falling mino is an I at landing column `col` (row 14), so the pause is on for this placement.
+ * The sway steps come from `swayRng`: 0.1 → -1, 0.9 → +1, 0.5 → 0.
+ */
+const fallingAt = (col: number, swayRng: () => number = seqRng(0.1, 0.9, 0.5)): Round => {
+    const round = new Round(() => 0.5, { crumble: false, swayRng });
+    round.flow = {
+        kind: 'drop',
+        piece: { kind: I, rot: 0, cells: shapeCells(I, 0), col, y: 0 },
+        plan: plan(I, 0, col, 14),
+    };
+    return round;
+};
+
+/** The mino's column after each frame, paired with its top row, until the drop is over or `max` frames have run. */
+const traceCols = (round: Round, max: number): { y: number; col: number }[] => {
+    const seen: { y: number; col: number }[] = [];
+    for (let i = 0; i < max && round.flow.kind === 'drop'; i++) {
+        round.step(DT, NONE);
+        if (round.flow.kind === 'drop') seen.push({ y: round.flow.piece.y, col: round.flow.piece.col });
+    }
+    return seen;
+};
+
+describe('the sway during the pause', () => {
+    it('sways one column left and right during the pause, and ends on the landing column', () => {
+        const seen = traceCols(fallingAt(4), 60);
+        const paused = seen.slice(10, 25);
+        const cols = new Set(paused.map((s) => s.col));
+        expect(cols).toEqual(new Set([3, 4, 5]));
+        // the stop row does not change: the sway moves the columns only
+        for (const s of paused) expect(s.y).toBeCloseTo(P.HESITATE_AT * 14, 9);
+        // the pause ends on its landing column, and the mino falls straight on from there
+        for (const s of seen.slice(25)) expect(s.col).toBe(4);
+    });
+
+    it('stays on the landing column for a quarter whose sway step is blocked by the field', () => {
+        const round = fallingAt(4, seqRng(0.1, 0.9, 0.5)); // the first quarter steps left, into the block below
+        round.grid[7][3] = 1; // a block in column 3 at the stop row: the left step is blocked
+        const cols = traceCols(round, 26).slice(10).map((s) => s.col);
+        expect(cols).not.toContain(3);
+        expect(cols).toContain(5);
+    });
+});
+
 describe('the pause in Round: crush and randomness', () => {
     it('crushes a player who is under the stopped mino during the pause (the crush test runs each frame)', () => {
         const round = fallingI(0);
@@ -125,15 +176,23 @@ describe('the pause in Round: crush and randomness', () => {
         expect(round.loseReason).toBe('crushed');
     });
 
-    it('draws no random value for the rule or the pause', () => {
-        let calls = 0;
-        const rng = (): number => {
-            calls++;
-            return 0.5;
+    it('takes its sway from its own source: the field random source is never asked during the pause', () => {
+        let fieldCalls = 0;
+        let swayCalls = 0;
+        const round = new Round(() => (fieldCalls++, 0.5), {
+            crumble: false,
+            swayRng: () => (swayCalls++, 0.5),
+        });
+        round.flow = {
+            kind: 'drop',
+            piece: { kind: I, rot: 0, cells: shapeCells(I, 0), col: 0, y: 0 },
+            plan: plan(I, 0, 0, 14),
         };
-        const round = fallingI(0, rng);
-        const afterConstruction = calls;
+        const fieldAfterConstruction = fieldCalls;
+        trace(round, 10);
+        expect(swayCalls).toBe(0); // no pause before the stop row
         trace(round, 60);
-        expect(calls).toBe(afterConstruction);
+        expect(swayCalls).toBe(3); // one per quarter but the last, drawn when the pause starts
+        expect(fieldCalls).toBe(fieldAfterConstruction);
     });
 });

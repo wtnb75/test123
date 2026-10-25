@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { P } from '../params';
 import type { Plan } from './ai';
-import { createGrid, type Grid } from './board';
-import { frameView, remainingTurns, telegraphView, turnCount } from './telegraph';
+import { createGrid, landingRow, type Grid } from './board';
+import { dropFrameView, frameView, remainingTurns, telegraphView, turnCount } from './telegraph';
 import { KIND_COUNT, ROTATION_COUNT, shapeCells } from './pieces';
 
 const key = (cells: readonly { c: number; r: number }[]): string =>
@@ -260,5 +260,25 @@ describe('frameView', () => {
         const p = { ...plan(0, 0, 3), row: 5 };
         const f = frameView(withColumn(3, P.ROWS), p, 0.29); // column 3 is full to the top
         expect(f.row + Math.max(...f.cells.map((cell) => cell.r))).toBeLessThan(0);
+    });
+});
+
+describe('dropFrameView: the landing frame while the mino falls', () => {
+    const plan: Plan = { kind: 0, rot: 0, col: 4, row: 14 };
+    const piece = (col: number, y: number) => ({ kind: 0, rot: 0, cells: shapeCells(0, 0), col, y });
+
+    it('sits at the AI landing while the mino is on its planned column', () => {
+        const view = dropFrameView(createGrid(), piece(4, 7), plan);
+        expect(view.col).toBe(4);
+        expect(view.row).toBe(14);
+    });
+
+    it('moves with a swayed mino and lands where that column would stop it', () => {
+        const grid = createGrid();
+        grid[10][3] = 1; // a block in column 3 at row 10: the I swayed to column 2 lands on row 9, above row 14
+        const view = dropFrameView(grid, piece(2, 7), plan);
+        expect(view.col).toBe(2);
+        expect(view.row).toBe(landingRow(grid, shapeCells(0, 0), 2, 7));
+        expect(view.row).toBe(9);
     });
 });

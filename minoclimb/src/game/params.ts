@@ -23,6 +23,8 @@ export const P = {
     DROP_SPEED: 40,
     // Hesitating drop (docs/spec.md "1 個のミノの流れ" 2): a placement pauses once, at HESITATE_AT of its fall
     HESITATE_TIME: 0.25,
+    // the paused mino sways this many columns left and right (and back) during HESITATE_TIME
+    HESITATE_SWAY: 1,
     HESITATE_AT: 0.5,
     HESITATE_MIN_ROWS: 4,
     // the rule is (7 × kind + 5 × rot + 3 × col) mod HESITATE_MOD < HESITATE_BELOW; 10 and 3 give about 3 in 10 placements

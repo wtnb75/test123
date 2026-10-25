@@ -4,7 +4,7 @@ import { demoBot } from './demoBot';
 import { Round } from './round';
 
 // The 200-seed bot comparison of docs/spec.md 完了条件 の 躊躇（追加）: crushed runs with the hesitating drop must be
-// at most 41 (the measured value); the baseline without it (the switch off) is measured here too, as 51.
+// at most 46 (the measured value, with the sway); the baseline without it (the switch off) is measured here too, as 51.
 
 const seeded = (seed: number): (() => number) => {
     let a = seed;
@@ -40,8 +40,8 @@ const crushedCount = (hesitate: boolean): number => {
 };
 
 describe('the hesitating drop over 200 seeded demo runs (docs/spec.md 躊躇の節)', () => {
-    it('crushes at most 41 of the 200 runs with the hesitating drop (the measured value)', () => {
-        expect(crushedCount(true)).toBeLessThanOrEqual(41);
+    it('crushes at most 46 of the 200 runs with the hesitating drop (the measured value)', () => {
+        expect(crushedCount(true)).toBeLessThanOrEqual(46);
     });
 
     it('the baseline without the pause crushes 51 of the same 200 runs (characterization of the pre-pause measurement)', () => {
