@@ -73,12 +73,15 @@ describe('run', () => {
     expect(runStopAt(stage, { x: 4, y: 1 })).toBe(false);
   });
 
-  it('stops next to the start whatever its kind is', () => {
+  it('stops next to the up-stairs of the floor, but not next to a door entrance', () => {
     const stage = createStage();
     stage.start = { x: 0, y: 0 };
-    stage.startKind = 'door';
 
     expect(runStopAt(stage, { x: 1, y: 0 })).toBe(true);
+    stage.startKind = 'door';
+    stage.doorSide = 'W';
+    expect(runStopAt(stage, { x: 1, y: 0 })).toBe(false);
+    expect(runStopAt(stage, { x: 0, y: 0 })).toBe(true);
   });
 
   it('stops before the down-stairs, and an opened goal cell is not a stop for a room without them', () => {

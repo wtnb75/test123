@@ -38,7 +38,8 @@ export const runStopAt = (stage: Stage, pos: Position): boolean => {
   if (roomDoors(stage).some((door) => samePos(door.cell, pos))) {
     return true;
   }
-  if (near(stage.start)) {
+  // A door entrance is a door (above), not the up-stairs: only the floor's start stairs stop a run next to them.
+  if ((stage.startKind === undefined || stage.startKind === 'up') && near(stage.start)) {
     return true;
   }
   return (stage.goalKind === undefined || stage.goalKind === 'down') && near(stage.goal);
