@@ -25,7 +25,7 @@ export const HUD_BAND_ALPHA = 0.7;
 export const HUD_BAND_DEPTH = 7;
 export const HUD_TEXT_DEPTH = 8;
 
-export const KEY_HINT = 'Move: arrows/QWEA-XZDC  Flag: Shift+dir  Chord: S';
+export const KEY_HINT = 'Move: arrows/QWEA-XZDC/hjklyubn  Flag: Shift+dir  Chord: S';
 export const LEGEND_TEXT = 'Orange=mine Green=safe Purple=bad flag';
 
 /** First input kind of a page: touch when the device reports touch points, keys otherwise. */

@@ -71,7 +71,7 @@ describe('resultMessage', () => {
 
 describe('fixed sentences', () => {
     it('shows the key hint at a stage start for keys and the stage line for touch', () => {
-        expect(stageStartMessage('keys', 7)).toBe('Move: arrows/QWEA-XZDC  Flag: Shift+dir  Chord: S');
+        expect(stageStartMessage('keys', 7)).toBe('Move: arrows/QWEA-XZDC/hjklyubn  Flag: Shift+dir  Chord: S');
         expect(stageStartMessage('keys', 7)).toBe(KEY_HINT);
         expect(stageStartMessage('touch', 7)).toBe('You enter stage 7.');
     });

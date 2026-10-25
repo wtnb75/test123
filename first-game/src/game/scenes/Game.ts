@@ -25,6 +25,7 @@ import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR, scaledDimension, scaledFont } from '../core/cellAppearance';
 import { roomExits } from '../core/exits';
+import { isBlockedViKey, isRepeatedPress, viKeyDirection, type KeyPress } from '../core/moveKeys';
 import {
     CONTROL_MARGIN,
     controlsLayout,
@@ -218,6 +219,8 @@ export class Game extends Scene
     private corridorElapsed = 0;
     /** The cell of the walk the player is drawn on (`-1`: none yet), so an unchanged cell is not drawn again. */
     private corridorDrawn = -1;
+    /** The last press handled (its code and time stamp), so a second report of it is not handled again. */
+    private lastKeyPress?: KeyPress;
     /** True when the walk goes from room A to room B (first cell to last), false on the way back. */
     private corridorForward = true;
     /** The size of one cell (px) on this floor and screen, the play area, and the scrolls the camera may take (docs/spec/board-render.md "盤面の大きさと位置"). */
@@ -1167,6 +1170,11 @@ export class Game extends Scene
 
     private onKeyDown (event: KeyboardEvent): void
     {
+        // One press is handled once, even if the browser reports the same keydown twice (docs/spec.md "移動キーの対応").
+        if (isRepeatedPress(this.lastKeyPress, event)) {
+            return;
+        }
+        this.lastKeyPress = { code: event.code, timeStamp: event.timeStamp };
         sessionInputKind = inputKindOfKey();
         if (mapKeyPressed(event.code, event.repeat, event) && mapAccepted(this.flow.phase)) {
             this.showMap();
@@ -1190,6 +1198,10 @@ export class Game extends Scene
         }
 
         if (event.repeat || this.time.now < this.inputLockUntil) {
+            return;
+        }
+        // Ctrl, Alt or Meta with h j k l y u b n: nothing here, and the browser keeps its own action.
+        if (isBlockedViKey(event.code, event)) {
             return;
         }
 
@@ -1252,7 +1264,7 @@ export class Game extends Scene
             Numpad3: { x: 1, y: 1 }
         };
 
-        return mapping[code] ?? null;
+        return mapping[code] ?? viKeyDirection(code);
     }
 
     private hasVisibleStageChange (prevStage: Stage, nextStage: Stage, changedCellIndices?: number[]): boolean
