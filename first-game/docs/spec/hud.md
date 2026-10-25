@@ -39,7 +39,11 @@ HUD の文言は、「いまの入力の種類」で 2 通りになる（ステ�
 
 | 出来事 | メッセージ |
 |---|---|
-| ステージの開始（`Game` の開始・RETRY・次のステージ） | キー: `Move: arrows/QWEA-XZDC/hjklyubn  Flag: Shift+dir  Chord: S` / タッチ: `You enter stage <n>.` |
+| ステージの開始（`Game` の開始・RETRY・次のステージ） | キー: `Move: arrows/QWEA-XZDC/hjklyubn  Run: Shift+dir  Flag: f+dir  Chord: S` / タッチ: `You enter stage <n>.` |
+| `f` を押して旗の待ちになった | `Flag: pick a direction (Esc cancels)` |
+| 走りが 1 歩も進まなかった（最初の隣が盤面の外・壁） | `There is a wall there.` |
+| 走りが 1 歩も進まなかった（最初の隣が未開示・扉・▼） | 何も出さない（メッセージ行は変えない） |
+| 走りが 1 歩以上進んだ（走りでは新しく開くマスが無い） | `You move.` |
 | 「STAGE」で有効な番号へジャンプした | `You jump to stage <n>.`（ステージの開始のメッセージより優先する） |
 | 「STAGE」の入力が範囲外・数値でない | `Stage must be 1-<StageMax>.`（状態は変えない） |
 | 移動した。新しく開いたマスがない（開示済みのマス・フラグの上の通過） | `You move.` |
@@ -83,7 +87,7 @@ HUD の文言は、「いまの入力の種類」で 2 通りになる（ステ�
   - 移動で開いたマス: `k = 1` → `You open 1 cell.`、`k = 2` → `You open 2 cells.`、`k = 0`（開示済みのマスへ）→ `You move.`
   - コード操作: `auto-opened` で `k = 3` → `You open 3 cells.`、`k = 0` → `Nothing to chord here.`、`auto-flagged` で `k = 1` → `You flag 1 mine.`、`k = 2` → `You flag 2 mines.`。`not-enough-info` → `You can't tell yet.`、`chord-not-available` → `Nothing to chord here.`、`flag-overflow` → `Too many flags around you.`
   - 盤面の外 → `There is a wall there.`。フラグ操作: 立てた → `You flag the cell.`、外した → `You unflag the cell.`、変わらなかった → `You can't flag there.`
-  - ステージの開始: キー → `Move: arrows/QWEA-XZDC/hjklyubn  Flag: Shift+dir  Chord: S`、タッチ → `You enter stage 7.`（`n = 7`）。死亡: キー → `You died. [R]etry [T]itle`、タッチ → `You died.`。ゴール → `You descend the stairs.`。ジャンプ（`n = 12`）→ `You jump to stage 12.`。範囲外（`StageMax` = 100）→ `Stage must be 1-100.`。フラグモード → `Flag mode on.` / `Flag mode off.`
+  - ステージの開始: キー → `Move: arrows/QWEA-XZDC/hjklyubn  Run: Shift+dir  Flag: f+dir  Chord: S`、タッチ → `You enter stage 7.`（`n = 7`）。死亡: キー → `You died. [R]etry [T]itle`、タッチ → `You died.`。ゴール → `You descend the stairs.`。ジャンプ（`n = 12`）→ `You jump to stage 12.`。範囲外（`StageMax` = 100）→ `Stage must be 1-100.`。フラグモード → `Flag mode on.` / `Flag mode off.`
   - ステータス行: ステージ 5・ハイスコア 9 → `Stage:5  Score:4  High:9`、ステージ 1・ハイスコア 0 → `Stage:1  Score:0  High:0`、ステージ 100 → `Stage:100  Score:99  High:<h>`
   - 入力の種類: 初期値（タッチ対応の端末 → タッチ、そうでなければ キー）、キー押下 → キー、タッチの押し始め → タッチ、マウスの押し始め → キー。切り替えは、すでに決まった文言を変えない
   - 行の幅: 幅 390（コンパクト、STAGE ボタンの幅 82）→ `390 − 20 − 110 = 260`、幅 1280（STAGE ボタンの幅 90）→ `1280 − 20 − 118 = 1142`、幅 320（コンパクト）→ `320 − 20 − 110 = 190`。本番（ボタン無し）: 幅 390 → 350、幅 1280 → 1240、幅 320 → 280。凡例の行の上端（本番）= ステータス行の下端 + `HudGap`

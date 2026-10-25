@@ -21,6 +21,7 @@ import {
 import { FloorState, type DoorRoute } from '../core/floor';
 import type { FloorGraph } from '../core/floorGraph';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
+import { RUN_STEP_MS, flagWaitAction, isDoorExit, runBlockAt, runSteps } from '../core/run';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR, scaledDimension, scaledFont } from '../core/cellAppearance';
@@ -94,6 +95,7 @@ import {
     hudBandHeight,
     LEGEND_TEXT,
     fitFontSize,
+    FLAG_WAIT_MESSAGE,
     flagMessage,
     flagModeMessage,
     hudLegendTop,
@@ -253,6 +255,11 @@ export class Game extends Scene
     stageSelectLabel?: Phaser.GameObjects.Text;
     stageSelectHitArea?: Phaser.Geom.Rectangle;
     flagMode = false;
+    /** The run in progress (docs/spec.md "走る"): its direction and the time of its next step. */
+    private run?: { dir: Position; left: number; nextAt: number };
+    /** `f` was pressed: the next move key sets the flag of that neighbour; the message to restore if it is cancelled. */
+    private flagWait = false;
+    private messageBeforeWait = '';
     /** The lit sector of the pad (drawn over the base and the thumb) and the FLAG circle's size without its frame. */
     padSectorGraphics?: Phaser.GameObjects.Graphics;
     flagBaseSize = 52;
@@ -344,6 +351,8 @@ export class Game extends Scene
 
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
+        this.run = undefined;
+        this.flagWait = false;
         this.inputLockUntil = 0;
         this.startFirstStage();
         this.createVirtualControls();
@@ -353,6 +362,8 @@ export class Game extends Scene
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
         this.scale.on('resize', this.onResize, this);
+        // Phaser pauses the loop while the page is hidden, so the run is stopped by the event, not by update().
+        this.game.events.on(Phaser.Core.Events.HIDDEN, this.stopRun, this);
 
         this.events.once('shutdown', () => {
             this.input.keyboard?.off('keydown', this.onKeyDown, this);
@@ -360,6 +371,7 @@ export class Game extends Scene
             this.input.off('pointermove', this.onPointerMove, this);
             this.input.off('pointerup', this.onPointerUp, this);
             this.scale.off('resize', this.onResize, this);
+            this.game.events.off(Phaser.Core.Events.HIDDEN, this.stopRun, this);
             this.virtualControlLayer?.destroy(true);
             this.virtualControlLayer = undefined;
             this.joystickBase = undefined;
@@ -398,6 +410,8 @@ export class Game extends Scene
         this.hideMap();
         this.flow.reset();
         this.presses.clear();
+        this.run = undefined;
+        this.flagWait = false;
         this.gameOverLogical = undefined;
         this.graveInfo = undefined;
         this.cancelCorridor();
@@ -1200,12 +1214,36 @@ export class Game extends Scene
         if (event.repeat || this.time.now < this.inputLockUntil) {
             return;
         }
-        // Ctrl, Alt or Meta with h j k l y u b n: nothing here, and the browser keeps its own action.
-        if (isBlockedViKey(event.code, event)) {
+        // A new press stops a run and is not carried out (a repeat, from a held key, does not stop it).
+        if (this.run) {
+            this.stopRun();
             return;
         }
 
-        const direction = this.mapDirection(event.code);
+        // Ctrl, Alt or Meta with h j k l y u b n: no move and no flag, and the browser keeps its own action.
+        const blocked = isBlockedViKey(event.code, event);
+        const direction = blocked ? null : this.mapDirection(event.code);
+        if (this.flagWait) {
+            this.flagWait = false;
+            const action = flagWaitAction(direction, event.shiftKey);
+            if (action.kind === 'run') {
+                this.startRun(action.dir);
+            } else if (action.kind === 'toggle') {
+                this.toggleFlagAt(action.dir);
+            } else {
+                this.refreshHud(this.messageBeforeWait);
+            }
+            return;
+        }
+        if (blocked) {
+            return;
+        }
+        if (event.code === 'KeyF') {
+            this.messageBeforeWait = this.hudMessage;
+            this.flagWait = true;
+            this.refreshHud(FLAG_WAIT_MESSAGE);
+            return;
+        }
         if (!direction) {
             if (event.code === 'KeyS' || event.code === 'Numpad5') {
                 const out = chordAtPlayer(this.stageData);
@@ -1218,25 +1256,98 @@ export class Game extends Scene
             return;
         }
 
-        this.applyDirectionInput(direction, event.shiftKey);
+        if (event.shiftKey) {
+            this.startRun(direction);
+            return;
+        }
+        this.applyDirectionInput(direction, false);
     }
 
     private applyDirectionInput (direction: Position, asFlag: boolean): void
     {
         if (asFlag) {
-            const target = {
-                x: this.stageData.player.x + direction.x,
-                y: this.stageData.player.y + direction.y
-            };
-            const nextStage = toggleFlag(this.stageData, target);
-            const changedCellIndices = nextStage === this.stageData ? [] : [indexOf(this.stageData, target)];
-            const after = nextStage === this.stageData ? null : nextStage.cells[indexOf(nextStage, target)].flagged;
-            this.applyResult(nextStage, 'alive', flagMessage(after), changedCellIndices);
+            this.toggleFlagAt(direction);
             return;
         }
 
         const out = moveByDelta(this.stageData, direction.x, direction.y);
         this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
+    }
+
+    /** Toggles the flag of the neighbour in `direction` (the flag key's second stroke, and the FLAG mode of the pad). */
+    private toggleFlagAt (direction: Position): void
+    {
+        const target = {
+            x: this.stageData.player.x + direction.x,
+            y: this.stageData.player.y + direction.y
+        };
+        const nextStage = toggleFlag(this.stageData, target);
+        const changedCellIndices = nextStage === this.stageData ? [] : [indexOf(this.stageData, target)];
+        const after = nextStage === this.stageData ? null : nextStage.cells[indexOf(nextStage, target)].flagged;
+        this.applyResult(nextStage, 'alive', flagMessage(after), changedCellIndices);
+    }
+
+    /** Shift + a move key: a run (docs/spec.md "走る"). The first step is taken at once, the next ones every RUN_STEP_MS. */
+    private startRun (direction: Position): void
+    {
+        const stage = this.stageData;
+        const next = { x: stage.player.x + direction.x, y: stage.player.y + direction.y };
+        if (isDoorExit(stage, next)) {
+            // Out through the door: a plain move, the corridor starts.
+            this.applyDirectionInput(direction, false);
+            return;
+        }
+        const steps = runSteps(stage, direction);
+        if (steps === 0) {
+            // The wall gives its message; a cell not open yet, a door or the stairs gives nothing.
+            if (runBlockAt(stage, next) === 'edge') {
+                this.applyDirectionInput(direction, false);
+            }
+            return;
+        }
+        this.run = { dir: direction, left: steps, nextAt: this.time.now + RUN_STEP_MS };
+        this.stepRun();
+    }
+
+    private stepRun (): void
+    {
+        if (!this.run) {
+            return;
+        }
+        this.run.left -= 1;
+        this.applyDirectionInput(this.run.dir, false);
+        // The last cell of the run is taken: from now on the next press acts normally.
+        if (this.run && this.run.left === 0) {
+            this.stopRun();
+        }
+    }
+
+    /** The later steps of a run, each RUN_STEP_MS after the previous due time, until the cells it may enter are used up. */
+    private advanceRun (): void
+    {
+        if (!this.run || this.time.now < this.run.nextAt) {
+            return;
+        }
+        // The cadence is kept from the due time, so a late frame does not stretch it; a long stall starts it again
+        // from now (no burst of catch-up steps).
+        const due = this.run.nextAt + RUN_STEP_MS;
+        this.run.nextAt = due < this.time.now ? this.time.now + RUN_STEP_MS : due;
+        this.stepRun();
+    }
+
+    private stopRun (): void
+    {
+        this.run = undefined;
+    }
+
+    /** Ends a flag wait without changing any flag, and puts back the message it covered. */
+    private cancelFlagWait (): void
+    {
+        if (!this.flagWait) {
+            return;
+        }
+        this.flagWait = false;
+        this.refreshHud(this.messageBeforeWait);
     }
 
     private mapDirection (code: string): Position | null
@@ -1318,6 +1429,10 @@ export class Game extends Scene
         doorIndex?: number
     ): void
     {
+        // Anything but a plain step (death, the goal, a door) ends a run.
+        if (status !== 'alive') {
+            this.run = undefined;
+        }
         if (!this.flow.playing) {
             return;
         }
@@ -1423,6 +1538,9 @@ export class Game extends Scene
         if (!mapAccepted(this.flow.phase)) {
             return;
         }
+        // The map (M, MAP) stops a run or a flag wait, and is shown as usual (docs/spec.md "走る").
+        this.run = undefined;
+        this.cancelFlagWait();
         this.mapElapsed = 0;
         this.mapSkipDelta = true;
         this.mapPlace = undefined;
@@ -1589,6 +1707,7 @@ export class Game extends Scene
     update (_time: number, delta: number): void
     {
         this.advanceMapClock(delta);
+        this.advanceRun();
         this.advanceWalk(delta);
         // After the walk, so the map shows the cell and the room of this frame.
         this.drawMap();
@@ -1852,6 +1971,13 @@ export class Game extends Scene
         ) {
             this.presses.begin(pointer.id, 'button');
             this.showMap();
+            return;
+        }
+
+        // A press during a run or a flag wait stops it (or cancels the wait) and is not carried out.
+        if (this.run || this.flagWait) {
+            this.stopRun();
+            this.cancelFlagWait();
             return;
         }
 
