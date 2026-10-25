@@ -2,7 +2,8 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import { generateFloor } from '../core/generator';
 import { CORRIDOR_GLYPH, advanceCorridor, corridorCellAt, corridorReach, corridorState } from '../core/corridor';
-import { cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
+import { HEADING_VECTOR, cellAtWorld, exitMarkers, type ExitTarget, type FloorMap } from '../core/floorLayout';
+import { roomDoors } from '../core/walls';
 import {
     BOARD_AREA_SIDE,
     BOARD_AREA_TOP,
@@ -1320,6 +1321,29 @@ export class Game extends Scene
         this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
     }
 
+    /**
+     * A tap on the "+" of the door the player stands on walks out through it (docs/spec/rooms-and-floors.md "扉を通る").
+     * The mark sits in the wall, half a cell beyond the door cell's edge; a tap within half a cell of it counts.
+     */
+    private tapDoorExit (pointer: Phaser.Input.Pointer): void
+    {
+        const player = this.stageData.player;
+        const door = roomDoors(this.stageData).find((d) => d.cell.x === player.x && d.cell.y === player.y);
+        if (!door) {
+            return;
+        }
+        const way = HEADING_VECTOR[door.side];
+        const world = pointer.positionToCamera(this.camera) as Phaser.Math.Vector2;
+        const origin = this.roomOriginPx(this.floorState.roomIndex);
+        const markX = origin.x + (player.x + 0.5 + way.x * 0.5) * this.cell;
+        const markY = origin.y + (player.y + 0.5 + way.y * 0.5) * this.cell;
+        if (Math.hypot(world.x - markX, world.y - markY) > this.cell * 0.5) {
+            return;
+        }
+        const out = movePlayer(this.stageData, { x: player.x + way.x, y: player.y + way.y });
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
+    }
+
     /** The board cell under a pointer, or null when it is off the board. */
     private boardCellAt (pointer: Phaser.Input.Pointer): Position | null
     {
@@ -2285,6 +2309,7 @@ export class Game extends Scene
 
         const target = this.boardCellAt(pointer);
         if (!target) {
+            this.tapDoorExit(pointer);
             return;
         }
 
