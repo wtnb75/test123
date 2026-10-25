@@ -7,3 +7,6 @@
 - `src/game/scenes/bulletTextures.ts`: 頂点が `BULLET_VISUAL_RADIUS_MAX` に収まることを純関数でテストしていない — 理由: 手計算で確認済み（最大 6.0）。見え方は QA で目視する
 - `docs/spec.md` テスト観点: 発射方向と複数地雷の独立判定の単体テストが無い — 理由: 発射の角度の計算は `calcNWayAngles`・`angleTo` の既存テストで押さえてあり、警告輪の判定は地雷ごとに純関数を呼ぶだけ
 - `docs/backlog.md`: 実装中のカードを同じ変更で外している — 理由: `game-spec` の規則（実装するブランチで外す）。balance の確認は PR 本文に残す
+- `src/game/scenes/Game.ts` spawnEnemy 系: 編隊と単体の敵で Enemy のオブジェクトリテラルを 3 箇所に書いている — 理由: 既存の編隊の書き方に合わせた。項目の追加は今後の拡張で見直す（nit）
+- `src/game/scenes/Game.ts` Enemy 型: 停止用の phase / holdLeft を全敵に持たせている — 理由: 型の再設計は 1 変更 1 目的の外。今回は kind で分岐して誤用はない（nit）
+- `src/game/scenes/Game.ts` update: 退場の判定で編隊は `40` のリテラル、単体は `SOLO_OFFSCREEN_MARGIN` — 理由: 編隊の 40 は従来のまま（1 変更 1 目的）。値は同じで動作は一致（nit）

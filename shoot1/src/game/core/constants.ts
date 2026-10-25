@@ -35,3 +35,10 @@ export const BG_SCANLINE_ALPHA = 0.06;
 export const FORMATION_INTERVAL_EARLY_SEC = 4;
 export const FORMATION_INTERVAL_SEC = 6;
 export const ENEMY_SPEED = 80;
+
+// Solo enemies (rush / stop-and-fire), added on top of the formations
+export const SOLO_ENEMY_START_SEC = 30;
+export const SOLO_ENEMY_INTERVAL_SEC = 12;
+export const RUSH_SPEED = 160;
+export const SOLO_STOP_Y = GAME_HEIGHT / 4;
+export const SOLO_STOP_SEC = 3;
