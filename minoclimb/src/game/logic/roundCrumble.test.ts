@@ -114,8 +114,8 @@ describe('Round: a line clear while the warning blinks', () => {
      * A roof (row 14, columns 4-5), a pocket (columns 4-5, rows 15-16) and a full floor row 17 that clears at the
      * next lock. The blinking cell is the roof cell (4,14); the floor row is below it.
      */
-    const roofed = (): Round => {
-        const round = new Round(() => 0.9);
+    const roofed = (hesitate = true): Round => {
+        const round = new Round(() => 0.9, { hesitate });
         fillRow(round, 14, [0, 1, 2, 3, 6, 7, 8, 9]);
         fillRow(round, 15, [4, 5]);
         fillRow(round, 16, [4, 5]);
@@ -132,7 +132,7 @@ describe('Round: a line clear while the warning blinks', () => {
     });
 
     it('moves the blinking cell down with the stack when a row below it clears, keeping its time', () => {
-        const round = roofed();
+        const round = roofed(false);
         frames(round, 60);
         // An I mino lands flat on columns 0-3 (row 14); the lock clears the full floor row 17.
         round.flow = {
@@ -150,7 +150,8 @@ describe('Round: a line clear while the warning blinks', () => {
     });
 
     it('keeps counting the time sealed in across a lock and a line clear (nothing is reset)', () => {
-        const round = roofed();
+        // Without the hesitating drop, so the count is only the frames of this test.
+        const round = roofed(false);
         frames(round, 30);
         expect(round.crumble.sealedFor).toBeCloseTo(30 * DT, 9);
         round.flow = {

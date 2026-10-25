@@ -21,6 +21,15 @@ export const P = {
     CRUMBLE_BLINK_HZ_START: 2,
     CRUMBLE_BLINK_HZ_END: 8,
     DROP_SPEED: 40,
+    // Hesitating drop (docs/spec.md "1 個のミノの流れ" 2): a placement pauses once, at HESITATE_AT of its fall
+    HESITATE_TIME: 0.25,
+    // the paused mino sways this many columns left and right (and back) during HESITATE_TIME
+    HESITATE_SWAY: 1,
+    HESITATE_AT: 0.5,
+    HESITATE_MIN_ROWS: 4,
+    // the rule is (7 × kind + 5 × rot + 3 × col) mod HESITATE_MOD < HESITATE_BELOW; 10 and 3 give about 3 in 10 placements
+    HESITATE_MOD: 10,
+    HESITATE_BELOW: 3,
     TELEGRAPH_TIME: 0.9,
     // Times (s from the telegraph start) at which the hovering mino turns, by number of turns n.
     // Later gaps are longer, so the spin slows down before it stops (all done by 0.6 s).

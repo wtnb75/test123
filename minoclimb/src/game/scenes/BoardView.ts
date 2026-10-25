@@ -3,8 +3,8 @@ import { P, WIDTH, HEIGHT } from '../params';
 import { crumbleBlink, flashAlpha, hintAlpha } from '../logic/effects';
 import type { StickView } from '../logic/input';
 import type { Round, RoundEvent } from '../logic/round';
-import { shapeCells, type Cell } from '../logic/pieces';
-import { frameView, telegraphView } from '../logic/telegraph';
+import { type Cell } from '../logic/pieces';
+import { dropFrameView, frameView, telegraphView } from '../logic/telegraph';
 
 const COLORS = [0x00d0d0, 0xf0d000, 0xa000d0, 0x00c040, 0xd02020, 0x2040e0, 0xf08000];
 const BACKGROUND = 0x10131c;
@@ -171,7 +171,7 @@ export class BoardView {
         const color = COLORS[plan.kind];
         const frame = flow.kind === 'telegraph'
             ? frameView(round.grid, plan, flow.t)
-            : { cells: shapeCells(plan.kind, plan.rot), col: plan.col, row: plan.row };
+            : dropFrameView(round.grid, flow.piece, plan);
         for (const { c, r } of frame.cells) {
             // A shape that cannot come to rest inside the field has its cells above the field left out.
             if (frame.row + r < 0) continue;

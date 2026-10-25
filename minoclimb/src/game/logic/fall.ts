@@ -2,6 +2,15 @@
 import { P } from '../params';
 import { canPlace, type Grid, type Piece } from './board';
 import { feetY, type Player } from './player';
+import type { Plan } from './ai';
+
+/**
+ * Whether this placement hesitates once while falling (docs/spec.md "1 個のミノの流れ" 2). A fixed rule, no random
+ * draw: a landing row shallower than HESITATE_MIN_ROWS never pauses; otherwise (7 × kind + 5 × rot + 3 × col) mod 10
+ * below HESITATE_BELOW does.
+ */
+export const hesitates = (plan: Plan): boolean =>
+    plan.row >= P.HESITATE_MIN_ROWS && (7 * plan.kind + 5 * plan.rot + 3 * plan.col) % P.HESITATE_MOD < P.HESITATE_BELOW;
 
 export interface FallResult {
     piece: Piece;

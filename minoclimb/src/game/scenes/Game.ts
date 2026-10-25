@@ -48,7 +48,7 @@ export class Game extends Scene {
         this.clock = 0;
         this.playSec = 0;
         this.sinceEnd = 0;
-        this.round = new Round(Math.random);
+        this.round = new Round(Math.random, { swayRng: Math.random });
         this.view = new BoardView(this, this.viewOptions());
         this.setupControls();
         this.view.draw(this.round, null, 0, 0, false);

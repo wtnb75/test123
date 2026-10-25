@@ -2,7 +2,7 @@
 import { P } from '../params';
 import { ROTATION_COUNT, shapeCells, shapeWidth, type Cell } from './pieces';
 import { PROBE_ROW, type Plan } from './ai';
-import { landingRow, type Grid } from './board';
+import { landingRow, type Grid, type Piece } from './board';
 
 export interface TelegraphView {
     rot: number;
@@ -49,4 +49,13 @@ export const frameView = (grid: Grid, plan: Plan, t: number): FrameView => {
     }
     const view = telegraphView(plan, t);
     return { cells: view.cells, col: view.col, row: landingRow(grid, view.cells, view.col, PROBE_ROW) };
+};
+
+/**
+ * The landing frame while the mino falls. On its planned column it sits at the AI's landing. While a pause sways the
+ * mino to another column, the frame moves with it and lands where that column would stop the mino.
+ */
+export const dropFrameView = (grid: Grid, piece: Piece, plan: Plan): FrameView => {
+    if (piece.col === plan.col) return { cells: piece.cells, col: plan.col, row: plan.row };
+    return { cells: piece.cells, col: piece.col, row: landingRow(grid, piece.cells, piece.col, Math.floor(piece.y)) };
 };
