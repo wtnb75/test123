@@ -45,6 +45,9 @@ const NORMAL_DROP_COMMIT_MS = 140;
 const GAME_OVER_DROP_COMMIT_MS = 520;
 const GAME_OVER_SLOW_MOTION_SCALE = 0.35;
 const GAME_OVER_SLOW_MOTION_DELAY_MS = 560;
+const WAIT_BAR_WIDTH = 200;
+const WAIT_BAR_HEIGHT = 12;
+const WAIT_BAR_TOP = 108;
 
 interface GameInitData {
     digitCount?: number;
@@ -61,6 +64,8 @@ export class Game extends Scene
     private currentValueTopText!: GameObjects.Text;
     private dropZoneTop = 0;
     private dragging = false;
+    private arrowLeft?: Input.Keyboard.Key;
+    private arrowRight?: Input.Keyboard.Key;
     private difficulty: Difficulty = { ...DEFAULT_DIFFICULTY };
     private distributionState: DistributionState = createDistributionState();
     private isEntering = true;
@@ -79,8 +84,13 @@ export class Game extends Scene
     /** Milliseconds left before the READY number falls on its own. */
     private waitLeftMs = 0;
     private waitText!: GameObjects.Text;
-    /** The tenth of a second the WAIT text was last built for (-1: none shown). */
+    /** The tenth of a second the wait text was last built for (-1: none shown). */
     private lastWaitTenths = -1;
+    /** The bar's filled width in pixels last drawn (-1: none shown). */
+    private lastWaitBarWidth = -1;
+    /** The length of the current wait in ms: the bar's full length. */
+    private waitTotalMs = 0;
+    private waitBar!: GameObjects.Graphics;
 
     constructor ()
     {
@@ -132,7 +142,9 @@ export class Game extends Scene
         this.score = 0;
         this.placed = 0;
         this.waitLeftMs = 0;
+        this.waitTotalMs = 0;
         this.lastWaitTenths = -1;
+        this.lastWaitBarWidth = -1;
         this.distributionState = createDistributionState();
     }
 
@@ -149,10 +161,11 @@ export class Game extends Scene
                 this.currentY = READY_Y;
                 this.isEntering = false;
                 this.waitLeftMs = waitMs(this.placed);
+                this.waitTotalMs = this.waitLeftMs;
             }
         } else if (!this.isResolving && this.waitLeftMs > 0) {
-            // the wait runs only while the number is at READY; a held number is frozen. The frame it arrives in does not count.
-            this.waitLeftMs = stepWait(this.waitLeftMs, delta, this.dragging);
+            // the wait runs only while the number is at READY; a held number (dragged, or an arrow key down) is frozen. The frame it arrives in does not count.
+            this.waitLeftMs = stepWait(this.waitLeftMs, delta, this.dragging || this.isArrowHeld());
 
             if (this.waitLeftMs === 0) {
                 this.confirmDrop(true);
@@ -205,6 +218,8 @@ export class Game extends Scene
             fontStyle: 'bold'
         }).setOrigin(1, 0);
 
+        this.waitBar = this.add.graphics();
+
         this.logText = this.add.text(24, height - 260, '', {
             color: '#d7e3fc',
             fontFamily: 'monospace',
@@ -224,6 +239,9 @@ export class Game extends Scene
 
     private buildInputHandlers (width: number)
     {
+        this.arrowLeft = this.input.keyboard?.addKey('LEFT');
+        this.arrowRight = this.input.keyboard?.addKey('RIGHT');
+
         this.currentValueText.on('pointerdown', (pointer: Input.Pointer) => {
             if (this.isGameOver || this.isEntering || this.isResolving) {
                 return;
@@ -491,7 +509,13 @@ export class Game extends Scene
         this.boxesView.update(this.boxes);
     }
 
-    /** The wait's remaining seconds, shown while a number is at READY (frozen while held); empty otherwise. */
+    /** A left or right key held counts as a grab, like a drag: the wait stops. */
+    private isArrowHeld (): boolean
+    {
+        return Boolean(this.arrowLeft?.isDown || this.arrowRight?.isDown);
+    }
+
+    /** The wait's remaining seconds and bar, shown while a number is at READY (frozen while held); empty otherwise. */
     private refreshWaitText ()
     {
         const waiting = !this.isEntering && !this.isResolving && !this.isGameOver;
@@ -500,8 +524,33 @@ export class Game extends Scene
 
         if (tenths !== this.lastWaitTenths) {
             this.lastWaitTenths = tenths;
-            this.waitText.setText(waiting ? `WAIT ${remainingSeconds(this.waitLeftMs).toFixed(1)}` : '');
+            this.waitText.setText(waiting ? remainingSeconds(this.waitLeftMs).toFixed(1) : '');
         }
+
+        // the bar is redrawn only when its width in pixels changes
+        const barWidth = waiting ? Math.round(WAIT_BAR_WIDTH * this.waitLeftMs / this.waitTotalMs) : -1;
+
+        if (barWidth !== this.lastWaitBarWidth) {
+            this.lastWaitBarWidth = barWidth;
+            this.drawWaitBar(barWidth);
+        }
+    }
+
+    /** Draws the wait bar with `filledWidth` pixels lit; a negative width clears it. */
+    private drawWaitBar (filledWidth: number)
+    {
+        const left = this.cameras.main.width - 24 - WAIT_BAR_WIDTH;
+
+        this.waitBar.clear();
+
+        if (filledWidth < 0) {
+            return;
+        }
+
+        this.waitBar.fillStyle(0x415a77);
+        this.waitBar.fillRect(left, WAIT_BAR_TOP, WAIT_BAR_WIDTH, WAIT_BAR_HEIGHT);
+        this.waitBar.fillStyle(0xffd166);
+        this.waitBar.fillRect(left, WAIT_BAR_TOP, filledWidth, WAIT_BAR_HEIGHT);
     }
 
     private syncCurrentValueDisplay ()
