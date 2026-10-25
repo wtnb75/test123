@@ -22,6 +22,7 @@ import { FloorState, type DoorRoute } from '../core/floor';
 import type { FloorGraph } from '../core/floorGraph';
 import { moveByDelta, chordAtPlayer, movePlayer, toggleFlag } from '../core/rules';
 import { RUN_STEP_MS, flagWaitAction, isDoorExit, runBlockAt, runSteps } from '../core/run';
+import { travelRoute } from '../core/travel';
 import { inBounds, indexOf } from '../core/board';
 import { analyzeCurrentState } from '../core/solver';
 import { GLYPH_OUTLINE_COLOR, scaledDimension, scaledFont } from '../core/cellAppearance';
@@ -257,6 +258,8 @@ export class Game extends Scene
     flagMode = false;
     /** The run in progress (docs/spec.md "走る"): its direction and the time of its next step. */
     private run?: { dir: Position; left: number; nextAt: number };
+    /** The walk after a tap on a non-adjacent opened cell (docs/spec.md "タップで歩く"): the cells still to step on. */
+    private travel?: { cells: Position[]; nextAt: number };
     /** `f` was pressed: the next move key sets the flag of that neighbour; the message to restore if it is cancelled. */
     private flagWait = false;
     private messageBeforeWait = '';
@@ -352,6 +355,7 @@ export class Game extends Scene
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
         this.run = undefined;
+        this.travel = undefined;
         this.flagWait = false;
         this.inputLockUntil = 0;
         this.startFirstStage();
@@ -411,6 +415,7 @@ export class Game extends Scene
         this.flow.reset();
         this.presses.clear();
         this.run = undefined;
+        this.travel = undefined;
         this.flagWait = false;
         this.gameOverLogical = undefined;
         this.graveInfo = undefined;
@@ -1215,7 +1220,7 @@ export class Game extends Scene
             return;
         }
         // A new press stops a run and is not carried out (a repeat, from a held key, does not stop it).
-        if (this.run) {
+        if (this.run || this.travel) {
             this.stopRun();
             return;
         }
@@ -1337,9 +1342,42 @@ export class Game extends Scene
         this.stepRun();
     }
 
+    /** Stops a run or a tap walk (a new press, the map, a hidden page, a death or a goal). */
     private stopRun (): void
     {
         this.run = undefined;
+        this.travel = undefined;
+    }
+
+    /** A tap on a non-adjacent opened cell: the first step at once, the next ones every RUN_STEP_MS. */
+    private startTravel (cells: Position[]): void
+    {
+        this.travel = { cells, nextAt: this.time.now + RUN_STEP_MS };
+        this.stepTravel();
+    }
+
+    private stepTravel (): void
+    {
+        if (!this.travel) {
+            return;
+        }
+        const [next, ...rest] = this.travel.cells;
+        this.travel.cells = rest;
+        const out = movePlayer(this.stageData, next);
+        this.applyResult(out.stage, out.result.status, this.messageOf(out), out.changedCellIndices, out.result.message, out.result.doorIndex);
+        if (this.travel && this.travel.cells.length === 0) {
+            this.stopRun();
+        }
+    }
+
+    private advanceTravel (): void
+    {
+        if (!this.travel || this.time.now < this.travel.nextAt) {
+            return;
+        }
+        const due = this.travel.nextAt + RUN_STEP_MS;
+        this.travel.nextAt = due < this.time.now ? this.time.now + RUN_STEP_MS : due;
+        this.stepTravel();
     }
 
     /** Ends a flag wait without changing any flag, and puts back the message it covered. */
@@ -1433,7 +1471,7 @@ export class Game extends Scene
     {
         // Anything but a plain step (death, the goal, a door) ends a run.
         if (status !== 'alive') {
-            this.run = undefined;
+            this.stopRun();
         }
         if (!this.flow.playing) {
             return;
@@ -1541,7 +1579,7 @@ export class Game extends Scene
             return;
         }
         // The map (M, MAP) stops a run or a flag wait, and is shown as usual (docs/spec.md "走る").
-        this.run = undefined;
+        this.stopRun();
         this.cancelFlagWait();
         this.mapElapsed = 0;
         this.mapSkipDelta = true;
@@ -1710,6 +1748,7 @@ export class Game extends Scene
     {
         this.advanceMapClock(delta);
         this.advanceRun();
+        this.advanceTravel();
         this.advanceWalk(delta);
         // After the walk, so the map shows the cell and the room of this frame.
         this.drawMap();
@@ -1958,6 +1997,8 @@ export class Game extends Scene
     {
         sessionInputKind = inputKindOfPointer(pointer.wasTouch);
         if (this.stageSelectHitArea && Phaser.Geom.Rectangle.Contains(this.stageSelectHitArea, pointer.x, pointer.y)) {
+            // STAGE is always accepted: it stops a run or a tap walk too.
+            this.stopRun();
             this.presses.begin(pointer.id, 'button');
             this.promptAndStartStage();
             return;
@@ -1977,7 +2018,7 @@ export class Game extends Scene
         }
 
         // A press during a run or a flag wait stops it (or cancels the wait) and is not carried out.
-        if (this.run || this.flagWait) {
+        if (this.run || this.travel || this.flagWait) {
             this.stopRun();
             this.cancelFlagWait();
             return;
@@ -2142,7 +2183,16 @@ export class Game extends Scene
 
         const dx = Math.abs(target.x - this.stageData.player.x);
         const dy = Math.abs(target.y - this.stageData.player.y);
-        if (dx > 1 || dy > 1 || (dx === 0 && dy === 0)) {
+        if (dx === 0 && dy === 0) {
+            return;
+        }
+        if (dx > 1 || dy > 1) {
+            // A tap on a cell that is not next to the player walks there over opened cells (docs/spec.md "タップで歩く").
+            // Not while a run is going (a finger held down before the run started).
+            const route = this.run ? null : travelRoute(this.stageData, target);
+            if (route) {
+                this.startTravel(route);
+            }
             return;
         }
 
