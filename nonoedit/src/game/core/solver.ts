@@ -51,7 +51,31 @@ const matchesKnown = (candidate: BinaryCell[], known: KnownCell[]): boolean => {
     return true;
 };
 
+// Candidate lists are reused within one analysis: most lines do not change between passes and
+// probes. Only lists finished before the time limit are stored, so a reused answer equals a fresh one.
+let candidateMemo: Map<string, BinaryCell[][]> | null = null;
+
+const lineKey = (ctx: LineContext): string =>
+    `${ctx.hints.join(',')}|${ctx.known.map((v) => (v === null ? '?' : v)).join('')}`;
+
 export const generateCandidates = (ctx: LineContext): BinaryCell[][] => {
+    const memo = candidateMemo;
+    if (memo === null) {
+        return enumerateCandidates(ctx);
+    }
+    const key = lineKey(ctx);
+    const hit = memo.get(key);
+    if (hit !== undefined) {
+        return hit;
+    }
+    const found = enumerateCandidates(ctx);
+    if (!isTimeout(ctx.startTime, ctx.maxMillis)) {
+        memo.set(key, found);
+    }
+    return found;
+};
+
+const enumerateCandidates = (ctx: LineContext): BinaryCell[][] => {
     const hints = normalizeHints(ctx.hints);
     const length = ctx.known.length;
 
@@ -473,6 +497,15 @@ const estimateDifficulty = (score: number, logical: boolean): DifficultyRank => 
 };
 
 export const analyzePuzzle = (solution: BinaryCell[][], rowHints: number[][], colHints: number[][], maxMillis = 3000): AnalysisResult => {
+    candidateMemo = new Map();
+    try {
+        return runAnalysis(solution, rowHints, colHints, maxMillis);
+    } finally {
+        candidateMemo = null;
+    }
+};
+
+const runAnalysis = (solution: BinaryCell[][], rowHints: number[][], colHints: number[][], maxMillis: number): AnalysisResult => {
     const startedAt = now();
     const height = solution.length;
     const width = solution[0]?.length ?? 0;
@@ -624,9 +657,9 @@ export const analyzePuzzle = (solution: BinaryCell[][], rowHints: number[][], co
         }
     };
 
-    // Count solutions from an unconstrained seed so uniqueness is not affected
-    // by any intermediate logical deductions.
-    const seed = Array.from({ length: height }, () => Array.from({ length: width }, () => null as KnownCell));
+    // Count solutions from the cells the logic has already fixed. Each deduction holds in every
+    // solution, so the solution set is the same as from an empty grid, and the search is smaller.
+    const seed = known.map((row) => row.slice());
     search(seed);
 
     if (isTimeout(startedAt, maxMillis)) {
