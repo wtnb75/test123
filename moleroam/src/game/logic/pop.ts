@@ -3,7 +3,7 @@ import { holeCenter, type Pt } from './board';
 import { LANDSCAPE, type Layout } from './layout';
 import type { Kind } from './spawn';
 
-/** One mole or cat in a hole. `spawnedAt` is in game milliseconds. */
+/** One mole, cat or clock in a hole (it takes a slot of the pop cap). `spawnedAt` is in game milliseconds. */
 export interface Pop {
     hole: number;
     kind: Kind;
@@ -51,7 +51,7 @@ export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number, layout: L
  * Score after hitting a `kind`; the total never drops below 0. `applied` is the actual change.
  * A mole is worth `scoreMole` times the streak `multiplier`; a cat's penalty is never multiplied.
  */
-export const applyStrike = (score: number, kind: Kind, multiplier = 1): { score: number; applied: number } => {
+export const applyStrike = (score: number, kind: 'mole' | 'cat', multiplier = 1): { score: number; applied: number } => {
     const next = Math.max(0, score + (kind === 'mole' ? PARAMS.scoreMole * multiplier : PARAMS.scoreFriend));
     return { score: next, applied: next - score };
 };

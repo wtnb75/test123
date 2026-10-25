@@ -61,19 +61,23 @@ export class DemoGame extends Game {
         // The run is rebuilt long before the clock runs out; should it ever run out, the last picture stays.
     }
 
-    /** The bot taps first (with this frame's view), then scrolls like the arrow keys, only slower. */
+    /**
+     * The bot taps first, then scrolls like the arrow keys, only slower. It judges at the start of the frame, before
+     * this frame's time step (update adds the step to elapsedMs before this runs), as docs/spec.md requires.
+     */
     protected override scrollStep(delta: number): void {
         const cam = this.cameras.main;
+        const frameStartMs = this.elapsedMs - delta;
         this.sightPops.length = 0;
         for (const v of this.live) this.sightPops.push(v.pop);
-        this.sight.now = this.elapsedMs;
+        this.sight.now = frameStartMs;
         this.sight.layout = this.layout;
         this.sight.view.x = cam.scrollX;
         this.sight.view.y = cam.scrollY;
         this.sight.view.w = this.layout.viewW;
         this.sight.view.h = this.layout.viewH;
         decideDemo(this.sight, this.move);
-        if (this.move.strike) this.strike(this.move.strikeX, this.move.strikeY);
+        if (this.move.strike) this.strike(this.move.strikeX, this.move.strikeY, frameStartMs);
         const step = (PARAMS.scrollSpeed * PARAMS.demoScrollRatio * delta) / 1000;
         const by: Pt = { x: this.move.moveX * step, y: this.move.moveY * step };
         this.scrollBy(by);

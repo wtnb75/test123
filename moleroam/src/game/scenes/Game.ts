@@ -15,6 +15,8 @@ import { DEPTH, UI_FONT, applyLayout, fadeInScene } from './ui';
 
 const HUD_STYLE = { fontFamily: UI_FONT, fontSize: '30px', color: '#ffffff', stroke: '#000000', strokeThickness: 4 };
 const LOW_TIME_COLOR = '#ff5252';
+/** The "+N秒" a clock adds (docs/spec/items.md): blue, to tell it from the yellow "+N" of a mole. */
+const CLOCK_TEXT_COLOR = '#40c4ff';
 
 type Phase = 'playing' | 'ending';
 
@@ -26,6 +28,8 @@ export class Game extends Scene {
     private score = 0;
     /** Consecutive mole hits (docs/spec.md "連続"); a miss or a cat hit starts it over. */
     private streak = 0;
+    /** Time the clocks have added this run (docs/spec/items.md); there is no cap. */
+    private bonusMs = 0;
     protected live: PopView[] = [];
     private arrows: GameObjects.Triangle[] = [];
     private scoreText!: GameObjects.Text;
@@ -59,6 +63,7 @@ export class Game extends Scene {
         this.nextSpawn = firstSpawnAt();
         this.score = 0;
         this.streak = 0;
+        this.bonusMs = 0;
         this.live = [];
         this.arrows = [];
         this.pointers.clear();
@@ -88,7 +93,7 @@ export class Game extends Scene {
                     phase: this.phase,
                     score: this.score,
                     streak: this.streak,
-                    remainingMs: remainingMs(this.elapsedMs),
+                    remainingMs: remainingMs(this.elapsedMs, this.bonusMs),
                     layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
                     camera: { w: cam.width, h: cam.height },
                     scroll: { x: cam.scrollX, y: cam.scrollY },
@@ -136,12 +141,14 @@ export class Game extends Scene {
             this.updateEnding(delta);
             return;
         }
-        this.scrollStep(delta);
+        // Order per docs/spec.md "Game の進行フェーズ": taps (already handled as input events), then the time
+        // runs down, then the ending check; only a running frame moves the view and advances the pops.
         this.elapsedMs += delta;
-        if (remainingMs(this.elapsedMs) <= 0) {
+        if (remainingMs(this.elapsedMs, this.bonusMs) <= 0) {
             this.enterEnding();
             return;
         }
+        this.scrollStep(delta);
         this.updatePops();
         this.spawnStep();
         this.updateArrows();
@@ -259,12 +266,15 @@ export class Game extends Scene {
 
     // --- play ---------------------------------------------------------------------------------
 
-    /** A strike at canvas position (sx, sy). */
-    protected strike(sx: number, sy: number) {
+    /**
+     * A strike at canvas position (sx, sy), judged at game time `now`: a player's tap is an input event, so it is
+     * judged at the time of the last update; the demo bot judges at the start of its frame (see DemoGame).
+     */
+    protected strike(sx: number, sy: number, now = this.elapsedMs) {
         if (this.phase !== 'playing') return;
         const cam = this.cameras.main;
         const at = { x: cam.scrollX + sx, y: cam.scrollY + sy };
-        const hit = judgeStrike(at, this.live.map((v) => v.pop), this.elapsedMs, this.layout);
+        const hit = judgeStrike(at, this.live.map((v) => v.pop), now, this.layout);
         const view = this.live.find((v) => v.pop === hit);
         const result = resolveStrike(this.score, this.streak, hit && view ? hit.kind : 'miss');
         this.score = result.score;
@@ -274,7 +284,10 @@ export class Game extends Scene {
             return;
         }
         this.live = this.live.filter((v) => v !== view);
-        if (hit.kind === 'mole') {
+        if (hit.kind === 'clock') {
+            this.bonusMs += PARAMS.itemTimeBonusMs;
+            playMoleHit(this, view, `+${PARAMS.itemTimeBonusMs / 1000}秒`, this.layout, CLOCK_TEXT_COLOR);
+        } else if (hit.kind === 'mole') {
             playMoleHit(this, view, changeLabel(result.applied), this.layout);
             if (result.announce !== null) this.announceStreak(result.announce);
         } else {
@@ -332,7 +345,7 @@ export class Game extends Scene {
             this.scoreShown = this.score;
             this.scoreText.setText(`スコア ${this.score}`);
         }
-        const remaining = remainingMs(this.elapsedMs);
+        const remaining = remainingMs(this.elapsedMs, this.bonusMs);
         const seconds = displaySeconds(remaining);
         if (seconds !== this.timeShown) {
             this.timeShown = seconds;

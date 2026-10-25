@@ -1,7 +1,11 @@
 import { PARAMS } from '../params';
 
-/** Remaining play time in game milliseconds (never negative). */
-export const remainingMs = (elapsedMs: number): number => Math.max(0, PARAMS.gameSeconds * 1000 - elapsedMs);
+/**
+ * Remaining play time in game milliseconds (never negative). `bonusMs` is the time clocks have added so far
+ * (docs/spec/items.md); there is no cap, so the total can pass the starting time.
+ */
+export const remainingMs = (elapsedMs: number, bonusMs = 0): number =>
+    Math.max(0, PARAMS.gameSeconds * 1000 + bonusMs - elapsedMs);
 
 /** True once the displayed seconds are `lowTimeSeconds` or fewer: the clock is shown red and pulsing. */
 export const isLowTime = (remaining: number): boolean => displaySeconds(remaining) <= PARAMS.lowTimeSeconds;

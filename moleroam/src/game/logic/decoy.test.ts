@@ -80,14 +80,15 @@ describe('rollDecoy', () => {
 });
 
 describe('rollDecoys after a real spawn plan (stepSpawn then rollDecoys, one random source)', () => {
-    it('rolls only for the cat, after the plan: a combo [mole, cat, mole] uses 7 plan draws then 1 decoy draw', () => {
-        // plan draws (see the combo case in spawn.test.ts): combo roll 0.1, anchor 0, near 0 and 0.99, kinds 0.9 / 0.1 / 0.5
-        // = mole at hole 0, cat at hole 1, mole at hole 9. Then one decoy draw for the cat: 0.2 -> decoy.
-        const r = seq([0.1, 0, 0, 0.99, 0.9, 0.1, 0.5, 0.2]);
+    it('rolls only for the cat, after the plan: a combo [mole, cat, mole] uses 9 plan draws then 1 decoy draw', () => {
+        // plan draws (see the combo case in spawn.test.ts): combo roll 0.1, anchor 0, near 0 and 0.99,
+        // kind 0.9 + clock 0.99 (mole at hole 0), kind 0.1 (cat at hole 1, no clock roll), kind 0.5 + clock 0.99
+        // (mole at hole 9). Then one decoy draw for the cat: 0.2 -> decoy.
+        const r = seq([0.1, 0, 0, 0.99, 0.9, 0.99, 0.1, 0.5, 0.99, 0.2]);
         const { plan } = stepSpawn(500, 500, [], r.rand);
-        expect(r.calls()).toBe(7);
+        expect(r.calls()).toBe(9);
         const rolled = rollDecoys(plan, r.rand);
-        expect(r.calls()).toBe(8);
+        expect(r.calls()).toBe(10);
         expect(rolled).toEqual([
             { hole: 0, kind: 'mole', decoy: false },
             { hole: 1, kind: 'cat', decoy: true },
@@ -96,8 +97,9 @@ describe('rollDecoys after a real spawn plan (stepSpawn then rollDecoys, one ran
     });
 
     it('gives the first cat in plan order the first decoy draw: [cat, cat, mole] with draws 0.5 then 0.1 -> [no, yes]', () => {
-        // plan draws: combo roll 0.1, anchor 0, near 0 and 0.99, kinds 0.1 / 0.1 / 0.9 = cat at 0, cat at 1, mole at 9
-        const r = seq([0.1, 0, 0, 0.99, 0.1, 0.1, 0.9, 0.5, 0.1]);
+        // plan draws: combo roll 0.1, anchor 0, near 0 and 0.99, kinds 0.1 / 0.1 (cats, no clock roll) / 0.9 + clock 0.99
+        // (mole at 9); then the decoy rolls 0.5 (no) and 0.1 (yes)
+        const r = seq([0.1, 0, 0, 0.99, 0.1, 0.1, 0.9, 0.99, 0.5, 0.1]);
         const { plan } = stepSpawn(500, 500, [], r.rand);
         const rolled = rollDecoys(plan, r.rand);
         expect(rolled.map((p) => [p.hole, p.kind, p.decoy])).toEqual([
@@ -105,7 +107,7 @@ describe('rollDecoys after a real spawn plan (stepSpawn then rollDecoys, one ran
             [1, 'cat', true],
             [9, 'mole', false],
         ]);
-        expect(r.calls()).toBe(9);
+        expect(r.calls()).toBe(10);
     });
 
     it('draws nothing for an empty plan (a check that is not due, or has no room)', () => {

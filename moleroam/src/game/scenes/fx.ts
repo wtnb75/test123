@@ -38,11 +38,14 @@ export const createCatVeil = (scene: Scene, layout: Layout): GameObjects.Rectang
         .setAlpha(0);
 };
 
-/** A mole was whacked: squash, star burst, "+N", a light shake (ignored while a cat shake runs). */
-export const playMoleHit = (scene: Scene, view: PopView, label: string, layout: Layout): void => {
+/**
+ * A mole (or a clock) was whacked: squash, star burst, the floating label, a light shake (ignored while a cat
+ * shake runs). `color` is the label's colour: yellow for a mole's "+N", blue for a clock's "+N秒".
+ */
+export const playMoleHit = (scene: Scene, view: PopView, label: string, layout: Layout, color = '#ffee58'): void => {
     const { x, y } = view.center;
     scene.cameras.main.shake(PARAMS.hitShakeMs, PARAMS.hitShakeIntensity, false);
-    floatText(scene, layout, x, y - 90, label, '#ffee58', 40);
+    floatText(scene, layout, x, y - 90, label, color, 40);
     for (let i = 0; i < PARAMS.starCount; i++) {
         const a = (i / PARAMS.starCount) * Math.PI * 2;
         const star = scene.add.circle(x, y - 10, 7, 0xffee58).setDepth(DEPTH.fx);
@@ -92,7 +95,7 @@ export const playCatHit = (
         view.destroy();
         return;
     }
-    view.body.setFillStyle(0xff1744);
+    view.reddenBody();
     scene.tweens.killTweensOf(view.body);
     scene.tweens.add({
         targets: view.body,

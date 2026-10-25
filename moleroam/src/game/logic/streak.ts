@@ -1,8 +1,11 @@
 import { PARAMS } from '../params';
 import { applyStrike } from './pop';
 
-/** What a strike did: hit a mole, hit a cat, or hit nothing (including a tap on a telegraphing hole). */
-export type StrikeOutcome = 'mole' | 'cat' | 'miss';
+/**
+ * What a strike did: hit a mole, hit a cat, hit nothing (including a tap on a telegraphing hole), or hit a clock.
+ * A clock hit (docs/spec/items.md) changes neither the score nor the streak; it adds time, handled by the Scene.
+ */
+export type StrikeOutcome = 'mole' | 'cat' | 'clock' | 'miss';
 
 /** The score multiplier for a mole hit, from the streak just before that hit. */
 export const streakMultiplier = (
@@ -12,7 +15,10 @@ export const streakMultiplier = (
 ): number => Math.min(1 + Math.floor(streak / step), max);
 
 /** The streak after a strike: a mole hit adds one; a cat hit or a miss starts over. Nothing else changes it. */
-export const nextStreak = (streak: number, outcome: StrikeOutcome): number => (outcome === 'mole' ? streak + 1 : 0);
+export const nextStreak = (streak: number, outcome: StrikeOutcome): number => {
+    if (outcome === 'clock') return streak;
+    return outcome === 'mole' ? streak + 1 : 0;
+};
 
 /**
  * The multiplier to announce once the streak has become `streakAfter`: the new multiplier when this streak
@@ -42,7 +48,8 @@ export interface StrikeResult {
  */
 export const resolveStrike = (score: number, streak: number, outcome: StrikeOutcome): StrikeResult => {
     const after = nextStreak(streak, outcome);
-    if (outcome === 'miss') return { score, streak: after, applied: 0, announce: null };
+    // only a mole or a cat scores; a miss and a clock hit (which adds time in the Scene) leave the score alone
+    if (outcome !== 'mole' && outcome !== 'cat') return { score, streak: after, applied: 0, announce: null };
     const result = applyStrike(score, outcome, streakMultiplier(streak));
     return {
         score: result.score,
