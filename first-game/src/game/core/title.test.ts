@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StartGate } from 'title-demo';
-import { demoLayout, isStartKey, titleLayout } from './title';
+import { demoLayout, isStartKey, titleLayout, titleSettingsLayout } from './title';
 
 // Expected values are worked by hand from docs/spec/title.md ("パラメータ表" and "テスト観点").
 
@@ -83,21 +83,22 @@ describe('titleLayout', () => {
 
 // Hand-worked from docs/spec/title-demo.md ("レイアウト" and "テスト観点"): W x H -> demo area and 1 cell size.
 describe('demoLayout', () => {
-  it('1024x768: region 76..676 (600 high, 992 wide), cell 30, board centre y 376', () => {
+  // The settings row (34 px, with a gap of 12 above and below) sits under the name, so the region starts 46 px lower.
+  it('1024x768: region 122..676 (554 high, 992 wide), cell 30, board centre y 399', () => {
     expect(demoLayout(1024, 768)).toEqual({
-      visible: true, cell: 30, centerX: 512, centerY: 376, regionTop: 76, regionBottom: 676, regionWidth: 992, regionHeight: 600
+      visible: true, cell: 30, centerX: 512, centerY: 399, regionTop: 122, regionBottom: 676, regionWidth: 992, regionHeight: 554
     });
   });
 
-  it('390x844: region 67..752 (685 high, 358 wide), cell 30, board centre y 410 (409.5 rounded)', () => {
+  it('390x844: region 113..752 (639 high, 358 wide), cell 30, board centre y 433 (432.5 rounded)', () => {
     expect(demoLayout(390, 844)).toMatchObject({
-      visible: true, cell: 30, centerX: 195, centerY: 410, regionTop: 67, regionBottom: 752, regionWidth: 358, regionHeight: 685
+      visible: true, cell: 30, centerX: 195, centerY: 433, regionTop: 113, regionBottom: 752, regionWidth: 358, regionHeight: 639
     });
   });
 
-  it('240x400: cell 20 (the width limits it), region 52..308, board centre y 180', () => {
+  it('240x400: cell 20 (the width limits it), region 98..308, board centre y 203', () => {
     expect(demoLayout(240, 400)).toMatchObject({
-      visible: true, cell: 20, centerY: 180, regionTop: 52, regionBottom: 308, regionWidth: 208, regionHeight: 256
+      visible: true, cell: 20, centerY: 203, regionTop: 98, regionBottom: 308, regionWidth: 208, regionHeight: 210
     });
   });
 
@@ -110,20 +111,27 @@ describe('demoLayout', () => {
     expect(demoLayout(390, 800).centerX).toBe(195);
   });
 
-  it('844x390: cell 22 (the height limits it), region 76..298, board centre y 187', () => {
+  it('844x390: cell 17 (the height limits it), region 122..298, board centre y 210', () => {
     expect(demoLayout(844, 390)).toMatchObject({
-      visible: true, cell: 22, centerY: 187, regionTop: 76, regionBottom: 298, regionHeight: 222
+      visible: true, cell: 17, centerY: 210, regionTop: 122, regionBottom: 298, regionHeight: 176
     });
   });
 
-  it('320x240: cell 8 is under the minimum of 10, so the demo is not shown', () => {
-    expect(demoLayout(320, 240)).toMatchObject({ visible: false, cell: 8, regionHeight: 88 });
+  it('puts the settings button at the right end of the row under the name', () => {
+    // 390 wide: font 39, the row starts at 16 + 39 + 12 = 67 and is 34 px high; the button is 110 wide, 16 from the right.
+    expect(titleSettingsLayout(390)).toEqual({ centerX: 319, centerY: 84, width: 110, height: 34 });
+    // 320 wide: font 32, row top 16 + 32 + 12 = 60.
+    expect(titleSettingsLayout(320)).toEqual({ centerX: 249, centerY: 77, width: 110, height: 34 });
+  });
+
+  it('320x240: cell 4 is under the minimum of 10, so the demo is not shown', () => {
+    expect(demoLayout(320, 240)).toMatchObject({ visible: false, cell: 4, regionHeight: 42 });
   });
 
   it('shows the demo exactly from a cell size of 10', () => {
-    // 320 wide: font 32, regionTop 16 + 32 + 12 = 60; regionBottom = H - 16 - 64 - 12 = H - 92; cell = floor((H - 152) / 10)
-    expect(demoLayout(320, 252)).toMatchObject({ visible: true, cell: 10, regionHeight: 100 });
-    expect(demoLayout(320, 251)).toMatchObject({ visible: false, cell: 9, regionHeight: 99 });
+    // 320 wide: font 32, regionTop 16 + 32 + 12 + 34 + 12 = 106; regionBottom = H - 92; cell = floor((H - 198) / 10)
+    expect(demoLayout(320, 298)).toMatchObject({ visible: true, cell: 10, regionHeight: 100 });
+    expect(demoLayout(320, 297)).toMatchObject({ visible: false, cell: 9, regionHeight: 99 });
   });
 
   it('never gives a negative region on a tiny canvas', () => {
