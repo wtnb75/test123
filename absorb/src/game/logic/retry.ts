@@ -12,6 +12,17 @@ export const GAMEOVER_INPUT_LOCK = BREAKDOWN_SHOWN_AT;
 /** Key codes (DOM `keyCode`, as Phaser's KeyCodes) that retry: the release keys Space, X and Enter. */
 export const RETRY_KEY_CODES: readonly number[] = [32, 88, 13];
 
+/** Key code of T, which goes back to Title from the game-over screen. */
+export const TITLE_KEY_CODE = 84;
+
+/** Whether a point is inside a rectangle: the top-left corner is in, the right and bottom edges are out. */
+export function inRect(x: number, y: number, left: number, top: number, width: number, height: number): boolean {
+    return x >= left && x < left + width && y >= top && y < top + height;
+}
+
+/** Where a game-over press leads: back to Title, into a new game, or nowhere yet. */
+export type GameOverExit = 'title' | 'game' | null;
+
 /** Whether retry input is accepted `t` seconds into the game-over screen. */
 export function retryEnabled(t: number): boolean {
     return t >= GAMEOVER_INPUT_LOCK - EPSILON;
@@ -26,31 +37,45 @@ export function hintAlpha(t: number): number {
 }
 
 /**
- * Decides whether game-over input should retry. Phaser delivers input before the Scene's update, so
+ * Decides where game-over input leads: retry, or back to Title. Phaser delivers input before the Scene's update, so
  * input is only recorded here and judged in `resolve` with the elapsed time of the frame it arrived in.
  * Only a fresh press counts: auto-repeat keydowns (a key held since the game or since the lock) never do,
  * so a held key has to be released and pressed again. Fires at most once.
  */
 export class RetryInput {
     private pressed = false;
+    private titlePressed = false;
     private fired = false;
 
-    /** Records a keydown; only a fresh press of a retry key counts. */
+    /** Records a keydown: a fresh press of a retry key retries, a fresh press of T goes to Title. */
     keyDown(keyCode: number, repeat: boolean): void {
-        if (!repeat && RETRY_KEY_CODES.includes(keyCode)) this.pressed = true;
+        if (repeat) return;
+        if (keyCode === TITLE_KEY_CODE) this.titlePressed = true;
+        else if (RETRY_KEY_CODES.includes(keyCode)) this.pressed = true;
     }
 
-    /** Records a click or touch start. */
-    pointerDown(): void {
-        this.pressed = true;
+    /** Records a click or touch start: on the TITLE button it goes to Title, anywhere else it retries. */
+    pointerDown(onTitleButton = false): void {
+        if (onTitleButton) this.titlePressed = true;
+        else this.pressed = true;
     }
 
-    /** Judges the presses recorded this frame at `t` seconds in and forgets them; true when it should retry. */
-    resolve(t: number): boolean {
-        const pressed = this.pressed;
+    /**
+     * Judges the presses recorded this frame at `t` seconds in and forgets them. Returns where to go, or null.
+     * Going to Title wins over retrying when both arrive in the same frame. Fires at most once.
+     */
+    resolveExit(t: number): GameOverExit {
+        const title = this.titlePressed;
+        const retry = this.pressed;
+        this.titlePressed = false;
         this.pressed = false;
-        if (!pressed || this.fired || !retryEnabled(t)) return false;
+        if (!(title || retry) || this.fired || !retryEnabled(t)) return null;
         this.fired = true;
-        return true;
+        return title ? 'title' : 'game';
+    }
+
+    /** Judges the presses at `t` seconds in; true when the screen should leave for a new game (retry). */
+    resolve(t: number): boolean {
+        return this.resolveExit(t) === 'game';
     }
 }

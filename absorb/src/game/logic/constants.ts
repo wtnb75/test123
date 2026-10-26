@@ -88,6 +88,11 @@ export const GAMEOVER_ROW_INTERVAL = 0.12;
 export const GAMEOVER_ROW_FADE = 0.2;
 /** The retry hint fades in over this once retry input is accepted. */
 export const GAMEOVER_HINT_FADE = 0.2;
+/** The TITLE button on the game-over screen: its centre sits this far below the retry hint's centre. */
+export const GAMEOVER_TITLE_OFFSET = 60;
+/** The TITLE button's logical size in px (a tap target of at least 44 px high). */
+export const GAMEOVER_TITLE_W = 200;
+export const GAMEOVER_TITLE_H = 48;
 /** Longest frame step fed to the simulation, so a tab switch doesn't teleport everything. */
 export const MAX_DT = 0.05;
 /** Opacity of the black veil over the game while it is auto-paused. */
