@@ -28,8 +28,8 @@ export const lockoutOver = (elapsedSeconds: number): boolean => elapsedSeconds >
  * A press that began on the button is the button's (never a retry). When both a "back to Title" and a retry
  * press come in one frame, "back to Title" wins.
  */
-export function resultAction(raw: RawInput, lockoutOver: boolean): ResultAction | null {
-    if (!lockoutOver) return null;
+export function resultAction(raw: RawInput, accepting: boolean): ResultAction | null {
+    if (!accepting) return null;
     if (TITLE_KEYS.some((code) => raw.pressedKeys.has(code))) return 'title';
     if (raw.pressPoints.some((p) => onTitleButton(p.x, p.y))) return 'title';
     if (RETRY_KEYS.some((code) => raw.pressedKeys.has(code))) return 'retry';

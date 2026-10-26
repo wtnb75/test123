@@ -67,10 +67,11 @@ describe('resultAction (docs/spec.md テスト観点 "結果画面の入力の�
         expect(resultAction(frame(['KeyA', 'Enter']), true)).toBeNull();
     });
 
-    it('does nothing during the lockout, whatever is pressed, and the presses are not carried over', () => {
+    it('does nothing during the lockout, whatever is pressed, and nothing once accepting without a new press', () => {
         const during = frame(['KeyR', 'KeyT', 'Space'], [[180, 600], [10, 10]]);
         expect(resultAction(during, false)).toBeNull();
-        // the next read brings only what was pressed since; the earlier presses are gone with the previous frame
+        // Not carried over is the Scene's part (it reads, and so consumes, the presses every frame, lockout or not):
+        // a frame with no new press does nothing once accepting.
         expect(resultAction(frame(), true)).toBeNull();
     });
 

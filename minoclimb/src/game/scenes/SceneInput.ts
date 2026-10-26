@@ -21,8 +21,7 @@ export class SceneInput {
     private readonly pointerBuffer: PointerState[] = [];
     private readonly raw: RawInput;
     private readonly pressedKeys = new Set<string>();
-    private pointerDown = false;
-    /** Where presses began since the previous read, and the copy handed over by the latest read. */
+    /** Where presses began since the previous read (a press is "pressed" in the sense of `pointerPressed`), and the copy handed over by the latest read. */
     private readonly latchedPresses: { x: number; y: number }[] = [];
     private readonly pressPoints: { x: number; y: number }[] = [];
     private readonly latch = new TouchLatch();
@@ -57,11 +56,10 @@ export class SceneInput {
         this.pressedKeys.clear();
         this.keys.pressed.forEach((code) => this.pressedKeys.add(code));
         this.keys.pressed.clear();
-        this.raw.pointerPressed = this.pointerDown;
-        this.pointerDown = false;
         this.pressPoints.length = 0;
         for (const press of this.latchedPresses) this.pressPoints.push(press);
         this.latchedPresses.length = 0;
+        this.raw.pointerPressed = this.pressPoints.length > 0;
         this.latch.markSeen(this.pointerBuffer);
         this.latch.drain(this.quickTaps, this.cancelled);
         return this.raw;
@@ -70,7 +68,6 @@ export class SceneInput {
     private readonly onPointerDown = (pointer: Input.Pointer): void => {
         // Right and middle mouse buttons are not presses (see readPointers).
         if (!pointer.primaryDown) return;
-        this.pointerDown = true;
         // A Scene that stops reading (the Game behind the Result) must not collect presses without bound.
         if (this.latchedPresses.length < MAX_LATCHED_PRESSES) this.latchedPresses.push({ x: pointer.downX, y: pointer.downY });
         this.latch.down(pointer.id, pointer.downX, pointer.downY);

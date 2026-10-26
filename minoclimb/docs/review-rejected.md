@@ -41,3 +41,7 @@
 - `src/game/logic/hesitate.play.test.ts`: `crushedCount(false)` pins 51 exactly — 理由: 51 is the spec's recorded measurement of the pre-pause baseline; a relational assertion would hide a changed baseline that the spec must be re-measured for.
 - `src/game/logic/roundCrumble.test.ts`: the test name 'keeps counting the time sealed in across a lock and a line clear' — 理由: the name predates this change; renaming it is an unrelated edit.
 - `src/game/logic/round.ts`: a frame that crosses the stop threshold mid-step has no dedicated test — 理由: no defect found; the stop is exact by construction (fall(toStop) ends on the threshold and the flag prevents a second pause), and the threshold cases are in hesitate.cases.test.ts.
+- `src/game/scenes/Result.ts` (`T` also fires with Ctrl/Cmd/Alt held): a browser shortcut such as Ctrl+T could throw the result away — 理由: the browser keeps those shortcuts (a new tab) and does not hand them to the page; R has the same behaviour already; the spec says "T の押し始め".
+- `docs/spec.md` (the 「タイトルへ」ボタンが横向き 667 × 310 で 44 px・11 px に届かない): AGENTS.md 4.6 の基準を満たさない — 理由: 拡張の合意で承認済みの例外として、理由つきで spec に書いた（論理サイズ 360 × 720 の固定。Title の START と同じ扱い。横向きは主な対象ではない）。直すなら配置の再合意が要る。
+- `src/game/scenes/SceneInput.ts` (押しの位置の上限 `MAX_LATCHED_PRESSES` が共有クラスにある): Scene ごとに直すべき — 理由: Game が結果画面の間は読まないことによる増加を止める最小の手当てで、読む Scene では実質効かない。Game だけを直すと入力の読み方が Scene ごとに分かれる。
+- `src/game/scenes/Result.ts` (`setVisible(true)` を毎フレーム呼ぶ): 1 回だけにすべき — 理由: 既存のヒントと同じ書き方で、プロパティの書き込みが 2 回増えるだけで測れない。
