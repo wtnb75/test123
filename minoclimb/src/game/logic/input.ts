@@ -30,6 +30,8 @@ export interface RawInput {
     pressedKeys: ReadonlySet<string>;
     /** A primary button or finger went down since the previous read. */
     pointerPressed: boolean;
+    /** Where each of those presses began, logical px (one entry per press, in arrival order). */
+    pressPoints: readonly { x: number; y: number }[];
     /** Presses that began and ended since the previous read without being seen down. */
     quickTaps: readonly QuickTap[];
     /** Fingers that vanished since the previous read without a normal release (cancel, lost). */

@@ -37,7 +37,7 @@ const up = (id: number, x = 0, y = 0, downX = 0, downY = 0): PointerState => ({
     id, x, y, downX, downY, isDown: false,
 });
 const raw = (k: ReadonlySet<string> = keys(), ...pointers: PointerState[]): RawInput => ({
-    keys: k, pointers, pressedKeys: keys(), pointerPressed: false, quickTaps: [], cancelled: new Set(),
+    keys: k, pointers, pressedKeys: keys(), pointerPressed: false, pressPoints: [], quickTaps: [], cancelled: new Set(),
 });
 const rawWith = (extra: { quickTaps?: QuickTap[]; cancelled?: number[] }, ...pointers: PointerState[]): RawInput => ({
     ...raw(keys(), ...pointers), quickTaps: extra.quickTaps ?? [], cancelled: new Set(extra.cancelled ?? []),
