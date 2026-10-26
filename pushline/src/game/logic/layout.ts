@@ -92,11 +92,15 @@ export const pickLayout = (width: number, height: number): Layout => layoutFor(o
 export const inRect = (r: Rect, x: number, y: number): boolean =>
     x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
-/** The board cell under a canvas point, or null outside the board. */
-export function cellAt(layout: Layout, x: number, y: number): Pt | null {
-    const cx = Math.floor((x - layout.boardX) / PARAMS.cellSize);
-    const cy = Math.floor((y - layout.boardY) / PARAMS.cellSize);
-    if (cx < 0 || cy < 0 || cx >= PARAMS.cols || cy >= PARAMS.rows) return null;
+/** Cell size for a board of `cols` columns: 80 px at the start, 66 px once the board has grown. */
+export const cellSizeOf = (cols: number): number => (cols >= PARAMS.grownCols ? PARAMS.grownCellSize : PARAMS.cellSize);
+
+/** The board cell under a canvas point (`cols` is the current board width), or null outside the board. */
+export function cellAt(layout: Layout, x: number, y: number, cols: number): Pt | null {
+    const size = cellSizeOf(cols);
+    const cx = Math.floor((x - layout.boardX) / size);
+    const cy = Math.floor((y - layout.boardY) / size);
+    if (cx < 0 || cy < 0 || cx >= cols || cy >= PARAMS.rows) return null;
     return { x: cx, y: cy };
 }
 

@@ -17,6 +17,13 @@ export const emptyGrid = (cols = PARAMS.cols, rows = PARAMS.rows): Grid =>
 
 export const cloneGrid = (grid: Grid): Grid => grid.map((row) => row.slice());
 
+/** Adds empty columns on the right, in place, up to `cols` (the grown board; the rows keep their identity). */
+export function widenGrid(grid: Grid, cols: number): void {
+    grid.forEach((row) => {
+        while (row.length < cols) row.push(EMPTY);
+    });
+}
+
 export const inBounds = (grid: Grid, x: number, y: number): boolean =>
     y >= 0 && y < grid.length && x >= 0 && x < grid[0].length;
 

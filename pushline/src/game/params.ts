@@ -4,6 +4,10 @@ export const PARAMS = {
     cols: 5,
     rows: 6,
     cellSize: 80,
+    // growing board (docs/spec.md "盤面の広がり"): once, when the line count reaches growLines
+    growLines: 10,
+    grownCols: 6,
+    grownCellSize: 66,
     cellInset: 4,
     playerStartX: 2,
     playerStartY: 5,

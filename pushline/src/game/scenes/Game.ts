@@ -4,6 +4,7 @@ import type { Deps, Dir, MoveResult, Pt, State } from '../logic/types';
 import { Flow, QuitConfirm, type PointerAction } from '../logic/flow';
 import { cellAt, type Layout } from '../logic/layout';
 import { canUndo, createState, move, tapOutcome, undo } from '../logic/rules';
+import { minClearPlan } from '../logic/solve';
 import { tensionOf, type Tension } from '../logic/tension';
 import { BoardView, qaRows } from './boardView';
 import { addLabel, applyLayout, COLORS, createButton, DEPTH, FONT_SIZE, watchOrientation, type ButtonView } from './ui';
@@ -44,6 +45,27 @@ export class Game extends Scene {
         this.layout = applyLayout(this);
         this.deps = { rng: Math.random, now: () => performance.now() };
         this.state = createState(this.deps);
+        // Dev build only: start at a line count (?qaLines=9) so the board growth can be checked in a browser.
+        // ?qaSolve replays the shortest path to the next line clear, so the growth itself can be seen.
+        if (import.meta.env.DEV) {
+            const qa = new URLSearchParams(window.location.search);
+            const lines = Number(qa.get('qaLines'));
+            if (lines > 0) this.state.score = lines;
+            if (qa.has('qaSolve')) {
+                const plan = minClearPlan(this.state.grid, this.state.px, this.state.py, PARAMS.maxMoves) ?? [];
+                let next = 0;
+                if (plan.length > 0) {
+                    this.time.addEvent({
+                        delay: 400,
+                        repeat: plan.length - 1,
+                        callback: () => {
+                            this.step(plan[next]);
+                            next += 1;
+                        },
+                    });
+                }
+            }
+        }
         this.flow = new Flow();
         this.quit = new QuitConfirm();
         this.quitShown = false;
@@ -128,7 +150,7 @@ export class Game extends Scene {
 
     /** Tap on the board: walk to an empty cell, push an adjacent block, or fail with a small shake. */
     private onTap(x: number, y: number) {
-        const cell = cellAt(this.layout, x, y);
+        const cell = cellAt(this.layout, x, y, this.state.grid[0].length);
         if (!cell) return;
         this.flow.cancelWalk();
         const outcome = tapOutcome(this.state, cell.x, cell.y);
@@ -174,6 +196,8 @@ export class Game extends Scene {
     private step(dir: Dir): boolean {
         const result = move(this.state, dir, this.deps);
         if (!result.moved) return false;
+        // a board that grew on this clear is drawn at its new cell size from this move on (instant switch)
+        this.view.setCols(this.state.grid[0].length);
         this.view.dropStalePops(this.state.grid);
         this.playEffects(result);
         this.render();
@@ -236,6 +260,8 @@ export class Game extends Scene {
 
     private render() {
         const s = this.state;
+        // every path that changes the grid (move, undo) reaches the view through here
+        this.view.setCols(s.grid[0].length);
         this.view.render(s);
         this.movesText.setText(this.movesLabel());
         this.linesText.setText(`ライン ${s.score}`);
@@ -269,11 +295,12 @@ export class Game extends Scene {
     /** Where a tap landed: a ring spreading on the walk's target, a red frame on a cell that failed. */
     private playTapMark(cell: Pt, kind: 'walk' | 'fail') {
         const o = this.view.cellOrigin(cell.x, cell.y);
-        const cx = o.x + PARAMS.cellSize / 2;
-        const cy = o.y + PARAMS.cellSize / 2;
-        const inner = PARAMS.cellSize - 2 * PARAMS.cellInset;
+        const size = this.view.cellSize;
+        const cx = o.x + size / 2;
+        const cy = o.y + size / 2;
+        const inner = size - 2 * PARAMS.cellInset;
         const mark = kind === 'walk'
-            ? this.add.circle(cx, cy, PARAMS.cellSize * PARAMS.tapRingRatio).setStrokeStyle(PARAMS.tapRingWidth, COLORS.player)
+            ? this.add.circle(cx, cy, size * PARAMS.tapRingRatio).setStrokeStyle(PARAMS.tapRingWidth, COLORS.player)
             : this.add.rectangle(cx, cy, inner, inner).setStrokeStyle(PARAMS.tapFrameWidth, COLORS.alarm);
         mark.setDepth(DEPTH.mark);
         this.view.track(mark);

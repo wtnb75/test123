@@ -63,7 +63,8 @@ export class Demo {
         const initial = options.initial ?? createState;
         this.clock = now;
         // No undo in the demo: nothing is kept per move.
-        const demoDeps: Deps = { ...deps, maxUndo: 0 };
+        // the demo board stays 5 x 6 (docs/spec/title-demo.md): it never grows
+        const demoDeps: Deps = { ...deps, maxUndo: 0, growLines: Infinity };
         const game: DemoGame<State, Dir, MoveResult> = {
             start: () => initial(demoDeps),
             plan: (state) => this.planAfterGrowth(state, planner),

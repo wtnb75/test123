@@ -39,41 +39,44 @@ describe('pickLayout / layoutFor', () => {
 });
 
 describe('cellAt', () => {
+    // the 5-column starting board (cols is required: the width the board has now)
+    const C = PARAMS.cols;
+
     it('maps the first cell\'s corners (portrait)', () => {
-        expect(cellAt(PORTRAIT, 40, 110)).toEqual({ x: 0, y: 0 });
-        expect(cellAt(PORTRAIT, 119, 189)).toEqual({ x: 0, y: 0 });
-        expect(cellAt(PORTRAIT, 120, 110)).toEqual({ x: 1, y: 0 });
-        expect(cellAt(PORTRAIT, 40, 190)).toEqual({ x: 0, y: 1 });
+        expect(cellAt(PORTRAIT, 40, 110, C)).toEqual({ x: 0, y: 0 });
+        expect(cellAt(PORTRAIT, 119, 189, C)).toEqual({ x: 0, y: 0 });
+        expect(cellAt(PORTRAIT, 120, 110, C)).toEqual({ x: 1, y: 0 });
+        expect(cellAt(PORTRAIT, 40, 190, C)).toEqual({ x: 0, y: 1 });
     });
 
     it('maps the last cell and the other two corners (portrait)', () => {
-        expect(cellAt(PORTRAIT, 439, 589)).toEqual({ x: 4, y: 5 });
-        expect(cellAt(PORTRAIT, 439, 110)).toEqual({ x: 4, y: 0 });
-        expect(cellAt(PORTRAIT, 40, 589)).toEqual({ x: 0, y: 5 });
+        expect(cellAt(PORTRAIT, 439, 589, C)).toEqual({ x: 4, y: 5 });
+        expect(cellAt(PORTRAIT, 439, 110, C)).toEqual({ x: 4, y: 0 });
+        expect(cellAt(PORTRAIT, 40, 589, C)).toEqual({ x: 0, y: 5 });
     });
 
     it('is null just outside the board on every side (portrait)', () => {
-        expect(cellAt(PORTRAIT, 39, 300)).toBeNull();
-        expect(cellAt(PORTRAIT, 440, 300)).toBeNull();
-        expect(cellAt(PORTRAIT, 200, 109)).toBeNull();
-        expect(cellAt(PORTRAIT, 200, 590)).toBeNull();
+        expect(cellAt(PORTRAIT, 39, 300, C)).toBeNull();
+        expect(cellAt(PORTRAIT, 440, 300, C)).toBeNull();
+        expect(cellAt(PORTRAIT, 200, 109, C)).toBeNull();
+        expect(cellAt(PORTRAIT, 200, 590, C)).toBeNull();
     });
 
     it('uses the landscape origin in landscape', () => {
-        expect(cellAt(LANDSCAPE, 280, 60)).toEqual({ x: 0, y: 0 });
-        expect(cellAt(LANDSCAPE, 679, 539)).toEqual({ x: 4, y: 5 });
-        expect(cellAt(LANDSCAPE, 679, 60)).toEqual({ x: 4, y: 0 });
-        expect(cellAt(LANDSCAPE, 280, 539)).toEqual({ x: 0, y: 5 });
-        expect(cellAt(LANDSCAPE, 279, 300)).toBeNull();
-        expect(cellAt(LANDSCAPE, 400, 59)).toBeNull();
-        expect(cellAt(LANDSCAPE, 400, 540)).toBeNull();
-        expect(cellAt(LANDSCAPE, 680, 300)).toBeNull();
-        expect(cellAt(LANDSCAPE, 100, 100)).toBeNull();
+        expect(cellAt(LANDSCAPE, 280, 60, C)).toEqual({ x: 0, y: 0 });
+        expect(cellAt(LANDSCAPE, 679, 539, C)).toEqual({ x: 4, y: 5 });
+        expect(cellAt(LANDSCAPE, 679, 60, C)).toEqual({ x: 4, y: 0 });
+        expect(cellAt(LANDSCAPE, 280, 539, C)).toEqual({ x: 0, y: 5 });
+        expect(cellAt(LANDSCAPE, 279, 300, C)).toBeNull();
+        expect(cellAt(LANDSCAPE, 400, 59, C)).toBeNull();
+        expect(cellAt(LANDSCAPE, 400, 540, C)).toBeNull();
+        expect(cellAt(LANDSCAPE, 680, 300, C)).toBeNull();
+        expect(cellAt(LANDSCAPE, 100, 100, C)).toBeNull();
     });
 
     it('is null in the canvas margin outside the canvas', () => {
-        expect(cellAt(PORTRAIT, -10, -10)).toBeNull();
-        expect(cellAt(PORTRAIT, 5000, 5000)).toBeNull();
+        expect(cellAt(PORTRAIT, -10, -10, C)).toBeNull();
+        expect(cellAt(PORTRAIT, 5000, 5000, C)).toBeNull();
     });
 });
 

@@ -53,6 +53,8 @@ export interface Deps {
     rng: Rng;
     now: () => number;
     maxUndo?: number;
+    /** Line count at which the board grows (default PARAMS.growLines); the Title demo passes Infinity. */
+    growLines?: number;
 }
 
 /** What one accepted move changed, for the Scene to play effects for. */
