@@ -135,3 +135,18 @@ describe('narrow-screen stylesheet', () => {
         expect(inside).toMatch(/\.dutchcalc-table td\s*{\s*padding: 4px;/);
     });
 });
+
+describe('余り（予算入力のあるときだけ、サマリーの行の後ろに出す）', () => {
+    // odds [2, 2] with 10 units at 100 yen: 5 / 5, both payouts 1,000, so the balance is 0 円
+    const allocation = () => allocate({ odds: [2, 2], totalUnits: 10, unitPrice: 100 });
+
+    it('余りを渡すと、サマリーの行の後ろに「余り xx 円」が続く', () => {
+        const html = buildResultHtml(allocation(), 100, 50);
+        expect(html).toContain('バランス度(差): 0円 / 余り 50 円');
+    });
+
+    it('余りを渡さない（予算が空）ときは、余りの文字は出ない', () => {
+        const html = buildResultHtml(allocation(), 100);
+        expect(html).not.toContain('余り');
+    });
+});
