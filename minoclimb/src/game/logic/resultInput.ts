@@ -19,6 +19,9 @@ export const onTitleButton = (x: number, y: number): boolean =>
     x >= RESULT_TITLE_RECT.x && x < RESULT_TITLE_RECT.x + RESULT_TITLE_RECT.width
     && y >= RESULT_TITLE_RECT.y && y < RESULT_TITLE_RECT.y + RESULT_TITLE_RECT.height;
 
+/** Whether the Result screen accepts input yet: from RETRY_LOCKOUT seconds after it came up (the instant included). */
+export const lockoutOver = (elapsedSeconds: number): boolean => elapsedSeconds >= P.RETRY_LOCKOUT;
+
 /**
  * The action for the presses latched since the previous read, or null. Before the lockout is over nothing
  * counts (and nothing is carried over: the caller reads, and so consumes, the presses every frame).

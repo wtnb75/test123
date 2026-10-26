@@ -1,6 +1,6 @@
 import { GameObjects, Scene } from 'phaser';
 import type { LoseReason } from '../logic/round';
-import { resultAction, RESULT_TITLE_RECT } from '../logic/resultInput';
+import { lockoutOver, resultAction, RESULT_TITLE_RECT } from '../logic/resultInput';
 import { HEIGHT, P, WIDTH } from '../params';
 import { SceneInput } from './SceneInput';
 
@@ -73,9 +73,9 @@ export class Result extends Scene {
     update(_time: number, deltaMs: number): void {
         this.elapsed += deltaMs / 1000;
         // Presses are always consumed, so one made during the lockout can't fire an action afterwards.
-        const lockoutOver = this.elapsed >= P.RETRY_LOCKOUT;
-        const action = resultAction(this.controls.read(), lockoutOver);
-        if (!lockoutOver) return;
+        const accepting = lockoutOver(this.elapsed);
+        const action = resultAction(this.controls.read(), accepting);
+        if (!accepting) return;
         this.retryHint.setVisible(true);
         this.titleButton.setVisible(true);
         if (action === null || this.leaving) return;
