@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PARAMS } from '../params';
 import { bestLabel, browserStorage, parseBest, resolveBest, type BestStorage } from './best';
-import { LANDSCAPE, PORTRAIT } from './layout';
+import { LANDSCAPE, PORTRAIT, resultBestY } from './layout';
 
 /** An in-memory storage that records every call. */
 function fakeStorage(initial: string | null) {
@@ -83,6 +83,15 @@ describe('resolveBest (docs/spec.md "ベスト記録")', () => {
         expect(s.value()).toBe(raw);
     });
 
+    it.each([Number.NaN, 2.5, -1, Number.POSITIVE_INFINITY, 1e21])(
+        'never writes a line count that is not a whole number of lines (%s), and keeps the saved best',
+        (lines) => {
+            const s = fakeStorage('3');
+            expect(resolveBest(lines, s.storage)).toEqual({ best: 3, updated: false });
+            expect(s.calls).toEqual(['get pushlineBest']);
+        },
+    );
+
     it('shows no row and does not throw when there is no storage', () => {
         expect(resolveBest(5, null)).toBeNull();
     });
@@ -146,14 +155,19 @@ describe('browserStorage', () => {
     });
 
     it('returns null when reading localStorage throws', () => {
-        vi.stubGlobal('localStorage', undefined);
+        const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
         Object.defineProperty(globalThis, 'localStorage', {
             configurable: true,
             get: () => {
                 throw new Error('SecurityError');
             },
         });
-        expect(browserStorage()).toBeNull();
+        try {
+            expect(browserStorage()).toBeNull();
+        } finally {
+            if (original) Object.defineProperty(globalThis, 'localStorage', original);
+            else Reflect.deleteProperty(globalThis, 'localStorage');
+        }
     });
 
     it('returns null when there is no localStorage', () => {
@@ -163,7 +177,7 @@ describe('browserStorage', () => {
 });
 
 describe('Result layout with the best row (docs/spec.md "Result" table)', () => {
-    const bestY = (l: typeof PORTRAIT) => l.resultLines.y + PARAMS.resultShortestGap + PARAMS.resultBestGap;
+    const bestY = resultBestY; // the function Result.place() uses
 
     it('puts the best row 45 px under the shortest row: y 365 in portrait, 255 in landscape', () => {
         expect(PARAMS.resultBestGap).toBe(45);

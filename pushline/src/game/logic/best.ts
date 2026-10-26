@@ -37,7 +37,8 @@ export function resolveBest(lines: number, storage: BestStorage | null): BestRow
     if (storage === null) return null;
     try {
         const stored = parseBest(storage.getItem(PARAMS.bestKey));
-        if (lines < 1) return stored === null ? null : { best: stored, updated: false };
+        // A count that is not a whole, safely readable number of lines never counts (and is never written).
+        if (!Number.isSafeInteger(lines) || lines < 1) return stored === null ? null : { best: stored, updated: false };
         if (stored !== null && lines <= stored) return { best: stored, updated: false };
         storage.setItem(PARAMS.bestKey, String(lines));
         return { best: lines, updated: stored !== null };

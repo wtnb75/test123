@@ -92,6 +92,10 @@ export const pickLayout = (width: number, height: number): Layout => layoutFor(o
 export const inRect = (r: Rect, x: number, y: number): boolean =>
     x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
+/** Centre y of Result's best row: `resultBestGap` under the "最短 M 回" row, which is under the lines row. */
+export const resultBestY = (layout: Layout): number =>
+    layout.resultLines.y + PARAMS.resultShortestGap + PARAMS.resultBestGap;
+
 /** Cell size for a board of `cols` columns: 80 px at the start, 66 px once the board has grown. */
 export const cellSizeOf = (cols: number): number => (cols >= PARAMS.grownCols ? PARAMS.grownCellSize : PARAMS.cellSize);
 

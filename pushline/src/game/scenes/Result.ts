@@ -2,7 +2,7 @@ import { Scene, type GameObjects } from 'phaser';
 import { PARAMS } from '../params';
 import { bestLabel, browserStorage, resolveBest } from '../logic/best';
 import { guardOpen } from '../logic/flow';
-import type { Layout } from '../logic/layout';
+import { resultBestY, type Layout } from '../logic/layout';
 import { addLabel, applyLayout, COLORS, createButton, DEPTH, FONT_SIZE, watchOrientation, type ButtonView } from './ui';
 
 export class Result extends Scene {
@@ -45,7 +45,7 @@ export class Result extends Scene {
         const best = resolveBest(this.lines, browserStorage());
         this.bestText = undefined;
         if (best !== null) {
-            this.bestText = addLabel(this, 0, 0, bestLabel(best), FONT_SIZE.button, best.updated ? COLORS.bonusText : COLORS.captionText);
+            this.bestText = addLabel(this, 0, 0, bestLabel(best), FONT_SIZE.button, best.updated ? COLORS.recoveredText : COLORS.captionText);
         }
         this.retry = createButton(this, 'もう一度', COLORS.buttonDefault, DEPTH.hud);
         this.toTitle = createButton(this, 'タイトルへ', COLORS.buttonDefault, DEPTH.hud);
@@ -70,7 +70,7 @@ export class Result extends Scene {
         this.captionText.setPosition(l.resultLines.x, l.resultLines.y - PARAMS.resultCaptionGap);
         this.linesText.setPosition(l.resultLines.x, l.resultLines.y);
         this.shortestText.setPosition(l.resultLines.x, l.resultLines.y + PARAMS.resultShortestGap);
-        this.bestText?.setPosition(l.resultLines.x, l.resultLines.y + PARAMS.resultShortestGap + PARAMS.resultBestGap);
+        this.bestText?.setPosition(l.resultLines.x, resultBestY(l));
         this.retry.place(l.resultRetry);
         this.toTitle.place(l.resultToTitle);
     }
