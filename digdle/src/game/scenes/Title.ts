@@ -5,12 +5,14 @@ import {
 } from '../logic/boardStyle';
 import { dailyDateKey, digitLabel, getDailyStorage, loadDailyResults } from '../logic/daily';
 import { createRng, getSharedPrimeMap } from '../logic/primes';
-import { digitFromKey, modeFromData } from '../logic/selectLayout';
+import { candidatesFromData, digitFromKey, gameStartData, modeFromData } from '../logic/selectLayout';
 import {
     createDemoGame, DEMO_ATTEMPTS, DEMO_DIGITS, DEMO_OPTIONS, isJudged, typedDigits,
     type DemoDetail, type DemoState
 } from '../logic/titleDemo';
-import { computeTitleLayout, MODE_LABEL_FONT, TITLE_NAME_FONT, type DemoLayout } from '../logic/titleLayout';
+import {
+    computeTitleLayout, MODE_LABEL_FONT, modeLabelFontSize, modeLabelRoom, TITLE_NAME_FONT, type DemoLayout
+} from '../logic/titleLayout';
 import type { DigitOption, GameStartData, TitleData, TitleMode } from '../types';
 import {
     BACKGROUND_COLOR, BUTTON_STROKE, createButton, createHomeIcon, createText, detectLocale, translate, type Locale,
@@ -21,6 +23,13 @@ const MODES: readonly TitleMode[] = ['normal', 'hard', 'daily'];
 const MODE_STROKE: Record<TitleMode, number> = { normal: 0x38bdf8, hard: 0xf59e0b, daily: 0x34d399 };
 const MODE_LABEL: Record<TitleMode, TextKey> = { normal: 'normalMode', hard: 'hardMode', daily: 'dailyMode' };
 const NAME_COLOR = '#f9fafb';
+/** The 💡 toggle's frame when it is on: yellow, so the on state reads at a glance. */
+const CANDIDATE_ON_STROKE = 0xfde047;
+/** The frame widths of the selected and of the plain buttons (docs/spec.md: パラメータ表, ボタンの見た目). */
+const SELECTED_STROKE_WIDTH = 3;
+const BUTTON_STROKE_WIDTH = 2;
+const CANDIDATE_LABEL = '💡';
+const CANDIDATE_LABEL_SIZE = 22;
 
 interface DemoCell {
     box: GameObjects.Rectangle;
@@ -41,6 +50,9 @@ export class Title extends Scene {
     private demoCells: DemoCell[][] = [];
     private demoAlpha = 1;
     private modeBoxes: Partial<Record<TitleMode, GameObjects.Rectangle>> = {};
+    /** The 💡 toggle: whether the candidate-count line is on for the next game (off by default, never saved). */
+    private candidates = false;
+    private candidateBox: GameObjects.Rectangle | null = null;
     private digitTexts = new Map<DigitOption, GameObjects.Text>();
     private starting = false;
     private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -65,6 +77,7 @@ export class Title extends Scene {
 
     init(data?: TitleData): void {
         this.mode = modeFromData(data);
+        this.candidates = candidatesFromData(data);
         this.starting = false;
         this.uiObjects = [];
         this.demoObjects = [];
@@ -144,8 +157,17 @@ export class Title extends Scene {
                 () => this.setMode(mode), this.uiObjects, MODE_LABEL_FONT
             );
             this.modeBoxes[mode] = button.box;
+            this.fitLabel(button.text, modeLabelRoom(w));
         }
         this.highlightMode();
+
+        const cand = layout.candidateButton;
+        const candidate = createButton(
+            this, cand.x, cand.y, cand.width, cand.height, CANDIDATE_LABEL,
+            () => this.toggleCandidates(), this.uiObjects, CANDIDATE_LABEL_SIZE
+        );
+        this.candidateBox = candidate.box;
+        this.highlightCandidates();
 
         this.digitTexts.clear();
         for (const { digit, rect } of layout.digitButtons) {
@@ -243,6 +265,28 @@ export class Title extends Scene {
         this.refreshDigitLabels();
     }
 
+    private toggleCandidates(): void {
+        this.candidates = !this.candidates;
+        this.highlightCandidates();
+    }
+
+    private highlightCandidates(): void {
+        this.candidateBox?.setStrokeStyle(
+            this.candidates ? SELECTED_STROKE_WIDTH : BUTTON_STROKE_WIDTH,
+            this.candidates ? CANDIDATE_ON_STROKE : BUTTON_STROKE
+        );
+    }
+
+    /** Sets a mode label to the largest size (16 px down to 12 px) whose width fits its button. */
+    private fitLabel(text: GameObjects.Text, maxWidth: number): void {
+        const size = modeLabelFontSize((candidate) => {
+            text.setFontSize(candidate);
+            return text.width;
+        }, maxWidth);
+
+        text.setFontSize(size);
+    }
+
     /** In the daily mode a finished digit count shows `✓` (cleared) or `✗` (failed); other modes show plain digits. */
     private refreshDigitLabels(): void {
         const results = this.mode === 'daily'
@@ -264,7 +308,10 @@ export class Title extends Scene {
         for (const mode of MODES) {
             const selected = this.mode === mode;
 
-            this.modeBoxes[mode]?.setStrokeStyle(selected ? 3 : 2, selected ? MODE_STROKE[mode] : BUTTON_STROKE);
+            this.modeBoxes[mode]?.setStrokeStyle(
+                selected ? SELECTED_STROKE_WIDTH : BUTTON_STROKE_WIDTH,
+                selected ? MODE_STROKE[mode] : BUTTON_STROKE
+            );
         }
     }
 
@@ -274,7 +321,7 @@ export class Title extends Scene {
         }
 
         this.starting = true;
-        const data: GameStartData = { digits, mode: this.mode };
+        const data: GameStartData = gameStartData(digits, this.mode, this.candidates);
         this.scene.start('Game', data);
     }
 }

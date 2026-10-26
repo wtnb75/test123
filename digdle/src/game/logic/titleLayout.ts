@@ -7,18 +7,24 @@ export const TITLE_NAME_FONT = 44;
 
 const NAME_CENTER = 44;
 const MODE_TOP = 84;
+/** The widest mode button; the row shrinks its buttons to fit the width it is given. */
 const MODE_WIDTH = 78;
+/** The narrowest mode button the row may shrink to. */
+const MODE_MIN_WIDTH = 48;
 const MODE_HEIGHT = 40;
 const MODE_GAP = 8;
-/** The mode row's label size (px); the three buttons are narrower than the old two. */
+/** The mode row's label size (px), and the smallest it may shrink to so a label fits its button. */
 export const MODE_LABEL_FONT = 16;
-/** The three mode buttons side by side. */
-const MODE_ROW_WIDTH = 3 * MODE_WIDTH + 2 * MODE_GAP;
-/** The width the mode row had with two 120 px buttons; the two-column boundary stays fixed on it. */
-const LEGACY_MODE_ROW_WIDTH = 252;
+export const MODE_LABEL_MIN_FONT = 12;
+/** The candidate toggle (💡): a 44 px square tap target at the right end of the mode row. */
+const CANDIDATE_SIZE = 44;
+/** The mode row is 3 modes + the toggle at most: 3 × 78 + 3 × 8 gaps + 44 = 302 px. */
+const MODE_ROW_MAX = 3 * MODE_WIDTH + CANDIDATE_SIZE + 3 * MODE_GAP;
 const DIGIT_TOP = 140;
 const DIGIT_HEIGHT = 52;
 const DIGIT_GAP = 8;
+/** The space the digit row keeps inside its column, on both sides together (docs/spec.md: 桁数ボタンの幅). */
+const DIGIT_ROW_INSET = 16;
 const DIGIT_MAX_WIDTH = 64;
 const DIGIT_SIDE_MIN_WIDTH = 40;
 /** The bottom of the digit buttons, relative to `y0`. */
@@ -33,8 +39,8 @@ const BLOCK_DIGIT_TOP = 118;
 const COLUMN_PADDING = 16;
 /** The screen height below which the stacked layout would cut the digit buttons off. */
 const STACKED_MIN_HEIGHT = DIGIT_BOTTOM;
-/** The narrowest screen whose left quarter-column still holds the 252 px mode row (2 x 252). */
-const COLUMNS_MIN_WIDTH = 2 * LEGACY_MODE_ROW_WIDTH;
+/** The narrowest screen for the two-column arrangement: a fixed boundary (docs/spec.md, 配置). */
+const COLUMNS_MIN_WIDTH = 504;
 
 export type TitleArrangement = 'stacked' | 'columns';
 
@@ -51,6 +57,8 @@ export interface TitleLayout {
     arrangement: TitleArrangement;
     name: { x: number; y: number };
     modeButtons: Record<TitleMode, Rect>;
+    /** The 💡 toggle at the right end of the mode row. */
+    candidateButton: Rect;
     digitButtons: { digit: DigitOption; rect: Rect }[];
     /** `null` when the free area is too small (the Title is then drawn without the demo). */
     demo: DemoLayout | null;
@@ -66,33 +74,71 @@ const demoCell = (availableHeight: number): number =>
 
 /** The digit button width a column of `columnWidth` px would give (before the 64 px cap and the 1 px floor). */
 const rawDigitWidth = (columnWidth: number): number =>
-    Math.floor((columnWidth - 16 - (DIGIT_OPTIONS.length - 1) * DIGIT_GAP) / DIGIT_OPTIONS.length);
+    Math.floor((columnWidth - DIGIT_ROW_INSET - (DIGIT_OPTIONS.length - 1) * DIGIT_GAP) / DIGIT_OPTIONS.length);
 
 const digitWidth = (columnWidth: number): number => Math.max(1, Math.min(DIGIT_MAX_WIDTH, rawDigitWidth(columnWidth)));
 
-/** The mode buttons, the digit row and the name, centred at `cx`; `nameY`, `modeTop`, `digitTop` are absolute. */
+/** The mode row's width in a column of `columnWidth` px: the full 302 px, or the column when it is narrower. */
+export const modeRowWidth = (columnWidth: number): number => Math.min(MODE_ROW_MAX, columnWidth);
+
+/** One mode button's width in a row of `rowWidth` px: the 3 mode buttons share what the toggle leaves. */
+export const modeButtonWidth = (rowWidth: number): number =>
+    Math.max(MODE_MIN_WIDTH, Math.min(MODE_WIDTH, Math.floor((rowWidth - CANDIDATE_SIZE - 3 * MODE_GAP) / 3)));
+
+/** The room a mode label has inside its button: the button's width less 4 px on each side (docs/spec.md, 配置). */
+const MODE_LABEL_INSET = 4;
+export const modeLabelRoom = (buttonWidth: number): number => buttonWidth - 2 * MODE_LABEL_INSET;
+
+/**
+ * The mode label's font size: the largest size from 16 px down to 12 px whose width fits `maxWidth`.
+ * `widthAt(size)` measures the label at that size (the Scene passes its text object's measurement).
+ */
+export const modeLabelFontSize = (widthAt: (size: number) => number, maxWidth: number): number => {
+    let size = MODE_LABEL_FONT;
+
+    while (size > MODE_LABEL_MIN_FONT && widthAt(size) > maxWidth) {
+        size -= 1;
+    }
+
+    return size;
+};
+
+/**
+ * The mode buttons and the 💡 toggle, centred at `cx` in a column of `columnWidth`; the digit row and the name too.
+ * `nameY`, `modeTop`, `digitTop` are absolute.
+ */
 const placeBlock = (
     cx: number,
+    columnWidth: number,
     digitW: number,
     nameY: number,
     modeTop: number,
     digitTop: number
-): Pick<TitleLayout, 'name' | 'modeButtons' | 'digitButtons'> => {
-    const modeLeft = Math.floor(cx - MODE_ROW_WIDTH / 2);
-    const modeStep = MODE_WIDTH + MODE_GAP;
-    const rowWidth = DIGIT_OPTIONS.length * digitW + (DIGIT_OPTIONS.length - 1) * DIGIT_GAP;
+): Pick<TitleLayout, 'name' | 'modeButtons' | 'candidateButton' | 'digitButtons'> => {
+    const rowWidth = modeRowWidth(columnWidth);
     const rowLeft = Math.floor(cx - rowWidth / 2);
+    const modeW = modeButtonWidth(rowWidth);
+    const modeStep = modeW + MODE_GAP;
+    const digitRowWidth = DIGIT_OPTIONS.length * digitW + (DIGIT_OPTIONS.length - 1) * DIGIT_GAP;
+    const digitLeft = Math.floor(cx - digitRowWidth / 2);
 
     return {
         name: { x: cx, y: nameY },
         modeButtons: {
-            normal: { x: modeLeft, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT },
-            hard: { x: modeLeft + modeStep, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT },
-            daily: { x: modeLeft + 2 * modeStep, y: modeTop, width: MODE_WIDTH, height: MODE_HEIGHT }
+            normal: { x: rowLeft, y: modeTop, width: modeW, height: MODE_HEIGHT },
+            hard: { x: rowLeft + modeStep, y: modeTop, width: modeW, height: MODE_HEIGHT },
+            daily: { x: rowLeft + 2 * modeStep, y: modeTop, width: modeW, height: MODE_HEIGHT }
+        },
+        // Centred on the mode buttons: 44 px high against their 40 px.
+        candidateButton: {
+            x: rowLeft + rowWidth - CANDIDATE_SIZE,
+            y: modeTop - (CANDIDATE_SIZE - MODE_HEIGHT) / 2,
+            width: CANDIDATE_SIZE,
+            height: CANDIDATE_SIZE
         },
         digitButtons: DIGIT_OPTIONS.map((digit, index) => ({
             digit,
-            rect: { x: rowLeft + index * (digitW + DIGIT_GAP), y: digitTop, width: digitW, height: DIGIT_HEIGHT }
+            rect: { x: digitLeft + index * (digitW + DIGIT_GAP), y: digitTop, width: digitW, height: DIGIT_HEIGHT }
         }))
     };
 };
@@ -105,7 +151,7 @@ const stacked = (width: number, height: number, cell: number | null): TitleLayou
 
     return {
         arrangement: 'stacked',
-        ...placeBlock(cx, digitWidth(width), y0 + NAME_CENTER, y0 + MODE_TOP, y0 + DIGIT_TOP),
+        ...placeBlock(cx, width, digitWidth(width), y0 + NAME_CENTER, y0 + MODE_TOP, y0 + DIGIT_TOP),
         demo: cell === null || board === null
             ? null
             : { cell, gap: DEMO_CELL_GAP, left: Math.floor(cx - board.width / 2), top: y0 + DEMO_TOP, ...board }
@@ -122,6 +168,7 @@ const columns = (width: number, height: number, cell: number | null): TitleLayou
         arrangement: 'columns',
         ...placeBlock(
             Math.floor(width / 4),
+            columnWidth,
             digitWidth(columnWidth),
             top0 + BLOCK_NAME_CENTER,
             top0 + BLOCK_MODE_TOP,
@@ -159,5 +206,7 @@ export const computeTitleLayout = (width: number, height: number): TitleLayout =
         return columns(width, height, sideCell);
     }
 
-    return height < STACKED_MIN_HEIGHT && width >= COLUMNS_MIN_WIDTH ? columns(width, height, null) : stacked(width, height, null);
+    const canColumnsWithoutDemo = height < STACKED_MIN_HEIGHT && width >= COLUMNS_MIN_WIDTH;
+
+    return canColumnsWithoutDemo ? columns(width, height, null) : stacked(width, height, null);
 };

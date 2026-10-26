@@ -8,8 +8,9 @@ import {
     computeGameLayout, computeToastPlacement, pickToastFontSize, TOAST_FONT_SIZE, TOAST_PADDING_Y, toastBoxWidth,
     type LayoutMetrics
 } from '../logic/gameLayout';
+import { candidateLineShown, candidateLineText, countCandidates } from '../logic/candidates';
 import { getSharedPrimeMap } from '../logic/primes';
-import { isDigitOption, modeFromData } from '../logic/selectLayout';
+import { candidatesFromData, isDigitOption, modeFromData, titleDataFromGame } from '../logic/selectLayout';
 import {
     getEntry, getStatsStorage, pressClear, shouldRecordRound, statsLines, statsParts, STATS_CLEAR_CONFIRM_MS
 } from '../logic/stats';
@@ -27,6 +28,9 @@ import {
 
 /** How long the "could not copy" note stays on the copy button (the same time as the input note). */
 const COPY_FAILED_MS = 2200;
+/** The "あと n 個" candidate line: 16 px in the notice strip (docs/spec.md, パラメータ表 `candidateLine`). */
+const CANDIDATE_LINE_FONT_SIZE = 16;
+const CANDIDATE_LINE_COLOR = '#e5e7eb';
 
 type UiPhase = 'playing' | 'won' | 'lost';
 
@@ -56,6 +60,12 @@ export class Game extends Scene {
     private toastBg: GameObjects.Rectangle | null = null;
     private toastTimer: Time.TimerEvent | null = null;
     private toastMaxWidth = 0;
+    /** The "あと n 個" line, drawn in the notice strip (hidden while a notice is up, never on the result). */
+    private candidateText: GameObjects.Text | null = null;
+    /** The 💡 state handed over by the Title: when on, normal and hard rounds show the candidate-count line. */
+    private candidates = false;
+    /** The answer of the round before this one: the next answer is never it, so the count leaves it out. */
+    private previousAnswer: string | null = null;
     private keyBoxes = new Map<string, GameObjects.Rectangle>();
     private keyStatus = new Map<string, DigitStatus>();
     private keyboardObjects: GameObjects.GameObject[] = [];
@@ -77,6 +87,8 @@ export class Game extends Scene {
 
     init(data?: Partial<GameStartData>): void {
         this.selectedMode = modeFromData(data);
+        this.candidates = candidatesFromData(data);
+        this.previousAnswer = null;
         this.startDigits = isDigitOption(data?.digits) ? data.digits : null;
         this.phase = 'playing';
         this.round = null;
@@ -87,6 +99,7 @@ export class Game extends Scene {
         this.boardCells = [];
         this.toastText = null;
         this.toastBg = null;
+        this.candidateText = null;
         this.toastTimer = null;
         this.keyBoxes.clear();
         this.keyStatus.clear();
@@ -190,6 +203,7 @@ export class Game extends Scene {
         const mode: GameMode = this.selectedMode === 'hard' ? 'hard' : 'normal';
 
         this.round = this.gameApi.createRound(digits, mode, previousAnswer);
+        this.previousAnswer = previousAnswer ?? null;
         this.phase = 'playing';
         this.currentGuess = '';
         this.keyStatus.clear();
@@ -276,7 +290,16 @@ export class Game extends Scene {
             .setVisible(false)
             .setDepth(1201);
 
-        this.uiObjects.push(this.toastBg, this.toastText);
+        // The candidate line shares the notice's place: it is drawn only while no notice is up (see refreshCandidateLine).
+        this.candidateText = this.add.text(placement.centerX, placement.centerY, '', {
+            fontFamily: 'sans-serif',
+            fontSize: CANDIDATE_LINE_FONT_SIZE,
+            color: CANDIDATE_LINE_COLOR
+        }).setOrigin(0.5, 0.5)
+            .setVisible(false)
+            .setDepth(1201);
+
+        this.uiObjects.push(this.toastBg, this.toastText, this.candidateText);
     }
 
     private showToast(message: string, duration = 2200): void {
@@ -287,6 +310,7 @@ export class Game extends Scene {
         this.toastText.setText(message);
         this.toastText.setColor('#fca5a5');
         this.toastText.setVisible(true);
+        this.candidateText?.setVisible(false);
 
         const text = this.toastText;
         const fontSize = pickToastFontSize((size) => {
@@ -309,6 +333,7 @@ export class Game extends Scene {
 
         this.toastTimer = this.time.delayedCall(duration, () => {
             this.hideToast();
+            this.refreshCandidateLine();
         });
     }
 
@@ -321,14 +346,42 @@ export class Game extends Scene {
         }
     }
 
+    /**
+     * Shows "あと n 個" when the candidate line applies (see candidateLineShown): normal or hard, with the 💡 on,
+     * a judgement made in this round, no notice up, and the round still in progress. Callers refresh it after a
+     * round or notice change (refreshUi, and the notice's own timer), so a guess is counted once.
+     */
+    private refreshCandidateLine(): void {
+        if (!this.candidateText) {
+            return;
+        }
+
+        const round = this.round;
+        const shown = round !== null && candidateLineShown({
+            candidates: this.candidates,
+            daily: this.daily !== null,
+            phase: this.phase,
+            historyLength: round?.history.length ?? 0,
+            noticeShown: this.toastBg?.visible === true
+        });
+
+        if (!shown) {
+            this.candidateText.setVisible(false);
+            return;
+        }
+
+        const count = countCandidates(this.gameApi.primeMap[round.n] ?? [], round.history, this.previousAnswer ?? undefined);
+        this.candidateText.setText(candidateLineText(count, this.locale)).setVisible(true);
+    }
+
     private buildTopIcons(): void {
         createHomeIcon(this, this.uiObjects);
         createReselectIcon(this, this.scale.gameSize.width, () => this.goToTitle(), this.uiObjects);
     }
 
-    /** Back to the Title; the selected mode is handed over so it stays highlighted. */
+    /** Back to the Title; the selected mode and the 💡 state are handed over so both stay as the player left them. */
     private goToTitle(): void {
-        const data: TitleData = { mode: this.selectedMode };
+        const data: TitleData = titleDataFromGame(this.selectedMode, this.candidates);
         this.scene.start('Title', data);
     }
 
@@ -511,6 +564,8 @@ export class Game extends Scene {
         this.clearKeyboardUi();
         this.keyBoxes.clear();
         this.hideToast();
+        // The result screen never shows the candidate line, whichever caller got here.
+        this.candidateText?.setVisible(false);
 
         const width = this.layout?.width ?? this.scale.gameSize.width;
         const height = this.layout?.height ?? this.scale.gameSize.height;
@@ -719,6 +774,7 @@ export class Game extends Scene {
         }
 
         this.refreshBoardOnly();
+        this.refreshCandidateLine();
     }
 
     private refreshBoardOnly(): void {
@@ -762,6 +818,7 @@ export class Game extends Scene {
         this.keyBoxes.clear();
         this.toastText = null;
         this.toastBg = null;
+        this.candidateText = null;
         this.hideToast();
         this.layout = null;
     }
