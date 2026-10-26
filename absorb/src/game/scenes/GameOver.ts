@@ -3,8 +3,8 @@ import {
     BONUS_LABEL, NO_KILLS_LABEL, lineAlpha, normalizeBreakdown, tableLines, totalLabel,
     type BreakdownKind, type KindTally, type TableLine
 } from '../logic/breakdown';
-import { GAMEOVER_HINT_FADE } from '../logic/constants';
-import { GAMEOVER_INPUT_LOCK, RetryInput, hintAlpha } from '../logic/retry';
+import { GAMEOVER_HINT_FADE, GAMEOVER_TITLE_H, GAMEOVER_TITLE_OFFSET, GAMEOVER_TITLE_W } from '../logic/constants';
+import { GAMEOVER_INPUT_LOCK, RetryInput, hintAlpha, inRect } from '../logic/retry';
 import { KIND_COLORS, cssColor } from './colors';
 
 const WHITE = '#ffffff';
@@ -32,6 +32,10 @@ export class GameOver extends Scene {
     /** The texts of each staggered line (shown kind rows or NO KILLS, the bonus, the total), faded together. */
     private lines: GameObjects.Text[][] = [];
     private hint!: GameObjects.Text;
+    /** The TITLE button: its rectangle (for the tap routing) and the parts drawn for it, faded with the hint. */
+    private titleRect = { left: 0, top: 0, width: GAMEOVER_TITLE_W, height: GAMEOVER_TITLE_H };
+    private titleFrame!: GameObjects.Rectangle;
+    private titleLabel!: GameObjects.Text;
     private retry = new RetryInput();
 
     constructor() {
@@ -59,8 +63,19 @@ export class GameOver extends Scene {
         this.lines.push([
             this.add.text(cx, y, totalLabel(score), { fontFamily: FONT, fontSize: TOTAL_FONT_SIZE, color: WHITE }).setOrigin(0.5)
         ]);
-        this.hint = this.add.text(cx, y + 80, 'Press SPACE or tap to retry', { fontFamily: FONT, fontSize: 22, color: HINT_COLOR })
+        const hintY = y + 80;
+        this.hint = this.add.text(cx, hintY, 'Press SPACE or tap to retry', { fontFamily: FONT, fontSize: 22, color: HINT_COLOR })
             .setOrigin(0.5);
+        // TITLE sits GAMEOVER_TITLE_OFFSET below the hint's centre; its rectangle is centred on x
+        const titleCentreY = hintY + GAMEOVER_TITLE_OFFSET;
+        this.titleRect = {
+            left: cx - GAMEOVER_TITLE_W / 2,
+            top: titleCentreY - GAMEOVER_TITLE_H / 2,
+            width: GAMEOVER_TITLE_W,
+            height: GAMEOVER_TITLE_H
+        };
+        this.titleFrame = this.add.rectangle(cx, titleCentreY, GAMEOVER_TITLE_W, GAMEOVER_TITLE_H).setStrokeStyle(2, 0xffffff);
+        this.titleLabel = this.add.text(cx, titleCentreY, 'TITLE', { fontFamily: FONT, fontSize: 22, color: WHITE }).setOrigin(0.5);
         this.applyFade();
 
         const keyboard = this.input.keyboard!;
@@ -95,15 +110,18 @@ export class GameOver extends Scene {
             this.elapsed += delta / 1000;
             this.applyFade();
         }
-        if (this.retry.resolve(this.elapsed)) this.scene.start('Game');
+        const exit = this.retry.resolveExit(this.elapsed);
+        if (exit === 'title') this.scene.start('Title');
+        else if (exit === 'game') this.scene.start('Game');
     }
 
     private onKeyDown(event: KeyboardEvent) {
         this.retry.keyDown(event.keyCode, event.repeat);
     }
 
-    private onPointerDown() {
-        this.retry.pointerDown();
+    private onPointerDown(pointer: Phaser.Input.Pointer) {
+        const r = this.titleRect;
+        this.retry.pointerDown(inRect(pointer.x, pointer.y, r.left, r.top, r.width, r.height));
     }
 
     private applyFade() {
@@ -111,6 +129,10 @@ export class GameOver extends Scene {
             const alpha = lineAlpha(this.elapsed, i);
             for (const t of texts) t.setAlpha(alpha);
         });
-        this.hint.setAlpha(hintAlpha(this.elapsed));
+        const hint = hintAlpha(this.elapsed);
+        this.hint.setAlpha(hint);
+        // the TITLE button appears with the hint, so it is hidden during the input lock too
+        this.titleFrame.setAlpha(hint);
+        this.titleLabel.setAlpha(hint);
     }
 }

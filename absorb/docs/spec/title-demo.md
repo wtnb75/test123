@@ -24,7 +24,7 @@
 | `Game` | `Game` | プレイ本体（`docs/spec.md`）。変わらない |
 | `GameOver` | `GameOver` | 変わらない |
 
-- 起動順: `Title`（最初の Scene）→ START で `Game` → `GameOver` →（リトライで）`Game`。`GameOver` から `Title` へ戻る導線は無い（リロードで戻る）。
+- 起動順: `Title`（最初の Scene）→ START で `Game` → `GameOver` →（リトライで）`Game`。`GameOver` から `Title` へは、TITLE ボタンとキー T で戻る（`docs/spec.md` の「GameOver 画面」の「入力」）。
 - `Title` は、`Scene` の開始時に、`Game` と同じ規則（`docs/spec.md` の「レイアウト方針」。短辺 768、縦横比 1024〜1536 の範囲）で画面の大きさを決めて `scale.setGameSize` し、カメラの大きさを合わせる。そのあと `Demo` を `scene.launch` し、`Title` を前面に置く（`Demo` の上に重ねる）。`Title` が表示されている間に端末を回転しても画面の大きさは変えない（`Scale.FIT` で縮小表示される）。
 - START: `Demo` を停止し（`scene.stop('Demo')`）、`Title` を終えて `Game` を始める（`scene.start('Game')`。`Game` は従来どおり `ready`（3 秒）から始まる）。`Title` に何秒いても、`Game` の進行（`ready` の 3 秒・`playing` の経過時間・難易度）は START の時点から数える。
 - `Title` は `localStorage` などの保存を使わない。
