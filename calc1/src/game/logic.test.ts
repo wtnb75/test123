@@ -9,6 +9,9 @@ import {
     createTurnSlots,
     evaluateProgress,
     handleLossLevelChoice,
+    nextReachedLevel,
+    levelAfterClear,
+    isRoundOpen,
     findSolutionPath,
     findSolutionFromOptions,
     findShortestSolutionFromOptions,
@@ -123,6 +126,59 @@ describe('loadLevel / saveLevel', () => {
         const setItem = vi.fn();
         saveLevel(4, { setItem });
         expect(setItem).toHaveBeenCalledWith(LEVEL_STORAGE_KEY, '4');
+    });
+
+    it('keeps the saved level under the calcRushLevel key (existing players keep their level)', () => {
+        expect(LEVEL_STORAGE_KEY).toBe('calcRushLevel');
+    });
+});
+
+describe('nextReachedLevel', () => {
+    it('a clear to a higher level raises the reached level', () => {
+        expect(nextReachedLevel(3, 4)).toBe(4);
+    });
+
+    it('a clear to a level below the reached one does not lower it', () => {
+        expect(nextReachedLevel(4, 3)).toBe(4);
+    });
+
+    it('the first clear of a run (reached 1, clear to 2) gives 2', () => {
+        expect(nextReachedLevel(1, 2)).toBe(2);
+    });
+});
+
+describe('levelAfterClear', () => {
+    it('a clear on Lv.1 goes to Lv.2', () => {
+        expect(levelAfterClear(1)).toBe(2);
+    });
+
+    it('a clear on Lv.6 goes to Lv.7 (the first level with a fixed move count)', () => {
+        expect(levelAfterClear(6)).toBe(7);
+    });
+});
+
+describe('isRoundOpen', () => {
+    it('input at exactly the deadline is still accepted (the time left is 0 and the same input counts)', () => {
+        expect(isRoundOpen(60000, 60000)).toBe(true);
+    });
+
+    it('input 1 ms after the deadline is rejected', () => {
+        expect(isRoundOpen(60001, 60000)).toBe(false);
+    });
+
+    it('input well before the deadline is accepted', () => {
+        expect(isRoundOpen(1000, 60000)).toBe(true);
+    });
+});
+
+describe('candidate options', () => {
+    it('every candidate of every slot comes from the operation pool (no undefined operation)', () => {
+        const slots = createTurnSlots(12, OPERATION_POOL, () => 0.37);
+        slots.forEach((slot) => {
+            slot.options.forEach((op) => {
+                expect(OPERATION_POOL).toContain(op);
+            });
+        });
     });
 });
 

@@ -10,9 +10,22 @@ export const BUTTON_WIDTH = 72;
 export const BUTTON_HEIGHT = 44;
 export const BUTTON_CENTERS_X = [40, 120, 200, 280, 360];
 
+/** Top line: level (left), target/start/current (centre), remaining time (right). */
+export const TOP_TEXT_SIZE = 26;
+export const TOP_TEXT_Y = 14;
+export const LEVEL_TEXT_X = 12;
+export const TIMER_TEXT_RIGHT_X = 468;
+export const HEADER_TEXT_X = 240;
+export const HEADER_TEXT_Y = 52;
+
 const STATUS_FROM_BOTTOM = 82;
 const SCORE_FROM_BOTTOM = 48;
-const ACTION_FROM_BOTTOM = 32;
+
+/** Result-screen button (「最初から」 on a loss, TITLE on a clear): fixed centre y, fits between the table and the status line. */
+export const RESULT_BUTTON_X = 240;
+export const RESULT_BUTTON_Y = 824;
+export const RESULT_BUTTON_WIDTH = 240;
+export const RESULT_BUTTON_HEIGHT = 77;
 
 /** Logical canvas height for a viewport: fit the aspect ratio, never below CANVAS_MIN_HEIGHT. */
 export function canvasHeight(viewWidth: number, viewHeight: number): number {
@@ -33,9 +46,4 @@ export function statusY(height: number): number {
 /** Centre y of the score line, measured from the bottom edge. */
 export function scoreY(height: number): number {
     return height - SCORE_FROM_BOTTOM;
-}
-
-/** Centre y of the result-screen action button, measured from the bottom edge. */
-export function actionY(height: number): number {
-    return height - ACTION_FROM_BOTTOM;
 }
