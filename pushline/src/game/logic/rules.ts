@@ -1,7 +1,7 @@
 // The rules of one run: state, moves, line clears, undo and the outcome of a tap.
 import { PARAMS } from '../params';
 import { topUpFixed } from './fixed';
-import { colFull, DIR_LIST, DIRS, emptyGrid, inBounds, rowFull } from './grid';
+import { colFull, DIR_LIST, DIRS, emptyGrid, inBounds, rowFull, widenGrid } from './grid';
 import { findPath } from './path';
 import { minClearMoves } from './solve';
 import { generateBlocks } from './spawn';
@@ -100,6 +100,10 @@ function clearLines(state: State, dest: { x: number; y: number }, res: MoveResul
 
     const lines = res.clearedRows.length + res.clearedCols.length;
     state.score += lines;
+    // the board grows once, when the line count first reaches growLines (docs/spec.md "盤面の広がり")
+    if (grid[0].length < PARAMS.grownCols && state.score >= (deps.growLines ?? PARAMS.growLines)) {
+        widenGrid(grid, PARAMS.grownCols);
+    }
     const movesBefore = state.moves;
     res.bonus = earnsShortestBonus(state.spent, state.shortest);
     if (res.bonus) state.bonusCount += 1;

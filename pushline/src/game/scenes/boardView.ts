@@ -1,6 +1,6 @@
 import type { GameObjects, Scene } from 'phaser';
 import { PARAMS } from '../params';
-import type { Layout } from '../logic/layout';
+import { cellSizeOf, type Layout } from '../logic/layout';
 import { stalePopKeys } from '../logic/pops';
 import { NEXT_EFFECT_MS, spawnDelayMs, STAGING_END_MS } from '../logic/staging';
 import { FIXED, MOVABLE, type Cell, type Grid, type KindPt, type MoveResult, type Pt } from '../logic/types';
@@ -43,6 +43,8 @@ export class BoardView {
     /** The board needs redrawing (set by effect completions, handled once per frame by the Scene). */
     private dirty = false;
     private alpha = 1;
+    /** Cell size of the board on screen: 80 px at the start, 66 px once the board has grown. */
+    private cell: number = PARAMS.cellSize;
 
     constructor(
         private readonly scene: Scene,
@@ -50,8 +52,23 @@ export class BoardView {
     ) {
         this.graphics = scene.add.graphics().setDepth(DEPTH.board);
         this.dot = scene.add
-            .circle(0, 0, PARAMS.cellSize * PARAMS.playerRadiusRatio, COLORS.player)
+            .circle(0, 0, this.cell * PARAMS.playerRadiusRatio, COLORS.player)
             .setDepth(DEPTH.player);
+    }
+
+    get cellSize(): number {
+        return this.cell;
+    }
+
+    /** Sets the cell size for a board of `cols` columns (the switch when the board grows is instant). */
+    setCols(cols: number): void {
+        const next = cellSizeOf(cols);
+        if (next === this.cell) return;
+        // effects still playing keep the old cell geometry: drop them, as a layout change does
+        this.discardEffects();
+        this.cell = next;
+        this.dot.setRadius(next * PARAMS.playerRadiusRatio);
+        this.dirty = true;
     }
 
     /** Orientation changed: only the placement changes; effects that are playing are dropped. */
@@ -76,11 +93,11 @@ export class BoardView {
     }
 
     cellOrigin(x: number, y: number): Pt {
-        return { x: this.layout.boardX + x * PARAMS.cellSize, y: this.layout.boardY + y * PARAMS.cellSize };
+        return { x: this.layout.boardX + x * this.cell, y: this.layout.boardY + y * this.cell };
     }
 
     render(state: BoardState): void {
-        const size = PARAMS.cellSize;
+        const size = this.cell;
         const inset = PARAMS.cellInset;
         const g = this.graphics.clear();
         state.grid.forEach((row, y) => row.forEach((cell, x) => {
@@ -96,7 +113,7 @@ export class BoardView {
 
     /** The cross that marks a fixed block, at the cell whose corner is `o`. */
     private drawCross(g: GameObjects.Graphics, o: Pt): void {
-        const size = PARAMS.cellSize;
+        const size = this.cell;
         const c = PARAMS.crossInset;
         g.lineStyle(PARAMS.crossWidth, COLORS.fixedMark)
             .lineBetween(o.x + c, o.y + c, o.x + size - c, o.y + size - c)
@@ -249,9 +266,9 @@ export class BoardView {
 
     private blockRect(p: KindPt, fill: number, depth: number): GameObjects.Rectangle {
         const o = this.cellOrigin(p.x, p.y);
-        const size = PARAMS.cellSize - 2 * PARAMS.cellInset;
+        const size = this.cell - 2 * PARAMS.cellInset;
         const rect = this.scene.add
-            .rectangle(o.x + PARAMS.cellSize / 2, o.y + PARAMS.cellSize / 2, size, size, fill)
+            .rectangle(o.x + this.cell / 2, o.y + this.cell / 2, size, size, fill)
             .setDepth(depth);
         this.effects.add(rect);
         return rect;
