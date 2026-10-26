@@ -3,8 +3,8 @@
 import type { DemoGame, DemoOptions } from 'title-demo';
 
 import {
-    DEFAULT_BOX_CAPACITY,
     advanceQueue,
+    boxCapacityFor,
     createDistributionState,
     createEmptyBoxes,
     createQueue,
@@ -110,14 +110,15 @@ export const createTitleDemoGame = (
     digitCount: number,
     rng: () => number = Math.random
 ): DemoGame<TitleDemoState, DemoIntent, TitleDemoDetail> => {
-    const difficulty = { digitCount, boxCapacity: DEFAULT_BOX_CAPACITY };
+    const boxCapacity = boxCapacityFor(digitCount);
+    const difficulty = { digitCount, boxCapacity };
 
     return {
         start: () => {
             const distribution = createDistributionState();
             return {
                 digitCount,
-                capacity: DEFAULT_BOX_CAPACITY,
+                capacity: boxCapacity,
                 boxes: createEmptyBoxes(),
                 distribution,
                 queue: createQueue(difficulty, rng, distribution),

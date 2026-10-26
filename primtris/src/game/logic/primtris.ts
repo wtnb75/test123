@@ -10,8 +10,16 @@ export const getBoxOrder = (digitCount: number): BoxKey[] => {
     return [...BOX_ORDER];
 };
 
-/** The box capacity `Game` plays with (every digit count). */
-export const DEFAULT_BOX_CAPACITY = 12;
+/** Box capacity for a digit count (docs/spec.md "難易度調整"): 2 digits 9, 3 digits 8, 4 digits 7. */
+export const boxCapacityFor = (digitCount: number): number => {
+    if (digitCount <= 2) {
+        return 9;
+    }
+    if (digitCount === 3) {
+        return 8;
+    }
+    return 7;
+};
 
 export interface Difficulty {
     digitCount: number;
