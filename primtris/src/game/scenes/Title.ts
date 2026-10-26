@@ -1,7 +1,7 @@
 import { Scene, type GameObjects } from 'phaser';
 import { DemoDirector } from 'title-demo';
 
-import { DEFAULT_BOX_CAPACITY, stackDigits, type BoxKey } from '../logic/primtris';
+import { boxCapacityFor, stackDigits, type BoxKey } from '../logic/primtris';
 import {
     DEMO_BOX_HEIGHT,
     DEMO_FADE_MS,
@@ -230,7 +230,7 @@ export class Title extends Scene
             this.layout.boxes.map((box) => box.key),
             width,
             { ...DEMO_BOX_STYLE, top: this.layout.boxRowTop },
-            DEFAULT_BOX_CAPACITY
+            boxCapacityFor(digitCount)
         );
 
         this.director = new DemoDirector(createTitleDemoGame(digitCount), TITLE_DEMO_OPTIONS, startAt);

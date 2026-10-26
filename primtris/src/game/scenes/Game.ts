@@ -2,8 +2,8 @@ import { Input, Scene, type GameObjects } from 'phaser';
 
 import {
     BOX_ORDER,
-    DEFAULT_BOX_CAPACITY,
     advanceQueue,
+    boxCapacityFor,
     createDistributionState,
     createEmptyBoxes,
     createQueue,
@@ -22,7 +22,7 @@ import { BoxesView, type BoxesViewStyle } from './boxesView';
 
 const DEFAULT_DIFFICULTY: Difficulty = {
     digitCount: 2,
-    boxCapacity: DEFAULT_BOX_CAPACITY
+    boxCapacity: boxCapacityFor(2)
 };
 
 const ENTRY_FALL_SPEED = 720;
@@ -99,8 +99,8 @@ export class Game extends Scene
     {
         const nextDigitCount = data?.digitCount ?? DEFAULT_DIFFICULTY.digitCount;
         this.difficulty = {
-            ...DEFAULT_DIFFICULTY,
-            digitCount: nextDigitCount
+            digitCount: nextDigitCount,
+            boxCapacity: boxCapacityFor(nextDigitCount)
         };
         this.activeBoxes = getBoxOrder(nextDigitCount);
     }
