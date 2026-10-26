@@ -10,6 +10,9 @@ import {
     loadLevel,
     saveLevel,
     handleLossLevelChoice,
+    nextReachedLevel,
+    levelAfterClear,
+    isRoundOpen,
     countUsedMoves,
     loadBest,
     saveBest,
@@ -18,10 +21,13 @@ import {
 } from '../logic';
 import { C, FONT } from '../palette';
 import {
-    actionY, BUTTON_CENTERS_X, BUTTON_HEIGHT, BUTTON_WIDTH, ROW_HEIGHT, rowCenterY, scoreY, statusY, TABLE_TOP,
+    BUTTON_CENTERS_X, BUTTON_HEIGHT, BUTTON_WIDTH, HEADER_TEXT_X, HEADER_TEXT_Y, LEVEL_TEXT_X, RESULT_BUTTON_HEIGHT,
+    RESULT_BUTTON_WIDTH, RESULT_BUTTON_X, RESULT_BUTTON_Y, ROW_HEIGHT, rowCenterY, scoreY, statusY, TABLE_TOP,
+    TIMER_TEXT_RIGHT_X, TOP_TEXT_SIZE, TOP_TEXT_Y,
 } from '../layout';
 
-type SceneMode = 'playing' | 'result';
+/** 'leaving' is set once the player has chosen to go back to `Title`, so no later input reaches this Scene. */
+type SceneMode = 'playing' | 'result' | 'leaving';
 
 type RowButton = {
     bg: Phaser.GameObjects.Rectangle;
@@ -62,9 +68,16 @@ export class Game extends Scene {
         this.reachedLevel = this.level;
 
         const height = this.scale.height;
-        this.levelText = this.add.text(12, 14, '', { fontFamily: FONT, fontSize: '26px', color: C.SUB });
-        this.headerText = this.add.text(240, 52, '', { fontFamily: FONT, fontSize: '26px', color: C.TEXT, align: 'center' }).setOrigin(0.5, 0);
-        this.timerText = this.add.text(468, 14, '', { fontFamily: FONT, fontSize: '26px', color: C.TIMER_OK }).setOrigin(1, 0);
+        const topFont = `${TOP_TEXT_SIZE}px`;
+        this.levelText = this.add.text(LEVEL_TEXT_X, TOP_TEXT_Y, '', { fontFamily: FONT, fontSize: topFont, color: C.SUB });
+        this.headerText = this.add.text(HEADER_TEXT_X, HEADER_TEXT_Y, '', {
+            fontFamily: FONT,
+            fontSize: topFont,
+            color: C.TEXT,
+            align: 'center',
+        }).setOrigin(0.5, 0);
+        this.timerText = this.add.text(TIMER_TEXT_RIGHT_X, TOP_TEXT_Y, '', { fontFamily: FONT, fontSize: topFont, color: C.TIMER_OK })
+            .setOrigin(1, 0);
         this.statusText = this.add.text(240, statusY(height), '', {
             fontFamily: FONT,
             fontSize: '22px',
@@ -79,7 +92,7 @@ export class Game extends Scene {
             align: 'center',
         }).setOrigin(0.5);
 
-        this.setupClickHandler();
+        this.setupInputHandlers();
         this.startRound();
     }
 
@@ -134,14 +147,14 @@ export class Game extends Scene {
         if (this.mode !== 'playing') return;
         this.refreshHeader();
 
-        if (this.game.loop.time > this.roundDeadline) {
-            this.finalizeRound(false, false);
+        if (!isRoundOpen(this.game.loop.time, this.roundDeadline)) {
+            this.finalizeRound(false);
         }
     }
 
     private onSelect(turnIndex: number, selected: Operation | null): void {
         if (this.mode !== 'playing') return;
-        if (this.game.loop.time > this.roundDeadline) return;
+        if (!isRoundOpen(this.game.loop.time, this.roundDeadline)) return;
 
         this.slots[turnIndex].selected = selected;
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
@@ -149,24 +162,21 @@ export class Game extends Scene {
         this.renderTable();
 
         if (this.progress.won) {
-            this.finalizeRound(true, true);
+            this.finalizeRound(true);
         }
     }
 
-    private finalizeRound(wonByImmediateMatch: boolean, triggeredByPointer: boolean): void {
+    private finalizeRound(triggeredByPointer: boolean): void {
         if (this.mode !== 'playing') return;
         this.stopTimer();
         this.swallowNextResultClick = triggeredByPointer;
 
         this.progress = evaluateProgress(this.initialValue, this.targetValue, this.slots);
-        this.roundWon = wonByImmediateMatch && this.progress.won;
-        if (!wonByImmediateMatch) {
-            this.roundWon = this.progress.won;
-        }
+        this.roundWon = this.progress.won;
 
         if (this.roundWon) {
-            this.level += 1;
-            this.reachedLevel = Math.max(this.reachedLevel, this.level);
+            this.level = levelAfterClear(this.level);
+            this.reachedLevel = nextReachedLevel(this.reachedLevel, this.level);
             saveLevel(this.level, localStorage);
             this.statusText
                 .setText('クリア - クリックで次へ')
@@ -181,15 +191,16 @@ export class Game extends Scene {
         this.mode = 'result';
         this.clearActionButtons();
         this.renderTable();
-        if (!this.roundWon) {
-            this.actionButtons.push(
-                this.createActionButton(240, actionY(this.scale.height), 200, 44, '最初から', () => {
-                    this.level = handleLossLevelChoice(this.level, 'restart', localStorage);
-                    this.reachedLevel = 1;
-                    this.startRound();
-                }),
-            );
-        }
+        this.actionButtons.push(
+            this.createActionButton(
+                RESULT_BUTTON_X,
+                RESULT_BUTTON_Y,
+                RESULT_BUTTON_WIDTH,
+                RESULT_BUTTON_HEIGHT,
+                this.roundWon ? 'TITLE' : '最初から',
+                () => this.goToTitleFromResult(),
+            ),
+        );
         this.playResultEffect(this.roundWon);
         this.refreshHeader();
     }
@@ -341,21 +352,48 @@ export class Game extends Scene {
         this.timerEvent = undefined;
     }
 
-    private setupClickHandler(): void {
-        this.input.on('pointerdown', () => {
-            if (this.mode !== 'result') return;
-            if (this.swallowNextResultClick) {
-                this.swallowNextResultClick = false;
-                return;
-            }
+    /** Back to `Title` from a result screen. A loss restarts from Lv.1 (saved), a clear keeps the saved level. */
+    private goToTitleFromResult(): void {
+        if (this.mode !== 'result') return;
+        if (!this.roundWon) {
+            this.level = handleLossLevelChoice(this.level, 'restart', localStorage);
+        }
+        this.mode = 'leaving';
+        this.stopTimer();
+        this.scene.start('Title');
+    }
 
-            if (this.roundWon) {
-                this.startRound();
-                return;
-            }
-
-            this.level = handleLossLevelChoice(this.reachedLevel, 'continue', localStorage);
-            this.startRound();
+    /** Input listeners are registered once here and released on shutdown (AGENTS.md 4.2). */
+    private setupInputHandlers(): void {
+        const keyboard = this.input.keyboard;
+        this.input.on('pointerdown', this.onResultPointerDown);
+        keyboard?.on('keydown-T', this.onResultKeyT);
+        this.events.once('shutdown', () => {
+            this.input.off('pointerdown', this.onResultPointerDown);
+            keyboard?.off('keydown-T', this.onResultKeyT);
+            // The shapes were destroyed with the Scene; forget them so the next start does not touch them.
+            this.tableObjects = [];
+            this.actionButtons = [];
+            this.timerEvent = undefined;
         });
     }
+
+    private readonly onResultPointerDown = (): void => {
+        if (this.mode !== 'result') return;
+        if (this.swallowNextResultClick) {
+            this.swallowNextResultClick = false;
+            return;
+        }
+
+        if (this.roundWon) {
+            this.startRound();
+            return;
+        }
+
+        this.level = handleLossLevelChoice(this.reachedLevel, 'continue', localStorage);
+        this.startRound();
+    };
+
+    /** `T` returns to `Title` from a result screen only; during play it does nothing. */
+    private readonly onResultKeyT = (): void => this.goToTitleFromResult();
 }

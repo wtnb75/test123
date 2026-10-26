@@ -157,6 +157,21 @@ export function handleLossLevelChoice(
     return currentLevel;
 }
 
+/** Highest level reached in this run: a clear raises it, a loss never lowers it. */
+export function nextReachedLevel(reached: number, clearedTo: number): number {
+    return Math.max(reached, clearedTo);
+}
+
+/** Level after a clear: the next one. */
+export function levelAfterClear(level: number): number {
+    return level + 1;
+}
+
+/** A round still takes input while its clock has not passed the deadline (the deadline itself is still open). */
+export function isRoundOpen(nowMs: number, deadlineMs: number): boolean {
+    return nowMs <= deadlineMs;
+}
+
 // ────────────────────────────────────────────────────────────
 // Score of a clear and the best record (docs/spec.md: スコア条件)
 
