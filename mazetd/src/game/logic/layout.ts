@@ -1,4 +1,4 @@
-import { BOARD_LEFT, BOARD_TOP, CANVAS_H, CELL, GRID_COLS, GRID_ROWS } from './config';
+import { BOARD_LEFT, BOARD_TOP, CANVAS_W, CELL, GRID_COLS, GRID_ROWS, START_H, TOOL_GAP, TOOL_H, TOOL_W } from './config';
 import type { CellPos } from './board';
 
 export interface Rect {
@@ -8,27 +8,33 @@ export interface Rect {
     h: number;
 }
 
-export type Tool = 'wall' | 'turret' | 'sell';
+export type Tool = 'wall' | 'turret' | 'slow' | 'splash' | 'sell';
 export type ButtonId = Tool | 'start';
 
 export const BOARD_RECT: Rect = { x: BOARD_LEFT, y: BOARD_TOP, w: GRID_COLS * CELL, h: GRID_ROWS * CELL };
 
 const PANEL_TOP = BOARD_TOP + GRID_ROWS * CELL;
 const PANEL_PAD = 16;
-const BUTTON_GAP = 12;
-const BUTTON_H = (CANVAS_H - PANEL_TOP - PANEL_PAD * 2 - BUTTON_GAP) / 2;
-const TOOL_W = (BOARD_RECT.w - BUTTON_GAP * 2) / 3;
+const START_GAP = 8;
 const TOOL_Y = PANEL_TOP + PANEL_PAD;
-const START_Y = TOOL_Y + BUTTON_H + BUTTON_GAP;
+const START_Y = TOOL_Y + TOOL_H + START_GAP;
+// Five tools with 2 px of margin on each side: 5 × 104 + 4 × 4 + 2 × 2 = 540.
+const TOOLS_LEFT = (CANVAS_W - (TOOL_W * 5 + TOOL_GAP * 4)) / 2;
+
+function toolRect(index: number): Rect {
+    return { x: TOOLS_LEFT + index * (TOOL_W + TOOL_GAP), y: TOOL_Y, w: TOOL_W, h: TOOL_H };
+}
 
 export const BUTTONS: Readonly<Record<ButtonId, Rect>> = {
-    wall: { x: BOARD_LEFT, y: TOOL_Y, w: TOOL_W, h: BUTTON_H },
-    turret: { x: BOARD_LEFT + TOOL_W + BUTTON_GAP, y: TOOL_Y, w: TOOL_W, h: BUTTON_H },
-    sell: { x: BOARD_LEFT + (TOOL_W + BUTTON_GAP) * 2, y: TOOL_Y, w: TOOL_W, h: BUTTON_H },
-    start: { x: BOARD_LEFT, y: START_Y, w: BOARD_RECT.w, h: BUTTON_H }
+    wall: toolRect(0),
+    turret: toolRect(1),
+    slow: toolRect(2),
+    splash: toolRect(3),
+    sell: toolRect(4),
+    start: { x: BOARD_LEFT, y: START_Y, w: BOARD_RECT.w, h: START_H }
 };
 
-const BUTTON_ORDER: readonly ButtonId[] = ['wall', 'turret', 'sell', 'start'];
+const BUTTON_ORDER: readonly ButtonId[] = ['wall', 'turret', 'slow', 'splash', 'sell', 'start'];
 
 export function contains(rect: Rect, x: number, y: number): boolean {
     return x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;

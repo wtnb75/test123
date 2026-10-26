@@ -70,7 +70,7 @@ describe('initial state', () => {
 
     it('shows the placement hint while the board is empty', () => {
         const s = createGame();
-        expect(messageText(s)).toBe('マスをタップして壁や砲台を置こう（置いたら開始）');
+        expect(messageText(s)).toBe('マスをタップして建物を置こう（置いたら開始）');
     });
 });
 
@@ -645,7 +645,7 @@ describe('wave end and results', () => {
         const s = manualWave();
         setCell(s.board, 0, 0, 'wall'); // a non-empty board shows the wave prompt rather than the hint
         const e = addEnemy(s, 168, 1);
-        s.turrets.push({ x: 382, y: 292, charge: 0.5, flash: 0, targetX: 0, targetY: 0 });
+        s.turrets.push({ x: 382, y: 292, splash: false, charge: 0.5, flash: 0, targetX: 0, targetY: 0 });
         expect(e.hp).toBe(1);
         expect(update(s, 0)).toBe('build');
         expect(s.wave).toBe(2);
@@ -743,7 +743,7 @@ describe('wave end and results', () => {
 });
 
 describe('build hint', () => {
-    const HINT = 'マスをタップして壁や砲台を置こう（置いたら開始）';
+    const HINT = 'マスをタップして建物を置こう（置いたら開始）';
 
     it('switches to the wave prompt after one placement and back to the hint when everything is sold', () => {
         const s = createGame();
@@ -760,6 +760,18 @@ describe('build hint', () => {
         expect(messageText(s)).toBe(HINT);
         setCell(s.board, 0, 0, 'turret');
         expect(messageText(s)).toBe('ウェーブ 2 の準備（開始を押す）');
+    });
+
+    it('counts a slow tower and a splash tower as buildings too, and goes back to the hint when they are sold', () => {
+        for (const tool of ['slow', 'splash'] as const) {
+            const s = createGame();
+            selectTool(s, tool);
+            tapCell(s, 0, 0);
+            expect(messageText(s)).toBe('ウェーブ 1 の準備（開始を押す）');
+            selectTool(s, 'sell');
+            tapCell(s, 0, 0);
+            expect(messageText(s)).toBe(HINT);
+        }
     });
 
     it('lets a failure message take priority over the hint', () => {

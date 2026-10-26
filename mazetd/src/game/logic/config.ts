@@ -19,6 +19,8 @@ export const COINS_START = 60;
 
 export const WALL_COST = 5;
 export const TURRET_COST = 25;
+export const SLOW_TOWER_COST = 20;
+export const SPLASH_TOWER_COST = 40;
 export const SELL_RATE = 0.5;
 export const KILL_REWARD = 2;
 export const WAVE_BONUS = 10;
@@ -46,6 +48,22 @@ export const SPAWN_INTERVAL = 0.8;
 export const TURRET_RANGE = 112;
 export const TURRET_DAMAGE = 1;
 export const TURRET_INTERVAL = 0.5;
+
+/** Enemies within SLOW_RANGE of a slow tower walk at SLOW_RATE times their speed; several towers don't stack. */
+export const SLOW_RANGE = 100;
+export const SLOW_RATE = 0.5;
+
+/** Splash tower: attacks like a turret, and damages every enemy within SPLASH_RADIUS of the target. */
+export const SPLASH_RANGE = 90;
+export const SPLASH_RADIUS = 40;
+export const SPLASH_INTERVAL = 1.0;
+export const SPLASH_DAMAGE = 1;
+
+// Tool bar: five tools in one row, then the Start button.
+export const TOOL_W = 104;
+export const TOOL_GAP = 4;
+export const TOOL_H = 72;
+export const START_H = 64;
 
 export const SHOT_FLASH = 0.08;
 export const INVALID_FLASH = 0.3;

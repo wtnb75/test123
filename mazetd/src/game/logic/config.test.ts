@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DT_MAX, SPAWN_INTERVAL, TURRET_INTERVAL } from './config';
+import { DT_MAX, SPAWN_INTERVAL, SPLASH_INTERVAL, TURRET_INTERVAL } from './config';
 
 describe('config assumptions', () => {
     it('keeps DT_MAX below TURRET_INTERVAL so a turret never needs two shots in one frame', () => {
         expect(DT_MAX).toBeLessThan(TURRET_INTERVAL);
+    });
+
+    it('keeps DT_MAX below SPLASH_INTERVAL so a splash tower never needs two shots in one frame', () => {
+        expect(DT_MAX).toBeLessThan(SPLASH_INTERVAL);
     });
 
     it('keeps DT_MAX below SPAWN_INTERVAL so a normal frame spawns at most one enemy', () => {

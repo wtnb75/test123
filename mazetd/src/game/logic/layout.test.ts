@@ -35,6 +35,27 @@ describe('board geometry', () => {
     });
 });
 
+describe('tool bar: five tools in one row, then Start (spec: 操作パネル)', () => {
+    it('puts the five tools 104 × 72 px, 4 px apart, with 2 px margins: wall, turret, slow, splash, sell', () => {
+        expect(BUTTONS.wall).toEqual({ x: 2, y: 784, w: 104, h: 72 });
+        expect(BUTTONS.turret).toEqual({ x: 110, y: 784, w: 104, h: 72 });
+        expect(BUTTONS.slow).toEqual({ x: 218, y: 784, w: 104, h: 72 });
+        expect(BUTTONS.splash).toEqual({ x: 326, y: 784, w: 104, h: 72 });
+        expect(BUTTONS.sell).toEqual({ x: 434, y: 784, w: 104, h: 72 });
+    });
+
+    it('puts Start 8 px below the tools, full board width and 64 px tall', () => {
+        expect(BUTTONS.start).toEqual({ x: 18, y: 864, w: 504, h: 64 });
+    });
+
+    it('hits the outer tools inside the 2 px margins and not outside them', () => {
+        expect(buttonAt(2, 820)).toBe('wall');
+        expect(buttonAt(1.9, 820)).toBeNull();
+        expect(buttonAt(537.9, 820)).toBe('sell');
+        expect(buttonAt(538, 820)).toBeNull();
+    });
+});
+
 describe('buttons', () => {
     it('finds each button by a point at its centre', () => {
         for (const [id, r] of Object.entries(BUTTONS)) {
