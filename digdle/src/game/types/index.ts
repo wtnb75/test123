@@ -30,13 +30,15 @@ export interface ValidationResult {
     message?: string;
 }
 
-/** Hands the selected mode back to the Title (so it stays highlighted). */
+/** Hands the selected mode and the candidate-count toggle back to the Title (so both stay as the player left them). */
 export interface TitleData {
     mode?: TitleMode;
+    candidates?: boolean;
 }
 
-/** What the Title hands to the Game when a digit count is picked. */
+/** What the Title hands to the Game when a digit count is picked. `candidates` is the 💡 toggle. */
 export interface GameStartData {
     digits: DigitOption;
     mode: TitleMode;
+    candidates: boolean;
 }

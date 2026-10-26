@@ -30,9 +30,9 @@ describe('computeTitleLayout: stacked', () => {
     it('375 x 550 のモード切替は 78 x 40・隙間 8 の 3 ボタンで左端 62・148・234（右端 312）、桁数ボタンは 64 x 52・隙間 8 で左端 11 から並ぶ', () => {
         const layout = computeTitleLayout(375, 550);
         expect(layout.name).toEqual({ x: 187, y: 71 });
-        expect(layout.modeButtons.normal).toEqual({ x: 62, y: 111, width: 78, height: 40 });
-        expect(layout.modeButtons.hard).toEqual({ x: 148, y: 111, width: 78, height: 40 });
-        expect(layout.modeButtons.daily).toEqual({ x: 234, y: 111, width: 78, height: 40 });
+        expect(layout.modeButtons.normal).toEqual({ x: 36, y: 111, width: 78, height: 40 });
+        expect(layout.modeButtons.hard).toEqual({ x: 122, y: 111, width: 78, height: 40 });
+        expect(layout.modeButtons.daily).toEqual({ x: 208, y: 111, width: 78, height: 40 });
         expect(layout.digitButtons.map(({ digit, rect }) => [digit, rect.x])).toEqual([
             [2, 11], [3, 83], [4, 155], [5, 227], [6, 299]
         ]);
@@ -72,12 +72,12 @@ describe('computeTitleLayout: stacked', () => {
         });
     });
 
-    it('y0 は 3 で割った切り捨て（375 x 551 の y0 = floor(83 / 3) = 27）、奇数の幅の左端も切り捨て（391 x 844 の盤面の左 98、中心 x 195 のモードの左 floor(195 − 125) = 70）', () => {
+    it('y0 は 3 で割った切り捨て（375 x 551 の y0 = floor(83 / 3) = 27）、奇数の幅の左端も切り捨て（391 x 844 の盤面の左 98、中心 x 195 のモードの左 floor(195 − 151) = 44）', () => {
         expect(computeTitleLayout(375, 551).name.y).toBe(71);
 
         const wide = computeTitleLayout(391, 844);
         expect(wide.demo?.left).toBe(98);
-        expect(wide.modeButtons.normal.x).toBe(70);
+        expect(wide.modeButtons.normal.x).toBe(44);
     });
 
     it('桁数ボタンの幅は列の幅に合わせて縮み（幅 320 は floor((320 − 48) / 5) = 54）、64 を超えない', () => {
@@ -102,7 +102,7 @@ describe('computeTitleLayout: two columns', () => {
             demo: { cell: 44, gap: 6, left: 863, top: 71, width: 194, height: 244 }
         });
         expect(layout.name.x).toBe(320);
-        expect(layout.modeButtons.normal.x).toBe(195);
+        expect(layout.modeButtons.normal.x).toBe(169);
     });
 
     it('iPhone SE 横を想定した 667 x 310: 左の列の中心 x 166、名前 92・モード 132・桁数 188、桁数ボタンの幅 53、デモ (403, 33)', () => {
@@ -117,7 +117,7 @@ describe('computeTitleLayout: two columns', () => {
         });
         expect(layout.name.x).toBe(166);
         expect(layout.digitButtons[0].rect.x).toBe(17);
-        expect([layout.modeButtons.normal.x, layout.modeButtons.hard.x, layout.modeButtons.daily.x]).toEqual([41, 127, 213]);
+        expect([layout.modeButtons.normal.x, layout.modeButtons.hard.x, layout.modeButtons.daily.x]).toEqual([15, 101, 187]);
     });
 
     it('2 列のセルは高さ 196 で 28（表示）、195 で 27（デモなし）', () => {
@@ -164,11 +164,11 @@ describe('computeTitleLayout: without the demo', () => {
 });
 
 describe('computeTitleLayout: low and narrow screens', () => {
-    it('高さ 180 でも幅 503 は縦並び（境界は従来のモード行 252 px の 2 倍で固定）、504 は 2 列で 3 ボタンの左端 1・87・173（右端 251 ≤ 252）', () => {
+    it('高さ 180 でも幅 503 は縦並び（2 列の境界は 504 の固定値）、504 は 2 列で、モードの左端 8・72・136（幅 56、右端 192）', () => {
         expect(summary(503, 180)).toMatchObject({ arrangement: 'stacked', nameY: 44, demo: null });
         const narrowest = computeTitleLayout(504, 180).modeButtons;
-        expect([narrowest.normal.x, narrowest.hard.x, narrowest.daily.x]).toEqual([1, 87, 173]);
-        expect(narrowest.daily.x + narrowest.daily.width).toBe(251);
+        expect([narrowest.normal.x, narrowest.hard.x, narrowest.daily.x]).toEqual([8, 72, 136]);
+        expect(narrowest.daily.x + narrowest.daily.width).toBe(192);
         expect(summary(504, 180)).toMatchObject({ arrangement: 'columns', nameY: 27, modeTop: 67, digitTop: 123, demo: null });
     });
 
