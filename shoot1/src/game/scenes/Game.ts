@@ -19,9 +19,13 @@ import {
     clampPosition, inputToVelocity, joystickToVelocity,
     angleToVec, angleTo, calcNWayAngles, calcScore, calcChainExplosionRadius
 } from '../core/physics';
-import { getDifficultyParams, type BulletType } from '../core/difficulty';
+import { getDifficultyParams, type BulletType, type DifficultyParams } from '../core/difficulty';
 import { advanceFormationTimer, calcRowFormation, calcVFormation, pickFormationType } from '../core/formation';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
+import {
+    advanceStopper, isRushGone, isStopperGone, rushTouchesPlayer, rushVelocity,
+    soloKindOf, soloSpawnDue, soloSpawnX, type SoloKind, type StopPhase
+} from '../core/soloEnemy';
 
 // --- 型定義 ---
 type Bullet = {
@@ -33,10 +37,13 @@ type Bullet = {
 };
 
 type Enemy = {
+    kind: 'formation' | SoloKind;
     x: number;
     y: number;
     vy: number;
     vx: number;
+    phase: StopPhase;     // 停止して撃つ敵のみ使う（それ以外は 'descend' のまま）
+    holdLeft: number;     // 停止の残り秒（停止中のみ）
     fireTimer: number;
     bulletType: BulletType;
     gfx: Phaser.GameObjects.Graphics;
@@ -91,6 +98,7 @@ export class Game extends Scene {
     private startTime = 0;
     private gameOver = false;
     private formationTimer = Infinity;
+    private soloSpawnedCount = 0;
 
     // キー入力
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -132,6 +140,7 @@ export class Game extends Scene {
         this.startTime = -1;
         // start past any interval so the first formation spawns on the first update
         this.formationTimer = Infinity;
+        this.soloSpawnedCount = 0;
         this.px = GAME_WIDTH / 2;
         this.py = GAME_HEIGHT - 80;
 
@@ -347,15 +356,46 @@ export class Game extends Scene {
             const gfx = this.add.graphics({ x: pos.x, y: pos.y }).setDepth(4);
             drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
             this.enemies.push({
+                kind: 'formation',
                 x: pos.x,
                 y: pos.y,
                 vx: 0,
                 vy: ENEMY_SPEED,
+                phase: 'descend',
+                holdLeft: 0,
                 fireTimer: 0.5 + Math.random() * 0.5,
                 bulletType,
                 gfx
             });
         }
+    }
+
+    // 単体の敵（突進する敵・停止して撃つ敵）。上端の外から出す
+    private spawnSolo(kind: SoloKind) {
+        const x = soloSpawnX(Math.random());
+        const y = -ENEMY_RADIUS;
+        if (kind === 'rush') {
+            const v = rushVelocity(x, y, this.px, this.py);
+            // 頂点（ENEMY_SHAPE の上の頂点）を、進む向きに合わせる
+            const gfx = this.add.graphics({ x, y }).setDepth(4).setRotation(Math.atan2(v.vy, v.vx) + Math.PI / 2);
+            drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
+            this.enemies.push({ kind, x, y, vx: v.vx, vy: v.vy, phase: 'descend', holdLeft: 0, fireTimer: 0, bulletType: 'straight', gfx });
+        } else {
+            // 停止して撃つ敵: 赤い円に白い点（当たり判定は ENEMY_RADIUS の円）
+            const gfx = this.add.graphics({ x, y }).setDepth(4);
+            gfx.fillStyle(0xff4444, 1).fillCircle(0, 0, ENEMY_RADIUS);
+            gfx.fillStyle(0xffffff, 1).fillCircle(0, 0, 2);
+            this.enemies.push({ kind, x, y, vx: 0, vy: 0, phase: 'descend', holdLeft: 0, fireTimer: 0, bulletType: 'straight', gfx });
+        }
+    }
+
+    private updateEnemyFire(enemy: Enemy, dt: number, params: DifficultyParams) {
+        enemy.fireTimer -= dt;
+        if (enemy.fireTimer > 0) return;
+        enemy.fireTimer = params.fireIntervalSec + Math.random() * 0.3;
+        const types = params.bulletTypes;
+        enemy.bulletType = types[Math.floor(Math.random() * types.length)];
+        this.fireEnemy(enemy);
     }
 
     private spawnBullet(x: number, y: number, vx: number, vy: number, type: BulletType) {
@@ -579,23 +619,37 @@ export class Game extends Scene {
         this.formationTimer = formation.timer;
         if (formation.spawn) this.spawnFormation();
 
+        // --- 単体の敵（突進・停止）---
+        if (soloSpawnDue(elapsedSec, this.soloSpawnedCount)) {
+            this.spawnSolo(soloKindOf(this.soloSpawnedCount));
+            this.soloSpawnedCount += 1;
+        }
+
         // --- 敵機更新 ---
         for (const enemy of this.enemies) {
-            enemy.x += enemy.vx * dt;
-            enemy.y += enemy.vy * dt;
+            if (enemy.kind === 'stop') {
+                // 停止の開始から 0〜0.3 秒後に最初の弾。停止中だけ撃つ
+                if (advanceStopper(enemy, dt)) enemy.fireTimer = Math.random() * 0.3;
+                if (enemy.phase === 'hold') this.updateEnemyFire(enemy, dt, params);
+            } else {
+                enemy.x += enemy.vx * dt;
+                enemy.y += enemy.vy * dt;
+                if (enemy.kind === 'formation') this.updateEnemyFire(enemy, dt, params);
+            }
             enemy.gfx.setPosition(enemy.x, enemy.y);
 
-            enemy.fireTimer -= dt;
-            if (enemy.fireTimer <= 0) {
-                enemy.fireTimer = params.fireIntervalSec + Math.random() * 0.3;
-                const types = params.bulletTypes;
-                enemy.bulletType = types[Math.floor(Math.random() * types.length)];
-                this.fireEnemy(enemy);
+            // 突進する敵が自機に触れるとゲームオーバー
+            if (enemy.kind === 'rush' && rushTouchesPlayer(enemy.x, enemy.y, this.px, this.py)) {
+                this.triggerGameOver('突進 !');
+                return;
             }
         }
         // 画面外の敵機を削除
         this.enemies = this.enemies.filter(e => {
-            if (e.y > GAME_HEIGHT + 40) {
+            const gone = e.kind === 'rush' ? isRushGone(e.x, e.y)
+                : e.kind === 'stop' ? isStopperGone(e)
+                : e.y > GAME_HEIGHT + 40;
+            if (gone) {
                 e.gfx.destroy();
                 return false;
             }
