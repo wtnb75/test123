@@ -207,7 +207,7 @@ export const createDemoGame = (rng: () => number): DemoGame<DemoState, DemoActio
     }
 });
 
-/** Geometry of the Title (canvas 480 x 960); the demo board uses the Game's own row geometry. */
+/** Geometry of the Title: fixed canvas coordinates (the canvas height is layout.ts canvasHeight, at least 960). The demo board uses its own row geometry. */
 export const TITLE_LAYOUT = {
     nameY: 192,
     taglineY: 250,

@@ -17,6 +17,9 @@ import {
     type Best,
 } from '../logic';
 import { C, FONT } from '../palette';
+import {
+    actionY, BUTTON_CENTERS_X, BUTTON_HEIGHT, BUTTON_WIDTH, ROW_HEIGHT, rowCenterY, scoreY, statusY, TABLE_TOP,
+} from '../layout';
 
 type SceneMode = 'playing' | 'result';
 
@@ -58,17 +61,18 @@ export class Game extends Scene {
         this.level = loadLevel(localStorage);
         this.reachedLevel = this.level;
 
-        this.levelText = this.add.text(12, 18, '', { fontFamily: FONT, fontSize: '22px', color: C.SUB });
-        this.headerText = this.add.text(240, 46, '', { fontFamily: FONT, fontSize: '18px', color: C.TEXT, align: 'center' }).setOrigin(0.5, 0);
-        this.timerText = this.add.text(468, 18, '', { fontFamily: FONT, fontSize: '22px', color: C.TIMER_OK }).setOrigin(1, 0);
-        this.statusText = this.add.text(240, 878, '', {
+        const height = this.scale.height;
+        this.levelText = this.add.text(12, 14, '', { fontFamily: FONT, fontSize: '26px', color: C.SUB });
+        this.headerText = this.add.text(240, 52, '', { fontFamily: FONT, fontSize: '26px', color: C.TEXT, align: 'center' }).setOrigin(0.5, 0);
+        this.timerText = this.add.text(468, 14, '', { fontFamily: FONT, fontSize: '26px', color: C.TIMER_OK }).setOrigin(1, 0);
+        this.statusText = this.add.text(240, statusY(height), '', {
             fontFamily: FONT,
             fontSize: '22px',
             color: C.TEXT,
             align: 'center',
         }).setOrigin(0.5);
         // The score and best line on a clear result, under the status text (shown only after a clear).
-        this.scoreText = this.add.text(240, 912, '', {
+        this.scoreText = this.add.text(240, scoreY(height), '', {
             fontFamily: FONT,
             fontSize: '25px',
             color: C.TEXT,
@@ -113,7 +117,7 @@ export class Game extends Scene {
     private refreshHeader(): void {
         const shownLevel = this.mode === 'result' ? this.roundLevel : this.level;
         this.levelText.setText(`Lv. ${shownLevel}`);
-        this.headerText.setText(`目標: ${this.targetValue}  初期値: ${this.initialValue}\n現在値: ${this.progress.currentValue}`);
+        this.headerText.setText(`目標: ${this.targetValue}  初期値: ${this.initialValue}  現在値: ${this.progress.currentValue}`);
 
         const restMs = Math.max(0, this.roundDeadline - this.game.loop.time);
 
@@ -179,7 +183,7 @@ export class Game extends Scene {
         this.renderTable();
         if (!this.roundWon) {
             this.actionButtons.push(
-                this.createActionButton(240, 928, 200, 44, '最初から', () => {
+                this.createActionButton(240, actionY(this.scale.height), 200, 44, '最初から', () => {
                     this.level = handleLossLevelChoice(this.level, 'restart', localStorage);
                     this.reachedLevel = 1;
                     this.startRound();
@@ -250,23 +254,20 @@ export class Game extends Scene {
     private renderTable(): void {
         this.clearTable();
         // Portrait layout: keep each row single-line for readability.
-        const tableTop = 92;
-        const rowH = 50;
-        const top = tableTop + rowH / 2;
         const showShortest = this.mode === 'result';
-        const btnCenters = [40, 120, 200, 280, 360];
-        const btnW = 72;
-        const btnH = 28;
+        const btnCenters = BUTTON_CENTERS_X;
+        const btnW = BUTTON_WIDTH;
+        const btnH = BUTTON_HEIGHT;
         const buttonsRightEdge = btnCenters[btnCenters.length - 1] + (btnW / 2);
         const historyX = buttonsRightEdge + 8;
 
-        const panelH = this.slots.length * rowH;
-        this.tableObjects.push(this.add.rectangle(240, tableTop + panelH / 2, 476, panelH, C.PANEL));
+        const panelH = this.slots.length * ROW_HEIGHT;
+        this.tableObjects.push(this.add.rectangle(240, TABLE_TOP + panelH / 2, 476, panelH, C.PANEL));
 
         this.slots.forEach((slot, i) => {
-            const y = top + i * rowH;
+            const y = rowCenterY(i);
             const bgColor = i % 2 === 0 ? C.PANEL_ALT : C.PANEL;
-            this.tableObjects.push(this.add.rectangle(240, y, 472, rowH - 2, bgColor));
+            this.tableObjects.push(this.add.rectangle(240, y, 472, ROW_HEIGHT - 2, bgColor));
 
             const rowProgress = this.progress.rows[i];
             const interactive = this.mode === 'playing' && !rowProgress.isAutoSkip;
