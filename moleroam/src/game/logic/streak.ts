@@ -15,10 +15,13 @@ export const streakMultiplier = (
     max: number = PARAMS.streakMaxMultiplier,
 ): number => Math.min(1 + Math.floor(streak / step), max);
 
+/** Whether a hit on a mole or a golden mole: both extend the streak and can announce a new multiplier. */
+const isMoleHit = (outcome: StrikeOutcome): boolean => outcome === 'mole' || outcome === 'golden';
+
 /** The streak after a strike: a mole or golden mole hit adds one; a cat hit or a miss starts over. Nothing else changes it. */
 export const nextStreak = (streak: number, outcome: StrikeOutcome): number => {
     if (outcome === 'clock') return streak;
-    return outcome === 'mole' || outcome === 'golden' ? streak + 1 : 0;
+    return isMoleHit(outcome) ? streak + 1 : 0;
 };
 
 /**
@@ -51,12 +54,12 @@ export interface StrikeResult {
 export const resolveStrike = (score: number, streak: number, outcome: StrikeOutcome): StrikeResult => {
     const after = nextStreak(streak, outcome);
     // only a mole, a golden mole or a cat scores; a miss and a clock hit (which adds time in the Scene) leave the score alone
-    if (outcome !== 'mole' && outcome !== 'golden' && outcome !== 'cat') return { score, streak: after, applied: 0, announce: null };
+    if (outcome === 'miss' || outcome === 'clock') return { score, streak: after, applied: 0, announce: null };
     const result = applyStrike(score, outcome, streakMultiplier(streak));
     return {
         score: result.score,
         streak: after,
         applied: result.applied,
-        announce: outcome === 'mole' || outcome === 'golden' ? announcedMultiplier(after) : null,
+        announce: isMoleHit(outcome) ? announcedMultiplier(after) : null,
     };
 };

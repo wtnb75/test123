@@ -15,7 +15,7 @@ export interface Pop {
 export type PopState = 'telegraph' | 'up' | 'gone';
 
 /** How long a pop stays up (hittable): a golden mole's is short (docs/spec/golden-mole.md), everyone else's is `popLifetimeMs`. */
-export const upLifetimeMs = (kind: Kind): number => (kind === 'golden' ? PARAMS.goldenLifetimeMs : PARAMS.popLifetimeMs);
+const upLifetimeMs = (kind: Kind): number => (kind === 'golden' ? PARAMS.goldenLifetimeMs : PARAMS.popLifetimeMs);
 
 export const popState = (pop: Pop, now: number): PopState => {
     const upAt = pop.spawnedAt + PARAMS.telegraphMs;
@@ -32,17 +32,18 @@ export const showsArrow = (pop: Pop, now: number): boolean =>
 
 /** How a pop's arrow looks: only a golden mole's is gold with a white outline; moles and decoys share the yellow one. */
 export interface ArrowStyle {
-    color: number;
+    readonly color: number;
     /** Outline width in px; 0 means none. */
-    outlinePx: number;
+    readonly outlinePx: number;
 }
 
 export const YELLOW_ARROW_COLOR = 0xffeb3b;
 
-export const arrowStyle = (pop: Pop): ArrowStyle =>
-    pop.kind === 'golden'
-        ? { color: PARAMS.goldenArrowColor, outlinePx: PARAMS.goldenArrowOutlinePx }
-        : { color: YELLOW_ARROW_COLOR, outlinePx: 0 };
+const GOLDEN_ARROW: ArrowStyle = Object.freeze({ color: PARAMS.goldenArrowColor, outlinePx: PARAMS.goldenArrowOutlinePx });
+const YELLOW_ARROW: ArrowStyle = Object.freeze({ color: YELLOW_ARROW_COLOR, outlinePx: 0 });
+
+/** Shared constants (no allocation per call): the arrows are restyled every frame. */
+export const arrowStyle = (pop: Pop): ArrowStyle => (pop.kind === 'golden' ? GOLDEN_ARROW : YELLOW_ARROW);
 
 /**
  * The pop a strike at `at` (board coordinates) hits: among pops that are up and whose hole center is
@@ -64,6 +65,25 @@ export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number, layout: L
     return best;
 };
 
+/** The pops whose hit changes the score (a clock adds time, a miss hits nothing). */
+export type ScoringKind = 'mole' | 'cat' | 'golden';
+
+/** The score change for one hit, before the floor at 0. A `never` check makes a new scoring kind a compile error here. */
+const strikeChange = (kind: ScoringKind, multiplier: number): number => {
+    switch (kind) {
+        case 'mole':
+            return PARAMS.scoreMole * multiplier;
+        case 'golden':
+            return PARAMS.scoreGolden;
+        case 'cat':
+            return PARAMS.scoreFriend;
+        default: {
+            const unreachable: never = kind;
+            return unreachable;
+        }
+    }
+};
+
 /**
  * Score after hitting a `kind`; the total never drops below 0. `applied` is the actual change.
  * A mole is worth `scoreMole` times the streak `multiplier`; a golden mole's `scoreGolden` and a cat's penalty
@@ -71,11 +91,10 @@ export const judgeStrike = (at: Pt, pops: readonly Pop[], now: number, layout: L
  */
 export const applyStrike = (
     score: number,
-    kind: 'mole' | 'cat' | 'golden',
+    kind: ScoringKind,
     multiplier = 1,
 ): { score: number; applied: number } => {
-    const change = kind === 'mole' ? PARAMS.scoreMole * multiplier : kind === 'golden' ? PARAMS.scoreGolden : PARAMS.scoreFriend;
-    const next = Math.max(0, score + change);
+    const next = Math.max(0, score + strikeChange(kind, multiplier));
     return { score: next, applied: next - score };
 };
 

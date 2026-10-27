@@ -39,8 +39,9 @@ export const createCatVeil = (scene: Scene, layout: Layout): GameObjects.Rectang
 };
 
 /**
- * A mole (or a clock) was whacked: squash, star burst, the floating label, a light shake (ignored while a cat
- * shake runs). `color` is the label's colour: yellow for a mole's "+N", blue for a clock's "+N秒".
+ * A mole, a golden mole or a clock was whacked: squash, star burst, the floating label, a light shake (ignored while
+ * a cat shake runs). `color` is the label's colour: yellow for a mole's "+N" (the default), gold for a golden mole's
+ * "+50", blue for a clock's "+N秒".
  */
 export const playMoleHit = (scene: Scene, view: PopView, label: string, layout: Layout, color = '#ffee58'): void => {
     const { x, y } = view.center;
