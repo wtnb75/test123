@@ -212,6 +212,30 @@ export class Game extends Scene {
         this.isTouchDevice = this.sys.game.device.input.touch;
         this.setupVirtualController();
 
+        if (import.meta.env.DEV) {
+            // QA only, written inline so none of it reaches the production bundle: a read-only snapshot of the run
+            // and the Scene itself, so the browser QA scripts (scripts/qa) can set up and check situations.
+            Object.defineProperty(window, '__qa', {
+                configurable: true,
+                get: () => ({
+                    scene: this,
+                    gameOver: this.gameOver,
+                    px: this.px,
+                    py: this.py,
+                    mineStock: this.mineState.count,
+                    barrier: { ...this.barrier },
+                    items: this.items.map((i) => ({ kind: i.kind, x: i.x, y: i.y })),
+                    enemies: this.enemies.map((e) => ({ kind: e.kind, x: e.x, y: e.y })),
+                    bullets: this.bullets.length,
+                    mines: this.mines.map((m) => ({ x: m.x, y: m.y, age: m.age })),
+                    hud: { mine: this.mineText.text, barrierShown: this.barrierText.visible, ringShown: this.barrierRing.visible, playerAlpha: this.playerGfx.alpha }
+                })
+            });
+            this.events.once('shutdown', () => {
+                delete (window as unknown as Record<string, unknown>).__qa;
+            });
+        }
+
         // タッチ入力
         this.input.on('pointerdown', this.onPointerDown, this);
         this.input.on('pointermove', this.onPointerMove, this);
