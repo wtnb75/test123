@@ -2,14 +2,14 @@
 status_idea: done
 status_init: done
 status_spec: done
-status_impl: done
-status_test: done
-status_check: done
-status_qa: done
-status_balance: done
-status_publish: done
-status_codereview: done
-status_polish: done
+status_impl: pending
+status_test: pending
+status_check: pending
+status_qa: pending
+status_balance: pending
+status_publish: pending
+status_codereview: pending
+status_polish: pending
 ---
 
 # shoot1 ゲーム仕様
@@ -135,9 +135,9 @@ status_polish: done
 
 ## ルール
 
-- **失敗条件**: 敵弾が自機に当たる、自機が地雷に触れる／爆風範囲に入る、または突進する敵が自機に触れる（いずれも1回でゲームオーバー。突進する敵は [敵の種類](spec/enemy-kinds.md) を参照）
+- **失敗条件**: 敵弾が自機に当たる、自機が地雷に触れる／爆風範囲に入る、または突進する敵が自機に触れる（いずれも1回でゲームオーバー。突進する敵は [敵の種類](spec/enemy-kinds.md) を参照。バリアを持っているときは、これらを 1 回だけ防げる。[アイテム](spec/power-ups.md) を参照）
 - **スコア条件**: 生存時間をスコア（秒×10）とする
-- **地雷**:
+- **地雷**:（以降の「ゲームオーバー」は、バリアを持っていないときの規則。バリアがあるときは [アイテム](spec/power-ups.md) の規則が優先する）
   - ゲーム開始時に 3 発所持（残弾数を HUD 表示）
   - スペース／Z キーで自機の現在位置に設置
   - **当たり判定の対象は敵機のみ**（敵弾には反応しない）
@@ -185,6 +185,7 @@ status_polish: done
 - lint: ESLint（エラー0件）
 - テスト: Vitest（カバレッジ90%以上）
 - アセット: 図形描画（`Graphics`）で代替し、外部画像なしで動作させる
+- アイテム（落とす判定・落下・取る判定・地雷 +1 の残弾・バリアの状態遷移・HUD の MINE の文字列・猶予の点滅）は純関数として切り出してテストする（[アイテム](spec/power-ups.md)）
 - 純関数として切り出してテストするもの（Phaser 非依存）: 弾種 → 見た目の形の対応と描く向きの角度、縮むカウントダウン輪の半径（経過秒 → 半径または非表示）、爆風の警告輪を出すかの判定（`circlesOverlap` と同じ式）。描画（`Graphics`・テクスチャ・tween）は Scene の接着部分
 - 背景の段階色・星の位置の更新・機体の頂点の距離は、純関数として切り出してテストする（描画は Scene の接着部分）
 - ゲーム状態はシーン内のプロパティで管理し、グローバル汚染しない
@@ -298,7 +299,7 @@ status_polish: done
 ## テスト観点
 
 - スコア計算ロジック（時間 × 係数）
-- 地雷残弾数管理（初期値・設置で減少・0のとき設置不可）
+- 地雷残弾数管理（初期値・設置で減少・0のとき設置不可。アイテムで増える分は [アイテム](spec/power-ups.md) のテスト観点）
 - 自機の移動ロジック（境界クランプ）
 - 敵弾生成ロジック（座標範囲、速度範囲）
 - 当たり判定ロジック（円同士の重なり判定）
@@ -355,3 +356,4 @@ status_polish: done
 ## 拡張
 
 - [敵の種類](spec/enemy-kinds.md) — 単体で出る突進する敵・停止して撃つ敵を足す（30 秒以降）
+- [アイテム](spec/power-ups.md) — 地雷で倒した敵機が落とすアイテム（地雷 +1・バリア）。バリアはゲームオーバーの原因を 1 回だけ防ぐ
