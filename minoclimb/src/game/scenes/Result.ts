@@ -1,6 +1,6 @@
 import { GameObjects, Scene } from 'phaser';
 import type { LoseReason } from '../logic/round';
-import { RETRY_KEYS, wasPressed } from '../logic/input';
+import { lockoutOver, resultAction, RESULT_TITLE_RECT } from '../logic/resultInput';
 import { HEIGHT, P, WIDTH } from '../params';
 import { SceneInput } from './SceneInput';
 
@@ -15,12 +15,21 @@ const REASON_TEXT: Record<LoseReason, string> = {
     toppedOut: '積み上がりすぎた',
 };
 
-/** Shown over the Game scene, which keeps running behind it (no progress, effects only): outcome and retry. */
+const TITLE_BUTTON_FILL = 0x3a4a6b;
+const TITLE_BUTTON_STROKE = 0xffffff;
+const TITLE_BUTTON_RADIUS = 12;
+
+/**
+ * Shown over the Game scene, which keeps running behind it (no progress, effects only): outcome, retry
+ * and the way back to the Title.
+ */
 export class Result extends Scene {
     private outcome: ResultData = { status: 'lost', reason: null, maxHeight: 0 };
     private elapsed = 0;
     private controls!: SceneInput;
     private retryHint!: GameObjects.Text;
+    private titleButton!: GameObjects.Container;
+    private leaving = false;
 
     constructor() {
         super('Result');
@@ -32,6 +41,7 @@ export class Result extends Scene {
 
     create(): void {
         this.elapsed = 0;
+        this.leaving = false;
         this.controls = new SceneInput(this);
 
         this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.65);
@@ -51,6 +61,7 @@ export class Result extends Scene {
         this.retryHint = this.add.text(WIDTH / 2, (HEIGHT * 2) / 3, 'タップ / R / スペースでリトライ', {
             ...style, fontSize: '20px',
         }).setOrigin(0.5).setVisible(false);
+        this.titleButton = this.createTitleButton(style).setVisible(false);
 
         if (import.meta.env.DEV) {
             (window as unknown as { __qa?: unknown }).__qa = {
@@ -61,12 +72,34 @@ export class Result extends Scene {
 
     update(_time: number, deltaMs: number): void {
         this.elapsed += deltaMs / 1000;
-        // Presses are always consumed, so one made during the lockout can't fire a retry afterwards.
-        const pressed = wasPressed(this.controls.read(), RETRY_KEYS);
-        if (this.elapsed < P.RETRY_LOCKOUT) return;
+        // Presses are always consumed, so one made during the lockout can't fire an action afterwards.
+        const accepting = lockoutOver(this.elapsed);
+        const action = resultAction(this.controls.read(), accepting);
+        if (!accepting) return;
         this.retryHint.setVisible(true);
-        if (pressed) {
+        this.titleButton.setVisible(true);
+        if (action === null || this.leaving) return;
+        this.leaving = true;
+        if (action === 'retry') {
             this.scene.start('Game');
+        } else {
+            // Game runs on behind the Result: stop it so nothing of the finished run outlives the Title.
+            this.scene.stop('Game');
+            this.scene.start('Title');
         }
+    }
+
+    /** The "back to Title" button (docs/spec.md "Result Scene"): a drawing only, the press is routed by `resultAction`. */
+    private createTitleButton(style: { fontFamily: string; color: string; align: string }): GameObjects.Container {
+        const r = RESULT_TITLE_RECT;
+        const box = this.add.graphics()
+            .fillStyle(TITLE_BUTTON_FILL, 1)
+            .fillRoundedRect(r.x, r.y, r.width, r.height, TITLE_BUTTON_RADIUS)
+            .lineStyle(2, TITLE_BUTTON_STROKE, 1)
+            .strokeRoundedRect(r.x, r.y, r.width, r.height, TITLE_BUTTON_RADIUS);
+        const label = this.add.text(P.RESULT_TITLE_X, P.RESULT_TITLE_Y, 'タイトルへ（T）', {
+            ...style, fontSize: '24px',
+        }).setOrigin(0.5);
+        return this.add.container(0, 0, [box, label]);
     }
 }

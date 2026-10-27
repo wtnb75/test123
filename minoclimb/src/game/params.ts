@@ -51,6 +51,11 @@ export const P = {
     TAP_SLOP: 10,
     TAP_JUMP_HOLD: 0.1,
     RETRY_LOCKOUT: 0.5,
+    // The Result Scene's "back to Title" button (center and size, logical px).
+    RESULT_TITLE_X: 180,
+    RESULT_TITLE_Y: 600,
+    RESULT_TITLE_W: 200,
+    RESULT_TITLE_H: 64,
     MAX_DT: 0.05,
     HINT_TIME: 4,
     HINT_FADE: 0.5,

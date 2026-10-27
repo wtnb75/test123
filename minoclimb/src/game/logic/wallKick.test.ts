@@ -190,6 +190,7 @@ describe('the kick through the input layer', () => {
         pointers,
         pressedKeys: new Set(keys),
         pointerPressed: false,
+        pressPoints: [],
         quickTaps: [],
         cancelled: new Set(),
     });
