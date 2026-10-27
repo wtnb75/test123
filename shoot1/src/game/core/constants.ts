@@ -42,3 +42,15 @@ export const SOLO_ENEMY_INTERVAL_SEC = 12;
 export const RUSH_SPEED = 160;
 export const SOLO_STOP_Y = GAME_HEIGHT / 4;
 export const SOLO_STOP_SEC = 3;
+
+// Items (docs/spec/power-ups.md): dropped by enemies a mine explosion removes; a mine +1 and a barrier
+export const ITEM_DROP_RATE = 0.3;
+export const ITEM_BARRIER_RATE = 0.4;
+export const ITEM_FALL_SPEED = 60;
+export const ITEM_RADIUS = 10;
+export const ITEM_OFFSCREEN_MARGIN = 20;
+export const MINE_ITEM_MAX = 5;
+export const BARRIER_BREAK_SEC = 1.0;
+// Presentation only
+export const BARRIER_RING_MARGIN = 6;
+export const BARRIER_BLINK_SEC = 0.1;
