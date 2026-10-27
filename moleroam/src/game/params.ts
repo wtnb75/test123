@@ -29,6 +29,13 @@ export const PARAMS = {
     // clock item (docs/spec/items.md): share of non-cat pops that are clocks, and the time a clock adds
     itemRate: 0.05,
     itemTimeBonusMs: 3000,
+    // golden mole (docs/spec/golden-mole.md): share of the pops that are neither cat nor clock, how long it stays up,
+    // its fixed score (no streak multiplier) and its direction arrow (colour and the white outline width, px)
+    goldenRate: 0.05,
+    goldenLifetimeMs: 1500,
+    scoreGolden: 50,
+    goldenArrowColor: 0xffaa00,
+    goldenArrowOutlinePx: 3,
     comboRate: 0.2,
     comboSize: 3,
     telegraphMs: 800,

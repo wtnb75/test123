@@ -26,6 +26,9 @@ interface RunResult {
     moles: number;
     cats: number;
     clocks: number;
+    /** Taps on a golden mole (the bot must make none) and whether one ever came up during the run. */
+    goldens: number;
+    goldenSeen: boolean;
     distance: number;
     passedDecoy: boolean;
 }
@@ -40,7 +43,7 @@ function playDemo(layout: Layout, seed: number): RunResult {
     let view = { x: start.x, y: start.y };
     const sight: DemoSight = { now: 0, view: { x: 0, y: 0, w: layout.viewW, h: layout.viewH }, layout, pops: [] };
     const move = newDemoMove();
-    const result: RunResult = { moles: 0, cats: 0, clocks: 0, distance: 0, passedDecoy: false };
+    const result: RunResult = { moles: 0, cats: 0, clocks: 0, goldens: 0, goldenSeen: false, distance: 0, passedDecoy: false };
     const frames = Math.round((PARAMS.demoRunSeconds * 1000) / DT);
     let now = 0;
     const step = (PARAMS.scrollSpeed * PARAMS.demoScrollRatio * DT) / 1000;
@@ -56,6 +59,9 @@ function playDemo(layout: Layout, seed: number): RunResult {
             const hit = judgeStrike(at, pops, now, layout);
             if (hit && hit.kind === 'clock') {
                 result.clocks++; // a clock adds time and no score (docs/spec/items.md)
+            } else if (hit && hit.kind === 'golden') {
+                result.goldens++; // the bot must never get here (docs/spec/golden-mole.md)
+                pops = pops.filter((p) => p !== hit);
             } else if (hit) {
                 score = applyStrike(score, hit.kind === 'mole' ? 'mole' : 'cat').score;
                 if (hit.kind === 'mole') result.moles++;
@@ -71,6 +77,7 @@ function playDemo(layout: Layout, seed: number): RunResult {
         const { plan, scheduledAt } = stepSpawn(now, nextSpawn, pops.map((p) => p.hole), rand, layout);
         for (const p of rollDecoys(plan, rand)) pops.push({ hole: p.hole, kind: p.kind, decoy: p.decoy, spawnedAt: now });
         nextSpawn = scheduledAt;
+        if (pops.some((p) => p.kind === 'golden' && popState(p, now) === 'up')) result.goldenSeen = true;
         for (const p of pops) {
             if (p.kind !== 'cat' || p.decoy !== true || popState(p, now) !== 'up') continue;
             const c = holeCenter(p.hole, layout);
@@ -100,6 +107,11 @@ describe.each(LAYOUTS)('the demo bot playing alone on $name', ({ layout }) => {
 
     it('never taps a clock (docs/spec/title-demo.md: the bot does not tap clocks)', () => {
         expect(runs.every((r) => r.clocks === 0)).toBe(true);
+    });
+
+    it('never taps a golden mole, in runs where golden moles did come up (docs/spec/golden-mole.md)', () => {
+        expect(runs.filter((r) => r.goldenSeen).length).toBeGreaterThan(0); // so that the zero below means something
+        expect(runs.every((r) => r.goldens === 0)).toBe(true);
     });
 
     it('scrolls at least 2000 px in at least 90% of the runs', () => {

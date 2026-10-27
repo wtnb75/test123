@@ -3,7 +3,7 @@ import { PARAMS } from '../params';
 import { arrowFor, arrowPulse, type View } from '../logic/arrow';
 import { holeCenter, startScroll, type Pt } from '../logic/board';
 import { LANDSCAPE, type Layout } from '../logic/layout';
-import { changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
+import { YELLOW_ARROW_COLOR, arrowStyle, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { PointerTracker } from '../logic/pointers';
 import { combineScrollIn, edgeDelta, keyDelta } from '../logic/scroll';
@@ -17,6 +17,9 @@ const HUD_STYLE = { fontFamily: UI_FONT, fontSize: '30px', color: '#ffffff', str
 const LOW_TIME_COLOR = '#ff5252';
 /** The "+N秒" a clock adds (docs/spec/items.md): blue, to tell it from the yellow "+N" of a mole. */
 const CLOCK_TEXT_COLOR = '#40c4ff';
+/** The "+50" of a golden mole (docs/spec/golden-mole.md): gold, to tell it from a mole's yellow "+N". */
+const GOLDEN_TEXT_COLOR = '#ffc400';
+const ARROW_OUTLINE_COLOR = 0xffffff;
 
 type Phase = 'playing' | 'ending';
 
@@ -187,7 +190,7 @@ export class Game extends Scene {
     private createArrows() {
         for (let i = 0; i < PARAMS.maxActiveLate; i++) {
             const arrow = this.add
-                .triangle(0, 0, 0, -16, 40, 0, 0, 16, 0xffeb3b)
+                .triangle(0, 0, 0, -16, 40, 0, 0, 16, YELLOW_ARROW_COLOR)
                 .setScrollFactor(0)
                 .setDepth(DEPTH.arrow)
                 .setVisible(false);
@@ -287,8 +290,8 @@ export class Game extends Scene {
         if (hit.kind === 'clock') {
             this.bonusMs += PARAMS.itemTimeBonusMs;
             playMoleHit(this, view, `+${PARAMS.itemTimeBonusMs / 1000}秒`, this.layout, CLOCK_TEXT_COLOR);
-        } else if (hit.kind === 'mole') {
-            playMoleHit(this, view, changeLabel(result.applied), this.layout);
+        } else if (hit.kind === 'mole' || hit.kind === 'golden') {
+            playMoleHit(this, view, changeLabel(result.applied), this.layout, hit.kind === 'golden' ? GOLDEN_TEXT_COLOR : undefined);
             if (result.announce !== null) this.announceStreak(result.announce);
         } else {
             playCatHit(this, view, changeLabel(result.applied), this.veil, this.layout);
@@ -330,11 +333,18 @@ export class Game extends Scene {
             if (!showsArrow(v.pop, this.elapsedMs) || used >= this.arrows.length) continue;
             const arrow = arrowFor(v.center, this.view);
             if (!arrow) continue;
-            this.arrows[used]
+            const style = arrowStyle(v.pop);
+            const scale = PARAMS.arrowScale * arrowPulse(this.elapsedMs);
+            const shape = this.arrows[used]
                 .setPosition(arrow.x, arrow.y)
                 .setRotation(arrow.angle)
-                .setScale(PARAMS.arrowScale * arrowPulse(this.elapsedMs))
+                .setScale(scale)
+                .setFillStyle(style.color)
                 .setVisible(true);
+            // the line width is scaled with the shape, so divide by the scale to draw exactly `outlinePx`;
+            // no outline at all (not a zero-width one) for the plain yellow arrows
+            if (style.outlinePx > 0) shape.setStrokeStyle(style.outlinePx / scale, ARROW_OUTLINE_COLOR);
+            else shape.setStrokeStyle();
             used++;
         }
         for (let i = used; i < this.arrows.length; i++) this.arrows[i].setVisible(false);

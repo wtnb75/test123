@@ -53,3 +53,5 @@
 - `src/game/scenes/PopView.ts` drawClock: 時計の本体を Graphics と Container で毎回作る — 理由: 出現 1 回につき 2 個で、1 ラウンドに約 2 回。実害がない。テクスチャ化は別の変更
 - `src/game/scenes/DemoGame.ts` / `Game.ts` update: 終了フレームでデモのボットの叩きとスクロールが行われない — 理由: デモは 40 秒で作り直され、残り時間（60 秒）が 0 になる経路に届かない。到達しない差
 - `src/game/logic/streak.ts`: 時計の連続のルールが `nextStreak` と `resolveStrike` の早い return の 2 か所にある — 理由: 連続のルールは `nextStreak` だけが持ち、`resolveStrike` は得点の有無を決めるだけ。役割の分担で、二重管理ではない
+- `src/game/scenes/PopView.ts` (金のきらめきの無限の tween が、叩いたつぶれの約 160ms の間も動く): 叩いた Pop の後始末が squash の完了に依存する — 理由: 叩かれた Pop は squash の完了で `destroy()`（きらめきも止める）を通る既存の流れで、時間切れ・ending・Scene の終了でも止まる。つぶれの間だけで害はない
+- `src/game/logic/streak.ts` (`resolveStrike` の早い return に `never` の保証が無い): 新しい結果を足したときの漏れ — 理由: 新しい結果は `applyStrike` の型で型エラーになり、`nextStreak` の既定（0 に戻す）も単体テストで確かめる。保証を二重にするのは過剰
