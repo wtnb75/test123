@@ -8,16 +8,12 @@ vars:
   - first-game
   - digdle
   - calc1
-  #- nonoedit
-  #- editmin
-  #- dutchcalc
-  #- cjump
-  #- fukuwarai
   - absorb
   - spotdiff
   - pushline
   - minoclimb
   - bouncewave
+  - moleroam
   ALL_GAMES:
     # Games only: entries with a / (shared packages under shared/) are not games.
     sh: sed -n "s/^- '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
@@ -25,7 +21,11 @@ vars:
   LAB_GAMES:
   - shoot1
   - mazetd
-  - moleroam
+  #- nonoedit
+  #- editmin
+  #- dutchcalc
+  #- cjump
+  #- fukuwarai
 tasks:
   default:
     desc: task list
