@@ -9,6 +9,7 @@ import {
     PADDLE_MAX_ANGLE,
     PADDLE_WIDTH,
 } from '../params';
+import { tierAfterCatch } from './combo';
 
 export type Owner = 'enemy' | 'mine';
 
@@ -19,6 +20,8 @@ export interface Ball {
     vx: number;
     vy: number;
     owner: Owner;
+    /** Combo tier of an own ball (1..COMBO_MAX_TIER); enemy balls carry 1. */
+    tier: number;
 }
 
 /** Axis-aligned rectangle given by its center and size. */
@@ -102,8 +105,9 @@ export function paddleBounce(offset: number): { vx: number; vy: number } {
     return { vx: Math.sin(a) * MY_BALL_SPEED, vy: -Math.cos(a) * MY_BALL_SPEED };
 }
 
-/** Applies a paddle catch: new velocity, sits on the paddle, becomes the player's ball. */
+/** Applies a paddle catch: new velocity, sits on the paddle, becomes the player's ball (own balls go up a tier). */
 export function catchBall(b: Ball, paddleX: number, paddleY: number): void {
+    b.tier = tierAfterCatch(b.owner === 'mine', b.tier);
     const v = paddleBounce((b.x - paddleX) / (PADDLE_WIDTH / 2));
     b.vx = v.vx;
     b.vy = v.vy;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bounceOffRect, catchBall, hitsPaddle, isOut, keepInsideWalls, paddleBounce, stepBall, type Ball } from './physics';
 
-const ball = (over: Partial<Ball>): Ball => ({ id: 1, x: 270, y: 400, vx: 0, vy: 0, owner: 'enemy', ...over });
+const ball = (over: Partial<Ball>): Ball => ({ id: 1, x: 270, y: 400, vx: 0, vy: 0, owner: 'enemy', tier: 1, ...over });
 const SIN60 = Math.sqrt(3) / 2;
 
 describe('stepBall', () => {
@@ -212,5 +212,42 @@ describe('catchBall', () => {
         catchBall(b, 270, 700);
         expect(b.owner).toBe('mine');
         expect(b.vy).toBeCloseTo(-460, 10);
+    });
+
+    it('gives a caught enemy ball tier 1 whatever tier field it carried', () => {
+        const b = ball({ x: 270, y: 695, vy: 240, owner: 'enemy', tier: 3 });
+        catchBall(b, 270, 700);
+        expect(b.tier).toBe(1);
+    });
+
+    it('raises a caught player ball one tier at a time: 1 -> 2 -> 3 -> 4, and stays at 4', () => {
+        const b = ball({ x: 270, y: 695, vy: 460, owner: 'mine', tier: 1 });
+        const seen: number[] = [];
+        for (let i = 0; i < 5; i++) {
+            b.vy = 460; // falling again
+            catchBall(b, 270, 700);
+            seen.push(b.tier);
+        }
+        expect(seen).toEqual([2, 3, 4, 4, 4]);
+    });
+
+    it('launches with the same speed and direction at tier 1 and tier 4', () => {
+        const a = ball({ x: 270 + 27.5, y: 695, vy: 460, owner: 'mine', tier: 1 });
+        const c = ball({ x: 270 + 27.5, y: 695, vy: 460, owner: 'mine', tier: 4 });
+        catchBall(a, 270, 700);
+        catchBall(c, 270, 700);
+        expect([c.vx, c.vy, c.x, c.y]).toEqual([a.vx, a.vy, a.x, a.y]);
+    });
+});
+
+describe('tier does not affect movement or collisions', () => {
+    it('bounces off a wall and a rectangle the same at tier 1 and tier 4', () => {
+        const run = (tier: number) => {
+            const b = ball({ x: 20, y: 300, vx: -200, vy: -300, owner: 'mine', tier });
+            stepBall(b, 0.1);
+            const hit = bounceOffRect(b, { x: b.x, y: b.y - 20, w: 56, h: 30 });
+            return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, hit };
+        };
+        expect(run(4)).toEqual(run(1));
     });
 });

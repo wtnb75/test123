@@ -24,6 +24,7 @@ import {
     HUD_MARGIN,
     HUD_Y,
     makeTextures,
+    myBallTexture,
     RotateGuard,
     SceneExit,
     TEX,
@@ -160,6 +161,7 @@ export class Game extends Scene {
     private playEffects(dt: number) {
         const run = this.run;
         for (const k of run.kills) this.fx.kill(k);
+        if (run.kills.length > 0) this.fx.scoreBump(this.scoreText, Math.max(...run.kills.map((k) => k.tier)));
         this.fx.catches(run.caught);
         if (run.livesLost > 0) {
             this.cameras.main.shake(SHAKE_DURATION, SHAKE_INTENSITY, true);
@@ -193,7 +195,7 @@ export class Game extends Scene {
             this.ballSprites.delete(id);
         }
         for (const b of this.run.balls) {
-            const tex = b.owner === 'mine' ? TEX.myBall : TEX.enemyBall;
+            const tex = b.owner === 'mine' ? myBallTexture(b.tier) : TEX.enemyBall;
             const depth = b.owner === 'mine' ? DEPTH.myBall : DEPTH.enemyBall;
             let s = this.ballSprites.get(b.id);
             if (!s) {
@@ -237,10 +239,11 @@ export class Game extends Scene {
                     score: this.run.score,
                     lives: this.run.lives,
                     enemies: this.run.formation.enemies.length,
-                    balls: this.run.balls.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, owner: b.owner })),
+                    balls: this.run.balls.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, owner: b.owner, tier: b.tier })),
                     paddleX: this.paddleX,
                     paddleY: this.run.paddleY,
                     prompt: this.guard.active,
+                    run: this.run, // live state, so QA can stage a situation
                 }),
             });
         }

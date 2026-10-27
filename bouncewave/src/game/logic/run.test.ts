@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALL_RADIUS, FIELD_LEFT, FIELD_RIGHT, FIELD_TOP } from '../params';
 import { reachedDanger } from './formation';
 import { clampPaddle } from './paddle';
-import { createRun, frameDt, scoreForKill, stepRun, type Run } from './run';
+import { createRun, frameDt, scoreForKill, startWave, stepRun, type Run } from './run';
 import type { Ball } from './physics';
 
 const H = 800; // logical height used by these tests -> paddle at y = 700
@@ -17,7 +17,7 @@ const quietRun = (): Run => {
 };
 
 const addBall = (run: Run, over: Partial<Ball>): Ball => {
-    const b: Ball = { id: run.nextId++, x: 270, y: 500, vx: 0, vy: 0, owner: 'enemy', ...over };
+    const b: Ball = { id: run.nextId++, x: 270, y: 500, vx: 0, vy: 0, owner: 'enemy', tier: 1, ...over };
     run.balls.push(b);
     return b;
 };
@@ -52,9 +52,14 @@ describe('frameDt', () => {
 });
 
 describe('scoreForKill', () => {
-    it('is 10 x wave', () => {
-        expect(scoreForKill(1)).toBe(10);
-        expect(scoreForKill(3)).toBe(30);
+    it('is 10 x wave at tier 1', () => {
+        expect(scoreForKill(1, 1)).toBe(10);
+        expect(scoreForKill(3, 1)).toBe(30);
+    });
+
+    it('is multiplied by the tier of the ball that killed', () => {
+        expect(scoreForKill(3, 3)).toBe(90);
+        expect(scoreForKill(2, 4)).toBe(80);
     });
 });
 
@@ -113,15 +118,25 @@ describe('stepRun: per-frame record for effects', () => {
         const run = quietRun();
         const b = addBall(run, { x: 280, y: 690, vy: 240 });
         stepRun(run, 0.01, 270, never);
-        expect(run.caught).toEqual([{ id: b.id, x: 280, y: 700 - 8 - 9 }]);
+        expect(run.caught).toEqual([{ id: b.id, x: 280, y: 700 - 8 - 9, tier: 1 }]);
     });
 
-    it('records a re-caught own ball too, and two catches in one frame as two', () => {
+    it('records a re-caught own ball too, and two catches in one frame as two, each with its new tier', () => {
         const run = quietRun();
-        const a = addBall(run, { x: 240, y: 690, vy: 460, owner: 'mine' });
+        const a = addBall(run, { x: 240, y: 690, vy: 460, owner: 'mine', tier: 2 });
         const c = addBall(run, { x: 300, y: 690, vy: 240 });
         stepRun(run, 0.01, 270, never);
-        expect(run.caught.map((x) => x.id)).toEqual([a.id, c.id]);
+        expect(run.caught.map((x) => [x.id, x.tier])).toEqual([
+            [a.id, 3],
+            [c.id, 1],
+        ]);
+    });
+
+    it('records the capped tier for a tier 4 ball caught again', () => {
+        const run = quietRun();
+        addBall(run, { x: 270, y: 690, vy: 460, owner: 'mine', tier: 4 });
+        stepRun(run, 0.01, 270, never);
+        expect(run.caught[0].tier).toBe(4);
     });
 
     it('is empty on a frame without a catch, and cleared on the next frame', () => {
@@ -139,7 +154,80 @@ describe('stepRun: per-frame record for effects', () => {
         const e = run.formation.enemies[12]; // bottom row, column 0
         addBall(run, { x: e.rect.x, y: e.rect.y + 22, vy: -100, owner: 'mine' });
         stepRun(run, 0.0001, AWAY, never);
-        expect(run.kills).toEqual([{ id: e.id, x: e.rect.x, y: e.rect.y, w: 56, h: 30, score: 30 }]);
+        expect(run.kills).toEqual([{ id: e.id, x: e.rect.x, y: e.rect.y, w: 56, h: 30, score: 30, tier: 1 }]);
+    });
+
+    it('scores a tier 3 ball\'s kill in wave 3 as 90 and records the tier', () => {
+        const run = quietRun();
+        run.wave = 3;
+        const e = run.formation.enemies[12];
+        addBall(run, { x: e.rect.x, y: e.rect.y + 22, vy: -100, owner: 'mine', tier: 3 });
+        stepRun(run, 0.0001, AWAY, never);
+        expect(run.kills[0]).toMatchObject({ score: 90, tier: 3 });
+        expect(run.score).toBe(90);
+    });
+
+    it('scores two balls of different tiers by their own tiers in one frame (wave 2: tier 1 -> 20, tier 3 -> 60)', () => {
+        const run = quietRun();
+        run.wave = 2;
+        const [e1, e2] = [run.formation.enemies[12], run.formation.enemies[15]];
+        addBall(run, { x: e1.rect.x, y: e1.rect.y + 22, vy: -100, owner: 'mine', tier: 1 });
+        addBall(run, { x: e2.rect.x, y: e2.rect.y + 22, vy: -100, owner: 'mine', tier: 3 });
+        stepRun(run, 0.0001, AWAY, never);
+        expect(run.kills.map((k) => k.score)).toEqual([20, 60]);
+        expect(run.score).toBe(80);
+    });
+
+    it('does not change a ball\'s tier when it kills or bounces', () => {
+        const run = quietRun();
+        const e = run.formation.enemies[12];
+        const b = addBall(run, { x: e.rect.x, y: e.rect.y + 22, vy: -100, owner: 'mine', tier: 3 });
+        stepRun(run, 0.0001, AWAY, never);
+        expect(b.tier).toBe(3);
+    });
+
+    it('keeps a tier 3 ball\'s tier through a top-wall bounce and into the next wave', () => {
+        const run = quietRun();
+        const b = addBall(run, { x: 270, y: FIELD_TOP + BALL_RADIUS + 1, vy: -200, owner: 'mine', tier: 3 });
+        stepRun(run, 0.02, AWAY, never);
+        expect(b.vy).toBeGreaterThan(0); // bounced off the top wall
+        expect(b.tier).toBe(3);
+        startWave(run);
+        expect(run.balls).toContain(b);
+        expect(b.tier).toBe(3);
+    });
+
+    it('an own ball caught again rises from tier 1 to 2 in the run step', () => {
+        const run = quietRun();
+        const b = addBall(run, { x: 270, y: 690, vy: 460, owner: 'mine', tier: 1 });
+        stepRun(run, 0.01, 270, never);
+        expect(b.tier).toBe(2);
+    });
+
+    it('a fired enemy ball starts at tier 1', () => {
+        const run = createRun(H);
+        run.fireTimer = 0;
+        stepRun(run, 0.01, AWAY, never);
+        expect(run.balls).toHaveLength(1);
+        expect(run.balls[0]).toMatchObject({ owner: 'enemy', tier: 1 });
+    });
+
+    it('changing only a ball\'s tier changes only the score, not lives, formation, timers or wave', () => {
+        const play = (tier: number) => {
+            const run = quietRun();
+            const e = run.formation.enemies[12];
+            addBall(run, { x: e.rect.x, y: e.rect.y + 22, vy: -100, owner: 'mine', tier });
+            addBall(run, { x: 100, y: H + 8, vy: 240, owner: 'mine', tier });
+            exitingEnemyBall(run, 400);
+            for (let i = 0; i < 30; i++) stepRun(run, 1 / 60, AWAY, never);
+            const { score, balls, kills, ...rest } = run;
+            return { score, rest: { ...rest, balls: balls.map(({ tier: _t, ...b }) => b) }, kills: kills.length };
+        };
+        const low = play(1);
+        const high = play(4);
+        expect(high.score).toBe(4 * low.score);
+        expect(high.rest).toEqual(low.rest);
+        expect(low.rest.lives).toBe(2); // the enemy ball cost one life at both tiers
     });
 
     it('records two kills by two balls in one frame', () => {
@@ -488,6 +576,8 @@ describe('stepRun: seeded plays keep the rules invariant', () => {
         let endings = 0;
         let catches = 0;
         let topWallHits = 0;
+        let tierRises = 0;
+        let tieredKills = 0;
         for (let seed = 1; seed <= 40; seed++) {
             const rng = mulberry32(seed);
             const run = createRun(seed % 2 ? 756 : 1169);
@@ -507,8 +597,24 @@ describe('stepRun: seeded plays keep the rules invariant', () => {
                 const enemyIds = new Set(run.balls.filter((b) => b.owner === 'enemy').map((b) => b.id));
                 const risingIds = new Set(run.balls.filter((b) => b.owner === 'mine' && b.vy < 0).map((b) => b.id));
                 const phaseBefore = run.phase;
+                const before = new Map(run.balls.map((b) => [b.id, { owner: b.owner, tier: b.tier }]));
                 stepRun(run, 1 / 60, paddle, rng);
-                expectedScore += run.killedEnemyIds.length * 10 * wave;
+                // Oracle for tiers: a catch makes tier 1 (enemy ball) or tier + 1 up to 4 (own ball); nothing else moves it.
+                const caughtIds = new Set(run.caught.map((c) => c.id));
+                for (const b of run.balls) {
+                    const prev = before.get(b.id);
+                    let want = prev ? prev.tier : 1;
+                    if (caughtIds.has(b.id) && prev) want = prev.owner === 'mine' ? Math.min(prev.tier + 1, 4) : 1;
+                    if (b.tier !== want) expect.fail(`seed ${seed}: ball ${b.id} tier ${b.tier} != ${want}`);
+                    if (want >= 2) tierRises++;
+                }
+                for (const k of run.kills) {
+                    if (k.tier < 1 || k.tier > 4) expect.fail(`seed ${seed}: kill tier ${k.tier}`);
+                    if (k.score !== 10 * wave * k.tier) expect.fail(`seed ${seed}: kill score ${k.score}`);
+                    if (k.tier >= 2) tieredKills++;
+                    expectedScore += k.score;
+                }
+                if (run.kills.length !== run.killedEnemyIds.length) expect.fail(`seed ${seed}: kills and killed ids differ`);
                 catches += run.balls.filter((b) => b.owner === 'mine' && enemyIds.has(b.id)).length;
                 if (run.formationSpawned && phaseBefore === 'waveClear') wavesCleared++;
                 if (run.phase === 'playing' && reachedDanger(run.formation, run.dangerY)) {
@@ -547,5 +653,7 @@ describe('stepRun: seeded plays keep the rules invariant', () => {
         expect(ballEndings + invasionEndings).toBe(endings);
         expect(catches).toBeGreaterThan(0);
         expect(topWallHits).toBeGreaterThan(0);
+        expect(tierRises).toBeGreaterThan(0);
+        expect(tieredKills).toBeGreaterThan(0);
     });
 });

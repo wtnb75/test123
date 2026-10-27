@@ -27,6 +27,8 @@ export interface Catch {
     id: number;
     x: number;
     y: number;
+    /** The ball's tier after the catch (1 for a caught enemy ball). */
+    tier: number;
 }
 
 /** An enemy killed this frame: its rectangle at that moment and the score it added. */
@@ -37,6 +39,8 @@ export interface Kill {
     w: number;
     h: number;
     score: number;
+    /** Tier of the ball that killed it. */
+    tier: number;
 }
 
 export interface Run {
@@ -75,8 +79,8 @@ export function frameDt(rawDt: number): number {
     return Math.min(rawDt, MAX_FRAME_DT);
 }
 
-export function scoreForKill(wave: number): number {
-    return SCORE_PER_ENEMY * wave;
+export function scoreForKill(wave: number, tier: number): number {
+    return SCORE_PER_ENEMY * wave * tier;
 }
 
 export function createRun(height: number): Run {
@@ -138,6 +142,7 @@ function fire(run: Run, dt: number, rng: Rng): void {
         vx: v.vx,
         vy: v.vy,
         owner: 'enemy',
+        tier: 1,
     });
 }
 
@@ -146,9 +151,9 @@ function hitEnemy(run: Run, b: Ball): void {
     for (let i = 0; i < enemies.length; i++) {
         if (!bounceOffRect(b, enemies[i].rect)) continue;
         const { id, rect } = enemies[i];
-        const score = scoreForKill(run.wave);
+        const score = scoreForKill(run.wave, b.tier);
         run.killedEnemyIds.push(id);
-        run.kills.push({ id, x: rect.x, y: rect.y, w: rect.w, h: rect.h, score });
+        run.kills.push({ id, x: rect.x, y: rect.y, w: rect.w, h: rect.h, score, tier: b.tier });
         enemies.splice(i, 1);
         run.score += score;
         return;
@@ -163,7 +168,7 @@ function moveBalls(run: Run, dt: number, paddleX: number): number {
         stepBall(b, dt);
         if (hitsPaddle(b, paddleX, run.paddleY)) {
             catchBall(b, paddleX, run.paddleY);
-            run.caught.push({ id: b.id, x: b.x, y: b.y });
+            run.caught.push({ id: b.id, x: b.x, y: b.y, tier: b.tier });
         }
         if (b.owner === 'mine') {
             hitEnemy(run, b);
