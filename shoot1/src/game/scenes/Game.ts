@@ -9,6 +9,7 @@ import {
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
     MINE_RIPPLE_START_RADIUS, MINE_RIPPLE_ALPHA,
     ENEMY_SPEED,
+    ITEM_RADIUS, BARRIER_RING_MARGIN,
     BG_STAR_COUNT, BG_STAR_SPEED_MIN, BG_STAR_SPEED_MAX, BG_SCANLINE_GAP, BG_SCANLINE_ALPHA
 } from '../core/constants';
 import { advanceStar, backdropColorOf, ENEMY_SHAPE, PLAYER_SHAPE } from '../core/look';
@@ -22,6 +23,11 @@ import {
 import { getDifficultyParams, type BulletType, type DifficultyParams } from '../core/difficulty';
 import { advanceFormationTimer, calcRowFormation, calcVFormation, pickFormationType } from '../core/formation';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
+import {
+    addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isGraceActive, isItemGone, itemSpawnX,
+    itemTouchesPlayer, mineDots, pickUpBarrier, resolveFailure, rollItemDrop,
+    type BarrierState, type ItemKind
+} from '../core/powerup';
 import {
     advanceStopper, isRushGone, isStopperGone, rushTouchesPlayer, rushVelocity,
     soloKindOf, soloSpawnDue, soloSpawnX, type SoloKind, type StopPhase
@@ -59,6 +65,13 @@ type Mine = {
     warning: Phaser.GameObjects.Arc | null;    // blast warning ring
 };
 
+type Item = {
+    kind: ItemKind;
+    x: number;
+    y: number;
+    gfx: Phaser.GameObjects.Graphics;
+};
+
 // ジョイスティック状態
 type JoystickState = {
     active: boolean;
@@ -74,6 +87,9 @@ const JOYSTICK_THUMB_RADIUS = 22;
 const JOYSTICK_DEADZONE = 8;
 const BOMB_BTN_RADIUS = 36;
 const MINE_RING_DEPTH = 4.5;
+const ITEM_DEPTH = 3.5;
+const BARRIER_RING_DEPTH = 0.5;
+const BARRIER_COLOR = 0x00e5ff;
 
 // Fills a convex polygon given as offsets from the origin (a fan of triangles from the first vertex).
 function drawPolygon(g: Phaser.GameObjects.Graphics, shape: ReadonlyArray<readonly [number, number]>, color: number): void {
@@ -92,9 +108,11 @@ export class Game extends Scene {
     private bullets: Bullet[] = [];
     private enemies: Enemy[] = [];
     private mines: Mine[] = [];
+    private items: Item[] = [];
 
     // 状態
     private mineState!: MineState;
+    private barrier: BarrierState = createBarrierState();
     private startTime = 0;
     private gameOver = false;
     private formationTimer = Infinity;
@@ -112,6 +130,8 @@ export class Game extends Scene {
     // HUD
     private hudText!: Phaser.GameObjects.Text;
     private mineText!: Phaser.GameObjects.Text;
+    private barrierText!: Phaser.GameObjects.Text;
+    private barrierRing!: Phaser.GameObjects.Arc;
 
     // 仮想コントローラ
     private isTouchDevice = false;
@@ -135,6 +155,8 @@ export class Game extends Scene {
         this.bullets = [];
         this.enemies = [];
         this.mines = [];
+        this.items = [];
+        this.barrier = createBarrierState();
         this.mineState = createMineState(MINE_INITIAL_COUNT);
         // time.now is stale until the first update after a scene restart, so the clock starts there
         this.startTime = -1;
@@ -180,10 +202,39 @@ export class Game extends Scene {
         this.mineText = this.add.text(10, 36, '', {
             fontFamily: 'monospace', fontSize: 20, color: '#ffdd00'
         }).setDepth(10);
+        this.barrierText = this.add.text(10, 62, 'BARRIER', {
+            fontFamily: 'monospace', fontSize: 20, color: '#00e5ff'
+        }).setDepth(10).setVisible(false);
+        this.barrierRing = this.add.circle(this.px, this.py, PLAYER_RADIUS + BARRIER_RING_MARGIN)
+            .setStrokeStyle(2, BARRIER_COLOR).setDepth(BARRIER_RING_DEPTH).setVisible(false);
 
         // タッチデバイス判定
         this.isTouchDevice = this.sys.game.device.input.touch;
         this.setupVirtualController();
+
+        if (import.meta.env.DEV) {
+            // QA only, written inline so none of it reaches the production bundle: a read-only snapshot of the run
+            // and the Scene itself, so the browser QA scripts (scripts/qa) can set up and check situations.
+            Object.defineProperty(window, '__qa', {
+                configurable: true,
+                get: () => ({
+                    scene: this,
+                    gameOver: this.gameOver,
+                    px: this.px,
+                    py: this.py,
+                    mineStock: this.mineState.count,
+                    barrier: { ...this.barrier },
+                    items: this.items.map((i) => ({ kind: i.kind, x: i.x, y: i.y })),
+                    enemies: this.enemies.map((e) => ({ kind: e.kind, x: e.x, y: e.y })),
+                    bullets: this.bullets.length,
+                    mines: this.mines.map((m) => ({ x: m.x, y: m.y, age: m.age })),
+                    hud: { mine: this.mineText.text, barrierShown: this.barrierText.visible, ringShown: this.barrierRing.visible, playerAlpha: this.playerGfx.alpha }
+                })
+            });
+            this.events.once('shutdown', () => {
+                delete (window as unknown as Record<string, unknown>).__qa;
+            });
+        }
 
         // タッチ入力
         this.input.on('pointerdown', this.onPointerDown, this);
@@ -462,6 +513,8 @@ export class Game extends Scene {
         // 巻き込み: 敵機
         const enemyPositions = this.enemies.map(e => ({ x: e.x, y: e.y }));
         const hitEnemies = getTargetsInExplosion(mine.x, mine.y, radius, enemyPositions);
+        // each removed enemy may drop an item, rolled in the enemy list's order (docs/spec/power-ups.md)
+        for (const idx of hitEnemies) this.maybeDropItem(enemyPositions[idx].x, enemyPositions[idx].y);
         for (const idx of hitEnemies.slice().reverse()) {
             this.enemies[idx].gfx.destroy();
             this.enemies.splice(idx, 1);
@@ -506,6 +559,54 @@ export class Game extends Scene {
         }
 
         return playerHitByBlast || chainPlayerHit;
+    }
+
+    /** A game-over cause happened: true when the game ends; false when the barrier (or its grace window) took it. */
+    private fail(cause: string): boolean {
+        const result = resolveFailure(this.barrier);
+        this.barrier = result.state;
+        if (result.outcome !== 'gameover') return false;
+        this.triggerGameOver(cause);
+        return true;
+    }
+
+    private maybeDropItem(x: number, y: number) {
+        const kind = rollItemDrop(Math.random);
+        if (kind === null) return;
+        const ix = itemSpawnX(x);
+        const gfx = this.add.graphics({ x: ix, y }).setDepth(ITEM_DEPTH);
+        if (kind === 'mine') {
+            gfx.fillStyle(0xffdd00, 1);
+            gfx.fillCircle(0, 0, ITEM_RADIUS);
+            gfx.lineStyle(2, 0x000000, 1);
+            const arm = ITEM_RADIUS * 0.6;
+            gfx.lineBetween(-arm, 0, arm, 0);
+            gfx.lineBetween(0, -arm, 0, arm);
+        } else {
+            gfx.lineStyle(3, BARRIER_COLOR, 1);
+            gfx.strokeCircle(0, 0, ITEM_RADIUS);
+        }
+        this.items.push({ kind, x: ix, y, gfx });
+    }
+
+    /** Items fall, leave below the screen, and are picked up by touching the player (oldest first). */
+    private updateItems(dt: number) {
+        if (this.items.length === 0) return;
+        const kept: Item[] = [];
+        for (const item of this.items) {
+            item.y = advanceItemY(item.y, dt);
+            if (isItemGone(item.y)) {
+                item.gfx.destroy();
+            } else if (itemTouchesPlayer(item.x, item.y, this.px, this.py)) {
+                if (item.kind === 'mine') this.mineState = addMine(this.mineState);
+                else this.barrier = pickUpBarrier(this.barrier);
+                item.gfx.destroy();
+            } else {
+                item.gfx.setPosition(item.x, item.y);
+                kept.push(item);
+            }
+        }
+        this.items = kept;
     }
 
     private triggerGameOver(cause = '') {
@@ -570,6 +671,7 @@ export class Game extends Scene {
         if (this.startTime < 0) this.startTime = this.time.now;
         const dt = delta / 1000;
         const elapsedSec = (this.time.now - this.startTime) / 1000;
+        this.barrier = advanceBarrier(this.barrier, dt);
 
         // --- 背景（段階が変わったときだけ下地色を変える。星は流す）---
         const stage = backdropColorOf(elapsedSec);
@@ -613,6 +715,9 @@ export class Game extends Scene {
             this.tryPlaceMine();
         }
 
+        // --- Items: fall, leave below the screen, get picked up. Ones an explosion drops this frame start next frame ---
+        this.updateItems(dt);
+
         // --- 編隊出現 ---
         const params = getDifficultyParams(elapsedSec);
         const formation = advanceFormationTimer(this.formationTimer, dt, params.formationIntervalSec);
@@ -640,8 +745,7 @@ export class Game extends Scene {
 
             // 突進する敵が自機に触れるとゲームオーバー
             if (enemy.kind === 'rush' && rushTouchesPlayer(enemy.x, enemy.y, this.px, this.py)) {
-                this.triggerGameOver('突進 !');
-                return;
+                if (this.fail('突進 !')) return;
             }
         }
         // 画面外の敵機を削除
@@ -672,7 +776,9 @@ export class Game extends Scene {
 
         // --- 地雷更新 ---
         const minesToExplode: Mine[] = [];
-        for (const mine of this.mines) {
+        // a copy: a touched mine explodes inside the loop (and chains), and the player may survive it behind a barrier
+        for (const mine of [...this.mines]) {
+            if (!this.mines.includes(mine)) continue;
             mine.age += dt;
 
             // タイムアウト爆発
@@ -699,11 +805,11 @@ export class Game extends Scene {
             }
 
             // 自機との判定（設置直後は無効）
-            if (mine.age > MINE_PLACE_GRACE_SEC) {
+            // (touching a mine does nothing while the barrier's grace window runs)
+            if (mine.age > MINE_PLACE_GRACE_SEC && !isGraceActive(this.barrier)) {
                 if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
                     this.triggerExplosion(mine, new Set(), 0);
-                    this.triggerGameOver('地雷 !');
-                    return;
+                    if (this.fail('地雷 !')) return;
                 }
             }
         }
@@ -711,6 +817,8 @@ export class Game extends Scene {
         const visited = new Set<Mine>();
         let playerHitByBlast = false;
         for (const mine of minesToExplode) {
+            // a mine that already went off (a touched one or its chain) must not explode twice
+            if (!this.mines.includes(mine)) continue;
             if (!visited.has(mine)) {
                 if (this.triggerExplosion(mine, visited, 0)) {
                     playerHitByBlast = true;
@@ -718,21 +826,23 @@ export class Game extends Scene {
             }
         }
         if (playerHitByBlast) {
-            this.triggerGameOver('爆風 !');
-            return;
+            if (this.fail('爆風 !')) return;
         }
 
         // --- 弾と自機の当たり判定 ---
         for (const b of this.bullets) {
             if (circlesOverlap(b.x, b.y, BULLET_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
-                this.triggerGameOver('被弾 !');
-                return;
+                if (this.fail('被弾 !')) return;
+                break;
             }
         }
 
         // --- HUD 更新 ---
         const score = calcScore(this.time.now - this.startTime, SCORE_MULTIPLIER);
         this.hudText.setText(`SCORE: ${score}`);
-        this.mineText.setText(`MINE: ${'●'.repeat(this.mineState.count)}${'○'.repeat(this.mineState.maxCount - this.mineState.count)}`);
+        this.mineText.setText(`MINE: ${mineDots(this.mineState.count)}`);
+        this.barrierText.setVisible(this.barrier.owned);
+        this.barrierRing.setPosition(this.px, this.py).setVisible(this.barrier.owned);
+        this.playerGfx.setAlpha(graceAlpha(this.barrier.graceElapsed));
     }
 }

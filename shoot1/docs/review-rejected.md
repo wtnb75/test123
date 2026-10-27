@@ -10,3 +10,7 @@
 - `src/game/scenes/Game.ts` spawnEnemy 系: 編隊と単体の敵で Enemy のオブジェクトリテラルを 3 箇所に書いている — 理由: 既存の編隊の書き方に合わせた。項目の追加は今後の拡張で見直す（nit）
 - `src/game/scenes/Game.ts` Enemy 型: 停止用の phase / holdLeft を全敵に持たせている — 理由: 型の再設計は 1 変更 1 目的の外。今回は kind で分岐して誤用はない（nit）
 - `src/game/scenes/Game.ts` update: 退場の判定で編隊は `40` のリテラル、単体は `SOLO_OFFSCREEN_MARGIN` — 理由: 編隊の 40 は従来のまま（1 変更 1 目的）。値は同じで動作は一致（nit）
+- `src/game/scenes/Game.ts` update（地雷の更新）: 毎フレーム `[...this.mines]` の複製と `includes` で除去済みを調べる — 理由: 地雷は最大 5 発で、触れた地雷が爆発して配列が変わる（バリアで防いだあとも続ける）ための正しさの手当て。コストは測れない
+- `src/game/scenes/Game.ts`・`core/powerup.ts`: Scene の配線（フレームの順序・バリアで防いだときの地雷の爆発・ドロップの乱数）に単体テストが無い／`resolveFailure` の 3 値のうち `absorbed` と `ignored` を区別して使っていない／アイテムの色・線の太さがリテラル — 理由: Scene は単体テストの対象外で、仕様どおりブラウザ QA で確かめる。3 値は結果の意味をテストで固定する API の説明。色は Scene 内の見た目の値で、既存の描画も同じ書き方
+- `src/game/scenes/Game.ts`: 変更した条件の近くに、元からの日本語のコメントが残る — 理由: 元からあるコメントで、この変更で足したコメントは英語にした。既存のコメントの書き換えは別件
+- `src/game/core/powerup.test.ts` / `powerup.ts`: 誤差の確認が `sum < 1` という浮動小数点の事実を前提にする／猶予の終わり際に点滅の位相が最大 1e-9 秒ずれる — 理由: 前提を明示して境界のテストを自己説明にしている。位相のずれは見た目のみで 1e-9 秒
