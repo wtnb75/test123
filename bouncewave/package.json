@@ -33,5 +33,16 @@
   "dependencies": {
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "インベーダー崩し",
+    "summary": "ブロック崩しでインベーダーゲームをやっていく",
+    "tags": [
+      "シューティング",
+      "ブロック崩し",
+      "マウス",
+      "タッチ",
+      "キーボード"
+    ]
   }
 }
