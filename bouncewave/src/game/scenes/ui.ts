@@ -3,6 +3,7 @@ import {
     BALL_RADIUS,
     BUTTON_HEIGHT,
     BUTTON_WIDTH,
+    COMBO_MAX_TIER,
     ENEMY_HEIGHT,
     ENEMY_WIDTH,
     FIELD_TOP,
@@ -22,6 +23,7 @@ import {
     type ScreenSize,
 } from '../logic/screen';
 import { BestStore } from '../logic/best';
+import { tierColor } from '../logic/combo';
 
 export const UI_FONT = 'sans-serif';
 /** Left and right margin of the HUD row. */
@@ -56,6 +58,9 @@ export const DEPTH = {
 } as const;
 
 export const TEX = { paddle: 'paddle', enemy: 'enemy', enemyBall: 'eball', myBall: 'mball' } as const;
+
+/** Texture key of an own ball at `tier` (tier 1 keeps the base key). */
+export const myBallTexture = (tier: number): string => (tier <= 1 ? TEX.myBall : `${TEX.myBall}${tier}`);
 
 /** One store for the whole page, so the in-memory fallback survives Scene changes. */
 export const bestStore = new BestStore(() => {
@@ -132,8 +137,11 @@ export function makeTextures(scene: Scene): void {
     g.fillTriangle(0, r, 2 * r, r, r, 2 * r);
     g.generateTexture(TEX.enemyBall, 2 * r, 2 * r);
     g.clear();
-    g.fillStyle(0x4ae0ff).fillCircle(r, r, r);
-    g.generateTexture(TEX.myBall, 2 * r, 2 * r);
+    for (let tier = 1; tier <= COMBO_MAX_TIER; tier++) {
+        g.fillStyle(tierColor(tier)).fillCircle(r, r, r);
+        g.generateTexture(myBallTexture(tier), 2 * r, 2 * r);
+        g.clear();
+    }
     g.destroy();
 }
 

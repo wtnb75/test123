@@ -1,4 +1,4 @@
-import type { GameObjects, Scene, Time } from 'phaser';
+import { Display, type GameObjects, type Scene, type Time, type Tweens } from 'phaser';
 import {
     BALL_RADIUS,
     CATCH_FLASH_DURATION,
@@ -15,17 +15,23 @@ import {
     LIFE_BLINK_INTERVAL,
     LIVES,
     SCENE_FADE_DURATION,
+    SCORE_BUMP_DURATION,
     SCORE_POP_DURATION,
+    SCORE_POP_FONT_SIZE,
     SCORE_POP_RISE,
+    SCORE_POP_STROKE,
     SCREEN_WIDTH,
     WAVE_TEXT_POP_DURATION,
     WAVE_TEXT_POP_FROM,
 } from '../params';
 import { blinkCount, lifeText } from '../logic/hud';
+import { scoreBumpScale, scorePopFontSize, scorePopText, tierColor } from '../logic/combo';
 import type { Catch, Kill } from '../logic/run';
 import { addLabel, DEPTH, HUD_MARGIN, SHAKE_BLEED, UI_FONT } from './ui';
 
+/** The paddle's catch flash stays this colour whatever the ball's tier. */
 const CATCH_COLOR = 0x4ae0ff;
+const cssColor = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 /** How many of each short-lived effect can play at once; the oldest is reused beyond that. */
 const POOL_SIZE = 12;
 
@@ -61,6 +67,7 @@ export class GameFx {
     private paddleFlash?: Time.TimerEvent;
     private blink?: Time.TimerEvent;
     private blinking = 0;
+    private bump?: Tweens.Tween;
 
     constructor(
         private readonly scene: Scene,
@@ -75,10 +82,10 @@ export class GameFx {
                 // Dark outline: the pop starts over the white kill flash.
                 .text(0, 0, '', {
                     fontFamily: UI_FONT,
-                    fontSize: `${HELP_FONT_SIZE}px`,
-                    color: '#fff3a0',
-                    stroke: '#101828',
-                    strokeThickness: 4,
+                    fontSize: `${SCORE_POP_FONT_SIZE}px`,
+                    color: '#ffffff',
+                    stroke: '#000000',
+                    strokeThickness: SCORE_POP_STROKE,
                 })
                 .setOrigin(0.5)
                 .setDepth(DEPTH.pop)
@@ -116,7 +123,14 @@ export class GameFx {
             onComplete: () => sq.setVisible(false),
         });
 
-        const t = this.pops.take().setText(`+${k.score}`).setAlpha(1).setVisible(true);
+        // White at tier 1, the tier's colour from tier 2; bigger with the tier.
+        const t = this.pops
+            .take()
+            .setFontSize(scorePopFontSize(k.tier))
+            .setColor(k.tier >= 2 ? cssColor(tierColor(k.tier)) : '#ffffff')
+            .setText(scorePopText(k.score, k.tier))
+            .setAlpha(1)
+            .setVisible(true);
         const half = t.width / 2;
         t.setPosition(Math.max(half + 4, Math.min(SCREEN_WIDTH - half - 4, k.x)), k.y);
         this.scene.tweens.add({
@@ -137,8 +151,40 @@ export class GameFx {
         for (const c of caught) this.ring(c);
     }
 
+    /** The HUD SCORE swells to SCORE_BUMP_SCALE and settles back; a tier 2+ kill also tints it with the tier colour. */
+    scoreBump(score: GameObjects.Text, tier: number): void {
+        this.bump?.stop();
+        const tinted = tier >= 2;
+        const fromColor = Display.Color.IntegerToColor(tinted ? tierColor(tier) : 0xffffff);
+        const white = Display.Color.IntegerToColor(0xffffff);
+        score.setColor(cssColor(tinted ? tierColor(tier) : 0xffffff));
+        const apply = (elapsed: number) => {
+            score.setScale(scoreBumpScale(elapsed));
+            if (!tinted) return; // white to white: skip the text redraw
+            const c = Display.Color.Interpolate.ColorWithColor(fromColor, white, SCORE_BUMP_DURATION, elapsed);
+            score.setColor(Display.Color.RGBToString(c.r, c.g, c.b));
+        };
+        apply(0);
+        this.bump = this.scene.tweens.addCounter({
+            from: 0,
+            to: SCORE_BUMP_DURATION,
+            duration: SCORE_BUMP_DURATION * 1000,
+            onUpdate: (tween) => apply(tween.getValue() ?? 0),
+            onComplete: () => {
+                score.setScale(1).setColor('#ffffff');
+                this.bump = undefined;
+            },
+        });
+    }
+
     private ring(c: Catch): void {
-        const ring = this.rings.take().setPosition(c.x, c.y).setScale(1).setAlpha(1).setVisible(true);
+        const ring = this.rings
+            .take()
+            .setStrokeStyle(3, tierColor(c.tier))
+            .setPosition(c.x, c.y)
+            .setScale(1)
+            .setAlpha(1)
+            .setVisible(true);
         this.scene.tweens.add({
             targets: ring,
             scale: CATCH_RING_RADIUS / BALL_RADIUS,

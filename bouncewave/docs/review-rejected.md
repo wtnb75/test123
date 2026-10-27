@@ -21,4 +21,5 @@
 - `src/game/scenes/ui.ts` SHAKE_BLEED: カメラの拡大率 1 と、幅 < 高さを前提にしている — 理由: このゲームはカメラを拡大せず、論理の幅（540）はいつも高さ（756 以上）より小さい。spec にも書いてある
 - `src/game/scenes/Game.ts` syncEnemies: 新しい編隊が出るフレームで、敵の位置を 2 回設定している — 理由: 1 ウェーブに 1 回だけのごく小さな重複
 - `src/game/logic/formation.ts` formationSpeed: `total <= 0` の守りはゲームからは届かない — 理由: 前の回で守りとして入れると決めた。0 で割らないことを関数の側でも保証しておく
+- `src/game/scenes/Game.ts` playEffects: 撃破のあるフレームで `Math.max(...run.kills.map(...))` が配列を 1 つ作る — 理由: 撃破のあるフレームだけで、要素は多くて数個。ループ 1 本にまとめるほどの得は無い
 - `src/game/scenes/ui.ts` addButton: ボタンごとに Scene 全体の listener を登録している — 理由: ボタンは最大 2 個で、shutdown で外している。まとめても得るものが小さい
