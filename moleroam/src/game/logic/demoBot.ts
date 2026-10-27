@@ -42,13 +42,13 @@ const isNearer = (distA: number, a: Pop, distB: number, b: Pop): boolean =>
     distA < distB ||
     (distA === distB && (a.spawnedAt < b.spawnedAt || (a.spawnedAt === b.spawnedAt && a.hole < b.hole)));
 
-/** The pop the bot walks to, or null: a mole, or a decoy cat it has not yet seen up (the cats with an arrow). A clock is never one. */
+/** The pop the bot walks to, or null: a mole, or a decoy cat it has not yet seen up (the cats with an arrow). A clock and a golden mole are never one. */
 const pickTarget = (sight: DemoSight, cx: number, cy: number): Pop | null => {
     let best: Pop | null = null;
     let bestDist = Infinity;
     for (const pop of sight.pops) {
         const state = popState(pop, sight.now);
-        if (state === 'gone' || pop.kind === 'clock') continue;
+        if (state === 'gone' || pop.kind === 'clock' || pop.kind === 'golden') continue;
         const c = holeCenter(pop.hole, sight.layout);
         if (pop.kind === 'cat') {
             if (pop.decoy !== true) continue;
