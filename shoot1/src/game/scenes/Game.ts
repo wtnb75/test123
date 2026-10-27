@@ -24,7 +24,7 @@ import { getDifficultyParams, type BulletType, type DifficultyParams } from '../
 import { advanceFormationTimer, calcRowFormation, calcVFormation, pickFormationType } from '../core/formation';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
 import {
-    addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isItemGone, itemSpawnX,
+    addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isGraceActive, isItemGone, itemSpawnX,
     itemTouchesPlayer, mineDots, pickUpBarrier, resolveFailure, rollItemDrop,
     type BarrierState, type ItemKind
 } from '../core/powerup';
@@ -567,21 +567,22 @@ export class Game extends Scene {
 
     /** Items fall, leave below the screen, and are picked up by touching the player (oldest first). */
     private updateItems(dt: number) {
+        if (this.items.length === 0) return;
+        const kept: Item[] = [];
         for (const item of this.items) {
             item.y = advanceItemY(item.y, dt);
-            item.gfx.setPosition(item.x, item.y);
-        }
-        this.items = this.items.filter((item) => {
             if (isItemGone(item.y)) {
                 item.gfx.destroy();
-                return false;
+            } else if (itemTouchesPlayer(item.x, item.y, this.px, this.py)) {
+                if (item.kind === 'mine') this.mineState = addMine(this.mineState);
+                else this.barrier = pickUpBarrier(this.barrier);
+                item.gfx.destroy();
+            } else {
+                item.gfx.setPosition(item.x, item.y);
+                kept.push(item);
             }
-            if (!itemTouchesPlayer(item.x, item.y, this.px, this.py)) return true;
-            if (item.kind === 'mine') this.mineState = addMine(this.mineState);
-            else this.barrier = pickUpBarrier(this.barrier);
-            item.gfx.destroy();
-            return false;
-        });
+        }
+        this.items = kept;
     }
 
     private triggerGameOver(cause = '') {
@@ -690,7 +691,7 @@ export class Game extends Scene {
             this.tryPlaceMine();
         }
 
-        // --- アイテム（落下 → 画面外で消える → 取る）。このフレームの爆発で出たものは次のフレームから ---
+        // --- Items: fall, leave below the screen, get picked up. Ones an explosion drops this frame start next frame ---
         this.updateItems(dt);
 
         // --- 編隊出現 ---
@@ -781,11 +782,10 @@ export class Game extends Scene {
 
             // 自機との判定（設置直後は無効）
             // (touching a mine does nothing while the barrier's grace window runs)
-            if (mine.age > MINE_PLACE_GRACE_SEC && this.barrier.graceElapsed === null) {
+            if (mine.age > MINE_PLACE_GRACE_SEC && !isGraceActive(this.barrier)) {
                 if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
                     this.triggerExplosion(mine, new Set(), 0);
                     if (this.fail('地雷 !')) return;
-                    continue;
                 }
             }
         }

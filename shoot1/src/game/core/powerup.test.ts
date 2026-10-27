@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isItemGone, itemSpawnX,
-    itemTouchesPlayer, mineDots, pickUpBarrier, resolveFailure, rollItemDrop, type BarrierState
+    isGraceActive, itemTouchesPlayer, mineDots, pickUpBarrier, resolveFailure, rollItemDrop, type BarrierState
 } from './powerup';
 import { createMineState, placeMine, replenishMine } from './mine';
 import {
@@ -185,6 +185,26 @@ describe('バリアの状態遷移', () => {
         }
         s = advanceBarrier(s, 1 / 60); // the 60th sum is 1.0000000000000013 in floating point: >= 1.0
         expect(s.graceElapsed).toBeNull();
+    });
+
+    it('0.1 秒のフレームを 10 回足すと 0.9999999999999999 になるが、10 回目で猶予が終わる（誤差で 1 フレーム延びない）', () => {
+        let s = resolveFailure(owned).state;
+        let sum = 0;
+        for (let i = 0; i < 10; i++) sum += 0.1;
+        expect(sum).toBeLessThan(1);
+        for (let i = 1; i <= 9; i++) {
+            s = advanceBarrier(s, 0.1);
+            expect(s.graceElapsed).not.toBeNull();
+        }
+        s = advanceBarrier(s, 0.1);
+        expect(s.graceElapsed).toBeNull();
+    });
+
+    it('isGraceActive: 壊れた直後は猶予、猶予が終われば猶予でない、なしのときも猶予でない', () => {
+        expect(isGraceActive(createBarrierState())).toBe(false);
+        const broken = resolveFailure(owned).state;
+        expect(isGraceActive(broken)).toBe(true);
+        expect(isGraceActive(advanceBarrier(broken, 1))).toBe(false);
     });
 
     it('猶予がないとき advanceBarrier は何も変えない', () => {

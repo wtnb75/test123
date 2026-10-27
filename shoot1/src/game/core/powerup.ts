@@ -68,11 +68,19 @@ export function pickUpBarrier(state: BarrierState): BarrierState {
     return state.owned ? state : { ...state, owned: true };
 }
 
+/** Float error in a sum of frame times (ten 0.1 s frames give 0.9999999999999999) must not move a boundary by a frame. */
+const TIME_EPSILON = 1e-9;
+
+/** Whether the grace window (the time right after the barrier broke) is running. */
+export function isGraceActive(state: BarrierState): boolean {
+    return state.graceElapsed !== null;
+}
+
 /** Advances the grace window by `dt`; it ends once the elapsed time reaches `BARRIER_BREAK_SEC`. */
 export function advanceBarrier(state: BarrierState, dt: number): BarrierState {
     if (state.graceElapsed === null) return state;
     const elapsed = state.graceElapsed + dt;
-    return { ...state, graceElapsed: elapsed >= BARRIER_BREAK_SEC ? null : elapsed };
+    return { ...state, graceElapsed: elapsed + TIME_EPSILON >= BARRIER_BREAK_SEC ? null : elapsed };
 }
 
 /**
@@ -80,7 +88,7 @@ export function advanceBarrier(state: BarrierState, dt: number): BarrierState {
  * window; otherwise a held barrier absorbs it (the barrier breaks and the grace window starts); otherwise the game ends.
  */
 export function resolveFailure(state: BarrierState): { state: BarrierState; outcome: FailureOutcome } {
-    if (state.graceElapsed !== null) return { state, outcome: 'ignored' };
+    if (isGraceActive(state)) return { state, outcome: 'ignored' };
     if (state.owned) return { state: { owned: false, graceElapsed: 0 }, outcome: 'absorbed' };
     return { state, outcome: 'gameover' };
 }
@@ -88,5 +96,5 @@ export function resolveFailure(state: BarrierState): { state: BarrierState; outc
 /** The player's opacity: dim and bright in turns every `BARRIER_BLINK_SEC` during the grace window (it starts dim). */
 export function graceAlpha(graceElapsed: number | null): number {
     if (graceElapsed === null) return 1;
-    return Math.floor(graceElapsed / BARRIER_BLINK_SEC + 1e-9) % 2 === 0 ? 0.4 : 1;
+    return Math.floor(graceElapsed / BARRIER_BLINK_SEC + TIME_EPSILON) % 2 === 0 ? 0.4 : 1;
 }
