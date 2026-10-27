@@ -145,7 +145,7 @@ describe('portrait neighbours (6 columns: no wrap to the next row)', () => {
 describe('spawn plan on the portrait board', () => {
     // combo roll 0.1; anchor draw 0.115 -> index floor(0.115 * 48) = 5; neighbours drawn 0 then 0.99;
     // kinds 0.9 x 3 (moles), each followed by its clock roll 0.99 (not a clock)
-    const draws = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.9, 0.99, 0.9, 0.99];
+    const draws = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99];
 
     it('picks combo neighbours from the 6-column board: anchor 5 -> {5, 4, 11}, never hole 6', () => {
         const plan = planSpawn([], seq(draws), PORTRAIT);
@@ -164,16 +164,16 @@ describe('spawn plan on the portrait board', () => {
 
     it('does not choose a hole in use: with hole 4 occupied the anchor-5 combo is {5, 10, 11}', () => {
         // free list without hole 4: hole 5 is at index 4 (0.096 * 47 = 4.5); neighbours of 5 that are free: [10, 11]
-        const plan = planSpawn([4], seq([0.1, 0.096, 0, 0.99, 0.9, 0.99, 0.9, 0.99, 0.9, 0.99]), PORTRAIT);
+        const plan = planSpawn([4], seq([0.1, 0.096, 0, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99]), PORTRAIT);
         expect(plan.map((p) => p.hole)).toEqual([5, 10, 11]);
     });
 
-    it('draws 10 random values for a portrait combo plan (combo roll, anchor, 2 neighbours, 3 kinds and 3 clock rolls) and 10 on landscape', () => {
+    it('draws 13 random values for a portrait combo plan (combo roll, anchor, 2 neighbours, 3 kinds, 3 clock rolls and 3 golden rolls) and 13 on landscape', () => {
         for (const layout of [PORTRAIT, LANDSCAPE]) {
             let calls = 0;
             const counting = (): number => draws[calls++];
             planSpawn([], counting, layout);
-            expect(calls).toBe(10);
+            expect(calls).toBe(13);
         }
     });
 });
@@ -209,7 +209,7 @@ describe('portrait combos over every anchor and every occupied hole (oracle: gri
                 const usedHoles = used < 0 ? [] : [used];
                 // the anchor is drawn from the free holes in order, so its index drops by one when a lower hole is in use
                 const index = anchor - (used >= 0 && used < anchor ? 1 : 0);
-                const draws = seq([0.1, (index + 0.5) / (48 - usedHoles.length), 0.3, 0.7, 0.9, 0.99, 0.9, 0.99, 0.9, 0.99]);
+                const draws = seq([0.1, (index + 0.5) / (48 - usedHoles.length), 0.3, 0.7, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99]);
                 const holes = planSpawn(usedHoles, draws, PORTRAIT).map((p) => p.hole);
                 if (holes.length !== 3) expect.fail(`anchor ${anchor}, used ${used}: ${holes.length} holes`);
                 if (holes[0] !== anchor) expect.fail(`anchor ${anchor}, used ${used}: first hole is ${holes[0]}`);
@@ -358,7 +358,7 @@ describe('portrait layouts of different heights (the view height follows the win
     });
 
     it('draws the same spawn plan and judges the same strike whatever the height', () => {
-        const draws = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.9, 0.99, 0.9, 0.99];
+        const draws = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99];
         expect(planSpawn([], seq(draws), tall)).toEqual(planSpawn([], seq(draws), PORTRAIT));
         const pop: Pop = { hole: 6, kind: 'mole', spawnedAt: 0 };
         expect(judgeStrike({ x: 160, y: 480 }, [pop], 800, tall)).toBe(pop);
@@ -443,7 +443,7 @@ describe('landscape stays the same (regression)', () => {
     });
 
     it('an explicit landscape layout draws the same plan as the default for the same random values', () => {
-        const values = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.9, 0.99, 0.9, 0.99];
+        const values = [0.1, 0.115, 0, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99, 0.9, 0.99, 0.99];
         expect(planSpawn([], seq(values), LANDSCAPE)).toEqual(planSpawn([], seq(values)));
     });
 });
