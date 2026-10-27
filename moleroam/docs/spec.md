@@ -5,8 +5,8 @@ status_proto: done
 status_spec: done
 status_impl: done
 status_test: done
-status_check: pending
-status_codereview: pending
+status_check: done
+status_codereview: in_progress
 status_qa: pending
 status_polish: pending
 status_balance: pending
