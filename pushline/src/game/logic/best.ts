@@ -7,7 +7,7 @@ export interface BestStorage {
     setItem(key: string, value: string): void;
 }
 
-/** What Result shows on the best row: the best line count, and whether this run just set it. */
+/** What the best row shows (in the HUD and on Result): the best line count, and whether this run has set it. */
 export interface BestRow {
     readonly best: number;
     readonly updated: boolean;
@@ -30,20 +30,51 @@ export function browserStorage(): BestStorage | null {
 }
 
 /**
- * Decides the best row for a run that ended with `lines` clears, saving a new best. Returns null (no row)
- * when there is nothing to show or the storage fails; a storage error never reaches the caller.
+ * The best record of one run. It reads the saved best once, when the run starts, and then decides the best row for
+ * the run's line count as it grows, saving each new best at once (so a run that is never "over" still counts).
+ * A storage error never reaches the caller: the row just disappears and the storage is left alone from then on.
  */
-export function resolveBest(lines: number, storage: BestStorage | null): BestRow | null {
-    if (storage === null) return null;
-    try {
-        const stored = parseBest(storage.getItem(PARAMS.bestKey));
+export class BestKeeper {
+    private storage: BestStorage | null;
+    /** The best saved before this run started; null when nothing valid was saved. */
+    private readonly baseline: number | null;
+    /** The highest line count this run has already written. */
+    private written = 0;
+
+    constructor(storage: BestStorage | null) {
+        let baseline: number | null = null;
+        let usable = storage;
+        if (usable !== null) {
+            try {
+                baseline = parseBest(usable.getItem(PARAMS.bestKey));
+            } catch {
+                usable = null;
+            }
+        }
+        this.storage = usable;
+        this.baseline = baseline;
+    }
+
+    /**
+     * The row for a run at `lines` clears, saving `lines` when it beats the saved best. Safe to call again with the
+     * same count (nothing is written twice). Null when there is nothing to show or the storage fails.
+     */
+    update(lines: number): BestRow | null {
+        if (this.storage === null) return null;
+        const base = this.baseline;
         // A count that is not a whole, safely readable number of lines never counts (and is never written).
-        if (!Number.isSafeInteger(lines) || lines < 1) return stored === null ? null : { best: stored, updated: false };
-        if (stored !== null && lines <= stored) return { best: stored, updated: false };
-        storage.setItem(PARAMS.bestKey, String(lines));
-        return { best: lines, updated: stored !== null };
-    } catch {
-        return null;
+        const counts = Number.isSafeInteger(lines) && lines >= 1 && (base === null || lines > base);
+        if (!counts) return base === null ? null : { best: base, updated: false };
+        if (lines > this.written) {
+            try {
+                this.storage.setItem(PARAMS.bestKey, String(lines));
+            } catch {
+                this.storage = null;
+                return null;
+            }
+            this.written = lines;
+        }
+        return { best: lines, updated: base !== null };
     }
 }
 

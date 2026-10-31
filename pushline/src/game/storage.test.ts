@@ -17,10 +17,15 @@ describe('persistence (docs/spec.md "保存するもの")', () => {
         expect(offenders).toEqual(['./logic/best.ts']);
     });
 
-    it('lets only the Result Scene reach the best record (Title, demo, Game and the rules never call it)', () => {
+    it('lets only the Game and Result Scenes use the best record (Title, demo and the rules never call it)', () => {
         const users = Object.keys(SOURCES).filter(
-            (f) => f !== './logic/best.ts' && /resolveBest|browserStorage|logic\/best/.test(SOURCES[f]),
+            (f) => f !== './logic/best.ts' && /BestKeeper|browserStorage|logic\/best/.test(SOURCES[f]),
         );
-        expect(users).toEqual(['./scenes/Result.ts']);
+        expect(users).toEqual(['./scenes/Game.ts', './scenes/Result.ts']);
+    });
+
+    it('creates the BestKeeper (the only reader of the storage) in the Game Scene alone', () => {
+        const creators = Object.keys(SOURCES).filter((f) => /new BestKeeper\(/.test(SOURCES[f]));
+        expect(creators).toEqual(['./scenes/Game.ts']);
     });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PARAMS } from '../params';
-import { bestLabel, browserStorage, parseBest, resolveBest, type BestStorage } from './best';
+import { BestKeeper, bestLabel, browserStorage, parseBest, type BestStorage } from './best';
 import { LANDSCAPE, PORTRAIT, resultBestY } from './layout';
 
 /** An in-memory storage that records every call. */
@@ -20,66 +20,84 @@ function fakeStorage(initial: string | null) {
     return { storage, calls, value: () => value };
 }
 
-describe('resolveBest (docs/spec.md "ベスト記録")', () => {
-    it('shows nothing and writes nothing for 0 lines with nothing saved', () => {
+describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
+    it('shows nothing and writes nothing while 0 lines with nothing saved', () => {
         const s = fakeStorage(null);
-        expect(resolveBest(0, s.storage)).toBeNull();
+        const keeper = new BestKeeper(s.storage);
+        expect(keeper.update(0)).toBeNull();
+        expect(keeper.update(0)).toBeNull();
         expect(s.calls).toEqual(['get pushlineBest']);
     });
 
-    it('saves the first result and shows it without the "updated" mark', () => {
-        const s = fakeStorage(null);
-        expect(resolveBest(5, s.storage)).toEqual({ best: 5, updated: false });
-        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=5']);
-    });
-
-    it('saves a single line as the first best (1 is the smallest result that counts)', () => {
-        const s = fakeStorage(null);
-        expect(resolveBest(1, s.storage)).toEqual({ best: 1, updated: false });
-        expect(s.value()).toBe('1');
-    });
-
-    it('saves a higher result and marks it updated (saved 5, 7 lines)', () => {
+    it('reads the saved best once, on creation, and never again', () => {
         const s = fakeStorage('5');
-        expect(resolveBest(7, s.storage)).toEqual({ best: 7, updated: true });
-        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=7']);
-    });
-
-    it('keeps the saved value on a tie, with no mark and no write (saved 5, 5 lines)', () => {
-        const s = fakeStorage('5');
-        expect(resolveBest(5, s.storage)).toEqual({ best: 5, updated: false });
+        const keeper = new BestKeeper(s.storage);
+        keeper.update(0);
+        keeper.update(3);
+        keeper.update(5);
         expect(s.calls).toEqual(['get pushlineBest']);
     });
 
-    it('shows the saved value for a lower result without writing (saved 5, 3 lines)', () => {
+    it('saves each first-ever line count as it grows, without the "updated" mark', () => {
+        const s = fakeStorage(null);
+        const keeper = new BestKeeper(s.storage);
+        expect(keeper.update(1)).toEqual({ best: 1, updated: false });
+        expect(keeper.update(2)).toEqual({ best: 2, updated: false });
+        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=1', 'set pushlineBest=2']);
+    });
+
+    it('keeps the saved value until the run beats it (saved 5: 0..5 lines show "5" and write nothing)', () => {
         const s = fakeStorage('5');
-        expect(resolveBest(3, s.storage)).toEqual({ best: 5, updated: false });
+        const keeper = new BestKeeper(s.storage);
+        for (const lines of [0, 1, 4, 5]) {
+            expect(keeper.update(lines)).toEqual({ best: 5, updated: false });
+        }
+        expect(s.calls).toEqual(['get pushlineBest']);
         expect(s.value()).toBe('5');
     });
 
-    it('shows the saved value for 0 lines without writing (saved 5, 0 lines)', () => {
+    it('marks an update from the first clear beyond the saved best, and saves every step (saved 5: 6, 7)', () => {
         const s = fakeStorage('5');
-        expect(resolveBest(0, s.storage)).toEqual({ best: 5, updated: false });
-        expect(s.calls).toEqual(['get pushlineBest']);
+        const keeper = new BestKeeper(s.storage);
+        expect(keeper.update(6)).toEqual({ best: 6, updated: true });
+        expect(keeper.update(7)).toEqual({ best: 7, updated: true });
+        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=6', 'set pushlineBest=7']);
     });
 
-    it('treats a better result by exactly one line as an update (saved 9, 10 lines)', () => {
+    it('never writes the same line count twice, however often it is asked', () => {
+        const s = fakeStorage('5');
+        const keeper = new BestKeeper(s.storage);
+        keeper.update(6);
+        keeper.update(6);
+        keeper.update(6);
+        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=6']);
+    });
+
+    it('treats a best beaten by exactly one line as an update (saved 9, 10 lines)', () => {
         const s = fakeStorage('9');
-        expect(resolveBest(10, s.storage)).toEqual({ best: 10, updated: true });
+        expect(new BestKeeper(s.storage).update(10)).toEqual({ best: 10, updated: true });
     });
 
     it.each(['', '0', '-3', '2.5', 'abc', '05', '1e3', '99999999999999999999'])(
-        'treats the saved value %j as nothing saved: 4 lines are saved without a mark',
+        'treats the saved value %j as nothing saved: counts 1..4 are saved one by one without a mark',
         (raw) => {
             const s = fakeStorage(raw);
-            expect(resolveBest(4, s.storage)).toEqual({ best: 4, updated: false });
-            expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=4']);
+            const keeper = new BestKeeper(s.storage);
+            for (const lines of [1, 2, 3]) keeper.update(lines);
+            expect(keeper.update(4)).toEqual({ best: 4, updated: false });
+            expect(s.calls).toEqual([
+                'get pushlineBest',
+                'set pushlineBest=1',
+                'set pushlineBest=2',
+                'set pushlineBest=3',
+                'set pushlineBest=4',
+            ]);
         },
     );
 
-    it.each(['', '0', 'abc'])('shows no row for 0 lines when the saved value %j is invalid, and keeps it', (raw) => {
+    it.each(['', '0', 'abc'])('shows no row at 0 lines when the saved value %j is invalid, and keeps it', (raw) => {
         const s = fakeStorage(raw);
-        expect(resolveBest(0, s.storage)).toBeNull();
+        expect(new BestKeeper(s.storage).update(0)).toBeNull();
         expect(s.value()).toBe(raw);
     });
 
@@ -87,42 +105,65 @@ describe('resolveBest (docs/spec.md "ベスト記録")', () => {
         'never writes a line count that is not a whole number of lines (%s), and keeps the saved best',
         (lines) => {
             const s = fakeStorage('3');
-            expect(resolveBest(lines, s.storage)).toEqual({ best: 3, updated: false });
+            expect(new BestKeeper(s.storage).update(lines)).toEqual({ best: 3, updated: false });
             expect(s.calls).toEqual(['get pushlineBest']);
         },
     );
 
     it('shows no row and does not throw when there is no storage', () => {
-        expect(resolveBest(5, null)).toBeNull();
+        const keeper = new BestKeeper(null);
+        expect(keeper.update(0)).toBeNull();
+        expect(keeper.update(5)).toBeNull();
     });
 
-    it('shows no row and does not throw when reading throws', () => {
+    it('shows no row, does not throw and stops using the storage when reading throws', () => {
+        const calls: string[] = [];
         const storage: BestStorage = {
             getItem: () => {
+                calls.push('get');
                 throw new Error('denied');
             },
             setItem: () => {
+                calls.push('set');
                 throw new Error('must not write');
             },
         };
-        expect(resolveBest(5, storage)).toBeNull();
+        const keeper = new BestKeeper(storage);
+        expect(keeper.update(5)).toBeNull();
+        expect(keeper.update(6)).toBeNull();
+        expect(calls).toEqual(['get']);
     });
 
-    it('shows no row and does not throw when writing throws (quota)', () => {
+    it('shows no row, does not throw and stops writing when writing throws (quota)', () => {
+        let sets = 0;
         const storage: BestStorage = {
             getItem: () => '3',
             setItem: () => {
+                sets += 1;
                 throw new Error('quota');
             },
         };
-        expect(resolveBest(5, storage)).toBeNull();
+        const keeper = new BestKeeper(storage);
+        expect(keeper.update(2)).toEqual({ best: 3, updated: false });
+        expect(keeper.update(5)).toBeNull();
+        expect(keeper.update(6)).toBeNull();
+        expect(sets).toBe(1);
     });
 
     it('compares a later run with the value the earlier run wrote', () => {
         const s = fakeStorage(null);
-        expect(resolveBest(6, s.storage)).toEqual({ best: 6, updated: false });
-        expect(resolveBest(4, s.storage)).toEqual({ best: 6, updated: false });
-        expect(resolveBest(8, s.storage)).toEqual({ best: 8, updated: true });
+        const first = new BestKeeper(s.storage);
+        first.update(4);
+        expect(first.update(6)).toEqual({ best: 6, updated: false });
+        const second = new BestKeeper(s.storage);
+        expect(second.update(4)).toEqual({ best: 6, updated: false });
+        expect(second.update(8)).toEqual({ best: 8, updated: true });
+    });
+
+    it('keeps the best of a run that is quit (not over): the value is already saved', () => {
+        const s = fakeStorage('2');
+        new BestKeeper(s.storage).update(5);
+        expect(s.value()).toBe('5');
     });
 });
 

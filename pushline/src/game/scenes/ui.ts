@@ -4,7 +4,7 @@ import { BUTTON_H, BUTTON_W, pickLayout, type Layout, type Rect } from '../logic
 export const UI_FONT = 'sans-serif';
 
 /** Text sizes in canvas pixels. */
-export const FONT_SIZE = { hud: 32, headline: 72, button: 30 } as const;
+export const FONT_SIZE = { hud: 32, headline: 72, button: 30, best: 26 } as const;
 
 export const COLORS = {
     bg: 0x10161f,
