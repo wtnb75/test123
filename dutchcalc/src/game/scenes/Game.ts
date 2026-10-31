@@ -1,12 +1,14 @@
 import { Scene } from 'phaser';
 import { allocate, MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES, type AllocationResult } from '../logic/allocate';
 import { buildResultHtml } from '../logic/resultHtml';
+import { budgetFromUnits, parseBudget, remainderOf, unitsFromBudget } from '../logic/budget';
 
 type UiRefs = {
     root: HTMLDivElement;
     candidateList: HTMLDivElement;
     addBtn: HTMLButtonElement;
     totalUnitsInput: HTMLInputElement;
+    budgetInput: HTMLInputElement;
     unitPriceInput: HTMLInputElement;
     calculateBtn: HTMLButtonElement;
     error: HTMLDivElement;
@@ -34,6 +36,7 @@ export class Game extends Scene {
             candidateList: root.querySelector('[data-role="candidate-list"]') as HTMLDivElement,
             addBtn: root.querySelector('[data-role="add-candidate"]') as HTMLButtonElement,
             totalUnitsInput: root.querySelector('[data-role="total-units"]') as HTMLInputElement,
+            budgetInput: root.querySelector('[data-role="budget"]') as HTMLInputElement,
             unitPriceInput: root.querySelector('[data-role="unit-price"]') as HTMLInputElement,
             calculateBtn: root.querySelector('[data-role="calculate"]') as HTMLButtonElement,
             error: root.querySelector('[data-role="error"]') as HTMLDivElement,
@@ -56,6 +59,10 @@ export class Game extends Scene {
             <div class="dutchcalc-row">
               <label>合計口数</label>
               <input data-role="total-units" type="number" min="1" max="${MAX_TOTAL_UNITS}" step="1" value="10" />
+            </div>
+            <div class="dutchcalc-row">
+              <label>予算（円）</label>
+              <input data-role="budget" type="number" min="0" step="100" max="${MAX_TOTAL_UNITS * 100}" />
             </div>
             <div class="dutchcalc-row">
               <label>1口あたり金額</label>
@@ -83,6 +90,39 @@ export class Game extends Scene {
 
         this.ui.calculateBtn.addEventListener('click', () => {
             this.runCalculation();
+        });
+
+        // Budget and units are linked both ways when either changes; neither change calculates.
+        this.ui.budgetInput.addEventListener('change', () => {
+            const budget = parseBudget(this.ui?.budgetInput.value ?? '');
+            const unitPrice = Number(this.ui?.unitPriceInput.value);
+            if (budget === null || this.ui === undefined) {
+                return;
+            }
+            const units = unitsFromBudget(budget, unitPrice);
+            if (units !== null) {
+                this.ui.totalUnitsInput.value = String(units);
+            }
+        });
+
+        this.ui.totalUnitsInput.addEventListener('change', () => {
+            const units = parseBudget(this.ui?.totalUnitsInput.value ?? '');
+            const unitPrice = Number(this.ui?.unitPriceInput.value);
+            if (units === null || this.ui === undefined) {
+                return;
+            }
+            this.ui.budgetInput.value = String(budgetFromUnits(units, unitPrice));
+        });
+
+        // The budget's upper limit follows the unit price (the unit count's limit times the price).
+        this.ui.unitPriceInput.addEventListener('change', () => {
+            if (this.ui === undefined) {
+                return;
+            }
+            const unitPrice = Number(this.ui.unitPriceInput.value);
+            if (Number.isFinite(unitPrice) && unitPrice > 0) {
+                this.ui.budgetInput.max = String(MAX_TOTAL_UNITS * unitPrice);
+            }
         });
     }
 
@@ -143,21 +183,24 @@ export class Game extends Scene {
         const odds = this.oddsValues.map((v) => Number(v));
         const totalUnits = Number(this.ui.totalUnitsInput.value);
         const unitPrice = Number(this.ui.unitPriceInput.value);
+        const budget = parseBudget(this.ui.budgetInput.value);
 
         try {
             const result = allocate({ odds, totalUnits, unitPrice });
-            this.renderResult(result, unitPrice);
+            // the leftover is shown only when a budget was entered, and uses the budget at this moment
+            const remainder = budget === null ? undefined : remainderOf(budget, result.totalInvestment);
+            this.renderResult(result, unitPrice, remainder);
         } catch (err) {
             this.ui.error.textContent = err instanceof Error ? err.message : String(err);
         }
     }
 
-    private renderResult(result: AllocationResult, unitPrice: number): void {
+    private renderResult(result: AllocationResult, unitPrice: number, remainder?: number): void {
         if (!this.ui) {
             return;
         }
 
-        this.ui.result.innerHTML = buildResultHtml(result, unitPrice);
+        this.ui.result.innerHTML = buildResultHtml(result, unitPrice, remainder);
     }
 
     private onResize(): void {
