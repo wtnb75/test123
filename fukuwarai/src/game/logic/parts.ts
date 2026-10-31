@@ -5,6 +5,9 @@ import type { DraggablePartId, PartId, PartTransform } from './types';
 // background element (see docs/spec.md MVP範囲) and isn't in this list.
 export const PART_IDS: DraggablePartId[] = ['eyebrowL', 'eyebrowR', 'eyeL', 'eyeR', 'nose', 'mouth'];
 
+// Everything that makes up a full face: the fixed outline and the draggable parts.
+export const FACE_IDS: PartId[] = ['outline', ...PART_IDS];
+
 export type ShapeKind = 'circle' | 'ellipse' | 'triangle';
 
 export interface PartShape {

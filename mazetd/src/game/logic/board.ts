@@ -9,8 +9,11 @@ import {
     START_COL
 } from './config';
 
-/** What stands on a cell: nothing, a wall or a turret. Terrain is separate and never changes. */
-export type CellKind = 'empty' | 'wall' | 'turret';
+/**
+ * What stands on a cell: nothing, a wall, a turret, a slow tower or a splash tower. Terrain is separate and never
+ * changes.
+ */
+export type CellKind = 'empty' | 'wall' | 'turret' | 'slow' | 'splash';
 export type Terrain = 'plain' | 'rock' | 'swamp';
 
 export interface CellPos {

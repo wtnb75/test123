@@ -9,7 +9,7 @@ import {
     CHARACTER_PIXEL_SPEED_PER_SEC,
     CIRCLE_WARNING_MS
 } from '../logic/constants';
-import { getDifficultyParams } from '../logic/difficulty';
+import { getDifficultyParams, routeSeed } from '../logic/difficulty';
 import { generateWaypoints } from '../logic/waypoints';
 import { createCircle, getRadius, isOffScreen, isWarning, type CircleObstacle } from '../logic/circle';
 import { isTouchingEdge } from '../logic/collision';
@@ -62,7 +62,7 @@ export class Game extends Scene {
         this.spawnIntervalMs = difficulty.circleSpawnIntervalMs;
         this.growthSpeedPxPerSec = difficulty.circleGrowthSpeedPxPerSec;
 
-        const waypoints = generateWaypoints(this.stage, difficulty.waypointCount, difficulty.thetaMaxDeg, {
+        const waypoints = generateWaypoints(routeSeed(this.stage), difficulty.waypointCount, difficulty.thetaMaxDeg, {
             width: GAME_WIDTH,
             height: GAME_HEIGHT,
             margin: ROUTE_MARGIN

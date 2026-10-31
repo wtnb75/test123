@@ -44,3 +44,16 @@ export const BACKGROUND_CSS = '#ffffff';
 // small parts lose nearly all overlap with their answer counterpart after
 // only a few pixels of misplacement.
 export const SCORE_BLUR_RADIUS_PX = 6;
+
+// Result scene: the player's finished face crossfading with the correct face
+// in the same place, and the button that stops/restarts it
+// (docs/spec.md「Result の見比べ表示」).
+export const RESULT_FACE_CENTER_Y = 210;
+export const RESULT_FACE_LABEL_Y = 298;
+export const RESULT_TOGGLE_Y = 574;
+export const RESULT_TOGGLE_HEIGHT_PX = 80;
+export const RESULT_RETRY_Y = 650;
+export const RESULT_RETRY_HEIGHT_PX = 60;
+// Crossfade timing (ms): one fade, and the hold while one face is fully visible.
+export const RESULT_FADE_MS = 700;
+export const RESULT_HOLD_MS = 1300;

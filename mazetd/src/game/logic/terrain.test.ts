@@ -278,7 +278,7 @@ describe('placing and selling on terrain', () => {
 
     it('shows the placement hint while there are no buildings, rocks and swamps notwithstanding', () => {
         const s = game();
-        expect(messageText(s)).toBe('マスをタップして壁や砲台を置こう（置いたら開始）');
+        expect(messageText(s)).toBe('マスをタップして建物を置こう（置いたら開始）');
         tapCell(s, 4, 3);
         expect(messageText(s)).toBe('ウェーブ 1 の準備（開始を押す）');
     });

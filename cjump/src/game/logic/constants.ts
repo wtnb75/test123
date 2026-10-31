@@ -14,3 +14,8 @@ export const CIRCLE_WARNING_MS = 500;
 export const MEASURE_STEP_MS = 1000 / 60;
 export const MEASURE_RUNS = 200;
 export const MEASURE_TIMEOUT_MS = 120000;
+
+// Target travel time of the stage routes (seconds): linear from stage 1 to stage STAGE_COUNT, within the tolerance.
+export const ROUTE_TIME_START_S = 7;
+export const ROUTE_TIME_END_S = 9;
+export const ROUTE_TIME_TOLERANCE_S = 0.1;

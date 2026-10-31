@@ -1,4 +1,5 @@
 import type { AllocationResult, CandidateResult } from './allocate';
+import { formatRemainder } from './budget';
 import { formatPercent, formatProfit, isLoss, payoutFor, profitOf, theoreticalReturnRate, verdictOf } from './profit';
 
 function rowHtml(c: CandidateResult, payout: number, totalInvestment: number): string {
@@ -15,7 +16,8 @@ function rowHtml(c: CandidateResult, payout: number, totalInvestment: number): s
 
 // Every amount shown here uses the payout cut down to 10 yen per 100 yen. The allocation itself
 // was made on the uncut payouts, so the shown spread can differ from the one it minimised.
-export function buildResultHtml(result: AllocationResult, unitPrice: number): string {
+// `remainder` is shown only when a budget was entered (the leftover of the budget after the investment).
+export function buildResultHtml(result: AllocationResult, unitPrice: number, remainder?: number): string {
     const { totalInvestment } = result;
     const payouts = result.candidates.map((c) => payoutFor(c.odds, c.units, unitPrice));
     const minPayout = Math.min(...payouts);
@@ -34,7 +36,7 @@ export function buildResultHtml(result: AllocationResult, unitPrice: number): st
           合計投資額: ${totalInvestment}円 /
           最小払戻: ${minPayout}円 /
           最大払戻: ${maxPayout}円 /
-          バランス度(差): ${maxPayout - minPayout}円
+          バランス度(差): ${maxPayout - minPayout}円${remainder === undefined ? '' : ` / ${formatRemainder(remainder)}`}
         </div>
         <div class="dutchcalc-summary dutchcalc-rate">理論回収率 ${formatPercent(rate)}%</div>
         <div class="dutchcalc-summary dutchcalc-verdict">${verdictOf(rate)}</div>`;

@@ -21,6 +21,8 @@ export interface Layout {
     /** HUD anchors: text origin (0 = left aligned at x, 1 = right aligned at x, 0.5 = centred). */
     hudMoves: { x: number; y: number; originX: number };
     hudLines: { x: number; y: number; originX: number };
+    /** Centre of the HUD's second row, the best record (centred text). */
+    hudBest: Pt;
     undoButton: Rect;
     quitButton: Rect;
     titleName: Pt;
@@ -51,6 +53,8 @@ export const PORTRAIT: Layout = {
     boardY: 110,
     hudMoves: { x: 40, y: 40, originX: 0 },
     hudLines: { x: 440, y: 40, originX: 1 },
+    // Between the board (bottom 590) and the buttons (top 660); the "+N" pop-ups rise from the moves counter instead.
+    hudBest: { x: 240, y: 625 },
     undoButton: button(130, 700),
     quitButton: button(350, 700),
     // Above and below the demo board, which sits where the Game board does.
@@ -70,6 +74,8 @@ export const LANDSCAPE: Layout = {
     boardY: 60,
     hudMoves: { x: 140, y: 200, originX: 0.5 },
     hudLines: { x: 140, y: 280, originX: 0.5 },
+    // In the left margin, under the lines counter.
+    hudBest: { x: 140, y: 340 },
     undoButton: button(820, 220),
     quitButton: button(820, 340),
     // In the left and right margins of the demo board.
@@ -91,6 +97,10 @@ export const pickLayout = (width: number, height: number): Layout => layoutFor(o
 
 export const inRect = (r: Rect, x: number, y: number): boolean =>
     x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+
+/** Centre y of Result's best row: `resultBestGap` under the "最短 M 回" row, which is under the lines row. */
+export const resultBestY = (layout: Layout): number =>
+    layout.resultLines.y + PARAMS.resultShortestGap + PARAMS.resultBestGap;
 
 /** Cell size for a board of `cols` columns: 80 px at the start, 66 px once the board has grown. */
 export const cellSizeOf = (cols: number): number => (cols >= PARAMS.grownCols ? PARAMS.grownCellSize : PARAMS.cellSize);

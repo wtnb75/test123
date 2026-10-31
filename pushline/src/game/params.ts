@@ -87,6 +87,9 @@ export const PARAMS = {
     sceneFadeMs: 150,
     resultCaptionGap: 70,
     resultShortestGap: 60,
+    // distance from the "最短 M 回" row down to the best row
+    resultBestGap: 45,
+    bestKey: 'pushlineBest',
     recoveredGap: 16,
     recoveredEdgeMargin: 4,
     tapRingRatio: 0.2,

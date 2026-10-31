@@ -15,4 +15,5 @@
 - `src/game/scenes/Game.ts`: お題を `registry` で受け渡す部分（読む・書く・`Result` への番号）に単体テストが無い — 理由: Scene の処理は spec で `game-qa`（「もう一度」を数回押して元絵の顔が毎回変わる・採点と小さい正解の顔が同じお題）で確かめるとした。`pickTopic` は単体テスト済み。
 - `src/game/scenes/Game.ts`: `answers` と `topicIndex` が 2 つのフィールドで、同期が必要 — 理由: `create` の 1 か所で続けて代入し、他では書き換えない。getter にする整理は、この変更の範囲外。
 - `docs/spec.md`: 採点のカーブの測定値が、QA 前なのに事実として書かれている — 理由: 値は実ブラウザの測定で、`game-qa` で同じ測定を（実際のお題のデータで）やり直して確かめる。
+- `docs/spec.md`（frontmatter）: 公開後改訂の `game:reset` で `qa` 以降が `pending` に戻る差分 — 理由: `game-spec` の手順による意図的な再初期化（公開済みの仕様を変えたため）。
 
