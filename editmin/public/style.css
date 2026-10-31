@@ -81,6 +81,15 @@ canvas {
     color: #fff; /* a painted mine's "B" (the play's reveal) must read on the dark face */
 }
 
+/* The play's flag: a character at a readable size; where the characters are hidden (small cells), an orange face instead. */
+.editmin-cell.flag {
+    color: #c0392b;
+}
+
+.editmin-board-grid.hide-numbers .editmin-cell.flag {
+    background: #f0a030;
+}
+
 /* 絵 mode: non-mine cells are paler; the start and forbidden cells keep their own look. */
 .editmin-cell.pale {
     background: #e4e7ea;

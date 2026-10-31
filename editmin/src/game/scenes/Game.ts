@@ -18,7 +18,7 @@ import {
     zoomKeyAction,
     type ZoomAction
 } from '../logic/zoom';
-import { openCell, playCellView, startPlay, type PlayState } from '../logic/play';
+import { openCell, playCellView, startPlay, toggleFlag, type PlayState } from '../logic/play';
 import {
     DISPLAY_MODE_DEFAULT,
     displayModeButtonLabel,
@@ -163,7 +163,7 @@ export class Game extends Scene {
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />プレイ: 開始マスから左クリックで開く（数字はマスが 20 px 以上のときに出ます）</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
           </div>
         </div>`;
     }
@@ -208,7 +208,7 @@ export class Game extends Scene {
             this.setStatus(copied ? '盤面テキストをクリップボードにコピーしました。' : 'コピーに失敗しました。');
         });
         this.ui.playToggleBtn.addEventListener('click', () => this.togglePlay());
-        // A right click on the board opens no menu while the play is on (no flags in the play).
+        // A right click on the board opens no menu while the play is on (a right click on a cell flags it).
         this.ui.boardGrid.addEventListener('contextmenu', this.onBoardContextMenu);
     }
 
@@ -381,6 +381,7 @@ export class Game extends Scene {
         button.classList.toggle('forbidden', forbidden.has(index) && !view.opened);
         button.classList.toggle('pale', view.opened && !isMine && this.startIndex !== index);
         button.classList.toggle('mine', view.revealedMine);
+        button.classList.toggle('flag', view.flagged);
         if (view.opened && !isMine && view.label !== '') {
             button.classList.add(`n${view.label}`);
         }
@@ -587,6 +588,7 @@ export class Game extends Scene {
             const cellBtn = document.createElement('button');
             cellBtn.className = 'editmin-cell';
             cellBtn.addEventListener('click', (event) => this.onCellClick(i, event));
+            cellBtn.addEventListener('contextmenu', () => this.toggleFlagAt(i));
             grid.appendChild(cellBtn);
         }
         this.applyCellViews();
@@ -615,6 +617,18 @@ export class Game extends Scene {
             this.ui.startBtn.classList.remove('active');
         }
         this.setStatus('');
+        this.updatePlayUi();
+    }
+
+    /** A right click during the play puts a flag on a closed cell, or takes it off. The menu is blocked by the grid. */
+    private toggleFlagAt(index: number): void {
+        if (this.play === null) {
+            return;
+        }
+        const result = toggleFlag(this.play, index);
+        if (result.ok) {
+            this.play = result.state;
+        }
         this.updatePlayUi();
     }
 
@@ -658,7 +672,7 @@ export class Game extends Scene {
             case 'cleared':
                 return 'クリア';
             default:
-                return this.play.opened.some((o) => o) ? 'プレイ中' : '開始マスを開いてください';
+                return 'プレイ中';
         }
     }
 }
