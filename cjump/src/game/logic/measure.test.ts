@@ -90,18 +90,18 @@ describe('difficulty curve', () => {
         }
     });
 
-    // Enabled by the route-time-fixed extension: today the route length does not follow the stage number,
-    // so the number of circles met (4.8, 4.7, 5.1, 7.7, 10.2, 8.4, ...) is not monotone.
-    it.skip('meets more circles at every later stage (route lengths are not ordered by stage yet; see route-time-fixed)', () => {
+    // Holds because the stage routes follow the seed table (route length grows with the stage).
+    it('meets more circles at every later stage', () => {
         for (const stage of STAGES.slice(1)) {
             const prev = measureStage(stage - 1, 1).encounteredCircles;
             expect(measureStage(stage, 1).encounteredCircles).toBeGreaterThan(prev);
         }
     });
 
-    // The allowed drop is decided by route-time-fixed from measurements; 0.2 is a placeholder.
-    it.skip('does not let the reflex clear rate fall sharply between neighbouring stages (threshold decided by route-time-fixed)', () => {
-        const MAX_DROP = 0.2;
+    // Measured with the spec's seeds and MEASURE_RUNS: the largest drop is 0.385 (stage 9 to 10); with the stage
+    // number as the route seed it was 0.495 (stage 8 to 9).
+    it('does not let the reflex clear rate fall by more than 0.40 between neighbouring stages', () => {
+        const MAX_DROP = 0.4;
         for (const stage of STAGES.slice(1)) {
             const prev = measureStage(stage - 1).reflexClearRate;
             expect(measureStage(stage).reflexClearRate).toBeGreaterThanOrEqual(prev - MAX_DROP);

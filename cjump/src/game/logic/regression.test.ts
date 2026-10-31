@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
     CHARACTER_PIXEL_SPEED_PER_SEC,
+    GAME_HEIGHT,
+    GAME_WIDTH,
+    ROUTE_MARGIN,
     CIRCLE_WARNING_MS,
     COLLISION_TOLERANCE,
     EDGE_LINE_WIDTH,
@@ -8,10 +11,11 @@ import {
     STAGE_COUNT
 } from './constants';
 import { getDifficultyParams } from './difficulty';
-import { stageRoute } from './measure';
+import { generateWaypoints } from './waypoints';
 
 // Regression guard for the "must not change" list of the difficulty measurement extension.
-// Expected values are the pre-extension outputs captured before the change, and the spec's parameter table.
+// Expected values are the outputs captured before the change, and the spec's parameter table.
+// The route coordinates pin generateWaypoints itself for the seeds 1-10 (not the stage routes, which use the seed table).
 
 const SPEC_TABLE = [
     { stage: 1, interval: 1500, growth: 35, waypoints: 6, theta: 30 },
@@ -58,9 +62,14 @@ describe('unchanged game parameters', () => {
         });
     });
 
-    it.each(Object.keys(ROUTES_BEFORE).map(Number))('keeps the stage %i route identical to before the extension', (stage) => {
+    it.each(Object.keys(ROUTES_BEFORE).map(Number))('keeps generateWaypoints for seed %i identical to before the extension', (stage) => {
         const expected = ROUTES_BEFORE[stage];
-        const actual = stageRoute(stage);
+        const difficulty = getDifficultyParams(stage);
+        const actual = generateWaypoints(stage, difficulty.waypointCount, difficulty.thetaMaxDeg, {
+            width: GAME_WIDTH,
+            height: GAME_HEIGHT,
+            margin: ROUTE_MARGIN
+        });
         expect(actual).toHaveLength(expected.length);
         actual.forEach((p, i) => {
             expect(p.x).toBeCloseTo(expected[i][0], 6);
