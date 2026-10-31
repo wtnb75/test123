@@ -1,8 +1,17 @@
-import { Scene } from 'phaser';
-import { GAME_WIDTH } from '../logic/constants';
+import { GameObjects, Scene } from 'phaser';
+import {
+    GAME_WIDTH,
+    RESULT_FACE_CENTER_Y,
+    RESULT_OVERLAY_COLOR,
+    RESULT_OVERLAY_LINE_PX,
+    RESULT_RETRY_HEIGHT_PX,
+    RESULT_RETRY_Y,
+    RESULT_TOGGLE_HEIGHT_PX,
+    RESULT_TOGGLE_Y,
+} from '../logic/constants';
 import { TOPICS } from '../logic/topics';
 import type { DraggablePartId, PartId, PartTransform } from '../logic/types';
-import { drawFaceGroup } from '../drawing';
+import { drawDashedFaceOutline, drawFaceGroup } from '../drawing';
 
 interface ResultData {
     score?: number;
@@ -42,7 +51,13 @@ export class Result extends Scene {
             ...(this.playerTransforms ?? this.emptyPlayerTransforms()),
         };
         const playerFace = drawFaceGroup(this, playerFaceTransforms);
-        playerFace.setPosition(GAME_WIDTH / 2, 210);
+        playerFace.setPosition(GAME_WIDTH / 2, RESULT_FACE_CENTER_Y);
+
+        // The correct outline laid over the player's face, to see where each
+        // part went (docs/spec.md「Result の重ね表示」). Shown on every visit.
+        const overlay = this.add.graphics();
+        overlay.setPosition(GAME_WIDTH / 2, RESULT_FACE_CENTER_Y);
+        drawDashedFaceOutline(overlay, TOPICS[this.topicIndex], RESULT_OVERLAY_COLOR, RESULT_OVERLAY_LINE_PX);
 
         this.add.text(GAME_WIDTH / 2, 355, `${this.score}点`, {
             color: '#e76f51',
@@ -61,9 +76,11 @@ export class Result extends Scene {
         answerFace.setPosition(GAME_WIDTH / 2, 500);
         answerFace.setScale(0.4);
 
-        const btnY = 650;
+        this.addOverlayToggle(overlay);
 
-        const retryBtn = this.add.rectangle(GAME_WIDTH / 2, btnY, GAME_WIDTH * 0.6, 60, 0xffb703)
+        const btnY = RESULT_RETRY_Y;
+
+        const retryBtn = this.add.rectangle(GAME_WIDTH / 2, btnY, GAME_WIDTH * 0.6, RESULT_RETRY_HEIGHT_PX, 0xffb703)
             .setInteractive({ useHandCursor: true });
         const retryLabel = this.add.text(GAME_WIDTH / 2, btnY, 'もう一度', {
             color: '#3a2a1a',
@@ -77,7 +94,7 @@ export class Result extends Scene {
         retryLabel.on('pointerdown', retry);
 
         const titleY = btnY + 80;
-        const titleBtn = this.add.rectangle(GAME_WIDTH / 2, titleY, GAME_WIDTH * 0.6, 60, 0xcccccc)
+        const titleBtn = this.add.rectangle(GAME_WIDTH / 2, titleY, GAME_WIDTH * 0.6, RESULT_RETRY_HEIGHT_PX, 0xcccccc)
             .setInteractive({ useHandCursor: true });
         const titleLabel = this.add.text(GAME_WIDTH / 2, titleY, 'タイトルへ', {
             color: '#333333',
@@ -88,6 +105,25 @@ export class Result extends Scene {
         const toTitle = () => this.scene.start('Title');
         titleBtn.on('pointerdown', toTitle);
         titleLabel.on('pointerdown', toTitle);
+    }
+
+    /**
+     * The button that shows or hides the correct-outline overlay
+     * (docs/spec.md「Result の重ね表示」). Only the background rectangle is
+     * interactive; the label sits on top and passes taps through to it.
+     */
+    private addOverlayToggle(overlay: GameObjects.Graphics) {
+        const toggleBtn = this.add.rectangle(GAME_WIDTH / 2, RESULT_TOGGLE_Y, GAME_WIDTH * 0.6, RESULT_TOGGLE_HEIGHT_PX, 0xcccccc)
+            .setInteractive({ useHandCursor: true });
+        const toggleLabel = this.add.text(GAME_WIDTH / 2, RESULT_TOGGLE_Y, '正解の輪郭を消す', {
+            color: '#333333',
+            fontFamily: 'sans-serif',
+            fontSize: '20px',
+        }).setOrigin(0.5);
+        toggleBtn.on('pointerdown', () => {
+            overlay.setVisible(!overlay.visible);
+            toggleLabel.setText(overlay.visible ? '正解の輪郭を消す' : '正解の輪郭を重ねる');
+        });
     }
 
     /** Defensive fallback if Result is ever entered without player data
