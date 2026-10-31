@@ -137,6 +137,10 @@ describe('classifyGesture', () => {
     });
 });
 
+// Font sizes of the HUD rows (FONT_SIZE.hud / FONT_SIZE.best in scenes/ui.ts, which this logic test does not import).
+const HUD_FONT_PX = 32;
+const BEST_FONT_PX = 26;
+
 describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE]])('%s layout geometry', (_name, l) => {
     const canvas: Rect = { x: 0, y: 0, w: l.viewW, h: l.viewH };
     const board: Rect = { x: l.boardX, y: l.boardY, w: PARAMS.cols * PARAMS.cellSize, h: PARAMS.rows * PARAMS.cellSize };
@@ -174,6 +178,36 @@ describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE
             expect(h.y).toBeGreaterThanOrEqual(0);
             expect(h.y).toBeLessThanOrEqual(l.viewH);
         });
+    });
+
+    // The HUD best row ("ベスト 123 更新!"): at most 9 em wide at the best font size, 1.3 em high, centred on hudBest.
+    const bestBox = (): Rect => {
+        const w = 9 * BEST_FONT_PX;
+        const h = 1.3 * BEST_FONT_PX;
+        return { x: l.hudBest.x - w / 2, y: l.hudBest.y - h / 2, w, h };
+    };
+
+    it('keeps the HUD best row inside the canvas and clear of the board, the Undo / Quit buttons and the lines counter', () => {
+        const box = bestBox();
+        expect(inside(box)).toBe(true);
+        expect(overlap(box, board)).toBe(false);
+        expect(overlap(box, l.undoButton)).toBe(false);
+        expect(overlap(box, l.quitButton)).toBe(false);
+        // a generous box for "ライン 123" at the HUD font size, and for the moves counter "手数 40/40"
+        const hudBox = (h: { x: number; y: number; originX: number }, ems: number): Rect => {
+            const w = ems * HUD_FONT_PX;
+            return { x: h.x - h.originX * w, y: h.y - HUD_FONT_PX, w, h: 2 * HUD_FONT_PX };
+        };
+        expect(overlap(box, hudBox(l.hudLines, 6.5))).toBe(false);
+        expect(overlap(box, hudBox(l.hudMoves, 7))).toBe(false);
+    });
+
+    it('keeps the existing HUD anchors where they were (regression)', () => {
+        const expected = l.orientation === 'portrait'
+            ? [{ x: 40, y: 40, originX: 0 }, { x: 440, y: 40, originX: 1 }]
+            : [{ x: 140, y: 200, originX: 0.5 }, { x: 140, y: 280, originX: 0.5 }];
+        expect([l.hudMoves, l.hudLines]).toEqual(expected);
+        expect(l.hudBest).toEqual(l.orientation === 'portrait' ? { x: 240, y: 625 } : { x: 140, y: 340 });
     });
 
     it('keeps the title name and the result lines on the canvas', () => {

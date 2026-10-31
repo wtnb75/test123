@@ -1,6 +1,7 @@
 import { Scene, type GameObjects, type Input } from 'phaser';
 import { PARAMS } from '../params';
 import type { Deps, Dir, MoveResult, Pt, State } from '../logic/types';
+import { BestKeeper, bestLabel, browserStorage } from '../logic/best';
 import { Flow, QuitConfirm, type PointerAction } from '../logic/flow';
 import { cellAt, type Layout } from '../logic/layout';
 import { canUndo, createState, move, tapOutcome, undo } from '../logic/rules';
@@ -30,6 +31,9 @@ export class Game extends Scene {
     private view!: BoardView;
     private movesText!: GameObjects.Text;
     private linesText!: GameObjects.Text;
+    /** The best record of this run: read once when the Game starts, saved as the line count beats it. */
+    private best!: BestKeeper;
+    private bestText!: GameObjects.Text;
     private undoButton!: ButtonView;
     private quitButton!: ButtonView;
     /** Red frame around the canvas that pulses in the `critical` tension (never interactive). */
@@ -75,6 +79,8 @@ export class Game extends Scene {
         this.view = new BoardView(this, this.layout);
         this.movesText = addLabel(this, 0, 0, '', FONT_SIZE.hud).setDepth(DEPTH.hud);
         this.linesText = addLabel(this, 0, 0, '', FONT_SIZE.hud).setDepth(DEPTH.hud);
+        this.best = new BestKeeper(browserStorage());
+        this.bestText = addLabel(this, 0, 0, '', FONT_SIZE.best, COLORS.captionText).setDepth(DEPTH.hud);
         this.undoButton = createButton(this, 'Undo', COLORS.buttonDefault, DEPTH.hud);
         this.quitButton = createButton(this, 'Quit', COLORS.buttonDanger, DEPTH.hud);
         this.edge = this.add.graphics().setDepth(DEPTH.alert).setAlpha(0);
@@ -189,7 +195,10 @@ export class Game extends Scene {
     private pump(now: number = this.deps.now()) {
         const tick = this.flow.tick(now);
         if (tick.walkStep && !this.step(tick.walkStep)) this.flow.cancelWalk();
-        if (tick.ended) this.scene.start('Result', { lines: this.state.score, shortest: this.state.bonusCount });
+        if (tick.ended) {
+            const best = this.best.update(this.state.score);
+            this.scene.start('Result', { lines: this.state.score, shortest: this.state.bonusCount, best });
+        }
     }
 
     /** One move; returns false when blocked. Starts the `ending` wait when the moves run out. */
@@ -224,6 +233,7 @@ export class Game extends Scene {
         const l = this.layout;
         this.movesText.setPosition(l.hudMoves.x, l.hudMoves.y).setOrigin(l.hudMoves.originX, 0.5);
         this.linesText.setPosition(l.hudLines.x, l.hudLines.y).setOrigin(l.hudLines.originX, 0.5);
+        this.bestText.setPosition(l.hudBest.x, l.hudBest.y).setOrigin(0.5);
         this.undoButton.place(l.undoButton);
         this.quitButton.place(l.quitButton);
         // Four bars along the canvas border (a stroked rectangle would notch the corners).
@@ -265,6 +275,7 @@ export class Game extends Scene {
         this.view.render(s);
         this.movesText.setText(this.movesLabel());
         this.linesText.setText(`ライン ${s.score}`);
+        this.renderBest();
         this.updateTension();
         // Undo looks disabled while it can do nothing (empty history, or the run is over)
         const undoAlpha = canUndo(s) ? 1 : PARAMS.disabledAlpha;
@@ -286,6 +297,14 @@ export class Game extends Scene {
                 },
             });
         }
+    }
+
+    /** The HUD's best row: decided (and saved, when beaten) from the current line count; hidden when there is none. */
+    private renderBest() {
+        const row = this.best.update(this.state.score);
+        this.bestText.setVisible(row !== null);
+        if (row === null) return;
+        this.bestText.setText(bestLabel(row)).setColor(row.updated ? COLORS.recoveredText : COLORS.captionText);
     }
 
     private movesLabel(): string {

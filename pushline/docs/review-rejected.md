@@ -30,3 +30,8 @@
 - `src/game/logic/spawn.wiring.test.ts` (測定の呼び出しを limit = `maxMoves` で見分ける): 脆い — 理由: 生成の limit は `solveMax` 10 の 9 以下で、40 にならない
 - `src/game/scenes/Game.ts` (縦画面の「+N」の上昇が約 17 px に縮む): spec の 40 px より短い — 理由: 元からの挙動（上端の制限）。spec にも書いた
 - `src/game/scenes/Game.ts` (横画面の中心が `originX` 0.5 を前提にする / 幅が画面より大きいときの保険 / 配置の単体テスト): 将来の崩れ — 理由: 横画面の `hudMoves` は 0.5 固定で幅も収まる。配置は Phaser の文字幅に依存し、QA で見る
+- `src/game/scenes/Result.ts` (ベスト記録を Scene で 1 回だけ読む／向きの変更で読み直さない、の呼び出し回数のテストが無い): ソース検索しか無い — 理由: spec の完了条件が QA（保存なし・更新・更新なしのスクリーンショットと向きの変更）で確認すると定めている。決定は `resolveBest` で単体テスト済みで、Scene を分けて注入するのは過剰
+- `src/game/params.ts` (`resultBestGap` 45 px が 30 px の文字の行に近い): 「最短 M 回」の行に接して見える — 理由: spec で合意した値（既存の 60 px と同じく字形の間は約 9 px）。受け入れ条件は QA の 375 × 550 と 667 × 310 で見る
+- `src/game/logic/best.ts` (保存に失敗するとベストの行ごと出さない): 今回の記録が画面から消える — 理由: spec の決定（保存できなかったときは行を出さない。保存されていない記録を「ベスト」と見せない）
+- `src/game/params.ts` (ベスト記録のキー `bestKey` が PARAMS にある): 調整用の表に保存の契約が混ざる — 理由: spec のパラメータ表が「ベスト記録のキー」として持つと決めている
+- `src/game/logic/best.test.ts` (「最短 M 回」の行の位置の式がテストに重複／`browserStorage` のテストが環境依存): テストの書き方の脆さ — 理由: 位置は回帰のテストが固定値（320 / 210）で固定している。環境依存は後始末を `finally` で戻しており、出荷物に影響しない
