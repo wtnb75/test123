@@ -45,14 +45,15 @@ export const BACKGROUND_CSS = '#ffffff';
 // only a few pixels of misplacement.
 export const SCORE_BLUR_RADIUS_PX = 6;
 
-// Result scene: the player's finished face, the correct outline laid over it,
-// and the button that hides/shows that outline (docs/spec.md「Result の重ね表示」).
+// Result scene: the player's finished face crossfading with the correct face
+// in the same place, and the button that stops/restarts it
+// (docs/spec.md「Result の見比べ表示」).
 export const RESULT_FACE_CENTER_Y = 210;
+export const RESULT_FACE_LABEL_Y = 298;
 export const RESULT_TOGGLE_Y = 574;
 export const RESULT_TOGGLE_HEIGHT_PX = 80;
 export const RESULT_RETRY_Y = 650;
 export const RESULT_RETRY_HEIGHT_PX = 60;
-export const RESULT_OVERLAY_LINE_PX = 3;
-export const RESULT_OVERLAY_COLOR = 0x2a9d8f;
-export const RESULT_OVERLAY_DASH_PX = 8;
-export const RESULT_OVERLAY_GAP_PX = 6;
+// Crossfade timing (ms): one fade, and the hold while one face is fully visible.
+export const RESULT_FADE_MS = 700;
+export const RESULT_HOLD_MS = 1300;
