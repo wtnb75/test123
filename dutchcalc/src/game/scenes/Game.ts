@@ -62,7 +62,7 @@ export class Game extends Scene {
             </div>
             <div class="dutchcalc-row">
               <label>予算（円）</label>
-              <input data-role="budget" type="number" min="0" step="1" max="${MAX_TOTAL_UNITS * 100}" />
+              <input data-role="budget" type="number" min="0" step="100" max="${MAX_TOTAL_UNITS * 100}" />
             </div>
             <div class="dutchcalc-row">
               <label>1口あたり金額</label>
