@@ -1,9 +1,7 @@
 import type { GameObjects, Scene } from 'phaser';
 import { BACKGROUND_CSS, SCORE_BLUR_RADIUS_PX } from './logic/constants';
-import { PART_IDS, PART_SHAPES, type PartShape } from './logic/parts';
+import { FACE_IDS, PART_IDS, PART_SHAPES, type PartShape } from './logic/parts';
 import type { DraggablePartId, PartId, PartTransform, Point } from './logic/types';
-
-const FULL_FACE_IDS: PartId[] = ['outline', ...PART_IDS];
 
 /** Faint outline showing the part's actual (circular) hit area, so the
  * player can see exactly where to grab it (docs/spec.md 操作仕様). */
@@ -147,7 +145,7 @@ export function drawFaceOnCanvas(
  */
 export function drawFaceGroup(scene: Scene, transforms: Record<PartId, PartTransform>): GameObjects.Container {
     const group = scene.add.container(0, 0);
-    for (const id of FULL_FACE_IDS) {
+    for (const id of FACE_IDS) {
         const t = transforms[id];
         const g = scene.add.graphics();
         drawPartShape(g, PART_SHAPES[id]);
