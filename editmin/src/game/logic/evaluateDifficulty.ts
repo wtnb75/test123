@@ -44,7 +44,7 @@ type SolveResult = {
 
 const OFFSETS = [-1, 0, 1];
 
-function getNeighbors(index: number, width: number, height: number): number[] {
+export function getNeighbors(index: number, width: number, height: number): number[] {
     const x = index % width;
     const y = Math.floor(index / width);
     const out: number[] = [];
