@@ -172,6 +172,20 @@ describe('splash tower attack (範囲砲: 着弾点から SPLASH_RADIUS 40 px �
         expect(s.turrets[0].charge).toBeCloseTo(1.0, 9);
     });
 
+    it('shows its shot for SPLASH_FLASH (0.3 s), longer than a turret line, and fades out to 0', () => {
+        const s = waveWith([[5, 5, 'splash']]);
+        enemyAt(s, 300, 3);
+        update(s, 0);
+        expect(s.turrets[0].flash).toBeCloseTo(0.3, 9);
+        expect(s.turrets[0].targetX).toBe(PATH_X);
+        expect(s.turrets[0].targetY).toBe(424);
+        update(s, 0.1);
+        expect(s.turrets[0].flash).toBeCloseTo(0.2, 9);
+        update(s, 0.1); // dt is capped at DT_MAX (0.1), so step in 0.1 s frames
+        update(s, 0.1);
+        expect(s.turrets[0].flash).toBe(0);
+    });
+
     it('hits the target and every enemy within 40 px of it, the boundary included, and not one at 41 px', () => {
         const s = waveWith([[5, 5, 'splash']]);
         const target = enemyAt(s, 300, 3); // (270, 424): furthest along, 59.5 px from the tower

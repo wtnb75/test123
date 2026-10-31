@@ -23,6 +23,7 @@ import {
     SELL_RATE,
     SLOW_RANGE,
     SLOW_TOWER_COST,
+    SPLASH_FLASH,
     SPLASH_RADIUS,
     SPLASH_RANGE,
     SPLASH_TOWER_COST,
@@ -542,8 +543,11 @@ export class Game extends Scene {
             if (t.flash <= 0) continue;
             // A turret shows its shot as a line; a splash tower shows the ring it hit.
             if (t.splash) {
-                g.fillStyle(COLOR.splashRing, 0.25).fillCircle(t.targetX, t.targetY, SPLASH_RADIUS);
-                g.lineStyle(3, COLOR.splashRing).strokeCircle(t.targetX, t.targetY, SPLASH_RADIUS);
+                // Line from the tower to the impact and the ring both fade out over SPLASH_FLASH.
+                const fade = t.flash / SPLASH_FLASH;
+                g.lineStyle(3, COLOR.splashRing, fade).lineBetween(t.x, t.y, t.targetX, t.targetY);
+                g.fillStyle(COLOR.splashRing, 0.35 * fade).fillCircle(t.targetX, t.targetY, SPLASH_RADIUS);
+                g.lineStyle(3, COLOR.splashRing, fade).strokeCircle(t.targetX, t.targetY, SPLASH_RADIUS);
             }
             else g.lineStyle(3, COLOR.shot).lineBetween(t.x, t.y, t.targetX, t.targetY);
         }

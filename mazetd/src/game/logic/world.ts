@@ -12,6 +12,7 @@ import {
     SLOW_TOWER_COST,
     SPAWN_INTERVAL,
     SPLASH_DAMAGE,
+    SPLASH_FLASH,
     SPLASH_INTERVAL,
     SPLASH_RADIUS,
     SPLASH_RANGE,
@@ -371,7 +372,7 @@ function fireTurrets(state: GameState, dt: number): void {
         else target.hp -= TURRET_DAMAGE;
         // Carry the overshoot so the average rate doesn't depend on frame timing.
         t.charge -= interval;
-        t.flash = SHOT_FLASH;
+        t.flash = t.splash ? SPLASH_FLASH : SHOT_FLASH;
         t.targetX = target.x;
         t.targetY = target.y;
     }

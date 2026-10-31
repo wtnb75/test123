@@ -66,6 +66,8 @@ export const TOOL_H = 72;
 export const START_H = 64;
 
 export const SHOT_FLASH = 0.08;
+/** A splash tower fires only once a second, so its line and ring stay (and fade) longer than a turret's line. */
+export const SPLASH_FLASH = 0.3;
 export const INVALID_FLASH = 0.3;
 export const DT_MAX = 0.1;
 export const RESULT_INPUT_DELAY = 0.5;
