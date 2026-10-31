@@ -20,6 +20,13 @@ import {
     POPUP_RISE,
     POPUP_TIME,
     RANGE_PULSE,
+    SELL_RATE,
+    SLOW_RANGE,
+    SLOW_TOWER_COST,
+    SPLASH_FLASH,
+    SPLASH_RADIUS,
+    SPLASH_RANGE,
+    SPLASH_TOWER_COST,
     TURRET_COST,
     TURRET_RANGE,
     WALL_COST,
@@ -28,8 +35,10 @@ import {
 } from '../logic/config';
 import { getCell, getTerrain, indexOf, initialTerrain, isGoal, isStart } from '../logic/board';
 import { CellTimers, Countdown, PopupPool } from '../logic/effects';
-import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell } from '../logic/layout';
-import { ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update } from '../logic/world';
+import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell, type Tool } from '../logic/layout';
+import {
+    ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update
+} from '../logic/world';
 
 export interface ResultData {
     cleared: boolean;
@@ -53,6 +62,14 @@ const COLOR = {
     turretBase: 0x37474f,
     turret: 0x4fc3f7,
     range: 0x4fc3f7,
+    slowBase: 0x4a3b63,
+    slow: 0xb39ddb,
+    slowRange: 0xb39ddb,
+    splashBase: 0x5d4037,
+    splash: 0xffa726,
+    splashRange: 0xffa726,
+    splashRing: 0xff5252,
+    slowedEnemy: 0x80deea,
     path: 0xffe082,
     enemy: 0xff7043,
     hpBack: 0x000000,
@@ -72,12 +89,31 @@ const LIFE_COLOR = '#ffffff';
 const LIFE_ALERT_COLOR = '#ff5252';
 
 const BUTTON_IDS = Object.keys(BUTTONS) as ButtonId[];
+// Tool buttons: the name on the first line, the cost (or the refund rate for sell) on the second.
 const BUTTON_LABELS: Readonly<Record<ButtonId, string>> = {
-    wall: `壁 ${WALL_COST}`,
-    turret: `砲台 ${TURRET_COST}`,
-    sell: '売却',
+    wall: `壁\n${WALL_COST}`,
+    turret: `砲台\n${TURRET_COST}`,
+    slow: `減速塔\n${SLOW_TOWER_COST}`,
+    splash: `範囲砲\n${SPLASH_TOWER_COST}`,
+    sell: `売却\n${Math.round(SELL_RATE * 100)}%`,
     start: '開始'
 };
+
+type RangeTool = 'turret' | 'slow' | 'splash';
+const RANGE_RADIUS: Readonly<Record<RangeTool, number>> = {
+    turret: TURRET_RANGE,
+    slow: SLOW_RANGE,
+    splash: SPLASH_RANGE
+};
+const RANGE_COLOR: Readonly<Record<RangeTool, number>> = {
+    turret: COLOR.range,
+    slow: COLOR.slowRange,
+    splash: COLOR.splashRange
+};
+
+function isRangeTool(tool: Tool): tool is RangeTool {
+    return tool === 'turret' || tool === 'slow' || tool === 'splash';
+}
 
 export class Game extends Scene {
     private state!: GameState;
@@ -136,7 +172,7 @@ export class Game extends Scene {
         for (const id of BUTTON_IDS) {
             const r = BUTTONS[id];
             this.buttonTexts[id] = this.add
-                .text(r.x + r.w / 2, r.y + r.h / 2, BUTTON_LABELS[id], { fontFamily: FONT, fontSize: 26, color: '#ffffff' })
+                .text(r.x + r.w / 2, r.y + r.h / 2, BUTTON_LABELS[id], { fontFamily: FONT, fontSize: 20, color: '#ffffff', align: 'center' })
                 .setOrigin(0.5);
         }
         this.createEffectTexts();
@@ -292,7 +328,7 @@ export class Game extends Scene {
         if (result === 'failed') {
             this.invalidCell = cell;
             this.invalidFlash.start();
-        } else if (result === 'placed' && this.state.tool === 'turret') {
+        } else if (result === 'placed' && isRangeTool(this.state.tool)) {
             this.rangePulse.start(index);
         } else if (result === 'sold') {
             this.rangePulse.remove(index);
@@ -353,7 +389,7 @@ export class Game extends Scene {
     }
 
     private showsRanges(): boolean {
-        return this.state.phase === 'build' && this.state.tool === 'turret';
+        return this.state.phase === 'build' && isRangeTool(this.state.tool);
     }
 
     private drawBoard() {
@@ -375,6 +411,14 @@ export class Game extends Scene {
                 else if (kind === 'turret') {
                     g.fillStyle(COLOR.turretBase).fillRect(x + 3, y + 3, CELL - 6, CELL - 6);
                     g.fillStyle(COLOR.turret).fillCircle(x + CELL / 2, y + CELL / 2, CELL * 0.3);
+                } else if (kind === 'slow') {
+                    // A purple base with a hollow ring: the one tower that doesn't shoot.
+                    g.fillStyle(COLOR.slowBase).fillRect(x + 3, y + 3, CELL - 6, CELL - 6);
+                    g.lineStyle(3, COLOR.slow).strokeCircle(x + CELL / 2, y + CELL / 2, CELL * 0.26);
+                } else if (kind === 'splash') {
+                    // An orange base with a square core: the splash tower.
+                    g.fillStyle(COLOR.splashBase).fillRect(x + 3, y + 3, CELL - 6, CELL - 6);
+                    g.fillStyle(COLOR.splash).fillRect(x + CELL * 0.3, y + CELL * 0.3, CELL * 0.4, CELL * 0.4);
                 }
             }
         }
@@ -418,24 +462,27 @@ export class Game extends Scene {
         g.fillStyle(COLOR.rockLight).fillPath();
     }
 
+    /** Range circles of the buildings of the selected range tool only; the circles are clipped to the board. */
     private drawRanges() {
         const fill = this.rangeShapeGfx;
         const line = this.rangeLineGfx;
         fill.clear();
         line.clear();
         this.rangeFillTex.clear();
-        if (!this.showsRanges()) {
+        const { board, tool } = this.state;
+        if (!this.showsRanges() || !isRangeTool(tool)) {
             this.rangeFillTex.render();
             return;
         }
-        const { board } = this.state;
-        fill.fillStyle(COLOR.range, 1);
-        line.lineStyle(1, COLOR.range, 0.5);
+        const radius = RANGE_RADIUS[tool];
+        const color = RANGE_COLOR[tool];
+        fill.fillStyle(color, 1);
+        line.lineStyle(1, color, 0.5);
         for (let row = 0; row < board.rows; row++) {
             for (let col = 0; col < board.cols; col++) {
-                if (getCell(board, col, row) !== 'turret') continue;
-                fill.fillCircle(cellCenterX(col), cellCenterY(row), TURRET_RANGE);
-                line.strokeCircle(cellCenterX(col), cellCenterY(row), TURRET_RANGE);
+                if (getCell(board, col, row) !== tool) continue;
+                fill.fillCircle(cellCenterX(col), cellCenterY(row), radius);
+                line.strokeCircle(cellCenterX(col), cellCenterY(row), radius);
             }
         }
         this.rangeFillTex.draw(fill).render();
@@ -494,10 +541,18 @@ export class Game extends Scene {
         if (this.showsRanges()) this.drawRangePulses(g);
         for (const t of this.state.turrets) {
             if (t.flash <= 0) continue;
-            g.lineStyle(3, COLOR.shot).lineBetween(t.x, t.y, t.targetX, t.targetY);
+            // A turret shows its shot as a line; a splash tower shows the ring it hit.
+            if (t.splash) {
+                // Line from the tower to the impact and the ring both fade out over SPLASH_FLASH.
+                const fade = t.flash / SPLASH_FLASH;
+                g.lineStyle(3, COLOR.splashRing, fade).lineBetween(t.x, t.y, t.targetX, t.targetY);
+                g.fillStyle(COLOR.splashRing, 0.35 * fade).fillCircle(t.targetX, t.targetY, SPLASH_RADIUS);
+                g.lineStyle(3, COLOR.splashRing, fade).strokeCircle(t.targetX, t.targetY, SPLASH_RADIUS);
+            }
+            else g.lineStyle(3, COLOR.shot).lineBetween(t.x, t.y, t.targetX, t.targetY);
         }
         for (const e of this.state.enemies) {
-            g.fillStyle(COLOR.enemy).fillCircle(e.x, e.y, ENEMY_RADIUS);
+            g.fillStyle(e.slowed ? COLOR.slowedEnemy : COLOR.enemy).fillCircle(e.x, e.y, ENEMY_RADIUS);
             if (e.hp < e.maxHp) {
                 const w = ENEMY_RADIUS * 2;
                 const top = e.y - ENEMY_RADIUS - 8;
@@ -513,11 +568,14 @@ export class Game extends Scene {
     }
 
     private drawRangePulses(g: GameObjects.Graphics) {
-        const { board } = this.state;
+        const { board, tool } = this.state;
+        if (!isRangeTool(tool)) return;
         for (let row = 0; row < board.rows; row++) {
             for (let col = 0; col < board.cols; col++) {
                 if (!this.rangePulse.has(indexOf(board, col, row))) continue;
-                g.lineStyle(4, COLOR.range, 0.95).strokeCircle(cellCenterX(col), cellCenterY(row), TURRET_RANGE);
+                // Only the building of the selected tool gets its pulse drawn, like its range circle.
+                if (getCell(board, col, row) !== tool) continue;
+                g.lineStyle(4, RANGE_COLOR[tool], 0.95).strokeCircle(cellCenterX(col), cellCenterY(row), RANGE_RADIUS[tool]);
             }
         }
     }

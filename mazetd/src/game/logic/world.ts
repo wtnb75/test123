@@ -7,7 +7,16 @@ import {
     LIVES_START,
     SELL_RATE,
     SHOT_FLASH,
+    SLOW_RANGE,
+    SLOW_RATE,
+    SLOW_TOWER_COST,
     SPAWN_INTERVAL,
+    SPLASH_DAMAGE,
+    SPLASH_FLASH,
+    SPLASH_INTERVAL,
+    SPLASH_RADIUS,
+    SPLASH_RANGE,
+    SPLASH_TOWER_COST,
     SWAMP_SPEED_RATE,
     TIME_EPS,
     TURRET_COST,
@@ -49,20 +58,30 @@ export interface Enemy {
     traveled: number;
     x: number;
     y: number;
+    /** Whether the enemy was inside a slow tower's range at the start of the last frame it moved in. */
+    slowed?: boolean;
 }
 
+/** A turret (`splash` false) or a splash tower (`splash` true); both act in the same row-major order. */
 export interface Turret {
     x: number;
     y: number;
+    splash: boolean;
     /**
-     * Seconds of charge; a shot spends TURRET_INTERVAL and keeps the overshoot.
+     * Seconds of charge; a shot spends the interval and keeps the overshoot.
      * Can dip below 0 by at most TIME_EPS right after a shot because of the firing tolerance.
      */
     charge: number;
-    /** Remaining seconds to draw the last shot's line. */
+    /** Remaining seconds to draw the last shot's line (or the splash ring). */
     flash: number;
     targetX: number;
     targetY: number;
+}
+
+/** Centre of a slow tower; its range is SLOW_RANGE. Fixed while a wave runs. */
+export interface SlowTower {
+    x: number;
+    y: number;
 }
 
 /** What happened during the last update, for the Scene's effects. Arrays are reused between frames. */
@@ -88,6 +107,7 @@ export interface GameState {
     pathY: number[];
     enemies: Enemy[];
     turrets: Turret[];
+    slows: SlowTower[];
     spawnClock: number;
     spawned: number;
     nextEnemyId: number;
@@ -98,7 +118,9 @@ export type TapResult = 'placed' | 'sold' | 'failed' | 'ignored';
 
 const COST: Readonly<Record<Exclude<CellKind, 'empty'>, number>> = {
     wall: WALL_COST,
-    turret: TURRET_COST
+    turret: TURRET_COST,
+    slow: SLOW_TOWER_COST,
+    splash: SPLASH_TOWER_COST
 };
 
 /** A new game; without `terrain` the board is all plain (the terrain-less board the unit tests use). */
@@ -117,6 +139,7 @@ export function createGame(terrain?: readonly Terrain[]): GameState {
         pathY: [],
         enemies: [],
         turrets: [],
+        slows: [],
         spawnClock: 0,
         spawned: 0,
         nextEnemyId: 0,
@@ -133,7 +156,7 @@ function refreshPath(state: GameState): void {
     state.pathY = state.path.map((p) => cellCenterY(p.row));
 }
 
-export const MSG_BUILD_HINT = 'マスをタップして壁や砲台を置こう（置いたら開始）';
+export const MSG_BUILD_HINT = 'マスをタップして建物を置こう（置いたら開始）';
 
 export function phaseText(state: GameState): string {
     if (state.phase !== 'build') return `ウェーブ ${state.wave}`;
@@ -196,21 +219,42 @@ export function startWave(state: GameState): boolean {
     state.spawnClock = 0;
     state.spawned = 0;
     state.turrets = buildTurrets(state.board);
+    state.slows = buildSlowTowers(state.board);
     return true;
 }
 
 function buildTurrets(board: Board): Turret[] {
     const turrets: Turret[] = [];
-    // Row-major order is also the order turrets act in each frame.
+    // Row-major order is also the order turrets and splash towers act in each frame.
     for (let row = 0; row < board.rows; row++) {
         for (let col = 0; col < board.cols; col++) {
-            if (getCell(board, col, row) !== 'turret') continue;
+            const kind = getCell(board, col, row);
+            if (kind !== 'turret' && kind !== 'splash') continue;
             const x = cellCenterX(col);
             const y = cellCenterY(row);
-            turrets.push({ x, y, charge: TURRET_INTERVAL, flash: 0, targetX: x, targetY: y });
+            const splash = kind === 'splash';
+            turrets.push({ x, y, splash, charge: intervalOf(splash), flash: 0, targetX: x, targetY: y });
         }
     }
     return turrets;
+}
+
+function buildSlowTowers(board: Board): SlowTower[] {
+    const towers: SlowTower[] = [];
+    for (let row = 0; row < board.rows; row++) {
+        for (let col = 0; col < board.cols; col++) {
+            if (getCell(board, col, row) === 'slow') towers.push({ x: cellCenterX(col), y: cellCenterY(row) });
+        }
+    }
+    return towers;
+}
+
+function intervalOf(splash: boolean): number {
+    return splash ? SPLASH_INTERVAL : TURRET_INTERVAL;
+}
+
+function rangeOf(splash: boolean): number {
+    return splash ? SPLASH_RANGE : TURRET_RANGE;
 }
 
 function pathLength(state: GameState): number {
@@ -227,6 +271,17 @@ export function speedFactor(state: GameState, traveled: number): number {
     return getTerrain(state.board, col, row) === 'swamp' ? SWAMP_SPEED_RATE : 1;
 }
 
+/** Whether a point lies within SLOW_RANGE (boundary included) of any slow tower. */
+export function isSlowed(state: GameState, x: number, y: number): boolean {
+    const range2 = SLOW_RANGE * SLOW_RANGE;
+    for (const tower of state.slows) {
+        const dx = x - tower.x;
+        const dy = y - tower.y;
+        if (dx * dx + dy * dy <= range2) return true;
+    }
+    return false;
+}
+
 /** Only called for enemies still short of G, so `seg + 1` is always a valid path index. */
 function placeOnPath(state: GameState, enemy: Enemy): void {
     const seg = Math.floor(enemy.traveled / CELL);
@@ -238,13 +293,16 @@ function placeOnPath(state: GameState, enemy: Enemy): void {
 function spawnDue(state: GameState, total: number): void {
     const hp = enemyHp(state.wave);
     while (state.spawned < total && state.spawnClock + TIME_EPS >= state.spawned * SPAWN_INTERVAL) {
+        const x = state.pathX[0];
+        const y = state.pathY[0];
         state.enemies.push({
             id: state.nextEnemyId++,
             hp,
             maxHp: hp,
             traveled: 0,
-            x: state.pathX[0],
-            y: state.pathY[0]
+            x,
+            y,
+            slowed: isSlowed(state, x, y)
         });
         state.spawned++;
     }
@@ -258,7 +316,9 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
         const e = enemies[i];
         // Enemies spawned this frame stay on the start cell.
         if (i < skipFrom) {
-            e.traveled += ENEMY_SPEED * speedFactor(state, e.traveled) * dt;
+            // x and y still hold the position at the start of this frame: a slow tower looks at that one.
+            e.slowed = isSlowed(state, e.x, e.y);
+            e.traveled += ENEMY_SPEED * speedFactor(state, e.traveled) * (e.slowed ? SLOW_RATE : 1) * dt;
             if (e.traveled >= goalAt) {
                 state.lives = Math.max(0, state.lives - 1);
                 state.events.leaks++;
@@ -271,30 +331,48 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
     enemies.length = w;
 }
 
+/** The living enemy in range that is furthest along the path; ties keep the older one. */
+function pickTarget(state: GameState, t: Turret, range2: number): Enemy | null {
+    let target: Enemy | null = null;
+    for (const e of state.enemies) {
+        if (e.hp <= 0) continue;
+        const dx = e.x - t.x;
+        const dy = e.y - t.y;
+        if (dx * dx + dy * dy > range2) continue;
+        // Enemies are stored in spawn order, so a strict comparison keeps the older one on ties.
+        if (target === null || e.traveled > target.traveled) target = e;
+    }
+    return target;
+}
+
+/** Damages every living enemy within SPLASH_RADIUS of the impact point, the target included. */
+function splashAt(state: GameState, x: number, y: number): void {
+    const radius2 = SPLASH_RADIUS * SPLASH_RADIUS;
+    for (const e of state.enemies) {
+        if (e.hp <= 0) continue;
+        const dx = e.x - x;
+        const dy = e.y - y;
+        if (dx * dx + dy * dy <= radius2) e.hp -= SPLASH_DAMAGE;
+    }
+}
+
 function fireTurrets(state: GameState, dt: number): void {
-    const range2 = TURRET_RANGE * TURRET_RANGE;
     ageShotLines(state, dt);
     for (const t of state.turrets) {
+        const interval = intervalOf(t.splash);
         t.charge += dt;
-        if (t.charge + TIME_EPS < TURRET_INTERVAL) continue;
-        let target: Enemy | null = null;
-        for (const e of state.enemies) {
-            if (e.hp <= 0) continue;
-            const dx = e.x - t.x;
-            const dy = e.y - t.y;
-            if (dx * dx + dy * dy > range2) continue;
-            // Furthest along the path wins; enemies are stored in spawn order, so ties keep the older one.
-            if (target === null || e.traveled > target.traveled) target = e;
-        }
+        if (t.charge + TIME_EPS < interval) continue;
+        const target = pickTarget(state, t, rangeOf(t.splash) * rangeOf(t.splash));
         if (target === null) {
             // Idle turrets hold at most one shot's worth of charge.
-            t.charge = Math.min(t.charge, TURRET_INTERVAL);
+            t.charge = Math.min(t.charge, interval);
             continue;
         }
-        target.hp -= TURRET_DAMAGE;
+        if (t.splash) splashAt(state, target.x, target.y);
+        else target.hp -= TURRET_DAMAGE;
         // Carry the overshoot so the average rate doesn't depend on frame timing.
-        t.charge -= TURRET_INTERVAL;
-        t.flash = SHOT_FLASH;
+        t.charge -= interval;
+        t.flash = t.splash ? SPLASH_FLASH : SHOT_FLASH;
         t.targetX = target.x;
         t.targetY = target.y;
     }
@@ -354,6 +432,7 @@ function endWave(state: GameState): void {
     state.wave++;
     state.phase = 'build';
     state.message = null;
-    // Turret records are rebuilt from the board at the next wave start; drop them so sold turrets can't linger.
+    // Turret and slow tower records are rebuilt from the board at the next wave start; drop them so sold ones can't linger.
     state.turrets.length = 0;
+    state.slows.length = 0;
 }
