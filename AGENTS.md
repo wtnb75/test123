@@ -238,6 +238,9 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 - 複数ゲームを並行して進めている場合、`game-next` はカレントブランチ名
   （`feat/<game-dir>` など。2.2節）を最優先の手がかりに対象ゲームを判定する
 - 全ゲームの進捗一覧は `task game:dashboard` で確認できる
+- 複数のゲームにまたがる作業（共有パッケージ・トップページなど）の候補は、
+  リポジトリ直下の `docs/backlog.md` に、各ゲームの `docs/backlog.md` と同じ
+  カードの形式で書く
 - 見た目だけの拡張（演出・UI・結果画面。ルールやゲーム性の数値を変えない）
   では、QA 後の polish・balance・PR 作成の確認を 1 回の質問にまとめてよい
   （`game-polish`「Presentation-only revisions」）
