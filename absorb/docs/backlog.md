@@ -82,4 +82,14 @@
 - 種別: presentation-only
 - 規模: S
 - 出どころ: spec 分析
-- メモ: 日替わりの固定シード（全員が同じ展開を遊べる。規模 S）と組み合わせると、比べる相手ができる
+- メモ: 日替わりの固定シード（全員が同じ展開を遊べる。規模 S）と組み合わせると、比べる相手ができる 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+
+### 描画を Scene から分ける（`draw-split`）
+
+- 狙い: `scenes/Game.ts` が 1000 行で、敵・ボス・HUD・演出の描画が 1 つのクラスにある。`leech`・`armored` のように敵を足すたびに、`drawEnemy` が伸びる。根拠: `src/game/scenes/Game.ts`（`drawEnemy` は 809 行から約 90 行）
+- 何を足すか: 敵・ボスの描画と HUD の描画を、別のモジュールへ分ける。見た目と挙動は変えない。
+- コアループへの効き方: 広げない — 後続のカードの土台。
+- 種別: presentation-only（リファクタリング。挙動は変えない）
+- 規模: M
+- 出どころ: コードレビュー
+- メモ: `DemoGame` は `Game` を継承し、`drawHudLayer`・`drawStartRings` などの `protected` メソッドを上書きしている。この形を壊さない。
