@@ -1,0 +1,13 @@
+- `src/game/logic/layout.ts` `src/game/scenes/ui.ts` `Game.ts`: 配置・見た目の数値が `params.ts` の外にある — 理由: 仕様書に直接書いた配置の値で、パラメータ表（ゲーム性に関わる数値）の対象ではない。仕様と照合済み
+- `src/game/scenes/Game.ts`: ending の 0.8 秒間に「タップでキーボードを出す」が出る。最後のライフが尽きた同じフレームに着いた単語が床の下に残る — 理由: 仕様どおり（フォーカスが外れている間は出す）。0.8 秒だけで、床の下に残るのも同じフレームの単語だけ（はみ出しは 1% 未満）
+- `src/game/scenes/Game.ts`: 単語ごとに Text を 2 つ作る（打った部分用は最初のヒットまで空） — 理由: 出現は 2 秒に 1 回ほどで最大 12 個。遅延生成の複雑さに見合わない
+- `src/game/scenes/ui.ts`: `onEnter` の後片付けが `shutdown` の 1 回に頼っている — 理由: 重複は起きず、指摘自身も「今は無害」としている
+- `src/game/main.ts`: 表示が変わらない `scroll` でも `refresh()` を呼ぶ — 理由: 親の大きさだけが変わるときにキャンバスを追従させるのに必要。省くと追従しない恐れがあり、実機で確かめられない。負荷は小さい
+- `src/game/logic/buttons.ts`: `guardOver` が `GuardTimer` 経由でしか使われない — 理由: 境界（499/500 ms）を単体でも pin していて害がない
+- `src/game/scenes/Result.ts`: `create` の冒頭の `labels` / `retry` / `toTitle` のリセットが冗長 — 理由: Scene が再利用されることを明示した意図的な初期化
+- `src/game/logic/round.ts`: `anyLanded()` と `filter` が同じ条件（`p >= 1`）を 2 か所で見ている — 理由: 近くにある 1 行ずつの比較で、共通化すると読みにくくなる
+- `src/game/logic/round.test.ts`: 出現の間隔のテストが「30 px」「落ちる距離 120」を直書き — 理由: 仕様の値を手計算で pin する意図的な独立した期待値。調整するときは仕様が先に変わる
+- `src/game/logic/layout.ts`: 名前の位置の式が 114（行数 3 の前提）で `helpLines` を見ていない — 理由: 仕様が固定の式で、Scene は常に 3 行を渡す。式は 3 行の仕様値
+- `src/game/scenes/Game.ts`: `effects` の手動カウンタを `tweens.getTweens()` から導出する — 理由: 導出は消える直前の tween を含みうる（1 フレーム遅れ）ので厳密さは上がらない。ずれるのは `onComplete` なしで終わる場合だけで、今のコードにはなく、`create` で毎回 0 に戻る
+- `src/game/logic/round.ts`: `floorHits` と `landed.length` が同じ事実を二重に持つ — 理由: 常に一致していて、テストも両方を固定している。直してもテストの書き換えが増えるだけ
+- `src/game/scenes/Game.ts`: 最後のライフで高さが変わると、床に着いた点滅が旧い床の位置に 250 ms 残る — 理由: 仕様は「着いた位置に出す」まで。250 ms だけの見た目のずれ
