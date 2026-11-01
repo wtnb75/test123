@@ -1,4 +1,5 @@
 packages:
+- 'typerain'
 - 'wordfall'
 - 'bouncewave'
 - 'minoclimb'
