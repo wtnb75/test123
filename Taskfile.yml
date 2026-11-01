@@ -21,6 +21,7 @@ vars:
   LAB_GAMES:
   - shoot1
   - mazetd
+  - wordfall
   #- nonoedit
   #- editmin
   #- dutchcalc

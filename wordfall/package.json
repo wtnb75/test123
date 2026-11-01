@@ -1,0 +1,48 @@
+{
+  "name": "wordfall",
+  "description": "Catch falling letters to spell English words shown on screen; longer words score more, and the result screen lists each word with its Japanese meaning.",
+  "version": "0.1.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "license": "MIT",
+  "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+  "bugs": {
+    "url": "https://github.com/wtnb75/test123/issues"
+  },
+  "homepage": "https://github.com/wtnb75/test123/blob/main/wordfall/README.md",
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "build": "vite build --config vite/config.prod.mjs",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "phaser": "catalog:",
+    "terser": "catalog:"
+  },
+  "index": {
+    "title": "文字集め",
+    "summary": "落ちてくる文字をタップして拾い、お題の英単語を完成させる。長い単語ほど高得点で、終わると出た単語を意味つきで見直せる。",
+    "tags": [
+      "アクション",
+      "学習",
+      "タッチ",
+      "マウス",
+      "キーボード"
+    ]
+  }
+}
