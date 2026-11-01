@@ -461,6 +461,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
 - Does `README.md` let a stranger understand the goal, rules and controls?
 - Is `status_balance` genuinely `done` (user signed off)?
 - Is `public/favicon.png` this game's own, not the template's stock icon?
+- Does `<game-dir>/package.json` have an `index` (`title`, `summary`,
+  `tags`) that matches what the game is now (spec/README), with tags reused
+  from the existing games where possible? On a post-publish revision, was it
+  re-checked against the change (new mode / input method / pitch)?
 - First publish: is the `Taskfile.yml` `GAMES` line for this game actually
   uncommented? Post-publish revision: it already was — does the diff leave
   `Taskfile.yml` untouched?

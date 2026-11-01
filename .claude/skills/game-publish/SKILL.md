@@ -27,11 +27,36 @@ extension), not the original add.
    succeeding means it's still the template's stock icon — run
    `task game:favicon PACKAGE=<game-dir>` and include the result in this
    change.
-3. **First publish**: this is a user-visible change (it adds a link on the
+3. Check the top-page card data: the `index` field of
+   `<game-dir>/package.json` (`{ title, summary, tags }`;
+   `scripts/build-index.mjs` builds the card from it, falling back to the
+   directory name and `description` when it is missing). Compare it with
+   `docs/spec.md` and `README.md` (what the game is now, not what it was at
+   the prototype):
+   - **Missing** → add it. **Present but stale or off-convention** → change
+     it. Otherwise leave it alone (don't churn wording that is fine).
+   - `title`: the game's display name (spec's name; if the spec only has a
+     provisional name, use the name the title screen shows).
+   - `summary`: 1–2 Japanese sentences — what you do and what makes it
+     distinct, plus the controls when they are unusual (e.g. phone
+     portrait/landscape). Match the existing games' tone; no spoilers of
+     numbers that change under balance.
+   - `tags`: genre first, then the input methods the game really supports
+     (`タッチ` / `マウス` / `キーボード`). Reuse existing tags — list them with
+     `rg -N -A8 '"tags"' */package.json` — and add a new one only when none
+     fits.
+   - Keep `description` (what the game is, for developers) separate from
+     `summary` (what the player sees on the card); don't copy one to the other
+     blindly.
+   - On a post-publish revision, re-check it too: an extension that adds a
+     mode or an input method (or a balance change that alters the pitch) can
+     make the card wrong. Include the change in this PR.
+4. **First publish**: this is a user-visible change (it adds a link on the
    public top page) — confirm with the user before touching
    `Taskfile.yml`, then uncomment the `<game-dir>` line under `GAMES:` in
-   `Taskfile.yml`.
-4. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
+   `Taskfile.yml`. Show the `index` card text (from step 3) in the same
+   question, so the user confirms what will appear on the page.
+5. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
    `GAMES` line is already uncommented — leave `Taskfile.yml` alone.
    Instead check that `README.md` reflects the changed rules and controls,
    and update it in this change if it doesn't.
@@ -117,9 +142,11 @@ fails rather than just noting it.
 
 ## Completion
 
-1. For a first publish, the `Taskfile.yml` change is correct and the user
-   has confirmed the listing; for a post-publish revision, `README.md` is
-   current and `Taskfile.yml` is untouched. Either way, the PR is open with
+1. `package.json`'s `index` is present and matches the game (added or
+   updated in this change if it was missing or stale). For a first publish,
+   the `Taskfile.yml` change is correct and the user has confirmed the
+   listing; for a post-publish revision, `README.md` is current and
+   `Taskfile.yml` is untouched. Either way, the PR is open with
    a link to show them, and the commit contains `status_publish: done`.
 2. Tell the user this game's workflow is complete —
    `task game:dashboard` will show it as `next=complete` once the PR is

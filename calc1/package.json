@@ -1,6 +1,6 @@
 {
   "name": "calc1",
-  "description": "Calc Rush, a Phaser 4 TypeScript game using Vite.",
+  "description": "Calc Rush: a timed arithmetic puzzle where you pick one operation per move to reach the target number within 60 seconds.",
   "version": "0.1.0",
   "type": "module",
   "repository": {
