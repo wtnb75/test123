@@ -1,6 +1,6 @@
 {
   "name": "first-game",
-  "description": "my first, second, third, ... game",
+  "description": "Minefield Rogue: a roguelike where you deduce mine positions from number hints and reach the down stairs; one mistake ends the run.",
   "version": "0.1.0",
   "type": "module",
   "repository": {
