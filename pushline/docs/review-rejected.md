@@ -35,3 +35,6 @@
 - `src/game/logic/best.ts` (保存に失敗するとベストの行ごと出さない): 今回の記録が画面から消える — 理由: spec の決定（保存できなかったときは行を出さない。保存されていない記録を「ベスト」と見せない）
 - `src/game/params.ts` (ベスト記録のキー `bestKey` が PARAMS にある): 調整用の表に保存の契約が混ざる — 理由: spec のパラメータ表が「ベスト記録のキー」として持つと決めている
 - `src/game/logic/best.test.ts` (「最短 M 回」の行の位置の式がテストに重複／`browserStorage` のテストが環境依存): テストの書き方の脆さ — 理由: 位置は回帰のテストが固定値（320 / 210）で固定している。環境依存は後始末を `finally` で戻しており、出荷物に影響しない
+- `src/game/logic/best.ts` parseBest: 共有の `parseBest`（`Best | null`）と同じ名前で戻り値が違い、取り違えやすい — 理由: 共有のものは別名（`parseSharedBest`）で読み込んでいて、同じファイルで両方を使う箇所は無い。名前を変えるほどの得は無い
+- `src/game/logic/best.ts` BestKeeper: 入場時の 1 回の読み込みだけと比べるので、別のタブが先に高い記録を保存していると、低い値で上書きしうる — 理由: spec が「入場時に `getItem` を 1 回」と決めており、移行前からある挙動。保存の形式の移行とは別の変更（共有の約束に合わせて直すなら spec の改訂から）
+- `src/game/logic/best.test.ts`: 「0 ライン時に行を出さない」の `it.each` の行が長く、`INVALID_SAVED` と値が重なる — 理由: lint は通り、短い代表値を意図して別に持っている。`INVALID_SAVED` の網羅は `parseBest` のテストが担う

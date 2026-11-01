@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bestKey } from 'best-store';
 import { PARAMS } from '../params';
-import { BestKeeper, bestLabel, browserStorage, parseBest, type BestStorage } from './best';
+import { BestKeeper, bestLabel, bestRecordLabel, browserStorage, parseBest, type BestStorage } from './best';
 import { LANDSCAPE, PORTRAIT, resultBestY } from './layout';
+
+const KEY = 'pushline.best';
+/** A saved best in the shared best-store shape (docs/spec.md "保存するもの"). */
+const rec = (n: number) => JSON.stringify({ score: n, label: `ライン ${n}` });
+const setCall = (n: number) => `set ${KEY}=${rec(n)}`;
 
 /** An in-memory storage that records every call. */
 function fakeStorage(initial: string | null) {
@@ -20,22 +26,37 @@ function fakeStorage(initial: string | null) {
     return { storage, calls, value: () => value };
 }
 
+/** Saved values that count as "nothing saved" (docs/spec.md テスト観点). */
+const INVALID_SAVED = [
+    '',
+    '{',
+    'null',
+    '7', // the previous plain-digit format is not read
+    JSON.stringify({ score: 0, label: 'ライン 0' }),
+    JSON.stringify({ score: -3, label: 'x' }),
+    JSON.stringify({ score: 2.5, label: 'x' }),
+    JSON.stringify({ score: '5', label: 'x' }),
+    JSON.stringify({ score: 5 }),
+    JSON.stringify({ score: 5, label: 7 }),
+    '{"score":99999999999999999999,"label":"x"}',
+];
+
 describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
     it('shows nothing and writes nothing while 0 lines with nothing saved', () => {
         const s = fakeStorage(null);
         const keeper = new BestKeeper(s.storage);
         expect(keeper.update(0)).toBeNull();
         expect(keeper.update(0)).toBeNull();
-        expect(s.calls).toEqual(['get pushlineBest']);
+        expect(s.calls).toEqual([`get ${KEY}`]);
     });
 
     it('reads the saved best once, on creation, and never again', () => {
-        const s = fakeStorage('5');
+        const s = fakeStorage(rec(5));
         const keeper = new BestKeeper(s.storage);
         keeper.update(0);
         keeper.update(3);
         keeper.update(5);
-        expect(s.calls).toEqual(['get pushlineBest']);
+        expect(s.calls).toEqual([`get ${KEY}`]);
     });
 
     it('saves each first-ever line count as it grows, without the "updated" mark', () => {
@@ -43,42 +64,47 @@ describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
         const keeper = new BestKeeper(s.storage);
         expect(keeper.update(1)).toEqual({ best: 1, updated: false });
         expect(keeper.update(2)).toEqual({ best: 2, updated: false });
-        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=1', 'set pushlineBest=2']);
+        expect(s.calls).toEqual([`get ${KEY}`, setCall(1), setCall(2)]);
     });
 
     it('keeps the saved value until the run beats it (saved 5: 0..5 lines show "5" and write nothing)', () => {
-        const s = fakeStorage('5');
+        const s = fakeStorage(rec(5));
         const keeper = new BestKeeper(s.storage);
         for (const lines of [0, 1, 4, 5]) {
             expect(keeper.update(lines)).toEqual({ best: 5, updated: false });
         }
-        expect(s.calls).toEqual(['get pushlineBest']);
-        expect(s.value()).toBe('5');
+        expect(s.calls).toEqual([`get ${KEY}`]);
+        expect(s.value()).toBe(rec(5));
     });
 
     it('marks an update from the first clear beyond the saved best, and saves every step (saved 5: 6, 7)', () => {
-        const s = fakeStorage('5');
+        const s = fakeStorage(rec(5));
         const keeper = new BestKeeper(s.storage);
         expect(keeper.update(6)).toEqual({ best: 6, updated: true });
         expect(keeper.update(7)).toEqual({ best: 7, updated: true });
-        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=6', 'set pushlineBest=7']);
+        expect(s.calls).toEqual([`get ${KEY}`, setCall(6), setCall(7)]);
+    });
+
+    it('reads only the score of a saved record: a different label still gives the best 5', () => {
+        const s = fakeStorage(JSON.stringify({ score: 5, label: 'WAVE 5' }));
+        expect(new BestKeeper(s.storage).update(3)).toEqual({ best: 5, updated: false });
     });
 
     it('never writes the same line count twice, however often it is asked', () => {
-        const s = fakeStorage('5');
+        const s = fakeStorage(rec(5));
         const keeper = new BestKeeper(s.storage);
         keeper.update(6);
         keeper.update(6);
         keeper.update(6);
-        expect(s.calls).toEqual(['get pushlineBest', 'set pushlineBest=6']);
+        expect(s.calls).toEqual([`get ${KEY}`, setCall(6)]);
     });
 
     it('treats a best beaten by exactly one line as an update (saved 9, 10 lines)', () => {
-        const s = fakeStorage('9');
+        const s = fakeStorage(rec(9));
         expect(new BestKeeper(s.storage).update(10)).toEqual({ best: 10, updated: true });
     });
 
-    it.each(['', '0', '-3', '2.5', 'abc', '05', '1e3', '99999999999999999999'])(
+    it.each(INVALID_SAVED)(
         'treats the saved value %j as nothing saved: counts 1..4 are saved one by one without a mark',
         (raw) => {
             const s = fakeStorage(raw);
@@ -86,16 +112,16 @@ describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
             for (const lines of [1, 2, 3]) keeper.update(lines);
             expect(keeper.update(4)).toEqual({ best: 4, updated: false });
             expect(s.calls).toEqual([
-                'get pushlineBest',
-                'set pushlineBest=1',
-                'set pushlineBest=2',
-                'set pushlineBest=3',
-                'set pushlineBest=4',
+                `get ${KEY}`,
+                setCall(1),
+                setCall(2),
+                setCall(3),
+                setCall(4),
             ]);
         },
     );
 
-    it.each(['', '0', 'abc'])('shows no row at 0 lines when the saved value %j is invalid, and keeps it', (raw) => {
+    it.each(['', '7', '{', JSON.stringify({ score: 0, label: 'ライン 0' })])('shows no row at 0 lines when the saved value %j is invalid, and keeps it', (raw) => {
         const s = fakeStorage(raw);
         expect(new BestKeeper(s.storage).update(0)).toBeNull();
         expect(s.value()).toBe(raw);
@@ -104,9 +130,9 @@ describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
     it.each([Number.NaN, 2.5, -1, Number.POSITIVE_INFINITY, 1e21])(
         'never writes a line count that is not a whole number of lines (%s), and keeps the saved best',
         (lines) => {
-            const s = fakeStorage('3');
+            const s = fakeStorage(rec(3));
             expect(new BestKeeper(s.storage).update(lines)).toEqual({ best: 3, updated: false });
-            expect(s.calls).toEqual(['get pushlineBest']);
+            expect(s.calls).toEqual([`get ${KEY}`]);
         },
     );
 
@@ -137,7 +163,7 @@ describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
     it('shows no row, does not throw and stops writing when writing throws (quota)', () => {
         let sets = 0;
         const storage: BestStorage = {
-            getItem: () => '3',
+            getItem: () => rec(3),
             setItem: () => {
                 sets += 1;
                 throw new Error('quota');
@@ -161,21 +187,29 @@ describe('BestKeeper (docs/spec.md "ベスト記録")', () => {
     });
 
     it('keeps the best of a run that is quit (not over): the value is already saved', () => {
-        const s = fakeStorage('2');
+        const s = fakeStorage(rec(2));
         new BestKeeper(s.storage).update(5);
-        expect(s.value()).toBe('5');
+        expect(s.value()).toBe(rec(5));
     });
 });
 
 describe('parseBest', () => {
-    it('accepts positive integers in plain decimal and rejects everything else', () => {
-        expect(parseBest('1')).toBe(1);
-        expect(parseBest('40')).toBe(40);
-        expect(parseBest('9007199254740991')).toBe(9007199254740991);
-        expect(parseBest('9007199254740992')).toBeNull();
+    it('accepts a best-store record whose score is a positive safe integer', () => {
+        expect(parseBest(rec(1))).toBe(1);
+        expect(parseBest(rec(40))).toBe(40);
+        expect(parseBest(JSON.stringify({ score: 9007199254740991, label: 'x' }))).toBe(9007199254740991);
+    });
+
+    it('rejects the unsafe, zero, negative, fractional and malformed values and the previous plain-digit format', () => {
+        expect(parseBest(JSON.stringify({ score: 9007199254740992, label: 'x' }))).toBeNull();
         expect(parseBest(null)).toBeNull();
-        expect(parseBest(' 5')).toBeNull();
-        expect(parseBest('5 ')).toBeNull();
+        for (const raw of INVALID_SAVED) expect(parseBest(raw)).toBeNull();
+    });
+});
+
+describe('bestRecordLabel', () => {
+    it('writes the line count as "ライン N"', () => {
+        expect(bestRecordLabel(12)).toBe('ライン 12');
     });
 });
 
@@ -222,7 +256,8 @@ describe('Result layout with the best row (docs/spec.md "Result" table)', () => 
 
     it('puts the best row 45 px under the shortest row: y 365 in portrait, 255 in landscape', () => {
         expect(PARAMS.resultBestGap).toBe(45);
-        expect(PARAMS.bestKey).toBe('pushlineBest');
+        expect(PARAMS.bestKey).toBe('pushline.best');
+        expect(PARAMS.bestKey).toBe(bestKey('pushline')); // the shared best-store convention
         expect(bestY(PORTRAIT)).toBe(365);
         expect(bestY(LANDSCAPE)).toBe(255);
         // the row shares the x of the other Result rows: the canvas centre
