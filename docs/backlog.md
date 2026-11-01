@@ -45,3 +45,13 @@
 - 規模: S
 - 出どころ: ユーザー
 - メモ: `index-best` の後。ハイスコアではない保存（`kogodrop.records` の学習記録、`digdle.daily` の日替わりの進行、`minefield-rogue-pad` の設定）は消さない。元に戻せないので、全ゲーム一括か、ゲームごとかを決める。
+
+### トップページで共有 Phaser を先読みする（`index-prefetch`）
+
+- 狙い: 共有ビルドのゲームは、カードを押してから `../vendor/phaser-<version>.esm.min.js` を取りに行くので、初回の起動に取得待ちが入る。トップページにいる間に取っておけば、その待ちが減るかもしれない。根拠: ユーザーの案、`scaffold/vite/config.prod.mjs`（ゲーム側はすでに同じ URL へ `modulepreload` を張っている）
+- 何を足すか: `scripts/build-index.mjs` が、共有 Phaser の URL（`vendor/phaser-<version>.esm.min.js`）に対する `<link rel="prefetch" as="script">` をトップページ（と `labs.html`）に出す。pnpm workspace の `catalog:` で Phaser のバージョンが 1 つに揃うので、先読みは 1 本で足りる。
+- コアループへの効き方: 広げない — 読み込みの待ちだけ。ゲームの挙動は変えない。
+- 種別: presentation-only
+- 規模: S
+- 出どころ: ユーザー
+- メモ: **効果は未確認**（ユーザーも怪しいと見ている）。実装の前に、`task build` の `output/` をサブパスで配信し、DevTools で次の 3 点を確かめる。(1) ゲームの起動時に vendor がキャッシュから出るか（GitHub Pages の `Cache-Control` は短い）、(2) Safari（iPhone）でも `prefetch` が再利用されるか、(3) トップページ自体の表示を遅らせないか。効果が見えなければ見送る。優先度が高い `modulepreload` は使わず、低優先度の `prefetch` か、アイドル時・カードの hover / touchstart での取得にする。通信量を節約する設定（Save-Data）の端末は先読みしない。バージョンが複数に分かれた場合（`catalog:` を使わないゲームが出たとき）は、`output/vendor/` を列挙して対応を見直す。
