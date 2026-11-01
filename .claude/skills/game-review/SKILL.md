@@ -211,6 +211,8 @@ Before marking the prototype done:
 - Are the rules, screens and number rationales the playtests settled written
   under `## プレイテストで固まったこと` — enough that `game-spec` doesn't
   have to read the code to learn them?
+- Is every feature tried or discussed and then cut listed under
+  `## 見送ったこと` with its reason, so `game-spec` can make backlog cards?
 - Are all prototype additions under `src/proto/` (plus the `src/main.ts`
   entry pointing at it), with nothing changed outside `<game-dir>`?
 - Is game logic in `src/proto/logic.ts` without Phaser imports, and does the
@@ -465,8 +467,10 @@ Don't flag: Scene rendering glue that is reasonably left to game-qa.
   `tags`) that matches what the game is now (spec/README), with tags reused
   from the existing games where possible? On a post-publish revision, was it
   re-checked against the change (new mode / input method / pitch)?
-- First publish: is the `Taskfile.yml` `GAMES` line for this game actually
-  uncommented? Post-publish revision: it already was — does the diff leave
+- First publish: is the game's line in `LAB_GAMES` (uncommented) and gone
+  from `GAMES` — unless the user explicitly asked for the top page? Does
+  `docs/backlog.md` exist with the non-MVP / cut items as cards?
+  Post-publish revision: the line was already in place — does the diff leave
   `Taskfile.yml` untouched?
 - Post-publish revision: does `README.md` reflect the changed rules and
   controls, and does the PR body say what was added and why?

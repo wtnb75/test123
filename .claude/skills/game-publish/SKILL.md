@@ -1,6 +1,6 @@
 ---
 name: game-publish
-description: Use for the final step of adding a finished game to this monorepo's public listing — uncommenting it in Taskfile.yml's GAMES list and opening a "add one game" PR (AGENTS.md section 2.2) — or, for a post-publish revision (fix/balance/extension), checking README and opening that revision's PR.
+description: Use for the final step of adding a finished game to this monorepo's public listing — registering it in Taskfile.yml's LAB_GAMES (labs.html) by default, or GAMES (top page) only when asked, and opening an "add one game" PR (AGENTS.md section 2.2) — or, for a post-publish revision (fix/balance/extension), checking README and opening that revision's PR.
 ---
 
 # game-publish
@@ -51,18 +51,30 @@ extension), not the original add.
    - On a post-publish revision, re-check it too: an extension that adds a
      mode or an input method (or a balance change that alters the pitch) can
      make the card wrong. Include the change in this PR.
-4. **First publish**: this is a user-visible change (it adds a link on the
-   public top page) — confirm with the user before touching
-   `Taskfile.yml`, then uncomment the `<game-dir>` line under `GAMES:` in
-   `Taskfile.yml`. Show the `index` card text (from step 3) in the same
-   question, so the user confirms what will appear on the page.
-5. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
-   `GAMES` line is already uncommented — leave `Taskfile.yml` alone.
+4. **First publish** goes to **labs** by default (`labs.html`, the
+   works-in-progress page), not the top page. Confirm with the user before
+   touching `Taskfile.yml`, then move the commented `#- <game-dir>` line that
+   `task newgame` left at the end of `GAMES:` to the end of `LAB_GAMES:`,
+   uncommented (oldest first), and remove it from `GAMES:`. Show the `index`
+   card text (from step 3) and "listed on labs" in the same question.
+   Listing on the top page (`GAMES`) is a separate, later change: do it only
+   when the user asks for it (a `Taskfile.yml`-only PR moving the line from
+   `LAB_GAMES` to `GAMES`); never as part of a first publish unless
+   the user says so in that same question.
+5. **Backlog (first publish)**: confirm `<game-dir>/docs/backlog.md` exists
+   and holds the items that missed the MVP (see `game-spec` "Backlog from the
+   first write"). Missing → write it now in the `game-backlog` card format
+   from 非MVP範囲 and the cut items; it is part of this PR.
+6. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
+   `GAMES` / `LAB_GAMES` line is already in place — leave `Taskfile.yml` alone.
    Instead check that `README.md` reflects the changed rules and controls,
    and update it in this change if it doesn't.
 
 For a post-publish revision, also check `<game-dir>/docs/backlog.md` is in
 the change if `game-spec` updated it.
+
+(The same `Taskfile.yml` rule applies to a PR that only promotes a lab game
+to the top page: only that line moves.)
 
 `task build` / `output/index.html` verification is CI's job, not this
 skill's — don't run it here (confirmed with the user: this repo's CI
@@ -144,8 +156,8 @@ fails rather than just noting it.
 
 1. `package.json`'s `index` is present and matches the game (added or
    updated in this change if it was missing or stale). For a first publish,
-   the `Taskfile.yml` change is correct and the user has confirmed the
-   listing; for a post-publish revision, `README.md` is current and
+   the game is in `LAB_GAMES` (not `GAMES`, unless the user asked for the top
+   page), the user has confirmed the listing, and `docs/backlog.md` exists; for a post-publish revision, `README.md` is current and
    `Taskfile.yml` is untouched. Either way, the PR is open with
    a link to show them, and the commit contains `status_publish: done`.
 2. Tell the user this game's workflow is complete —
