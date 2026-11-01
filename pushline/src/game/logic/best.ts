@@ -1,11 +1,14 @@
-// Best record (docs/spec.md "保存するもの" > "ベスト記録"): the highest line count, kept in localStorage.
-// This is the only module that touches the browser storage API.
+// Best record (docs/spec.md "保存するもの" > "ベスト記録"): the highest line count, kept in localStorage in the shared
+// best-store shape ({ score, label }). This is the only module that touches the browser storage API.
+import { browserStorage, parseBest as parseSharedBest, type KeyValueStorage } from 'best-store';
 import { PARAMS } from '../params';
 
-export interface BestStorage {
-    getItem(key: string): string | null;
-    setItem(key: string, value: string): void;
-}
+export type BestStorage = KeyValueStorage;
+
+export { browserStorage };
+
+/** The label saved with a best: shown as-is by the index page. */
+export const bestRecordLabel = (lines: number): string => `ライン ${lines}`;
 
 /** What the best row shows (in the HUD and on Result): the best line count, and whether this run has set it. */
 export interface BestRow {
@@ -13,20 +16,10 @@ export interface BestRow {
     readonly updated: boolean;
 }
 
-/** A stored value counts only when it is a positive integer written in plain decimal digits. */
+/** A stored value counts only when it reads as a best-store record whose score is a positive safe integer. */
 export function parseBest(raw: string | null): number | null {
-    if (raw === null || !/^[1-9][0-9]*$/.test(raw)) return null;
-    const n = Number(raw);
-    return Number.isSafeInteger(n) ? n : null;
-}
-
-/** The browser's localStorage, or null when it cannot be reached (access can throw). */
-export function browserStorage(): BestStorage | null {
-    try {
-        return globalThis.localStorage ?? null;
-    } catch {
-        return null;
-    }
+    const best = parseSharedBest(raw);
+    return best !== null && Number.isSafeInteger(best.score) && best.score >= 1 ? best.score : null;
 }
 
 /**
@@ -67,7 +60,7 @@ export class BestKeeper {
         if (!counts) return base === null ? null : { best: base, updated: false };
         if (lines > this.written) {
             try {
-                this.storage.setItem(PARAMS.bestKey, String(lines));
+                this.storage.setItem(PARAMS.bestKey, JSON.stringify({ score: lines, label: bestRecordLabel(lines) }));
             } catch {
                 this.storage = null;
                 return null;
