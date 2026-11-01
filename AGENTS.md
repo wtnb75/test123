@@ -41,9 +41,10 @@
 	- `<game-dir>/package.json` の `description` をゲーム内容に合わせて書き換える
 	- `pnpm install` を実行してロックファイルを更新する
 	- `task game:favicon PACKAGE=<game-dir>` を実行し、テンプレート既定の `public/favicon.png` をゲーム名から生成した identicon（jdenticon）に置き換える
-	- 公開一覧（トップページ）に載せる準備ができたら `Taskfile.yml` の `GAMES` 該当行のコメントアウトを外す
+	- 初回公開は labs が既定。準備ができたら `Taskfile.yml` の該当行（`GAMES` 末尾のコメント行）を `LAB_GAMES` の末尾に移してコメントアウトを外す。トップページには出ず `labs.html`（試作・実験作）に載る
+		- トップページに載せるのは別の変更。ユーザーが望んだときだけ、該当行を `LAB_GAMES` から `GAMES` に移す
 		- `GAMES` は追記順（古い順）に書く。トップページ（`scripts/build-index.mjs`）は新しいものを上に並べ、カードの `tags` で絞り込める
-		- 作りこみが途中のゲームは `GAMES` ではなく `LAB_GAMES` に移すと、トップページには出ず `labs.html`（試作・実験作）に載る
+	- MVP に入らなかった項目・途中で落とした項目は `docs/backlog.md` にカードとして残し、初回公開の PR に含める（`game-spec` / `game-publish`）
 
 ### 2.3 オプション指定ルール
 
@@ -219,7 +220,7 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | ビジュアルQA | `game-qa` | Docker + Playwright で実ブラウザの描画・操作感を確認（9節） |
 | 見た目・UI調整 | `game-polish` | エフェクト、入力へのフィードバック、動線・操作の分かりやすさを改善する。spec→impl→test→check→codereview→qa をループする（ゲームバランスに関わる数値は扱わない） |
 | バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→codereview→qa→polish をループする |
-| 公開 | `game-publish` | `Taskfile.yml` の `GAMES` に登録し、その変更だけにスコープを絞ったPRを作成する |
+| 公開 | `game-publish` | 初回は `Taskfile.yml` の `LAB_GAMES`（labs）に登録（トップページ `GAMES` は希望時のみ）し、その変更だけにスコープを絞ったPRを作成する |
 | 拡張候補 | `game-backlog` | 公開済みゲームの拡張アイデアを、spec の分析・自動プレイの数字・ユーザーの思いつきから出し、`docs/backlog.md` に狙い・コアループへの効き方・種別・規模・根拠つきのカードとして並べる。順番はユーザーが決める（上が次の候補）。docs だけのブランチ・PR で更新する |
 | 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` の上から順に出し（無ければ先に `game-backlog`）、見送った候補は `game-spec` が同じファイルにカードとして記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
 | 拡張（自動） | `game-autopilot` | 先行する PR・作業ブランチが触れているゲームを除き、残った `next=complete` のゲームからランダムに 1 つ選んで、その backlog の先頭カードを `game-extend` と同じく対話で詳細化し、最後の 1 回の承認（拡張の内容＋オートパイロット合意）のあとは、spec の承認・codereview の採否・polish/balance の選択・push と PR 作成を聞かずに、PR を開くところまで進める。仕様の穴や合意からの逸脱、ゲートの失敗では止まる。マージはしない |

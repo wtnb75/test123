@@ -41,13 +41,27 @@ spec from it, not from scratch:
 - Fold the playtest notes into the proper sections (rules into ルール,
   "why this number" into the table's meaning column, "must stay" items into
   完了条件), then remove the `> spec-lite:` banner and the
-  `## プレイテストで固まったこと` section. The spec describes the current
+  `## プレイテストで固まったこと` and `## 見送ったこと` sections (the latter
+  becomes backlog cards, below). The spec describes the current
   game, not how it got there.
 - Technical requirements name which game rules are pure logic (hit tests,
   scoring, spawn rules, win/lose conditions) by their role, the way any
   spec does. Don't refer to `src/proto/` or its files — the spec has to
   stand on its own for a reader who never sees the prototype;
   `game-impl` reads the prototype for the details.
+
+#### Backlog from the first write
+
+Whatever did not make the MVP is not lost: write
+`<game-dir>/docs/backlog.md` in the same first write (header and card format
+from `game-backlog`). Cards come from 非MVP範囲, the spec-lite's cut items,
+ideas the `game-idea` conversation trimmed, and anything dropped in
+`game-proto` playtests (with why in メモ). Rank them by how directly they
+strengthen the core loop, or leave them in the order found when the user
+hasn't ranked. A card needs a concrete problem (狙い); a bare "more
+content" line isn't one. Show the backlog with the spec draft for approval.
+It is not part of the spec, and `game-publish` ships it in the first PR.
+Items dropped later by `game-impl` / `game-polish` are added the same way.
 
 For a revision (e.g. coming out of
 `game-balance`), only change the sections that actually changed and note

@@ -66,8 +66,9 @@ never call `pnpm create @phaserjs/game@latest` directly.
      from the game name (jdenticon via `pnpm dlx`, so it needs network
      access). If it fails, tell the user and carry on — `game-publish`
      checks it again.
-   - Leave the `GAMES` line commented out — it gets uncommented only by
-     `game-publish`, once the game is ready to be listed on the top page.
+   - Leave the `GAMES` line commented out — `game-publish` moves it into
+     `LAB_GAMES` (labs.html, the default for a first publish) once the game
+     is ready to be listed. The top page (`GAMES`) is a later, separate step.
 5. Create `<game-dir>/docs/spec.md` with **only** this frontmatter block —
    no body content yet, that's `game-spec`'s job. This is what makes the
    game visible to `task game:detect` / `task game:next` / `game-next`

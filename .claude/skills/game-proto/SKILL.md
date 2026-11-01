@@ -115,6 +115,10 @@ changed, why a number ended up where it did, things that felt good and must
 stay, screens that turned out to be needed. This is the input `game-spec`
 cannot reconstruct from the code.
 
+Also list, under `## 見送ったこと`, every feature or idea tried or discussed
+and then cut (with the reason and any playtest evidence). `game-spec` turns
+them into `docs/backlog.md` cards, then removes this section.
+
 ## Review (before completion)
 
 Run `game-review STAGE=proto PACKAGE=<game-dir>` — a self-review against
