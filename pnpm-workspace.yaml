@@ -20,6 +20,7 @@ packages:
 - 'primtris'
 - 'shoot1'
 - 'shared/title-demo'
+- 'shared/best-store'
 catalog:
   phaser: '4.2.1'
   vite: '^8.3.4'

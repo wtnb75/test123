@@ -1,0 +1,29 @@
+{
+  "name": "best-store",
+  "description": "Best-record storage shared by every game: one localStorage key per game (<game-dir>.best), one value shape ({ score, label }), and a store that never throws.",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}
