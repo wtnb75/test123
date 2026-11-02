@@ -1,0 +1,4 @@
+{
+    "extends": "../scaffold/tsconfig.base.json",
+    "include": ["src"]
+}

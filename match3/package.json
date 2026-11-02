@@ -1,0 +1,48 @@
+{
+  "name": "match3",
+  "description": "Orthodox match-3 puzzle: swap adjacent gems to line up 3 or more of the same color, chain combos, and score high within a limited number of moves.",
+  "version": "0.1.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wtnb75/test123.git"
+  },
+  "author": "Watanabe AI Takashi <wtnb75@gmail.com>",
+  "license": "MIT",
+  "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+  "bugs": {
+    "url": "https://github.com/wtnb75/test123/issues"
+  },
+  "homepage": "https://github.com/wtnb75/test123/blob/main/match3/README.md",
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "build": "vite build --config vite/config.prod.mjs",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "@eslint/js": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "best-store": "workspace:*",
+    "phaser": "catalog:",
+    "terser": "catalog:"
+  },
+  "index": {
+    "title": "3マッチパズル",
+    "summary": "となり合う石を入れかえて、同じ色を 3 つ以上そろえて消す定番の 3 マッチパズル。手数 30 の中で、連鎖と 4 個以上のボーナスで高得点を狙う。スマホはタップとスワイプ、PC はクリックとキーボードで遊べる。",
+    "tags": [
+      "パズル",
+      "タッチ",
+      "マウス",
+      "キーボード"
+    ]
+  }
+}
