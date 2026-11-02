@@ -23,3 +23,6 @@
 - `src/game/logic/formation.ts` formationSpeed: `total <= 0` の守りはゲームからは届かない — 理由: 前の回で守りとして入れると決めた。0 で割らないことを関数の側でも保証しておく
 - `src/game/scenes/Game.ts` playEffects: 撃破のあるフレームで `Math.max(...run.kills.map(...))` が配列を 1 つ作る — 理由: 撃破のあるフレームだけで、要素は多くて数個。ループ 1 本にまとめるほどの得は無い
 - `src/game/scenes/ui.ts` addButton: ボタンごとに Scene 全体の listener を登録している — 理由: ボタンは最大 2 個で、shutdown で外している。まとめても得るものが小さい
+- `src/game/scenes/Result.ts` init: `record()` が null のときの退避（`load()` と `isNew=false`）は到達しない分岐 — 理由: null になるのは非有限のスコアだけで、プレイでは起きない。型の都合で必要で、throw にすると Result が落ちるぶん悪い
+- `src/game/logic/best.ts`: 共有の `Best` 型を再エクスポートしていて import 元が 2 つになる — 理由: 見た目だけの整理で、得るものが小さい
+- `src/game/logic/best.ts` GAME_ID / `best.test.ts`: ゲーム名とキーの文字列が直書き — 理由: `<game-dir>.best` は `shared/best-store` の約束どおり。テストのキーは spec の文字列をそのまま期待値にしている（実装から求めると写しになる）

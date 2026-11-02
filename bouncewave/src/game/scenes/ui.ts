@@ -22,7 +22,8 @@ import {
     rotatePromptScale,
     type ScreenSize,
 } from '../logic/screen';
-import { BestStore } from '../logic/best';
+import { BestStore } from 'best-store';
+import { GAME_ID } from '../logic/best';
 import { tierColor } from '../logic/combo';
 
 export const UI_FONT = 'sans-serif';
@@ -63,13 +64,7 @@ export const TEX = { paddle: 'paddle', enemy: 'enemy', enemyBall: 'eball', myBal
 export const myBallTexture = (tier: number): string => (tier <= 1 ? TEX.myBall : `${TEX.myBall}${tier}`);
 
 /** One store for the whole page, so the in-memory fallback survives Scene changes. */
-export const bestStore = new BestStore(() => {
-    try {
-        return window.localStorage;
-    } catch {
-        return null;
-    }
-});
+export const bestStore = new BestStore(GAME_ID);
 
 /** The area Scale.FIT fits the canvas into (the parent element), so checks match the real scale. */
 const viewport = (scene: Scene): ScreenSize => ({

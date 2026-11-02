@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { BUTTON_WIDTH, HUD_FONT_SIZE, TITLE_FONT_SIZE } from '../params';
-import { formatBest, type Best } from '../logic/best';
+import { formatBest, waveLabel, type Best } from '../logic/best';
 import { fadeInScene } from './effects';
 import { addButton, addLabel, bestStore, onKeyPress, RotateGuard, SceneExit } from './ui';
 
@@ -22,9 +22,10 @@ export class Result extends Scene {
 
     init(data: ResultData) {
         this.play = data;
-        const rec = bestStore.record(data.score, data.wave);
-        this.best = rec.best;
-        this.isNew = rec.isNew;
+        // record() returns null only for a non-finite score, which a play never produces; fall back to the saved best.
+        const rec = bestStore.record(data.score, waveLabel(data.wave));
+        this.best = rec ? rec.best : bestStore.load();
+        this.isNew = rec?.isNew ?? false;
     }
 
     create() {
