@@ -26,3 +26,13 @@
 - `src/game/scenes/Result.ts` init: `record()` が null のときの退避（`load()` と `isNew=false`）は到達しない分岐 — 理由: null になるのは非有限のスコアだけで、プレイでは起きない。型の都合で必要で、throw にすると Result が落ちるぶん悪い
 - `src/game/logic/best.ts`: 共有の `Best` 型を再エクスポートしていて import 元が 2 つになる — 理由: 見た目だけの整理で、得るものが小さい
 - `src/game/logic/best.ts` GAME_ID / `best.test.ts`: ゲーム名とキーの文字列が直書き — 理由: `<game-dir>.best` は `shared/best-store` の約束どおり。テストのキーは spec の文字列をそのまま期待値にしている（実装から求めると写しになる）
+- `src/game/scenes/Title.ts` update: 作り直し・START の門・後始末のテストが無い（Scene のロジック）— 理由: scenes/ は Phaser を読み込むので単体テストの対象外が共通の方針。QA の title-start / title-viewports で確かめる。純粋な部分（ボット・配置・時計・50 ms の上限 `demoStepMs`）は単体テスト済み
+- `src/game/logic/titleDemo.ts` demoBot / `TitleDemoView.sync`: 毎フレーム `{targetX, urgent}` とテクスチャ名の文字列を作る — 理由: 小さな 1 個と短い文字列だけ。Game の syncBalls も同じ形
+- `src/game/scenes/Title.ts` update: 窓が隠れるとき（H ≤ 517）も `stepDemo` が走る — 理由: H の下限が 756 なので届かない安全弁の分岐
+- `src/game/scenes/TitleDemoView.ts` sync: `stepDemo` ごとに 1 回呼ぶ前提を明示していない — 理由: Title.update では leaving の早期 return だけで、そのときは作り直しも無い。今の流れでは起きない
+- `docs/spec/title-demo.md` 完了条件: QA のケース（title-viewports の fresh など）がブランチに無い — 理由: 次の game-qa の仕事（status_qa は未完了）
+- `src/game/scenes/Title.ts` `__qa`: Title の終了後も getter が残る — 理由: dev 専用で、Game が作成時に上書きする。Game の __qa も同様に残る
+- `src/game/scenes/TitleDemoView.ts` drawFrame: 上の壁の位置を `FIELD_TOP - FRAME_WIDTH` で持ち、`DEMO_CROP_TOP` と二重 — 理由: 上の壁の位置はゲームの事実で、`DEMO_CROP_TOP` がそれに合わせて決まる向き（逆ではない）
+- `src/game/params.ts` DEMO_CROP_TOP: 窓の内容にマスクが無く、y >= 56 に収まるのは今の定数の組み合わせに頼っている — 理由: 編隊は y >= 130、玉は上の壁で跳ね返る（y >= 73）で成り立つ。Phaser 4 のマスクは WebGL のフィルターで、得に見合わない
+- `src/game/logic/titleDemo.test.ts` demoLayout: 574・540・15・16・24 を直書き — 理由: spec の手計算の値そのもの（実装から求めると写しになる）。窓の上下のずれは QA の画面写真で確かめる
+- `src/game/scenes/TitleDemoView.ts` 下端の帯: 最も広い窓で帯が自己ベストの文字の上端にほぼ接する — 理由: 帯は背景色と同じ色で、文字の上に重なっても見えない（文字が欠けることもない）。見た目に影響しない

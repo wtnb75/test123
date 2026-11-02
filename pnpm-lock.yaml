@@ -83,6 +83,9 @@ importers:
       terser:
         specifier: 'catalog:'
         version: 5.51.2
+      title-demo:
+        specifier: workspace:*
+        version: link:../shared/title-demo
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
