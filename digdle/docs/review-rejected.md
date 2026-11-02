@@ -32,4 +32,7 @@
 - `src/game/scenes/Title.ts`（`refreshDigitLabels`）: 0 時をまたいで Title を開きっぱなしにすると印が古い — 理由: 放置してまたぐ場合だけ。Game は新しい日付で始まるので、実害は表示の遅れのみ
 - `src/game/scenes/Title.ts`（`onKeyDown`）: 全モードで自動リピートを捨てる — 理由: 最初の keydown で既に開始するので、リピートに意味のある機能が無い
 - `docs/spec/daily.md`: 保存キーの名前が spec は `dailyStorageKey`、コードは `DAILY_STORAGE_KEY` — 理由: シンボル名は実装裁量。値（`digdle.daily`）は一致している
+- `src/game/logic/bestStreak.ts`（`StreakRecorder` / `recordBestStreak`）: `BestStore.record` を包むだけの薄い層で、テストが 1 行を言い直すだけ — 理由: テストに偽物を渡す継ぎ目で、`BestStore` に直接依存しないため。整理のみ（1 変更 1 目的）
+- `src/game/logic/bestStreak.ts`（`recordFinishedRound`）: 既存の戦績の連勝が、更新後の最初の勝ちで最高として記録される — 理由: 戦績の連勝は実際の連勝なので意図どおり。「戦績を消す」後に低くなる場合も spec に書いてある
+- `src/game/scenes/Game.ts`（最高の連勝）: 数えないラウンド（離れる・終わっていたデイリーの開き直し・再描画）で `record` を呼ばないことのテストが無い — 理由: 戦績と同じ `shouldRecordRound` のガードの 1 箇所に乗っていて、差分は呼び出しの差し替えだけ。Scene の配線は QA で確かめる
 - `src/game/scenes/Game.ts`（`previousAnswer` の配線）: 直前の答えを候補数へ渡す配線に単体テストが無い — 理由: 配線は 3 行（`startRound` で設定、`init` で空、`refreshCandidateLine` で渡す）。純関数に切り出す利得が小さい。連続ラウンドの候補数は QA の実機確認で見る

@@ -8,6 +8,7 @@ import {
     computeGameLayout, computeToastPlacement, pickToastFontSize, TOAST_FONT_SIZE, TOAST_PADDING_Y, toastBoxWidth,
     type LayoutMetrics
 } from '../logic/gameLayout';
+import { getBestStreakStore, recordFinishedRound } from '../logic/bestStreak';
 import { candidateLineShown, candidateLineText, countCandidates } from '../logic/candidates';
 import { getSharedPrimeMap } from '../logic/primes';
 import { candidatesFromData, isDigitOption, modeFromData, titleDataFromGame } from '../logic/selectLayout';
@@ -545,7 +546,10 @@ export class Game extends Scene {
         }
 
         if (shouldRecordRound(statusBefore, this.round.status)) {
-            getStatsStorage().record(this.selectedMode, this.round.n as DigitOption, this.round.status === 'won', this.round.attemptsUsed);
+            recordFinishedRound(
+                getStatsStorage(), getBestStreakStore(), this.locale, this.selectedMode,
+                this.round.n as DigitOption, this.round.status === 'won', this.round.attemptsUsed
+            );
         }
 
         if (this.round.status === 'won') {

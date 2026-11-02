@@ -6,16 +6,6 @@
 - 1 つのカードは 1 つの目的にする（1 変更 1 目的）。
 - 共有パッケージの置き方は AGENTS.md 2.1 節に従う（`shared/<name>`、使うすべてのゲームのテストを通す）。
 
-### digdle の最高の連勝を保存する（`digdle-best-streak`）
-
-- 狙い: digdle は、トップページに出せる「最高の記録」が無い。`digdle.stats` は挑戦数・勝ち数・今の連勝・試行数の合計だけで、連勝は負けると 0 に戻り、過去の最高値が残らない。`best-store` の約束（1 ゲーム 1 つの `{score, label}`）に載せる値が無く、トップページで digdle のカードだけ空になる。根拠: `digdle/src/game/logic/stats.ts`（`StatsEntry` に最高の連勝が無い）、`best-migrate` で digdle だけ移せなかったこと
-- 何を足すか: 最高の連勝を保存し、`digdle.best` に `{score: 最高の連勝, label: "連勝 N"}` の形で書く。モードと桁数ごとに統計があるので、どの組の連勝を代表にするか（全体の最大か、既定のモードか）を `game-extend` で決める。日替わりの進行（`digdle.daily`）は記録ではなくセーブなので、触らない。
-- コアループへの効き方: 広げる — 連勝を伸ばす理由が、統計の外（トップページ）にも見える。ルールは変えない。
-- 種別: gameplay（保存する値が増える。判定・出題・ルールは変えない）
-- 規模: S〜M
-- 出どころ: ユーザー（`best-migrate` で digdle を対象から外したとき）
-- メモ: トップページは記録が無いカードに何も出さない作りなので、digdle は空のまま動く（急がなくてよい）。日替わりを持つゲームがもう 1 本できたら、日替わりの共通部品を切り出すか考える（今は 1 本だけなので切り出さない）。`digdle.stats` の読み方・消し方（統計のリセット）は変えない。
-
 ### wordfall と typerain の自己ベストを共有の形に載せ替える（`best-migrate-labs`）
 
 - 狙い: wordfall と typerain は、自前の `best.ts` で自己ベストを保存している。キーと値が別形式（`wordfall:best`・`typerain:best`、値は数値だけ）なので、トップページ（`labs.html` を含む）のベスト記録の表示に出ない。根拠: `wordfall/src/game/logic/best.ts`、`typerain/src/game/logic/best.ts`、`shared/best-store`
