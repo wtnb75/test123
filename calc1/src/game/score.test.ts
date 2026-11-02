@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { bestKey } from 'best-store';
 import {
     BEST_STORAGE_KEY,
+    levelLabel,
     SCORE_MOVE_WEIGHT,
     bestToShow,
     clearResult,
@@ -40,8 +42,16 @@ const slot = (selected: boolean): TurnSlot => ({
 });
 
 describe('score parameters of the spec', () => {
-    it('uses 1 point per second, 2 points per move saved, and the best key calcRushBest', () => {
-        expect([SCORE_TIME_WEIGHT, SCORE_MOVE_WEIGHT, BEST_STORAGE_KEY]).toEqual([1, 2, 'calcRushBest']);
+    it('uses 1 point per second, 2 points per move saved, and the best key calc1.best', () => {
+        expect([SCORE_TIME_WEIGHT, SCORE_MOVE_WEIGHT, BEST_STORAGE_KEY]).toEqual([1, 2, 'calc1.best']);
+    });
+
+    it('uses the shared best-store key of the game directory', () => {
+        expect(BEST_STORAGE_KEY).toBe(bestKey('calc1'));
+    });
+
+    it('labels a best with the cleared level as "Lv.N"', () => {
+        expect(levelLabel(7)).toBe('Lv.7');
     });
 });
 
@@ -86,104 +96,146 @@ describe('countUsedMoves', () => {
     });
 });
 
+const rec = (score: number, label: string) => JSON.stringify({ score, label });
+
 describe('loadBest', () => {
     it('returns null when nothing is saved', () => {
         expect(loadBest(fakeStorage())).toBeNull();
     });
 
-    it('reads a saved level and score pair', () => {
-        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"level":7,"score":120}' }))).toEqual({ level: 7, score: 120 });
+    it('reads a saved score and label pair', () => {
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"score":120,"label":"Lv.7"}' }))).toEqual({ score: 120, label: 'Lv.7' });
+    });
+
+    it('reads from the key calc1.best only', () => {
+        const storage = fakeStorage({ 'calc1.best': rec(120, 'Lv.7') });
+        expect(loadBest(storage)).toEqual({ score: 120, label: 'Lv.7' });
     });
 
     it('treats corrupt JSON as no save', () => {
         expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{not json' }))).toBeNull();
     });
 
-    it('treats a value of the wrong shape as no save (score missing, or not a number)', () => {
-        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"level":7}' }))).toBeNull();
-        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"level":"7","score":120}' }))).toBeNull();
+    it('treats a value of the wrong shape as no save (label or score missing, or of the wrong type)', () => {
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"score":120}' }))).toBeNull();
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"label":"Lv.7"}' }))).toBeNull();
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"score":"120","label":"Lv.7"}' }))).toBeNull();
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"score":120,"label":7}' }))).toBeNull();
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"score":1e999,"label":"Lv.1"}' }))).toBeNull(); // Infinity
     });
 
-    it('treats a score that is not a number as no save', () => {
-        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"level":7,"score":"120"}' }))).toBeNull();
+    it('treats the previous {level, score} shape under the new key as no save', () => {
+        expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '{"level":7,"score":120}' }))).toBeNull();
     });
 
-    it('treats a stored JSON null as no save (an explicit guard, not a caught error)', () => {
+    it('does not read the previous key calcRushBest', () => {
+        expect(loadBest(fakeStorage({ calcRushBest: '{"level":7,"score":120}' }))).toBeNull();
+        expect(loadBest(fakeStorage({ calcRushBest: rec(120, 'Lv.7') }))).toBeNull();
+    });
+
+    it('treats a stored JSON null, a bare number and an empty value as no save', () => {
         expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: 'null' }))).toBeNull();
         expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '7' }))).toBeNull();
-    });
-
-    it('treats an empty stored value as no save', () => {
         expect(loadBest(fakeStorage({ [BEST_STORAGE_KEY]: '' }))).toBeNull();
     });
 
-    it('treats a read that throws as no save', () => {
+    it('treats a read that throws, and a missing storage, as no save', () => {
         expect(loadBest(throwingStorage)).toBeNull();
+        expect(loadBest(null)).toBeNull();
     });
 });
 
 describe('updateBest', () => {
-    const candidate: Best = { level: 5, score: 80 };
+    const candidate: Best = { score: 80, label: 'Lv.5' };
 
     it('takes the candidate when nothing is stored', () => {
         expect(updateBest(null, candidate)).toEqual(candidate);
     });
 
     it('takes the candidate only when its score is strictly higher', () => {
-        expect(updateBest({ level: 4, score: 70 }, candidate)).toEqual(candidate);
+        expect(updateBest({ score: 70, label: 'Lv.4' }, candidate)).toEqual(candidate);
     });
 
-    it('keeps the stored pair on a tie (the stored level stays too)', () => {
-        const stored: Best = { level: 9, score: 80 };
+    it('keeps the stored pair on a tie (the stored label stays too)', () => {
+        const stored: Best = { score: 80, label: 'Lv.9' };
         expect(updateBest(stored, candidate)).toEqual(stored);
     });
 
     it('keeps the stored pair when the candidate is lower', () => {
-        const stored: Best = { level: 9, score: 100 };
+        const stored: Best = { score: 100, label: 'Lv.9' };
         expect(updateBest(stored, candidate)).toEqual(stored);
     });
 });
 
 describe('saveBest', () => {
-    it('writes the pair under calcRushBest and reports success', () => {
+    it('writes {score, label} under calc1.best and reports success', () => {
         const storage = fakeStorage();
-        expect(saveBest({ level: 5, score: 80 }, storage)).toBe(true);
-        expect(storage.raw().get(BEST_STORAGE_KEY)).toBe('{"level":5,"score":80}');
+        expect(saveBest({ score: 80, label: 'Lv.5' }, storage)).toBe(true);
+        expect(storage.raw().get('calc1.best')).toBe('{"score":80,"label":"Lv.5"}');
+        expect(storage.raw().has('calcRushBest')).toBe(false);
     });
 
     it('reports failure when the write throws, without throwing', () => {
-        expect(saveBest({ level: 5, score: 80 }, throwingStorage)).toBe(false);
+        expect(saveBest({ score: 80, label: 'Lv.5' }, throwingStorage)).toBe(false);
+    });
+
+    it('reports failure when there is no storage', () => {
+        expect(saveBest({ score: 80, label: 'Lv.5' }, null)).toBe(false);
     });
 });
 
-describe('clearResult (records the level it is given as the best level)', () => {
+describe('clearResult (records the level it is given as the best label)', () => {
     const save = () => true;
 
-    it('records the cleared level as the best level when it is the first record', () => {
+    it('records the cleared level as the label when it is the first record', () => {
         const result = clearResult({ remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4, stored: null, save });
-        expect(result).toEqual({ score: 78, shownBest: { level: 4, score: 78 } });
+        expect(result).toEqual({ score: 78, shownBest: { score: 78, label: 'Lv.4' } });
     });
 
     it('records the cleared level when the new score beats the stored best', () => {
-        const stored: Best = { level: 9, score: 50 };
+        const stored: Best = { score: 50, label: 'Lv.9' };
         const result = clearResult({ remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4, stored, save });
-        expect(result.shownBest).toEqual({ level: 4, score: 78 });
+        expect(result.shownBest).toEqual({ score: 78, label: 'Lv.4' });
     });
 
-    it('keeps the stored pair (its own level) when the new score does not beat it', () => {
-        const stored: Best = { level: 9, score: 100 };
+    it('keeps the stored pair (its own label) when the new score does not beat it', () => {
+        const stored: Best = { score: 100, label: 'Lv.9' };
         const result = clearResult({ remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4, stored, save });
         expect(result.shownBest).toEqual(stored);
+    });
+
+    it('does not write when the score ties the stored best', () => {
+        const stored: Best = { score: 78, label: 'Lv.9' };
+        let writes = 0;
+        const result = clearResult({
+            remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4, stored,
+            save: () => {
+                writes += 1;
+                return true;
+            },
+        });
+        expect(result.shownBest).toEqual(stored);
+        expect(writes).toBe(0);
     });
 
     it('shows no best when the write fails', () => {
         const result = clearResult({ remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4, stored: null, save: () => false });
         expect(result).toEqual({ score: 78, shownBest: null });
     });
+
+    it('saves what it shows: the record in the storage is the shown pair', () => {
+        const storage = fakeStorage();
+        const result = clearResult({
+            remainingMs: 60000, maxMoves: 12, usedMoves: 3, clearedLevel: 4,
+            stored: loadBest(storage), save: (best) => saveBest(best, storage),
+        });
+        expect(storage.raw().get(BEST_STORAGE_KEY)).toBe('{"score":78,"label":"Lv.4"}');
+        expect(loadBest(storage)).toEqual(result.shownBest);
+    });
 });
 
 describe('bestToShow (the best on the clear result)', () => {
-    const stored: Best = { level: 9, score: 100 };
+    const stored: Best = { score: 100, label: 'Lv.9' };
 
     it('shows the stored pair without writing when the stored best still stands', () => {
         let writes = 0;
@@ -196,17 +248,17 @@ describe('bestToShow (the best on the clear result)', () => {
     });
 
     it('shows the new pair once it is written', () => {
-        const next: Best = { level: 5, score: 130 };
+        const next: Best = { score: 130, label: 'Lv.5' };
         expect(bestToShow(stored, next, () => true)).toEqual(next);
     });
 
     it('shows no best (the "ベスト —" case) when the write fails', () => {
-        const next: Best = { level: 5, score: 130 };
+        const next: Best = { score: 130, label: 'Lv.5' };
         expect(bestToShow(stored, next, () => false)).toBeNull();
     });
 
     it('shows the new pair when nothing was stored and the write works', () => {
-        const next: Best = { level: 5, score: 80 };
+        const next: Best = { score: 80, label: 'Lv.5' };
         expect(bestToShow(null, next, () => true)).toEqual(next);
     });
 });
