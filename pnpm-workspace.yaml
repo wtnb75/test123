@@ -1,4 +1,5 @@
 packages:
+- 'match3'
 - 'typerain'
 - 'wordfall'
 - 'bouncewave'
