@@ -7,7 +7,7 @@ import {
     TITLE_BUTTON_FROM_BOTTOM,
     TRAY_CAPACITY,
 } from '../params';
-import { formatBest } from '../logic/best';
+import { formatBest, loadBest } from '../logic/best';
 import {
     addButton,
     addLabel,
@@ -60,7 +60,7 @@ export class Title extends Scene {
                 wordWrap: { width: width - HELP_WRAP_MARGIN, useAdvancedWrap: true },
             })
             .setOrigin(0.5, 0);
-        addLabel(this, cx, help.y + help.height + BEST_GAP, formatBest(bestStore.load()), FONT_RESULT, COLOR.accent);
+        addLabel(this, cx, help.y + help.height + BEST_GAP, formatBest(loadBest(bestStore)), FONT_RESULT, COLOR.accent);
         // The notice first: it reports to the button below when it appears or goes away.
         const buttons: ButtonHandle[] = [];
         this.guard = new RotateGuard(this, () => buttons.forEach((b) => b.reset()));

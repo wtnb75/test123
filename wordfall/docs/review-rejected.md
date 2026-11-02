@@ -13,4 +13,7 @@
 - `src/game/scenes/ui.ts`（ボタンごとの `pointerupoutside` が `pointerout` とほぼ重複）: 理由: 押したまま画面の外で離した場合の保険で、実害はない
 - `src/game/scenes/ui.ts`（`mouseIsOver` のマウス座標が、画面の大きさが変わった直後やキャンバスの外で古い）: 理由: 影響は見た目だけで、マウスを動かせば直る
 - `src/game/scenes/Game.ts`（`take()` の TIME の強調が `shouldBumpTime` を遠回りに通る。`updateHud()` が先に走るので `prevShown` の分岐は使われない）: 理由: 判定の出どころを 1 つにするための形で、振る舞いは正しい。順序の注意はコメントで足りる
+- `src/game/logic/best.test.ts`（壊れた値・保存失敗のテストが `shared/best-store` のテストと重なる）— 理由: spec のテスト観点が wordfall 側でも確かめるよう書いている。共有側の契約が変われば気づける
+- `src/game/logic/best.ts`（`loadBest` が薄いラッパー）— 理由: `formatBest` を数値のまま保てて、画面側の変更が最小になる
+- `src/game/logic/best.ts`（スコア 0 を記録しないガードが wordfall 側にある。共有ストアに `minScore` を足す案）— 理由: spec で決めた設計。共有ストアは変えない
 - `src/game/scenes/Game.ts`（DEV 専用の `?qatime=` が `Round` の内部を直接書き換える）: 理由: QA の補助だけ。`Round` に時間の上限のような状態は無い

@@ -13,7 +13,7 @@ import {
     RESULT_ROW_H,
     SCREEN_WIDTH,
 } from '../params';
-import { formatBest } from '../logic/best';
+import { formatBest, recordBest } from '../logic/best';
 import { blinkTween, countUpValue } from '../logic/effects';
 import { WORDS } from '../logic/words';
 import { clampScroll, isDragLive, resultInputBlocked, wheelStep, type ResultRow } from '../logic/results';
@@ -76,7 +76,7 @@ export class Result extends Scene {
         this.scroll = 0;
         this.drag = null;
 
-        const { best, isNew } = bestStore.record(data.score);
+        const { best, isNew } = recordBest(bestStore, data.score);
         addLabel(this, cx, 24, 'TIME UP', FONT_RESULT_TITLE);
         const scoreText = addLabel(this, cx, 56, `SCORE ${data.score}`, FONT_RESULT_SCORE, COLOR.accent);
         addLabel(this, cx, 84, `WORDS ${data.completedCount}   ${formatBest(best)}`, FONT_RESULT);

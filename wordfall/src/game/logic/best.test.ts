@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BestStore, formatBest, type KeyValueStorage } from './best';
+import { BestStore, type KeyValueStorage } from 'best-store';
+import { bestLabel, formatBest, loadBest, recordBest } from './best';
+
+const KEY = 'wordfall.best';
+const OLD_KEY = 'wordfall:best';
 
 /** An in-memory Storage that can be told to fail. */
-function fakeStorage(initial?: string, opts: { failRead?: boolean; failWrite?: boolean } = {}) {
-    const data = new Map<string, string>();
-    if (initial !== undefined) data.set('wordfall:best', initial);
+function fakeStorage(initial: Record<string, string> = {}, opts: { failRead?: boolean; failWrite?: boolean } = {}) {
+    const data = new Map<string, string>(Object.entries(initial));
     const storage: KeyValueStorage = {
         getItem(key) {
             if (opts.failRead) throw new Error('read denied');
@@ -18,83 +21,106 @@ function fakeStorage(initial?: string, opts: { failRead?: boolean; failWrite?: b
     return { storage, data };
 }
 
-describe('BestStore.record (docs/spec.md "自己ベスト")', () => {
-    it('starts with no record, and a score of 0 does not create one', () => {
+const stored = (score: number) => JSON.stringify({ score, label: bestLabel(score) });
+const storeOf = (storage: KeyValueStorage | null) => new BestStore('wordfall', () => storage);
+
+describe('recordBest (docs/spec.md "自己ベスト")', () => {
+    it('starts with no record, and a score of 0 writes nothing', () => {
         const { storage, data } = fakeStorage();
-        const store = new BestStore(() => storage);
-        expect(store.load()).toBeNull();
-        expect(store.record(0)).toEqual({ best: null, isNew: false });
+        const store = storeOf(storage);
+        expect(loadBest(store)).toBeNull();
+        expect(recordBest(store, 0)).toEqual({ best: null, isNew: false });
         expect(data.size).toBe(0);
     });
 
-    it('records any score of 1 or more when there is no record', () => {
+    it('records any score of 1 or more when there is no record, as {score, label} under wordfall.best', () => {
         const { storage, data } = fakeStorage();
-        const store = new BestStore(() => storage);
-        expect(store.record(1)).toEqual({ best: 1, isNew: true });
-        expect(data.get('wordfall:best')).toBe('1');
+        expect(recordBest(storeOf(storage), 1230)).toEqual({ best: 1230, isNew: true });
+        expect(JSON.parse(data.get(KEY) ?? 'null')).toEqual({ score: 1230, label: 'SCORE 1230' });
     });
 
     it('updates only when the score beats the best: a tie does not, one more does', () => {
-        const { storage, data } = fakeStorage('100');
-        const store = new BestStore(() => storage);
-        expect(store.record(99)).toEqual({ best: 100, isNew: false });
-        expect(store.record(100)).toEqual({ best: 100, isNew: false });
-        expect(store.record(101)).toEqual({ best: 101, isNew: true });
-        expect(data.get('wordfall:best')).toBe('101');
-        expect(store.load()).toBe(101);
+        const { storage, data } = fakeStorage({ [KEY]: stored(100) });
+        const store = storeOf(storage);
+        expect(recordBest(store, 99)).toEqual({ best: 100, isNew: false });
+        expect(recordBest(store, 100)).toEqual({ best: 100, isNew: false });
+        expect(recordBest(store, 101)).toEqual({ best: 101, isNew: true });
+        expect(data.get(KEY)).toBe(stored(101));
+        expect(loadBest(store)).toBe(101);
     });
 
-    it('treats a stored best of 0 as a record that a score of 1 beats', () => {
-        const { storage } = fakeStorage('0');
-        const store = new BestStore(() => storage);
-        expect(store.load()).toBe(0);
-        expect(store.record(0).isNew).toBe(false);
-        expect(store.record(1)).toEqual({ best: 1, isNew: true });
+    it('treats a stored best of 0 as a record that a score of 1 beats, while a score of 0 still does not', () => {
+        const { storage } = fakeStorage({ [KEY]: stored(0) });
+        const store = storeOf(storage);
+        expect(loadBest(store)).toBe(0);
+        expect(recordBest(store, 0)).toEqual({ best: 0, isNew: false });
+        expect(recordBest(store, 1)).toEqual({ best: 1, isNew: true });
+    });
+
+    it('ignores a score that is not a finite number', () => {
+        const { storage, data } = fakeStorage();
+        expect(recordBest(storeOf(storage), Number.NaN)).toEqual({ best: null, isNew: false });
+        expect(data.size).toBe(0);
+    });
+
+    it.each([Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])(
+        'does not record the score %s and keeps the current best',
+        (score) => {
+            const { storage, data } = fakeStorage({ [KEY]: stored(40) });
+            expect(recordBest(storeOf(storage), score)).toEqual({ best: 40, isNew: false });
+            expect(data.get(KEY)).toBe(stored(40));
+        }
+    );
+
+    it('does not read the old wordfall:best key', () => {
+        const { storage } = fakeStorage({ [OLD_KEY]: '500' });
+        const store = storeOf(storage);
+        expect(loadBest(store)).toBeNull();
+        expect(recordBest(store, 10)).toEqual({ best: 10, isNew: true });
     });
 });
 
-describe('BestStore with bad or unavailable storage', () => {
-    it.each(['abc', '-3', '1.5', '', ' 7', '1e3', '99999999999999999999'])('treats the stored value %j as no record', (raw) => {
-        const { storage } = fakeStorage(raw);
-        expect(new BestStore(() => storage).load()).toBeNull();
-    });
+describe('best store with bad or unavailable storage', () => {
+    it.each(['abc', '500', '{"score":"1","label":"SCORE 1"}', '{"score":1}', 'null', ''])(
+        'treats the stored value %j as no record',
+        (raw) => {
+            const { storage } = fakeStorage({ [KEY]: raw });
+            expect(loadBest(storeOf(storage))).toBeNull();
+        }
+    );
 
     it('keeps the best in memory when reading throws', () => {
-        const { storage } = fakeStorage('50', { failRead: true });
-        const store = new BestStore(() => storage);
-        expect(store.load()).toBeNull();
-        expect(store.record(10)).toEqual({ best: 10, isNew: true });
-        expect(store.load()).toBe(10);
-        expect(store.record(10).isNew).toBe(false);
-        expect(store.record(11).isNew).toBe(true);
+        const { storage } = fakeStorage({ [KEY]: stored(50) }, { failRead: true });
+        const store = storeOf(storage);
+        expect(loadBest(store)).toBeNull();
+        expect(recordBest(store, 10)).toEqual({ best: 10, isNew: true });
+        expect(loadBest(store)).toBe(10);
+        expect(recordBest(store, 10).isNew).toBe(false);
+        expect(recordBest(store, 11).isNew).toBe(true);
     });
 
     it('keeps the best in memory when writing throws, and prefers it over an older stored value', () => {
-        const { storage } = fakeStorage('10', { failWrite: true });
-        const store = new BestStore(() => storage);
-        expect(store.record(20)).toEqual({ best: 20, isNew: true });
-        expect(store.load()).toBe(20);
-        expect(store.record(15)).toEqual({ best: 20, isNew: false });
-    });
-
-    it('prefers a newer stored value over the in-memory one', () => {
-        const { storage, data } = fakeStorage('10', { failWrite: true });
-        const store = new BestStore(() => storage);
-        store.record(20);
-        data.set('wordfall:best', '30');
-        expect(store.load()).toBe(30);
+        const { storage } = fakeStorage({ [KEY]: stored(10) }, { failWrite: true });
+        const store = storeOf(storage);
+        expect(recordBest(store, 20)).toEqual({ best: 20, isNew: true });
+        expect(loadBest(store)).toBe(20);
+        expect(recordBest(store, 15)).toEqual({ best: 20, isNew: false });
     });
 
     it('works with no storage at all (the lookup returns null)', () => {
-        const store = new BestStore(() => null);
-        expect(store.load()).toBeNull();
-        expect(store.record(5)).toEqual({ best: 5, isNew: true });
-        expect(store.load()).toBe(5);
+        const store = storeOf(null);
+        expect(loadBest(store)).toBeNull();
+        expect(recordBest(store, 5)).toEqual({ best: 5, isNew: true });
+        expect(loadBest(store)).toBe(5);
     });
 });
 
-describe('formatBest', () => {
-    it('shows the number, or --- when there is no record', () => {
+describe('bestLabel and formatBest', () => {
+    it('labels the record for the index page as SCORE <score>', () => {
+        expect(bestLabel(1230)).toBe('SCORE 1230');
+    });
+
+    it('shows the number on screen as BEST <score>, or --- when there is no record', () => {
         expect(formatBest(1230)).toBe('BEST 1230');
         expect(formatBest(0)).toBe('BEST 0');
         expect(formatBest(null)).toBe('BEST ---');

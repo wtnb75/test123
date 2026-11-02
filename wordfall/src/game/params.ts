@@ -99,6 +99,3 @@ export const RESULT_LIST_BOTTOM_MARGIN = 78;
 export const RESULT_ROW_H = 26;
 /** Rows the list scrolls per mouse-wheel notch. */
 export const RESULT_WHEEL_ROWS = 2;
-
-// Persistence
-export const BEST_KEY = 'wordfall:best';

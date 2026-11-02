@@ -1,56 +1,23 @@
-// Personal best score, kept in localStorage with an in-memory fallback (docs/spec.md "自己ベスト").
-import { BEST_KEY } from '../params';
+// Personal best score (docs/spec.md "自己ベスト"). Storage itself (key, value shape, in-memory fallback) is the
+// shared `best-store` package; this module adds only the wordfall rules on top of it.
+import type { BestStore } from 'best-store';
 
-/** The subset of Web Storage the store uses. */
-export interface KeyValueStorage {
-    getItem(key: string): string | null;
-    setItem(key: string, value: string): void;
+/** The label saved with a best: shown as-is by the index page. */
+export const bestLabel = (score: number): string => `SCORE ${score}`;
+
+/** The best score so far, or null when there is no record. */
+export function loadBest(store: BestStore): number | null {
+    return store.load()?.score ?? null;
 }
 
-/** A stored value counts only when it is a non-negative integer written in plain digits. */
-function parseBest(raw: string | null): number | null {
-    if (raw === null || !/^\d+$/.test(raw)) return null;
-    const n = Number(raw);
-    return Number.isSafeInteger(n) ? n : null;
-}
-
-export class BestStore {
-    /** Holds the best when the storage can't be written (lives for this page only). */
-    private memory: number | null = null;
-
-    constructor(private readonly storage: () => KeyValueStorage | null) {}
-
-    /** The best so far, or null when there is no record. */
-    load(): number | null {
-        const stored = this.readStored();
-        if (this.memory !== null && (stored === null || this.memory > stored)) return this.memory;
-        return stored;
-    }
-
-    private readStored(): number | null {
-        try {
-            return parseBest(this.storage()?.getItem(BEST_KEY) ?? null);
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Records a finished play. The best changes only when `score` beats it (a tie doesn't), a score of 0
-     * never does, and with no record any score of 1 or more does.
-     */
-    record(score: number): { best: number | null; isNew: boolean } {
-        const prev = this.load();
-        const beats = score > 0 && (prev === null || score > prev);
-        if (!beats) return { best: prev, isNew: false };
-        this.memory = score;
-        try {
-            this.storage()?.setItem(BEST_KEY, String(score));
-        } catch {
-            // Storage unavailable or full: the in-memory copy keeps it for this page.
-        }
-        return { best: score, isNew: true };
-    }
+/**
+ * Records a finished play. The best changes only when `score` beats it (a tie doesn't), a score of 0
+ * never does (the shared store would accept it), and with no record any score of 1 or more does.
+ */
+export function recordBest(store: BestStore, score: number): { best: number | null; isNew: boolean } {
+    if (score <= 0) return { best: loadBest(store), isNew: false };
+    const rec = store.record(score, bestLabel(score));
+    return rec ? { best: rec.best.score, isNew: rec.isNew } : { best: loadBest(store), isNew: false };
 }
 
 export const formatBest = (best: number | null): string => (best === null ? 'BEST ---' : `BEST ${best}`);
