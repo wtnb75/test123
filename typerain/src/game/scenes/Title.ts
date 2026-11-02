@@ -1,6 +1,6 @@
 import { type GameObjects, Scale, Scene } from 'phaser';
 import { FONT_HELP, FONT_RESULT, FONT_TITLE, SCREEN_WIDTH } from '../params';
-import { formatBest } from '../logic/best';
+import { formatBest, loadBest } from '../logic/best';
 import { titleLayout } from '../logic/layout';
 import {
     addButton,
@@ -35,7 +35,7 @@ export class Title extends Scene {
         const cx = SCREEN_WIDTH / 2;
         this.name = addLabel(this, cx, 0, 'TYPE RAIN', FONT_TITLE, COLOR.text, MONO_FONT);
         this.help = HELP_LINES.map((line) => addLabel(this, cx, 0, line, FONT_HELP, COLOR.sub));
-        this.best = addLabel(this, cx, 0, formatBest(bestStore.load()), FONT_RESULT, COLOR.accent);
+        this.best = addLabel(this, cx, 0, formatBest(loadBest(bestStore)), FONT_RESULT, COLOR.accent);
         // The notice first: it reports to the button below when it appears or goes away.
         this.guard = new RotateGuard(this, () => this.button?.reset());
         this.exit = new SceneExit(this);

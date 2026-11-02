@@ -7,7 +7,7 @@ import {
     RESULT_INPUT_GUARD_MS,
     SCREEN_WIDTH,
 } from '../params';
-import { formatBest } from '../logic/best';
+import { formatBest, recordBest } from '../logic/best';
 import { GuardTimer } from '../logic/buttons';
 import { resultLayout } from '../logic/layout';
 import {
@@ -62,7 +62,7 @@ export class Result extends Scene {
         this.toTitle = null;
         this.labels = null;
         // The best is judged and saved once, as the Result starts.
-        const { best, isNew } = bestStore.record(this.score);
+        const { best, isNew } = recordBest(bestStore, this.score);
         const cx = SCREEN_WIDTH / 2;
         this.labels = {
             title: addLabel(this, cx, 0, 'GAME OVER', FONT_RESULT_TITLE),
