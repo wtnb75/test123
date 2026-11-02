@@ -30,7 +30,6 @@ export const DT_MAX_SEC = 0.1;
 export const SCORE_PER_CHAR = 10;
 export const COMBO_STEP = 0.1;
 export const COMBO_MULT_CAP = 3;
-export const BEST_KEY = 'typerain:best';
 
 // Timing and effects
 export const RESULT_DELAY = 0.8; // seconds

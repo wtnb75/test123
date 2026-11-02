@@ -1,6 +1,6 @@
 import { Scale, type GameObjects, type Input, type Scene } from 'phaser';
 import { BUTTON_H, BUTTON_W, FONT_BUTTON } from '../params';
-import { BestStore } from '../logic/best';
+import { BestStore } from 'best-store';
 import { ButtonPress, buttonLook } from '../logic/buttons';
 import { promptFontSize, ROTATE_PROMPT_TEXT, rotatePromptScale } from '../logic/screen';
 
@@ -31,13 +31,7 @@ export const DEPTH = { base: 0, band: 1, pop: 2, word: 3, typed: 4, fx: 5, hud: 
 const BUTTON_LOOK_COLOR = { normal: COLOR.button, pressed: COLOR.buttonPressed, hover: COLOR.buttonHover } as const;
 
 /** One store for the whole page, so the in-memory fallback survives Scene changes. */
-export const bestStore = new BestStore(() => {
-    try {
-        return window.localStorage;
-    } catch {
-        return null;
-    }
-});
+export const bestStore = new BestStore('typerain');
 
 export const addLabel = (
     scene: Scene,

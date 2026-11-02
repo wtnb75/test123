@@ -11,3 +11,10 @@
 - `src/game/scenes/Game.ts`: `effects` の手動カウンタを `tweens.getTweens()` から導出する — 理由: 導出は消える直前の tween を含みうる（1 フレーム遅れ）ので厳密さは上がらない。ずれるのは `onComplete` なしで終わる場合だけで、今のコードにはなく、`create` で毎回 0 に戻る
 - `src/game/logic/round.ts`: `floorHits` と `landed.length` が同じ事実を二重に持つ — 理由: 常に一致していて、テストも両方を固定している。直してもテストの書き換えが増えるだけ
 - `src/game/scenes/Game.ts`: 最後のライフで高さが変わると、床に着いた点滅が旧い床の位置に 250 ms 残る — 理由: 仕様は「着いた位置に出す」まで。250 ms だけの見た目のずれ
+- `src/game/logic/best.ts`: 保存値の検査が共有ストアの「有限の数」まで緩く、負数・小数・`1e21` も `BEST` に出る — 理由: spec が「有限の数」と決めた意図どおり。書くのは typerain 自身（1 以上の整数）だけで、先に載せ替えた 5 ゲームと同じ
+- `src/game/logic/best.ts`: wordfall の `best.ts` と丸写しで、ガードの変更が片方だけに入ると食い違う — 理由: 共有パッケージに足すのは別の目的（1 変更 1 目的）。必要なら全体バックログのカードにする
+- `src/game/logic/best.test.ts`: 「読み込みだけ失敗する」テストが、50 の記録を 10 で上書きする共有ストアの挙動を正としている — 理由: 共有 `BestStore` の挙動を spec が「そのまま使う」と決めた。上書きを避ける変更は共有側の話
+- `src/game/logic/best.test.ts`: 壊れた値・例外のテストの半分が共有側のテストと重複している — 理由: spec のテスト観点が typerain のテストにも求めている。連携の回帰を拾うので残す
+- `docs/spec.md`: 公開済みなのに frontmatter の `status_*` が `pending` に戻る — 理由: `game-spec` の改訂の通常の手順で、`game-publish` が最後に `done` に戻す
+- `src/game/logic/best.ts`: 0 点や NaN のとき保存の読み出しが 2 回走る — 理由: Result の 1 回だけで影響なし
+- `src/game/scenes/ui.ts`: 旧キー `typerain:best` の記録が `BEST ---` になる（移行すれば数行） — 理由: 合意済み（先に載せ替えた 5 ゲームと同じ決め）。読まない・移行しないと spec に書いた
