@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { browserStorage } from 'best-store';
 import {
     type Operation,
     type TurnSlot,
@@ -208,20 +209,21 @@ export class Game extends Scene {
     /** Score of this clear and the best, computed at the moment of the win (docs/spec.md: スコア条件). */
     private scoreLine(): string {
         const usedMoves = countUsedMoves(this.slots, this.progress.wonAtTurn ?? this.slots.length);
+        const storage = browserStorage();
         const { score, shownBest } = clearResult({
             remainingMs: this.roundDeadline - this.game.loop.time,
             maxMoves: this.slots.length,
             usedMoves,
             clearedLevel: this.roundLevel,
-            stored: loadBest(localStorage),
-            save: (best) => saveBest(best, localStorage),
+            stored: loadBest(storage),
+            save: (best) => saveBest(best, storage),
         });
         const bestText = shownBest ? this.formatBest(shownBest) : 'ベスト —';
         return `スコア ${score} / ${bestText}`;
     }
 
     private formatBest(best: Best): string {
-        return `ベスト Lv.${best.level} / ${best.score}`;
+        return `ベスト ${best.label} / ${best.score}`;
     }
 
     private playResultEffect(won: boolean): void {

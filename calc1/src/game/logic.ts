@@ -1,3 +1,5 @@
+import { bestKey, parseBest, type Best, type KeyValueStorage } from 'best-store';
+
 export type Operation = {
     label: string;
     apply: (value: number) => number;
@@ -177,9 +179,15 @@ export function isRoundOpen(nowMs: number, deadlineMs: number): boolean {
 
 export const SCORE_TIME_WEIGHT = 1;
 export const SCORE_MOVE_WEIGHT = 2;
-export const BEST_STORAGE_KEY = 'calcRushBest';
+/** `calc1.best`: the shared best-store key of this game (docs/spec.md: スコア条件 の保存の形). */
+export const BEST_STORAGE_KEY = bestKey('calc1');
 
-export type Best = { level: number; score: number };
+export type { Best };
+
+/** The label of a best: the cleared level, e.g. "Lv.7". */
+export function levelLabel(level: number): string {
+    return `Lv.${level}`;
+}
 
 /** Score = whole seconds left × time weight + (max moves − used moves) × move weight. */
 export function computeScore(remainingMs: number, maxMoves: number, usedMoves: number): number {
@@ -193,16 +201,9 @@ export function countUsedMoves(slots: TurnSlot[], wonAtTurn: number): number {
 }
 
 /** The saved best, or null when there is none or it cannot be read as a best (treated as no save). */
-export function loadBest(storage: Pick<Storage, 'getItem'>): Best | null {
+export function loadBest(storage: Pick<KeyValueStorage, 'getItem'> | null): Best | null {
     try {
-        const raw = storage.getItem(BEST_STORAGE_KEY);
-        if (raw === null) return null;
-        const parsed = JSON.parse(raw) as Partial<Best> | null;
-        if (parsed !== null && typeof parsed === 'object'
-            && typeof parsed.level === 'number' && typeof parsed.score === 'number') {
-            return { level: parsed.level, score: parsed.score };
-        }
-        return null;
+        return parseBest(storage?.getItem(BEST_STORAGE_KEY) ?? null);
     } catch {
         return null;
     }
@@ -236,15 +237,16 @@ export function clearResult(input: {
     save: (best: Best) => boolean;
 }): { score: number; shownBest: Best | null } {
     const score = computeScore(input.remainingMs, input.maxMoves, input.usedMoves);
-    const candidate: Best = { level: input.clearedLevel, score };
+    const candidate: Best = { score, label: levelLabel(input.clearedLevel) };
     const next = updateBest(input.stored, candidate);
     return { score, shownBest: bestToShow(input.stored, next, input.save) };
 }
 
-/** Writes the best; false when the storage refuses (the game goes on). */
-export function saveBest(best: Best, storage: Pick<Storage, 'setItem'>): boolean {
+/** Writes the best; false when there is no storage or it refuses (the game goes on). */
+export function saveBest(best: Best, storage: Pick<KeyValueStorage, 'setItem'> | null): boolean {
     try {
-        storage.setItem(BEST_STORAGE_KEY, JSON.stringify(best));
+        if (storage === null) return false;
+        storage.setItem(BEST_STORAGE_KEY, JSON.stringify({ score: best.score, label: best.label }));
         return true;
     } catch {
         return false;
