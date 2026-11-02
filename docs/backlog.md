@@ -9,12 +9,14 @@
 ### 既存のゲームを保存の約束へ移す（`best-migrate`）
 
 - 狙い: 保存済みのゲームは、`best-store` の約束と違うキー・形式のままで、トップページから読めない。根拠: `best-store` の根拠の 4 ゲーム
-- 何を足すか: bouncewave・pushline・calc1・first-game を `shared/best-store` に移す。今のキーに記録があれば新しいキーへ読み替え、遊んだ人の記録を失わない。
+- 何を足すか: bouncewave・pushline・calc1・first-game を `shared/best-store` に移す（キー `<game-dir>.best`、値 `{score, label}`）。**旧キー・旧形式は読み替えない**（読まず、書かず、消さない）。以前の記録があったプレイヤーは、更新後の最初のプレイが記録なしの扱いで始まる（ユーザーが決めた。移行の手間より、約束を単純に保つことを選んだ）。
 - コアループへの効き方: 広げない — ルール・表示は変えない。
-- 種別: presentation-only（保存の移行。ルールは変えない）
-- 規模: M（ゲームごとの読み替えとテスト）
+- 種別: presentation-only（保存の形の変更。ルールは変えない）
+- 規模: M（ゲームごとの書き換えとテスト）
 - 出どころ: コードレビュー・ユーザー
-- メモ: `shared/best-store` は作成済み（保存の約束は `shared/best-store/README.md`）。ゲームごとに 1 PR に分けてよい。digdle は 1 つの最高点が無く、統計全体（`digdle.stats`）と日替わりの進行（`digdle.daily`）を持つので、`score` に何を出すかを決めてから移す。
+- メモ: `shared/best-store` は作成済み（保存の約束は `shared/best-store/README.md`）。ゲームごとに 1 PR に分けた（bouncewave #283・pushline #284・calc1 #285・first-game #286）。bouncewave は `BestStore` を使い、pushline・calc1・first-game は spec が保存の回数や失敗時の表示を固定しているので、`parseBest` と型だけを使って挙動を変えていない。4 本がマージされたら、このカードは消す。
+  - **digdle は移さない**。1 つの最高点が無い（`digdle.stats` は挑戦数・勝ち数・今の連勝・試行数の合計で、最高の連勝は保存されていない）ので、`score` に出せる値が無い。日替わりの進行（`digdle.daily`）は記録ではなくセーブなので、`best-store` の対象外で、独自のまま。トップページに最高記録を出したくなったら、別の拡張として「最高の連勝を保存する」を digdle の spec から足す。日替わりを持つゲームがもう 1 本できたら、日替わりの共通部品を切り出すか考える。
+  - **モードごとに独立した記録を持つゲームが出たら**、`best-store` に `<game-dir>.best.<mode>`（同じ `{score, label}`）の形を足す。トップページに出す代表の 1 件は、これまでどおり `<game-dir>.best`。まだ該当するゲームが無いので、足さない。
 
 ### トップページに各ゲームのハイスコアを出す（`index-best`）
 
