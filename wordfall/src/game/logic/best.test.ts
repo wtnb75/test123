@@ -21,8 +21,10 @@ function fakeStorage(initial: Record<string, string> = {}, opts: { failRead?: bo
     return { storage, data };
 }
 
-const stored = (score: number) => JSON.stringify({ score, label: bestLabel(score) });
-const storeOf = (storage: KeyValueStorage | null) => new BestStore('wordfall', () => storage);
+const TODAY = '2026-11-03';
+
+const stored = (score: number) => JSON.stringify({ score, label: bestLabel(score), date: TODAY });
+const storeOf = (storage: KeyValueStorage | null) => new BestStore('wordfall', () => storage, () => TODAY);
 
 describe('recordBest (docs/spec.md "自己ベスト")', () => {
     it('starts with no record, and a score of 0 writes nothing', () => {
@@ -36,7 +38,7 @@ describe('recordBest (docs/spec.md "自己ベスト")', () => {
     it('records any score of 1 or more when there is no record, as {score, label} under wordfall.best', () => {
         const { storage, data } = fakeStorage();
         expect(recordBest(storeOf(storage), 1230)).toEqual({ best: 1230, isNew: true });
-        expect(JSON.parse(data.get(KEY) ?? 'null')).toEqual({ score: 1230, label: 'SCORE 1230' });
+        expect(JSON.parse(data.get(KEY) ?? 'null')).toEqual({ score: 1230, label: 'SCORE 1230', date: TODAY });
     });
 
     it('updates only when the score beats the best: a tie does not, one more does', () => {

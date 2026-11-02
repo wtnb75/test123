@@ -8,7 +8,7 @@
 //
 // Each card is made from the game's package.json: the `index` field ({ title, summary, tags }) when present,
 // otherwise the directory name and `description`. When the browser has a saved best record for a game
-// (`<game-dir>.best`, the shared/best-store shape), the page shows its `label` on that game's card.
+// (`<game-dir>.best`, the shared/best-store shape), the page shows its `label` (and the date it was set) on that game's card.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -28,19 +28,34 @@ export const cardOf = (dir, root = '.') => {
 };
 
 /**
- * The label of a game's saved best record, or null when there is none.
- * Reads the `shared/best-store` shape (`{ score: finite number, label: string }`); anything else is "no record".
+ * A game's saved best record as `{ label, date }`, or null when there is none. `date` is the `YYYY-MM-DD`
+ * the record was set, or null when it has none (records saved before the date existed, or a malformed one).
+ * Reads the `shared/best-store` shape (`{ score: finite number, label: string, date?: string }`); anything else is
+ * "no record". Keep the conditions in step with `parseBest` there.
  * This function is embedded in the page as-is (via toString), so it must not use anything outside itself.
  */
-export const readBestLabel = (getItem, key) => {
+export const readBest = (getItem, key) => {
     try {
         const v = JSON.parse(getItem(key));
         if (typeof v !== 'object' || v === null) return null;
         if (typeof v.score !== 'number' || !Number.isFinite(v.score) || typeof v.label !== 'string') return null;
-        return v.label === '' ? null : v.label;
+        if (v.label === '') return null;
+        const date = typeof v.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.date) ? v.date : null;
+        return { label: v.label, date };
     } catch {
         return null;
     }
+};
+
+/**
+ * The text of a card's best badge: the label, then the date short ("11/3"; with the year, "2025/11/3", when it is
+ * not `year`). A record without a date shows the label only.
+ * Embedded in the page as-is (via toString), so it must not use anything outside itself.
+ */
+export const formatBest = (best, year) => {
+    if (best.date === null) return best.label;
+    const [y, m, d] = best.date.split('-').map(Number);
+    return `${best.label} · ${y === year ? '' : `${y}/`}${m}/${d}`;
 };
 
 const cardHtml = (card) => `      <li data-tags="${escapeHtml(JSON.stringify(card.tags))}" data-best-key="${escapeHtml(card.dir)}.best">
@@ -262,16 +277,18 @@ export const tagsOf = (cards) => [...new Set(cards.flatMap((card) => card.tags))
 // Shows each card's saved best record (localStorage `<game-dir>.best`, see shared/best-store). Cards without a
 // record, and environments where localStorage cannot be read, show nothing.
 const BEST_SCRIPT = `
-    const readBestLabel = ${readBestLabel.toString()};
+    const readBest = ${readBest.toString()};
+    const formatBest = ${formatBest.toString()};
     (() => {
       let storage = null;
       try { storage = window.localStorage; } catch { /* blocked: show nothing */ }
       if (!storage) return;
+      const year = new Date().getFullYear();
       for (const li of document.querySelectorAll('li[data-best-key]')) {
-        const label = readBestLabel((k) => storage.getItem(k), li.dataset.bestKey);
+        const best = readBest((k) => storage.getItem(k), li.dataset.bestKey);
         const badge = li.querySelector('.best');
-        if (label === null || !badge) continue;
-        badge.textContent = '🏆 ' + label;
+        if (best === null || !badge) continue;
+        badge.textContent = '🏆 ' + formatBest(best, year);
         badge.hidden = false;
       }
     })();

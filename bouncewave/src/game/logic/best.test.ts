@@ -35,8 +35,8 @@ describe('best record saved through best-store', () => {
     it('is saved under the key bouncewave.best as { score, label }', () => {
         const s = new MapStorage();
         const store = new BestStore(GAME_ID, () => s);
-        expect(store.record(120, waveLabel(5))).toEqual({ best: { score: 120, label: 'WAVE 5' }, isNew: true });
-        expect(JSON.parse(s.map.get(KEY)!)).toEqual({ score: 120, label: 'WAVE 5' });
+        expect(store.record(120, waveLabel(5))).toEqual({ best: { score: 120, label: 'WAVE 5', date: expect.any(String) }, isNew: true });
+        expect(JSON.parse(s.map.get(KEY)!)).toEqual({ score: 120, label: 'WAVE 5', date: expect.any(String) });
     });
 
     it('saves a score of 0 as a new best when there is no record', () => {
@@ -52,7 +52,7 @@ describe('best record saved through best-store', () => {
         const store = new BestStore(GAME_ID, () => s);
         expect(store.load()).toBeNull();
         expect(formatBest(store.load())).toBe('BEST ---');
-        expect(store.record(10, waveLabel(1))).toEqual({ best: { score: 10, label: 'WAVE 1' }, isNew: true });
-        expect(JSON.parse(s.map.get(KEY)!)).toEqual({ score: 10, label: 'WAVE 1' });
+        expect(store.record(10, waveLabel(1))).toEqual({ best: { score: 10, label: 'WAVE 1', date: expect.any(String) }, isNew: true });
+        expect(JSON.parse(s.map.get(KEY)!)).toEqual({ score: 10, label: 'WAVE 1', date: expect.any(String) });
     });
 });
