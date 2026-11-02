@@ -9,7 +9,11 @@
 - `src/game/scenes/Game.ts`（差分に solver テスト・GOAL 矢印・backlog が混ざり「1 変更 1 目的」に反する）— 理由: 承認済みの修正 spec（入力の頑健化の項目 10・11、backlog の更新）に含まれ、1 本の修正 PR にまとめると合意済み
 - `src/game/scenes/Game.ts`（死亡・ゴール・キャンセル時のパッド解除が Scene のコードにあり単体テストが無い）— 理由: Scene はカバレッジ対象外。QA のシナリオ（spec 完了条件）で確認する
 - `src/game/scenes/Game.ts`（`refreshHud` が更新のたびに localStorage を読む）— 理由: 元のコードも毎回読んでいた。最適化は別の変更（`docs/backlog.md` の `render-cost` の近く）
-- `src/game/core/highScore.ts`（`parseLeadingInteger` を `startStage.ts` から import して結合している）— 理由: spec が開始ステージとハイスコアに同じ読み方（`parseInt`）を求めている
+- `src/game/core/highScore.ts`（`bestKey('first-game')` のゲーム名が直書きで、ディレクトリ名と結びつかない／テストが同じ文字列と比べるだけ）— 理由: キーは spec がリテラルで決めている（`first-game.best`）。ディレクトリ名を変えるのは、公開の URL も変わる大きな変更で、そのときキーも見直す
+- `src/game/core/highScore.ts`（スコア 0 は書かないので、1 ステージ目で死んだだけだと `first-game.best` が作られない）— 理由: 移行前からの挙動で、spec が「0 は書かない」と決めている。一覧に出す作業（`index-best`）で扱う
+- `src/game/core/highScore.ts`（`parseHighScore` が共有の `parseBest` より厳しい: 整数・0 以上を足す）— 理由: spec が決めた読み方（`-3`・`2.5` は保存なし）。このゲームが書くのは整数だけで、手で書き換えた値の話
+- `src/game/core/highScore.ts`（`Title` が `highScore.ts` 経由で `best-store` を読み込み、`Title` はストレージを使わないという検索の条件に当たりうる）— 理由: 検索の対象は `Title` とデモ・ボット・描画部品で（`title.test.ts` の `sources`）、`browserStore` の経由は移行前からある。条件のテストは通っている
+- `docs/backlog.md`（`best-migrate` のカードが「読み替え」のまま）— 理由: 4 ゲームの移行が済んだあと、カードの更新だけを別の docs の変更で行う（ユーザーと合意した順序）
 - `src/game/scenes/Game.ts`（`joystickState`/`dragState` と `PressTracker` の二重管理）— 理由: 既存の構造で、置き換えは大きな設計変更（4.1）。解除は `discardPointerState` に集約済み
 - `src/game/core/flow.ts`（`restarting` フェーズは観測できず二重再起動の守りにならない）— 理由: NEW GAME は `scene.start` が次のフレームで処理されるので、その間 `restarting` が続き、守りとして働く（RETRY は同期）
 - `src/game/core/flow.ts`（`restartKeyAction` が修飾キー単独でも NEW GAME にする）— 理由: spec が「修飾キーだけを含む他のキーは NEW GAME」と決めている（元の挙動）

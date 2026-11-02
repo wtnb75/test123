@@ -31,6 +31,7 @@
     "vitest": "catalog:"
   },
   "dependencies": {
+    "best-store": "workspace:*",
     "phaser": "catalog:",
     "terser": "catalog:",
     "title-demo": "workspace:*"
