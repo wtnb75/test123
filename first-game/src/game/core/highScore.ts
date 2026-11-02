@@ -1,5 +1,8 @@
 // Saved values (high score, start stage): a failing storage never stops the game (docs/spec.md 技術要件).
-import { parseLeadingInteger } from './startStage';
+import { bestKey, parseBest, type Best } from 'best-store';
+
+/** The storage key of the high score: `first-game.best` (docs/spec.md 技術要件). */
+export const HIGHSCORE_KEY = bestKey('first-game');
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -33,11 +36,15 @@ export const safeSetItem = (store: KeyValueStore | null, key: string, value: str
   }
 };
 
-/** A saved high score: a finite integer >= 0 (leading integer part), else 0. */
+/** A saved high score: the `score` of a best-store record when it is a safe integer >= 0, else 0. */
 export const parseHighScore = (raw: string | null): number => {
-  const value = parseLeadingInteger(raw);
-  return value !== null && Number.isFinite(value) && value >= 0 ? value : 0;
+  const best = parseBest(raw);
+  // `|| 0` turns a saved -0 into 0.
+  return best !== null && Number.isSafeInteger(best.score) && best.score >= 0 ? best.score || 0 : 0;
 };
+
+/** The best-store `label` of a high score: the stage reached (score = stage number - 1). */
+export const highScoreLabel = (score: number): string => `Stage ${score + 1}`;
 
 /** The best score of this page's session: kept outside the Scene so NEW GAME and RETRY do not lose it. */
 export type SessionBest = { best: number };
@@ -56,6 +63,7 @@ export const recordScore = (store: KeyValueStore | null, key: string, session: S
   const high = currentHighScore(store, key, session);
   session.best = Math.max(session.best, score);
   if (score > high) {
-    safeSetItem(store, key, String(score));
+    const record: Best = { score, label: highScoreLabel(score) };
+    safeSetItem(store, key, JSON.stringify(record));
   }
 };

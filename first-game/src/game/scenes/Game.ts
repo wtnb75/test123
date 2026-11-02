@@ -66,7 +66,7 @@ import {
     type GraveInfo
 } from '../core/gravePanel';
 import { restartButtonAt, restartButtonLayout, type ButtonBox, type RestartButtonLayout, type RestartChoice } from '../core/restartButtons';
-import { browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
+import { HIGHSCORE_KEY, browserStore, createSessionBest, currentHighScore, recordScore, safeGetItem, safeSetItem } from '../core/highScore';
 import { STAGE_MAX, parseStagePrompt, resolveStartStage } from '../core/startStage';
 import {
     FLAG_OFF_STROKE_WIDTH,
@@ -122,7 +122,6 @@ const BOARD_BOTTOM_MARGIN = 40;
 const CAMERA_FOLLOW_MARGIN_CELLS = 4;
 const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
-const HIGHSCORE_KEY = 'minefield-rogue-highscore';
 const START_STAGE_KEY = 'minefield-rogue-start-stage';
 const DEATH_DELAY_MS = 600;
 const CLEAR_DELAY_MS = 250;
