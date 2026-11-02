@@ -1,6 +1,6 @@
 import { Scale, type GameObjects, type Input, type Scene } from 'phaser';
 import { BUTTON_H, BUTTON_PRESS_SCALE, BUTTON_W, FONT_BUTTON } from '../params';
-import { BestStore } from '../logic/best';
+import { BestStore } from 'best-store';
 import { ButtonPress, buttonLook } from '../logic/buttons';
 import { firstTimeOnly, isImeCommitKey, keyName } from '../logic/keys';
 import {
@@ -49,13 +49,7 @@ const BUTTON_LOOK_COLOR = { normal: COLOR.button, pressed: COLOR.buttonPressed, 
 export const DEPTH = { base: 0, targets: 1, tray: 2, letters: 3, fly: 4, ghost: 5, pop: 6, hud: 7 } as const;
 
 /** One store for the whole page, so the in-memory fallback survives Scene changes. */
-export const bestStore = new BestStore(() => {
-    try {
-        return window.localStorage;
-    } catch {
-        return null;
-    }
-});
+export const bestStore = new BestStore('wordfall');
 
 /** The area Scale.FIT fits the canvas into (the parent element), so checks match the real scale. */
 const viewport = (scene: Scene): ScreenSize => ({

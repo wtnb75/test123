@@ -6,15 +6,15 @@
 - 1 つのカードは 1 つの目的にする（1 変更 1 目的）。
 - 共有パッケージの置き方は AGENTS.md 2.1 節に従う（`shared/<name>`、使うすべてのゲームのテストを通す）。
 
-### wordfall と typerain の自己ベストを共有の形に載せ替える（`best-migrate-labs`）
+### typerain の自己ベストを共有の形に載せ替える（`best-migrate-labs`）
 
-- 狙い: wordfall と typerain は、自前の `best.ts` で自己ベストを保存している。キーと値が別形式（`wordfall:best`・`typerain:best`、値は数値だけ）なので、トップページ（`labs.html` を含む）のベスト記録の表示に出ない。根拠: `wordfall/src/game/logic/best.ts`、`typerain/src/game/logic/best.ts`、`shared/best-store`
-- 何を足すか: 2 本の保存を `shared/best-store` の約束（キー `<game-dir>.best`、値 `{score, label}`）に載せ替え、自前の `best.ts` を `BestStore` に置き換える。`label` は画面に出す文字列に合わせる（例: `BEST 1200` の数字の部分を含む短い文）。
+- 狙い: typerain は、自前の `best.ts` で自己ベストを保存している。キーと値が別形式（`typerain:best`、値は数値だけ）なので、トップページ（`labs.html` を含む）のベスト記録の表示に出ない。根拠: `typerain/src/game/logic/best.ts`、`shared/best-store`
+- 何を足すか: 保存を `shared/best-store` の約束（キー `<game-dir>.best`、値 `{score, label}`）に載せ替え、自前の保存を `BestStore` に置き換える。`label` は画面に出す文字列に合わせる（wordfall は `SCORE 1230`。スコア 0 を記録しないガードは呼ぶ側に残した）。
 - コアループへの効き方: 広げる — `labs.html` のカードにも自己ベストが見え、もう一度挑戦する理由になる。ゲームのルール・スコアの付け方は変えない。
 - 種別: presentation-only（保存の形の変更）
-- 規模: S〜M（2 ゲーム）
+- 規模: S
 - 出どころ: ユーザー（ハイスコアが無い公開中のゲームの洗い出し）
-- メモ: 以前のキー（`wordfall:best`・`typerain:best`）に残った記録は読まない・移行しない（先に載せ替えた 4 ゲームと同じ決め）。ゲームごとに 1 PR にする（1 ゲームの追加・修正は 1 PR）。両ゲームの spec の「保存」の記述（キー・形式）を先に更新する。`BEST ---`（記録なし）の表示や、新記録の通知は変えない。
+- メモ: wordfall は載せ替え済み。以前のキー（`typerain:best`）に残った記録は読まない・移行しない（先に載せ替えた 5 ゲームと同じ決め）。typerain の spec の「保存」の記述（キー・形式）を先に更新する。`BEST ---`（記録なし）の表示や、新記録の通知は変えない。
 
 ### ハイスコアに達成日を付ける（`best-date`）
 
