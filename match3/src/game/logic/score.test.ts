@@ -189,7 +189,7 @@ describe('best text and saving (docs/spec.md "自己ベスト")', () => {
             setItem: (k, v) => void data.set(k, v),
         }));
         store.record(1230, bestLabel(1230));
-        expect(JSON.parse(data.get('match3.best') as string)).toEqual({ score: 1230, label: '1230点' });
-        expect(store.load()).toEqual({ score: 1230, label: '1230点' });
+        expect(JSON.parse(data.get('match3.best') as string)).toEqual({ score: 1230, label: '1230点', date: expect.any(String) });
+        expect(store.load()).toEqual({ score: 1230, label: '1230点', date: expect.any(String) });
     });
 });

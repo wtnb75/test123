@@ -50,14 +50,14 @@ describe('recordFinishedRound', () => {
         const { storage, best, stats } = setup();
 
         recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 3);
-        expect(JSON.parse(storage.data.get('digdle.best') ?? 'null')).toEqual({ score: 1, label: '連勝 1' });
+        expect(JSON.parse(storage.data.get('digdle.best') ?? 'null')).toEqual({ score: 1, label: '連勝 1', date: expect.any(String) });
     });
 
     it('uses the English label when the win happens in en', () => {
         const { best, stats } = setup();
 
         recordFinishedRound(stats, best, 'en', 'normal', 4, true, 3);
-        expect(best.load()).toEqual({ score: 1, label: 'Streak 1' });
+        expect(best.load()).toEqual({ score: 1, label: 'Streak 1', date: expect.any(String) });
     });
 
     it('raises the best as the streak grows, and keeps it on a loss without touching the recorder', () => {
@@ -66,12 +66,12 @@ describe('recordFinishedRound', () => {
 
         recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 3);
         recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 2);
-        expect(best.load()).toEqual({ score: 2, label: '連勝 2' });
+        expect(best.load()).toEqual({ score: 2, label: '連勝 2', date: expect.any(String) });
 
         record.mockClear();
         recordFinishedRound(stats, best, 'ja', 'normal', 4, false, 5);
         expect(record).not.toHaveBeenCalled();
-        expect(best.load()).toEqual({ score: 2, label: '連勝 2' });
+        expect(best.load()).toEqual({ score: 2, label: '連勝 2', date: expect.any(String) });
     });
 
     it('does not replace the best on a tie, and replaces it only when the streak passes it', () => {
@@ -82,10 +82,10 @@ describe('recordFinishedRound', () => {
         recordFinishedRound(stats, best, 'ja', 'normal', 4, false, 5); // streak 0
         recordFinishedRound(stats, best, 'en', 'normal', 4, true, 3); // 1: below
         recordFinishedRound(stats, best, 'en', 'normal', 4, true, 3); // 2: tie, label stays ja
-        expect(best.load()).toEqual({ score: 2, label: '連勝 2' });
+        expect(best.load()).toEqual({ score: 2, label: '連勝 2', date: expect.any(String) });
 
         recordFinishedRound(stats, best, 'en', 'normal', 4, true, 3); // 3: new best
-        expect(best.load()).toEqual({ score: 3, label: 'Streak 3' });
+        expect(best.load()).toEqual({ score: 3, label: 'Streak 3', date: expect.any(String) });
     });
 
     it('does not let a streak in another mode or digit count below the best change it', () => {
@@ -96,7 +96,7 @@ describe('recordFinishedRound', () => {
         }
         recordFinishedRound(stats, best, 'ja', 'hard', 3, true, 3); // 1
         recordFinishedRound(stats, best, 'ja', 'daily', 2, true, 3); // 1
-        expect(best.load()).toEqual({ score: 3, label: '連勝 3' });
+        expect(best.load()).toEqual({ score: 3, label: '連勝 3', date: expect.any(String) });
     });
 
     it('lets any mode and digit count set the best (hard 5 digits reaching 4 beats 3)', () => {
@@ -108,7 +108,7 @@ describe('recordFinishedRound', () => {
         for (let i = 0; i < 4; i++) {
             recordFinishedRound(stats, best, 'ja', 'hard', 5, true, 4);
         }
-        expect(best.load()).toEqual({ score: 4, label: '連勝 4' });
+        expect(best.load()).toEqual({ score: 4, label: '連勝 4', date: expect.any(String) });
     });
 
     it('keeps the best after the stats are cleared, until a new streak passes it', () => {
@@ -118,10 +118,10 @@ describe('recordFinishedRound', () => {
         recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 3);
         stats.clear();
         expect(stats.load()).toEqual({});
-        expect(best.load()).toEqual({ score: 2, label: '連勝 2' });
+        expect(best.load()).toEqual({ score: 2, label: '連勝 2', date: expect.any(String) });
 
         recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 3); // streak 1 again
-        expect(best.load()).toEqual({ score: 2, label: '連勝 2' });
+        expect(best.load()).toEqual({ score: 2, label: '連勝 2', date: expect.any(String) });
     });
 
     it('leaves a real daily save byte for byte unchanged while a daily win is recorded', () => {
@@ -134,7 +134,7 @@ describe('recordFinishedRound', () => {
         expect(before).toBeDefined();
         expect(storage.data.get(DAILY_STORAGE_KEY)).toBe(before);
         expect(daily.load('2026-11-02').rounds[4]).toEqual(['1013', '1117']);
-        expect(best.load()).toEqual({ score: 1, label: '連勝 1' });
+        expect(best.load()).toEqual({ score: 1, label: '連勝 1', date: expect.any(String) });
         expect([...storage.data.keys()].sort()).toEqual(['digdle.best', 'digdle.daily', 'digdle.stats']);
     });
 
@@ -144,7 +144,7 @@ describe('recordFinishedRound', () => {
         for (let i = 0; i < 1000; i++) {
             recordFinishedRound(stats, best, 'ja', 'normal', 2, true, 1);
         }
-        expect(best.load()).toEqual({ score: 1000, label: '連勝 1000' });
+        expect(best.load()).toEqual({ score: 1000, label: '連勝 1000', date: expect.any(String) });
     });
 
     it('does not throw and keeps the best for this page when setItem fails', () => {
@@ -158,7 +158,7 @@ describe('recordFinishedRound', () => {
         const stats = createStatsStorage(memoryStorage());
 
         expect(() => recordFinishedRound(stats, best, 'ja', 'normal', 4, true, 3)).not.toThrow();
-        expect(best.load()).toEqual({ score: 1, label: '連勝 1' });
+        expect(best.load()).toEqual({ score: 1, label: '連勝 1', date: expect.any(String) });
     });
 
     it('keeps the higher best in memory when storage is blocked and a lower streak is recorded later', () => {
@@ -176,7 +176,7 @@ describe('recordFinishedRound', () => {
         }
         recordFinishedRound(stats, best, 'ja', 'normal', 4, false, 5);
         recordFinishedRound(stats, best, 'en', 'normal', 4, true, 3); // streak 1 after the loss
-        expect(best.load()).toEqual({ score: 3, label: '連勝 3' });
+        expect(best.load()).toEqual({ score: 3, label: '連勝 3', date: expect.any(String) });
     });
 });
 

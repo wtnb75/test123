@@ -21,9 +21,11 @@ function fakeStorage(initial: Record<string, string> = {}, opts: { failRead?: bo
     return { storage, data };
 }
 
-/** The stored form written out by hand (spec: {"score": n, "label": "SCORE n"}). */
-const stored = (score: number) => `{"score":${score},"label":"SCORE ${score}"}`;
-const storeOf = (storage: KeyValueStorage | null) => new BestStore('typerain', () => storage);
+const TODAY = '2026-11-03';
+
+/** The stored form written out by hand (spec: {"score": n, "label": "SCORE n", "date": "YYYY-MM-DD"}). */
+const stored = (score: number) => `{"score":${score},"label":"SCORE ${score}","date":"${TODAY}"}`;
+const storeOf = (storage: KeyValueStorage | null) => new BestStore('typerain', () => storage, () => TODAY);
 
 describe('recordBest (docs/spec.md "自己ベスト")', () => {
     it('starts with no record, and a score of 0 writes nothing', () => {
@@ -37,7 +39,7 @@ describe('recordBest (docs/spec.md "自己ベスト")', () => {
     it('records any score of 1 or more when there is no record, as {score, label} under typerain.best', () => {
         const { storage, data } = fakeStorage();
         expect(recordBest(storeOf(storage), 1230)).toEqual({ best: 1230, isNew: true });
-        expect(data.get(KEY)).toBe('{"score":1230,"label":"SCORE 1230"}');
+        expect(data.get(KEY)).toBe(stored(1230));
     });
 
     it('records a first score of exactly 1', () => {

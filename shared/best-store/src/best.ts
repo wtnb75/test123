@@ -7,6 +7,16 @@ export interface Best {
     score: number;
     /** Display text for the record, e.g. "WAVE 8" or "ライン 12". */
     label: string;
+    /** The local day the record was first set, `YYYY-MM-DD`. Absent on records saved before the date was added. */
+    date?: string;
+}
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Today's date in the device's local time zone, as `YYYY-MM-DD`. */
+export function localDateString(now: Date = new Date()): string {
+    const pad = (n: number, width: number) => String(n).padStart(width, '0');
+    return `${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1, 2)}-${pad(now.getDate(), 2)}`;
 }
 
 /** The subset of Web Storage the store uses. */
@@ -26,8 +36,10 @@ export function parseBest(raw: string | null): Best | null {
     try {
         const v: unknown = JSON.parse(raw);
         if (typeof v !== 'object' || v === null) return null;
-        const { score, label } = v as Record<string, unknown>;
+        const { score, label, date } = v as Record<string, unknown>;
         if (typeof score !== 'number' || !Number.isFinite(score) || typeof label !== 'string') return null;
+        // A missing or malformed date only drops the date; the record itself stays valid.
+        if (typeof date === 'string' && DATE_PATTERN.test(date)) return { score, label, date };
         return { score, label };
     } catch {
         return null;
@@ -54,10 +66,14 @@ export class BestStore {
     /** Holds the best when the storage can't be written (lives for this page only). */
     private memory: Best | null = null;
 
-    /** `storage` is read on every call, so a storage that appears or disappears later is handled. */
+    /**
+     * `storage` is read on every call, so a storage that appears or disappears later is handled.
+     * `today` gives the date written with a new record (injectable for tests).
+     */
     constructor(
         game: string,
-        private readonly storage: () => KeyValueStorage | null = browserStorage
+        private readonly storage: () => KeyValueStorage | null = browserStorage,
+        private readonly today: () => string = localDateString
     ) {
         this.key = bestKey(game);
     }
@@ -77,7 +93,7 @@ export class BestStore {
         if (!Number.isFinite(score)) return null;
         const prev = this.load();
         if (prev && score <= prev.score) return { best: prev, isNew: false };
-        const best: Best = { score, label };
+        const best: Best = { score, label, date: this.today() };
         this.memory = best;
         try {
             this.storage()?.setItem(this.key, JSON.stringify(best));
