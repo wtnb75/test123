@@ -33,7 +33,8 @@
   "dependencies": {
     "best-store": "workspace:*",
     "phaser": "catalog:",
-    "terser": "catalog:"
+    "terser": "catalog:",
+    "title-demo": "workspace:*"
   },
   "index": {
     "title": "インベーダー崩し",

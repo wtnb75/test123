@@ -74,6 +74,23 @@ export const WAVE_TEXT_POP_DURATION = 0.25; // s
 export const WAVE_TEXT_POP_FROM = 0.6;
 export const SCENE_FADE_DURATION = 0.2; // s
 
+// Title demo (docs/spec/title-demo.md "パラメータ表").
+export const DEMO_RUN_MS = 24000; // length of one demo run, until the window starts fading
+export const DEMO_FADE_MS = 300; // the window fading out / in
+export const DEMO_FIELD_HEIGHT = 630; // logical height of the demo's Run
+export const DEMO_CROP_TOP = FIELD_TOP - FRAME_WIDTH; // the window shows the Run from here down (the top wall's upper edge)
+export const DEMO_VIEW_HEIGHT = DEMO_FIELD_HEIGHT - DEMO_CROP_TOP; // Run height the window shows
+export const DEMO_MAX_WIDTH = 500; // widest the demo window gets (logical px)
+export const DEMO_TOP = 112; // top of the band the window sits in
+export const TITLE_NAME_Y = 70; // game name centre y while the window shows
+export const TITLE_BEST_HALF_HEIGHT = 15; // half the height of the best-score text
+export const TITLE_BEST_GAP = 40; // START button top to the best-score centre
+export const DEMO_BEST_GAP = 16; // window bottom to the best-score text top
+export const DEMO_MIN_SCALE = 0.3; // below this window scale the window is not shown
+export const DEMO_BORDER = 2; // window frame thickness (logical px), outside the content
+export const DEMO_PADDLE_SPEED = 1400; // px/s while a ball is coming down
+export const DEMO_IDLE_SPEED = 150; // px/s while none is
+
 export const PROMPT_MAX_FONT_SIZE = 83; // logical px cap: 6 characters per 500 px line (normally 2 lines; always fits)
 export const BUTTON_WIDTH = 220;
 export const BUTTON_HEIGHT = 84;
