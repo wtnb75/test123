@@ -7,7 +7,8 @@
 // (the order they were added to Taskfile.yml) and listed newest first.
 //
 // Each card is made from the game's package.json: the `index` field ({ title, summary, tags }) when present,
-// otherwise the directory name and `description`.
+// otherwise the directory name and `description`. When the browser has a saved best record for a game
+// (`<game-dir>.best`, the shared/best-store shape), the page shows its `label` on that game's card.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,12 +27,29 @@ export const cardOf = (dir, root = '.') => {
     };
 };
 
-const cardHtml = (card) => `      <li data-tags="${escapeHtml(JSON.stringify(card.tags))}">
+/**
+ * The label of a game's saved best record, or null when there is none.
+ * Reads the `shared/best-store` shape (`{ score: finite number, label: string }`); anything else is "no record".
+ * This function is embedded in the page as-is (via toString), so it must not use anything outside itself.
+ */
+export const readBestLabel = (getItem, key) => {
+    try {
+        const v = JSON.parse(getItem(key));
+        if (typeof v !== 'object' || v === null) return null;
+        if (typeof v.score !== 'number' || !Number.isFinite(v.score) || typeof v.label !== 'string') return null;
+        return v.label === '' ? null : v.label;
+    } catch {
+        return null;
+    }
+};
+
+const cardHtml = (card) => `      <li data-tags="${escapeHtml(JSON.stringify(card.tags))}" data-best-key="${escapeHtml(card.dir)}.best">
         <a href="${escapeHtml(card.dir)}/">
           <span class="head">
             <span class="name">${escapeHtml(card.title)}</span>
             <span class="path">/${escapeHtml(card.dir)}/</span>
           </span>
+          <span class="best" hidden></span>
           <span class="summary">${escapeHtml(card.summary)}</span>
           <span class="tags">${card.tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</span>
         </a>
@@ -142,6 +160,16 @@ const STYLE = `
       font-size: 0.8rem;
     }
 
+    .best {
+      align-self: flex-start;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
     .summary {
       font-size: 0.92rem;
       line-height: 1.55;
@@ -231,6 +259,24 @@ const STYLE = `
 /** The distinct tags of `cards`, in order of first appearance. */
 export const tagsOf = (cards) => [...new Set(cards.flatMap((card) => card.tags))];
 
+// Shows each card's saved best record (localStorage `<game-dir>.best`, see shared/best-store). Cards without a
+// record, and environments where localStorage cannot be read, show nothing.
+const BEST_SCRIPT = `
+    const readBestLabel = ${readBestLabel.toString()};
+    (() => {
+      let storage = null;
+      try { storage = window.localStorage; } catch { /* blocked: show nothing */ }
+      if (!storage) return;
+      for (const li of document.querySelectorAll('li[data-best-key]')) {
+        const label = readBestLabel((k) => storage.getItem(k), li.dataset.bestKey);
+        const badge = li.querySelector('.best');
+        if (label === null || !badge) continue;
+        badge.textContent = '🏆 ' + label;
+        badge.hidden = false;
+      }
+    })();
+`;
+
 // Narrows the cards to the ones that have every selected tag. The selection is kept in the URL hash
 // (`#tag=a,b`). Without JavaScript the filter bar stays hidden and every card is shown.
 const SCRIPT = `
@@ -308,6 +354,7 @@ ${cards.map(cardHtml).join('\n')}
     </ul>
     <p class="empty" hidden>条件に合うゲームはありません。</p>
 ${page.link ? `    <p class="nav"><a href="${escapeHtml(page.link.href)}">${escapeHtml(page.link.text)}</a></p>\n` : ''}  </main>
+  <script>${BEST_SCRIPT}  </script>
   <script>${SCRIPT}  </script>
 </body>
 </html>
