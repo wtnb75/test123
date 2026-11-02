@@ -31,7 +31,18 @@
     "vitest": "catalog:"
   },
   "dependencies": {
+    "best-store": "workspace:*",
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "3マッチパズル",
+    "summary": "となり合う石を入れかえて、同じ色を 3 つ以上そろえて消す定番の 3 マッチパズル。手数 30 の中で、連鎖と 4 個以上のボーナスで高得点を狙う。スマホはタップとスワイプ、PC はクリックとキーボードで遊べる。",
+    "tags": [
+      "パズル",
+      "タッチ",
+      "マウス",
+      "キーボード"
+    ]
   }
 }

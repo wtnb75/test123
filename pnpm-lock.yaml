@@ -371,6 +371,9 @@ importers:
 
   match3:
     dependencies:
+      best-store:
+        specifier: workspace:*
+        version: link:../shared/best-store
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
