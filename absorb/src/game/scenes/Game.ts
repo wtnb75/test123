@@ -14,7 +14,7 @@ import {
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
     LEECH_PARTICLE_RADIUS, LEECH_TETHER_ALPHA, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
-import { PauseState } from '../logic/pause';
+import { createPause } from '../logic/pause';
 import {
     StartEffects, chargeRadius, digitAlpha, digitLabel, digitScale, digitTime, goAlpha, goProgress, goScale, hudAlpha,
     startRingProgress, startRingRadius, startRingWidth
@@ -215,7 +215,7 @@ export class Game extends Scene {
     /** A release finger touched since the last update, so the button shows its feedback. */
     private touchPressQueued = false;
     protected readonly input_: WorldInput = { moveX: 0, moveY: 0, dragX: 0, dragY: 0, release: false };
-    private pause = new PauseState();
+    private pause = createPause();
     /** Seconds of unpaused play in this run, driving the boss spin. */
     private spinClock = 0;
     /** Veil and texts shown over everything while auto-paused. */
@@ -267,7 +267,7 @@ export class Game extends Scene {
         this.buttonX = size.width - BUTTON_INSET;
         this.buttonY = size.height - BUTTON_INSET;
 
-        this.pause = new PauseState();
+        this.pause = createPause();
         this.spinClock = 0;
 
         this.createHud(size.width, size.height);
@@ -362,7 +362,7 @@ export class Game extends Scene {
         // The pause decides: a key taken to resume, or auto-repeat, never releases. (Repeats also reach a new
         // run from a key held on the game-over screen; they arrive during ready, which ignores release anyway.)
         const queueRelease = (_key: Input.Keyboard.Key, event: KeyboardEvent) => {
-            if (this.pause.releaseKeyDown(event.keyCode, event.repeat)) this.releaseQueued = true;
+            if (this.pause.keyDown(event.keyCode, event.repeat)) this.releaseQueued = true;
         };
         this.keys.x.on('down', queueRelease);
         this.keys.enter.on('down', queueRelease);
