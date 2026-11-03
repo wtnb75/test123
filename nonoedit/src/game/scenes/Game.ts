@@ -9,6 +9,17 @@ import {
     copyBlockedMessage,
     playStartMessage,
 } from '../core/analysisView';
+import {
+    applyEditClick,
+    applyEditDrag,
+    applyPlayClick,
+    applyPlayDrag,
+    decideAxis,
+    getDragRange,
+    type DragAxis,
+    type DragRange,
+    type PlayInputMode,
+} from '../core/editOps';
 import { createBinaryBoard, createPlayerBoard, filledMatch, resizeBinaryBoard } from '../core/board';
 import { createAnalysisWorker } from './analysisWorkerFactory';
 import { exportPBM, importPBM } from '../core/pbm';
@@ -33,13 +44,12 @@ type Button = {
 type AnalysisTag = { fromButton: boolean };
 
 type MobileTab = 'edit' | 'analysis' | 'data';
-type PlayInputMode = 'fill' | 'mark';
 
 type DragState = {
     active: boolean;
     startX: number;
     startY: number;
-    axis: 'horizontal' | 'vertical' | null;
+    axis: DragAxis | null;
     lastX: number;
     lastY: number;
     moved: boolean;
@@ -432,119 +442,12 @@ export class Game extends Scene {
         }
     }
 
-    private getDragRange(x: number, y: number): { minX: number; maxX: number; minY: number; maxY: number; targetX: number; targetY: number } {
-        const targetX = this.drag.axis === 'vertical' ? this.drag.startX : x;
-        const targetY = this.drag.axis === 'horizontal' ? this.drag.startY : y;
-        return {
-            minX: Math.min(this.drag.startX, targetX),
-            maxX: Math.max(this.drag.startX, targetX),
-            minY: Math.min(this.drag.startY, targetY),
-            maxY: Math.max(this.drag.startY, targetY),
-            targetX,
-            targetY,
-        };
-    }
-
-    private applyEditClick(x: number, y: number): number {
-        this.solution[y][x] = this.solution[y][x] === 1 ? 0 : 1;
-        return 1;
-    }
-
-    private applyEditDrag(minX: number, maxX: number, minY: number, maxY: number): number {
-        let anyEmpty = false;
-        let changed = 0;
-        for (let yy = minY; yy <= maxY; yy += 1) {
-            for (let xx = minX; xx <= maxX; xx += 1) {
-                if (this.solution[yy][xx] === 0) {
-                    anyEmpty = true;
-                }
-            }
-        }
-
-        if (anyEmpty) {
-            for (let yy = minY; yy <= maxY; yy += 1) {
-                for (let xx = minX; xx <= maxX; xx += 1) {
-                    if (this.solution[yy][xx] === 0) {
-                        this.solution[yy][xx] = 1;
-                        changed += 1;
-                    }
-                }
-            }
-            return changed;
-        }
-
-        for (let yy = minY; yy <= maxY; yy += 1) {
-            for (let xx = minX; xx <= maxX; xx += 1) {
-                if (this.solution[yy][xx] === 1) {
-                    this.solution[yy][xx] = 0;
-                    changed += 1;
-                }
-            }
-        }
-        return changed;
-    }
-
-    private applyPlayClick(x: number, y: number): number {
-        const current = this.player[y][x];
-        const target: PlayerCell = this.playInputMode === 'fill' ? 'filled' : 'marked';
-        this.player[y][x] = current === 'unknown' ? target : 'unknown';
-        return 1;
-    }
-
-    private applyPlayDrag(minX: number, maxX: number, minY: number, maxY: number): number {
-        let unknownCount = 0;
-        let filledCount = 0;
-        let markedCount = 0;
-
-        for (let yy = minY; yy <= maxY; yy += 1) {
-            for (let xx = minX; xx <= maxX; xx += 1) {
-                const value = this.player[yy][xx];
-                if (value === 'unknown') {
-                    unknownCount += 1;
-                } else if (value === 'filled') {
-                    filledCount += 1;
-                } else {
-                    markedCount += 1;
-                }
-            }
-        }
-
-        let changed = 0;
-        const total = unknownCount + filledCount + markedCount;
-        if (unknownCount > 0) {
-            const target: PlayerCell = this.playInputMode === 'fill' ? 'filled' : 'marked';
-            for (let yy = minY; yy <= maxY; yy += 1) {
-                for (let xx = minX; xx <= maxX; xx += 1) {
-                    if (this.player[yy][xx] === 'unknown') {
-                        this.player[yy][xx] = target;
-                        changed += 1;
-                    }
-                }
-            }
-            return changed;
-        }
-
-        if (this.playInputMode === 'fill' && filledCount === total) {
-            for (let yy = minY; yy <= maxY; yy += 1) {
-                for (let xx = minX; xx <= maxX; xx += 1) {
-                    this.player[yy][xx] = 'unknown';
-                    changed += 1;
-                }
-            }
-            return changed;
-        }
-
-        if (this.playInputMode === 'mark' && markedCount === total) {
-            for (let yy = minY; yy <= maxY; yy += 1) {
-                for (let xx = minX; xx <= maxX; xx += 1) {
-                    this.player[yy][xx] = 'unknown';
-                    changed += 1;
-                }
-            }
-            return changed;
-        }
-
-        return 0;
+    private getDragRange(x: number, y: number): DragRange {
+        return getDragRange(
+            this.drag.axis,
+            { x: this.drag.startX, y: this.drag.startY },
+            { x, y },
+        );
     }
 
     private setPlayInputMode(nextMode: PlayInputMode): void {
@@ -568,11 +471,11 @@ export class Game extends Scene {
         this.drag.lastY = y;
         this.drag.moved = true;
 
-        const dx = x - this.drag.startX;
-        const dy = y - this.drag.startY;
-        if (this.drag.axis === null && (dx !== 0 || dy !== 0)) {
-            this.drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
-        }
+        this.drag.axis = decideAxis(
+            this.drag.axis,
+            { x: this.drag.startX, y: this.drag.startY },
+            { x, y },
+        );
 
         const range = this.getDragRange(x, y);
 
@@ -593,10 +496,10 @@ export class Game extends Scene {
         // Tap/click without movement toggles just one cell.
         if (!this.drag.moved) {
             if (this.mode === 'edit') {
-                this.applyEditClick(this.drag.startX, this.drag.startY);
+                applyEditClick(this.solution, this.drag.startX, this.drag.startY);
                 this.message = `Edited cell (${this.drag.startX}, ${this.drag.startY})`;
             } else {
-                const changed = this.applyPlayClick(this.drag.startX, this.drag.startY);
+                const changed = applyPlayClick(this.player, this.drag.startX, this.drag.startY, this.playInputMode);
                 this.moveCount += changed;
                 if (filledMatch(this.solution, this.player)) {
                     const elapsedSec = Math.floor((Date.now() - this.startedAt) / 1000);
@@ -609,10 +512,10 @@ export class Game extends Scene {
         } else {
             const range = this.getDragRange(this.drag.lastX, this.drag.lastY);
             if (this.mode === 'edit') {
-                this.applyEditDrag(range.minX, range.maxX, range.minY, range.maxY);
+                applyEditDrag(this.solution, range);
                 this.updateCellsInRange(range.minX, range.maxX, range.minY, range.maxY);
             } else {
-                const changed = this.applyPlayDrag(range.minX, range.maxX, range.minY, range.maxY);
+                const changed = applyPlayDrag(this.player, range, this.playInputMode);
                 this.moveCount += changed;
                 this.updateCellsInRange(range.minX, range.maxX, range.minY, range.maxY);
             }
@@ -884,14 +787,7 @@ export class Game extends Scene {
         if (this.drag.active) {
             const range = this.drag.moved
                 ? this.getDragRange(this.drag.lastX, this.drag.lastY)
-                : {
-                    minX: this.drag.startX,
-                    maxX: this.drag.startX,
-                    minY: this.drag.startY,
-                    maxY: this.drag.startY,
-                    targetX: this.drag.startX,
-                    targetY: this.drag.startY,
-                };
+                : this.getDragRange(this.drag.startX, this.drag.startY);
 
             if (this.dragPreviewGraphics) {
                 this.dragPreviewGraphics.clear();
