@@ -23,12 +23,11 @@ export interface KindPt extends Pt {
     kind: Cell;
 }
 
-/** One undo step: the board right before a move. */
+/** One undo step: the board right before a move (the moves are not kept: Undo gives back only that move's 1). */
 export interface Snapshot {
     grid: Grid;
     px: number;
     py: number;
-    moves: number;
 }
 
 export interface State {

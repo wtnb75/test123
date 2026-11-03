@@ -9,6 +9,7 @@ export type Phase = 'playing' | 'ending';
 
 export type PointerAction =
     | { kind: 'undo' }
+    | { kind: 'hint' }
     | { kind: 'quit' }
     | { kind: 'tap'; x: number; y: number }
     | { kind: 'swipe'; dir: Dir }

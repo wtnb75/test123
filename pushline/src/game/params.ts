@@ -1,4 +1,6 @@
 // Every number with gameplay weight lives here (docs/spec.md "パラメータ表").
+const HINT_COST = 3;
+
 export const PARAMS = {
     // board
     cols: 5,
@@ -95,6 +97,15 @@ export const PARAMS = {
     tapRingRatio: 0.2,
     tapRingWidth: 4,
     tapFrameWidth: 6,
+
+    // hint (docs/spec/hint.md)
+    hintCost: HINT_COST,
+    // usable only with at least this many moves (the cost plus one: the hint never ends the run)
+    hintMinMoves: HINT_COST + 1,
+    hintFrameWidth: 4,
+    hintFillAlpha: 0.15,
+    hintFrameMinAlpha: 0.5,
+    hintPulseMs: 800,
 
     // title demo (docs/spec.md "Title" > "デモ")
     demoStepMs: 220,

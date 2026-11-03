@@ -23,12 +23,14 @@ export const COLORS = {
     text: '#ffffff',
     captionText: '#9aa7b8',
     alarm: 0xff3b30,
+    /** The frame / fill of the row or column the hint lights. */
+    hint: 0xc77dff,
     /** CSS colour of the moves counter while the moves are running low. */
     alarmText: '#ff5a4f',
 } as const;
 
 /** Draw order, back to front (docs/spec.md "描画順"). */
-export const DEPTH = { board: 0, ghost: 1, player: 2, fx: 3, mark: 5, hud: 10, alert: 20 } as const;
+export const DEPTH = { board: 0, ghost: 1, player: 2, fx: 3, hint: 4, mark: 5, hud: 10, alert: 20 } as const;
 
 /**
  * Picks the layout for the window as it is now and switches the logical canvas to it.

@@ -1,6 +1,6 @@
 import { PARAMS } from '../params';
 import { cloneGrid, colFull, DIR_LIST, DIRS, inBounds, rowFull } from './grid';
-import { EMPTY, FIXED, MOVABLE, type Dir, type Grid } from './types';
+import { EMPTY, FIXED, MOVABLE, type Dir, type Grid, type LineRef } from './types';
 
 /** Required optimum (moves to the first clear) of a newly generated board at a given score. */
 export const targetSolve = (score: number): number =>
@@ -38,7 +38,7 @@ function search(
     limit: number,
     nodeCap: number,
     trackPath: boolean,
-): { depth: number; path: Dir[] | null } | null {
+): { depth: number; path: Dir[] | null; line: LineRef } | null {
     let frontier: Node[] = [{ grid, x: px, y: py, parent: null, dir: null }];
     const seen = new Set<string>([encode(grid, px, py)]);
     let nodes = 0;
@@ -57,7 +57,10 @@ function search(
                     g = cloneGrid(g);
                     g[by][bx] = MOVABLE;
                     g[ny][nx] = EMPTY;
-                    if (rowFull(g, by) || colFull(g, bx)) return { depth, path: trackPath ? pathTo(cur, dir) : null };
+                    if (rowFull(g, by) || colFull(g, bx)) {
+                        const line: LineRef = rowFull(g, by) ? { horizontal: true, index: by } : { horizontal: false, index: bx };
+                        return { depth, path: trackPath ? pathTo(cur, dir) : null, line };
+                    }
                 }
                 const k = encode(g, nx, ny);
                 if (seen.has(k)) continue;
@@ -80,6 +83,18 @@ export const minClearMoves = (
     limit: number,
     nodeCap: number = PARAMS.solveNodeCap,
 ): number | null => search(grid, px, py, limit, nodeCap, false)?.depth ?? null;
+
+/**
+ * The row or column the shortest way completes (the line the hint lights), or null when there is none
+ * (same limits as `minClearMoves`). When several shortest ways end in different lines, any one is returned.
+ */
+export const minClearLine = (
+    grid: Grid,
+    px: number,
+    py: number,
+    limit: number,
+    nodeCap: number = PARAMS.solveNodeCap,
+): LineRef | null => search(grid, px, py, limit, nodeCap, false)?.line ?? null;
 
 /** The shortest sequence of moves to the first line clear, or null (same limits as `minClearMoves`). */
 export const minClearPlan = (
