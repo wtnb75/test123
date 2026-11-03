@@ -7,7 +7,10 @@
 - `logic/polyline.ts`: the final fallback return is unreachable — 理由: kept as a defensive default against float differences between the two summations
 - `logic/simulation.ts`: a zero-length route gives `speedPerMs = Infinity` — 理由: routes always come from `generateWaypoints`, which never yields a zero-length route; the spec only requires `polylinePointAt` to be safe
 - `logic/bots.ts`: reflex cannot react on the landing frame, so its clear rate partly reflects landing luck — 理由: this is what the spec defines (bots are not asked while jumping) and what `Game` allows the player to do; not a defect
-- `src/game/logic/difficulty.ts`（`ROUTE_SEEDS`）: 移動時間を折れ線で測っているが、ゲームの移動は `Phaser` のスプライン上で、長さが違う — 理由: 測定は折れ線で近似すると spec が決めている（難易度の測定）。ステージ間の長さの順序は保たれ、スプラインとの差は全ステージで同じ向き。実際の長さは別の測定になる。
+- `src/game/logic/difficulty.ts`（`ROUTE_SEEDS`）: シードを折れ線の長さで選んでいるが、ゲームの移動は `Phaser` のスプライン上で、長さが違う（ステージ 1・5・8・10 が目標の窓の外） — 理由: ルートを変えないのが合意（`measure-spline` は測定だけを直す）。選び直しは `circle-placement` / `game-balance`（backlog に記載）。
+- `logic/spline.test.ts`: Phaser との一致の許容 0.5 px が緩く、`SPLINE_ARC_DIVISIONS` の変更を検出しない恐れ。基準値の生成スクリプトが無い — 理由: 許容 0.5 px は spec の値（合意）。基準値の求め方はテストのコメントに書いてあり、スクリプトはコミットしないと spec が決めている。
+- `logic/spline.ts`: Phaser のバージョンが上がっても、手書きのコピーとの一致を CI が確かめない — 理由: テストが Phaser を読み込まないのは spec の決定（Node で読み込めず、重くなる）。変えるなら別の変更。
+- `logic/measure.test.ts`: reflex の落ち幅の上限 0.40 が、スプライン上の最大 0.24 に対して緩い — 理由: 0.40 は spec の保証値（合意）。値を締めるのは spec の変更で、この変更の目的の外。
 - `src/game/logic/measure.test.ts`: reflex のクリア率の落ち幅の上限 0.40 が、測定の最大 0.385 にあわせた値で、余裕が小さい — 理由: ユーザーとの合意（落ち幅 0.40 以下。今までのルートでは 0.495 で不合格）。シード・試行数を固定した決定的なテストで、終盤の落ちは発生間隔の式による（式は変えない）。
 - `src/game/logic/difficulty.ts`: ステージ 2 と 3 が同じシード 1 で、ルートの形が似る — 理由: 「最小のシード」が spec の規則。ウェイポイント数・`θ_max` が違うので形は同じにならない。形の個性を足すなら別の変更。
 - `src/game/scenes/Game.ts` / `measure.ts`: ルートの組み立て（`generateWaypoints` の呼び出し）が 2 か所にある — 理由: 前からの作りで、整理は無関係な変更になる。spec が共有を求めるのはシードの関数だけ。
