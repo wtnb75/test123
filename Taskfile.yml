@@ -185,7 +185,7 @@ tasks:
   backlogs:
     desc: show backlog count
     cmds:
-    - "git ls-files '**/backlog.md' | xargs grep -c '^### ' | sd '/docs/backlog.md:' ' '"
+    - "git ls-files '**/backlog.md' | xargs grep -c '^### ' | sd '/docs/backlog.md:' ' ' | sd 'docs/backlog.md:' 'ALL ' | sort -k 2nr"
   share:
     desc: share URL for dev server PACKAGE=
     preconditions:
