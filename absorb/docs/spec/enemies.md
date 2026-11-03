@@ -1,6 +1,6 @@
 # 敵の種類と動き
 
-`docs/spec.md` の「ルール」の「敵」の節を、独立して書いたもの。`grunt` / `shooter` / `heavy` / `rammer` の HP・弾・撃破スコア・当たり半径と、出現位置・動き・同時存在の上限を定める。`docs/spec.md` と合わせて 1 つの spec である。`splitter`・`carrier`・ボスは、それぞれ [splitter.md](splitter.md)・[carrier.md](carrier.md)・[boss.md](boss.md) に書く。
+`docs/spec.md` の「ルール」の「敵」の節を、独立して書いたもの。`grunt` / `shooter` / `heavy` / `rammer` の HP・弾・撃破スコア・当たり半径と、出現位置・動き・同時存在の上限を定める。`docs/spec.md` と合わせて 1 つの spec である。`splitter`・`carrier`・`leech`・ボスは、それぞれ [splitter.md](splitter.md)・[carrier.md](carrier.md)・[leech.md](leech.md)・[boss.md](boss.md) に書く。
 
 ## 概要
 

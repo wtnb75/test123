@@ -1,6 +1,6 @@
 import { GameObjects, Scene, type Types } from 'phaser';
 import {
-    BONUS_LABEL, NO_KILLS_LABEL, lineAlpha, normalizeBreakdown, tableLines, totalLabel,
+    BONUS_LABEL, BREAKDOWN_LINES, NO_KILLS_LABEL, lineAlpha, normalizeBreakdown, tableLines, totalLabel,
     type BreakdownKind, type KindTally, type TableLine
 } from '../logic/breakdown';
 import { GAMEOVER_HINT_FADE, GAMEOVER_TITLE_H, GAMEOVER_TITLE_OFFSET, GAMEOVER_TITLE_W } from '../logic/constants';
@@ -14,6 +14,9 @@ const FONT = 'monospace';
 const ROW_FONT_SIZE = 26;
 const TOTAL_FONT_SIZE = 40;
 const ROW_SPACING = 38;
+const ROW_SPACING_TIGHT = 34;
+/** Only the full table (every kind plus the bonus) uses the tighter spacing: one line fewer than BREAKDOWN_LINES, which counts the total. */
+const FULL_TABLE_LINES = BREAKDOWN_LINES - 1;
 /** Column anchors relative to the screen centre: name (left-aligned), count, points (right-aligned). */
 const NAME_X = -230;
 const COUNT_X = -10;
@@ -55,9 +58,12 @@ export class GameOver extends Scene {
 
         const rowStyle = { fontFamily: FONT, fontSize: ROW_FONT_SIZE, color: WHITE };
         let y = cy - 160;
-        for (const line of tableLines(score, breakdown)) {
+        const table = tableLines(score, breakdown);
+        // The full table (every kind plus the bonus) is tighter, so the TITLE button still fits the shortest screen (768 high).
+        const spacing = table.length >= FULL_TABLE_LINES ? ROW_SPACING_TIGHT : ROW_SPACING;
+        for (const line of table) {
             this.lines.push(this.addTableLine(line, cx, y, rowStyle));
-            y += ROW_SPACING;
+            y += spacing;
         }
         y += 40;
         this.lines.push([

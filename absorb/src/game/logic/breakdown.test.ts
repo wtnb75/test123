@@ -5,9 +5,9 @@ import {
 } from './breakdown';
 
 // Expected values below are worked out by hand from the spec: rows for the kinds defeated this run in the
-// order GRUNT, SHOOTER, HEAVY, RAMMER, SPLITTER, CARRIER, BOSS (or one NO KILLS row), then the bonus and the
-// total; line k starts at k × 0.12 s and fades in over 0.2 s. With all seven kinds shown (n = 8 table lines)
-// the total (line 8) starts at 0.96 s and everything is shown by 1.16 s; a shorter table starts it at n × 0.12 s.
+// order GRUNT, SHOOTER, HEAVY, RAMMER, SPLITTER, CARRIER, LEECH, BOSS (or one NO KILLS row), then the bonus and the
+// total; line k starts at k × 0.12 s and fades in over 0.2 s. With all eight kinds shown (n = 9 table lines)
+// the total (line 9) starts at 1.08 s and everything is shown by 1.28 s; a shorter table starts it at n × 0.12 s.
 
 describe('tallying kills', () => {
     it('starts every kind at 0 kills and 0 points', () => {
@@ -36,6 +36,11 @@ describe('reading what the game-over screen received', () => {
         expect(b.shooter).toEqual({ count: 3, points: 1200 });
         expect(b.heavy).toEqual({ count: 1, points: 0 });
         expect(b.grunt).toEqual({ count: 0, points: 0 });
+    });
+
+    it('keeps a leech entry that came with kills, and reads its absence (older data) as no leech kills', () => {
+        expect(normalizeBreakdown({ leech: { count: 2, points: 800 } }).leech).toEqual({ count: 2, points: 800 });
+        expect(normalizeBreakdown({ grunt: { count: 1, points: 100 } }).leech).toEqual({ count: 0, points: 0 });
     });
 
     it('drops the points of a kind that came without kills, so the bonus takes them (score 500, 0 grunts worth 200 → +500)', () => {
@@ -71,7 +76,7 @@ describe('the multi-kill bonus', () => {
 });
 
 describe('breakdown wording', () => {
-    it('lists all seven kinds in order, splitter and carrier between rammer and boss, when each was defeated', () => {
+    it('lists all eight kinds in order, splitter, carrier and leech between rammer and boss, when each was defeated', () => {
         const b = emptyBreakdown();
         b.grunt = { count: 12, points: 1200 };
         b.shooter = { count: 1, points: 400 };
@@ -79,6 +84,7 @@ describe('breakdown wording', () => {
         b.rammer = { count: 2, points: 600 };
         b.splitter = { count: 3, points: 900 };
         b.carrier = { count: 1, points: 2000 };
+        b.leech = { count: 2, points: 800 };
         b.boss = { count: 1, points: 7500 };
         expect(kindRows(b)).toEqual([
             { kind: 'grunt', name: 'GRUNT', count: '×12', points: '1200' },
@@ -87,6 +93,7 @@ describe('breakdown wording', () => {
             { kind: 'rammer', name: 'RAMMER', count: '×2', points: '600' },
             { kind: 'splitter', name: 'SPLITTER', count: '×3', points: '900' },
             { kind: 'carrier', name: 'CARRIER', count: '×1', points: '2000' },
+            { kind: 'leech', name: 'LEECH', count: '×2', points: '800' },
             { kind: 'boss', name: 'BOSS', count: '×1', points: '7500' }
         ]);
     });
@@ -127,13 +134,13 @@ describe('breakdown wording', () => {
         ]);
     });
 
-    it('builds an 8-line table when all seven kinds were defeated', () => {
+    it('builds a 9-line table when all eight kinds were defeated', () => {
         const b = emptyBreakdown();
         for (const kind of BREAKDOWN_KINDS) tallyKill(b, kind, 100);
-        const lines = tableLines(700, b);
-        expect(lines).toHaveLength(8);
-        expect(lines.map((l) => l.type)).toEqual(['kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'bonus']);
-        expect(lines[7]).toEqual({ type: 'bonus', value: '+0' });
+        const lines = tableLines(800, b);
+        expect(lines).toHaveLength(9);
+        expect(lines.map((l) => l.type)).toEqual(['kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'kind', 'bonus']);
+        expect(lines[8]).toEqual({ type: 'bonus', value: '+0' });
     });
 
     it('builds a 2-line table with NO KILLS and a +0 bonus when nothing was defeated', () => {
@@ -155,8 +162,8 @@ describe('breakdown wording', () => {
 });
 
 describe('staggered fade-in', () => {
-    it('has at most nine lines: all seven kinds, the bonus, the total', () => {
-        expect(BREAKDOWN_LINES).toBe(9);
+    it('has at most ten lines: all eight kinds, the bonus, the total', () => {
+        expect(BREAKDOWN_LINES).toBe(10);
     });
 
     it('keeps line 3 hidden until 0.36 s, half in at 0.46 s, fully in at 0.56 s', () => {
@@ -177,18 +184,18 @@ describe('staggered fade-in', () => {
     it('stays fully shown afterwards instead of disappearing', () => {
         expect(lineAlpha(1, 0)).toBe(1);
         expect(lineAlpha(5, 3)).toBe(1);
-        expect(lineAlpha(60, 8)).toBe(1);
+        expect(lineAlpha(60, 9)).toBe(1);
     });
 
-    it('starts the first line at once and the total at 0.96 s', () => {
+    it('starts the first line at once and the total at 1.08 s', () => {
         expect(lineAlpha(0.1, 0)).toBeCloseTo(0.5);
-        expect(lineAlpha(0.96 - 1e-9, 8)).toBe(0);
-        expect(lineAlpha(1.06, 8)).toBeCloseTo(0.5);
+        expect(lineAlpha(1.08 - 1e-9, 9)).toBe(0);
+        expect(lineAlpha(1.18, 9)).toBeCloseTo(0.5);
     });
 
     it('ends every fade at exactly 1 even when the time is summed from frame deltas', () => {
         let t = 0;
-        for (let i = 0; i < 70; i++) t += 1 / 60; // about 1.17 s of 60 fps frames, past the total's 1.16 s
+        for (let i = 0; i < 80; i++) t += 1 / 60; // about 1.33 s of 60 fps frames, past the total's 1.28 s
         for (let i = 0; i < BREAKDOWN_LINES; i++) expect(lineAlpha(t, i)).toBe(1);
         // Line 3 ends its fade at 0.56 s, i.e. after 34 frames (33.6 frames' worth).
         let u = 0;
@@ -196,8 +203,8 @@ describe('staggered fade-in', () => {
         expect(lineAlpha(u, 3)).toBe(1);
     });
 
-    it('has every line fully shown by 1.16 s', () => {
-        expect(BREAKDOWN_SHOWN_AT).toBeCloseTo(1.16);
+    it('has every line fully shown by 1.28 s', () => {
+        expect(BREAKDOWN_SHOWN_AT).toBeCloseTo(1.28);
         for (let i = 0; i < BREAKDOWN_LINES; i++) expect(lineAlpha(BREAKDOWN_SHOWN_AT, i)).toBe(1);
     });
 });

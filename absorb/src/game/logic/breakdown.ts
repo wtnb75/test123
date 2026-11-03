@@ -2,7 +2,7 @@ import { GAMEOVER_ROW_FADE, GAMEOVER_ROW_INTERVAL, type DefeatKind } from './con
 
 /** The kinds the game-over breakdown lists, in display order. */
 export type BreakdownKind = DefeatKind | 'boss';
-export const BREAKDOWN_KINDS: readonly BreakdownKind[] = ['grunt', 'shooter', 'heavy', 'rammer', 'splitter', 'carrier', 'boss'];
+export const BREAKDOWN_KINDS: readonly BreakdownKind[] = ['grunt', 'shooter', 'heavy', 'rammer', 'splitter', 'carrier', 'leech', 'boss'];
 
 /** Kills of one kind and their base points (before the multi-kill multiplier). */
 export interface KindTally {
@@ -20,6 +20,7 @@ export function emptyBreakdown(): ScoreBreakdown {
         rammer: { count: 0, points: 0 },
         splitter: { count: 0, points: 0 },
         carrier: { count: 0, points: 0 },
+        leech: { count: 0, points: 0 },
         boss: { count: 0, points: 0 }
     };
 }
@@ -110,10 +111,10 @@ export function totalLabel(score: number): string {
 
 const FADE_EPSILON = 1e-9;
 
-/** Most staggered lines there can be: all seven kinds, the bonus, then the total. */
+/** Most staggered lines there can be: all eight kinds, the bonus, then the total. */
 export const BREAKDOWN_LINES = BREAKDOWN_KINDS.length + 2;
 
-/** Seconds into the game-over screen by which every line has fully faded in when all seven kinds are shown. */
+/** Seconds into the game-over screen by which every line has fully faded in when all eight kinds are shown. */
 export const BREAKDOWN_SHOWN_AT = (BREAKDOWN_LINES - 1) * GAMEOVER_ROW_INTERVAL + GAMEOVER_ROW_FADE;
 
 /**

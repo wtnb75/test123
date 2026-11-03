@@ -13,6 +13,7 @@ import {
     SWAY_RANGE, SWAY_SPEED,
     BOSS_FIRE_INTERVAL,
     CARRIER_DROP_INTERVAL, CARRIER_FIRST_DROP, CARRIER_SPEC, CARRIER_SPEED, CARRIER_Y_RATIO,
+    LEECH_ORBIT_RADIUS, LEECH_ORBIT_SPEED, LEECH_SPEC, LEECH_SPEED,
     type ActorKind, type CargoKind, type EnemyKind, type EnemySpec, type SpawnEdge
 } from './constants';
 import { angleTo, isFullyOffScreen, isOnScreen, randomRange, turnToward, type Point, type Rng } from './geometry';
@@ -33,6 +34,7 @@ export type EnemyState =
     | 'scatter'      // splitter child: spreading out before its dash
     | 'dash'         // rammer / splitter child: charging
     | 'cross'        // carrier: crossing the top of the screen
+    | 'orbit'        // leech: chasing its orbit point around the player
     | 'charge'       // boss: charging the locked point
     | 'pause'        // boss: resting after a charge
     | 'return';      // boss: moving vertically back to the station height
@@ -76,6 +78,9 @@ export interface Enemy {
     /** Carrier: the kind it drops, and seconds to its next drop (NaN until its centre first comes on screen). */
     cargo: CargoKind;
     dropTimer: number;
+    /** Leech: where it first stood seen from the player (radians), and which way its orbit point turns (1 or -1). */
+    orbitAngle: number;
+    orbitDir: number;
     /** Number of release bullets currently targeting this enemy. */
     incoming: number;
     removed: boolean;
@@ -145,7 +150,7 @@ export function blankEnemy(kind: ActorKind, id: number, hp: number, radius: numb
         swayCenter: 0, swayDir: 1, fireTimer: 0, actionTimer: 0,
         heading: 0, homingLeft: 0, originX: 0, originY: 0,
         bobTime: 0, sweepY: 0, sweepTargetX: 0, slotAngle: 0,
-        chargeX: 0, chargeY: 0, volleys: 0, cargo: 'grunt', dropTimer: NaN, incoming: 0, removed: false
+        chargeX: 0, chargeY: 0, volleys: 0, cargo: 'grunt', dropTimer: NaN, orbitAngle: 0, orbitDir: 1, incoming: 0, removed: false
     };
 }
 
@@ -159,6 +164,7 @@ export function createEnemy(kind: EnemyKind, id: number, rng: Rng, screen: Scree
 /** HP, score, radius and fire interval of every actor but the boss (whose stats depend on its number). */
 export function specOf(kind: Exclude<ActorKind, 'boss'>): EnemySpec {
     if (kind === 'carrier') return CARRIER_SPEC;
+    if (kind === 'leech') return LEECH_SPEC;
     return kind === 'splitterChild' ? SPLITTER_CHILD_SPEC : ENEMY_SPECS[kind];
 }
 
@@ -473,7 +479,54 @@ export function createDroppedEnemy(kind: CargoKind, id: number, from: Point, rng
     return e;
 }
 
-/** Advances one enemy by dt seconds (not the boss or a carrier, which have their own). Returns true when it fires a volley this frame. */
+/**
+ * A leech just off a randomly chosen edge (same odds and spots as a regular entry, but outside the screen by its
+ * radius), circling the player the way a coin from `rng` says. It has no station: it orbits from the first frame.
+ */
+export function createLeech(id: number, player: Point, rng: Rng, screen: ScreenSize): Enemy {
+    const e = blankEnemy('leech', id, LEECH_SPEC.hp, LEECH_SPEC.radius);
+    e.entry = pickSpawnEdge(rng, screen);
+    if (e.entry === 'top') {
+        e.x = randomRange(rng, EDGE_MARGIN, screen.width - EDGE_MARGIN);
+        e.y = -e.radius;
+    } else {
+        e.y = screen.height * randomRange(rng, SIDE_Y_MIN_RATIO, SIDE_Y_MAX_RATIO);
+        e.x = e.entry === 'left' ? -e.radius : screen.width + e.radius;
+    }
+    e.orbitDir = rng() < 0.5 ? 1 : -1;
+    e.orbitAngle = Math.atan2(e.y - player.y, e.x - player.x);
+    return e;
+}
+
+/** The point a leech is chasing `seconds` after it appeared: LEECH_ORBIT_RADIUS from the player, turning at LEECH_ORBIT_SPEED. */
+export function leechOrbitPoint(e: Pick<Enemy, 'orbitAngle' | 'orbitDir'>, seconds: number, player: Point): Point {
+    const angle = e.orbitAngle + e.orbitDir * LEECH_ORBIT_SPEED * seconds;
+    return { x: player.x + Math.cos(angle) * LEECH_ORBIT_RADIUS, y: player.y + Math.sin(angle) * LEECH_ORBIT_RADIUS };
+}
+
+/** Moves a leech toward its orbit point by at most LEECH_SPEED·dt. The frame it appears counts as second 0. */
+export function updateLeech(e: Enemy, dt: number, player: Point): void {
+    if (e.state === 'enter') setState(e, 'orbit');
+    else e.stateTime += dt;
+    const target = leechOrbitPoint(e, e.stateTime, player);
+    // Float slack: a leech pushed out to the radius may sit a hair inside it, and still counts as on the orbit.
+    const wasOutside = Math.hypot(e.x - player.x, e.y - player.y) >= LEECH_ORBIT_RADIUS - TIMER_EPSILON;
+    moveToward(e, target.x, target.y, LEECH_SPEED * dt);
+    if (wasOutside) keepOutsideOrbit(e, player);
+}
+
+/** A leech that began its move outside the orbit never ends it inside: it is pushed back out along the line from the player. */
+function keepOutsideOrbit(e: Enemy, player: Point): void {
+    const dx = e.x - player.x;
+    const dy = e.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    // dist is never 0 here: one step (LEECH_SPEED × dt) cannot carry a leech from the orbit radius onto the player.
+    if (dist >= LEECH_ORBIT_RADIUS) return;
+    e.x = player.x + (dx / dist) * LEECH_ORBIT_RADIUS;
+    e.y = player.y + (dy / dist) * LEECH_ORBIT_RADIUS;
+}
+
+/** Advances one enemy by dt seconds (not the boss, a carrier or a leech, which have their own). Returns true when it fires a volley this frame. */
 export function updateEnemy(e: Enemy, dt: number, ctx: EnemyContext): boolean {
     e.stateTime += dt;
     if (e.state === 'enter') {
