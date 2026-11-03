@@ -12,7 +12,7 @@ import {
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    LEECH_TETHER_ALPHA, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
+    LEECH_PARTICLE_RADIUS, LEECH_TETHER_ALPHA, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { PauseState } from '../logic/pause';
 import {
@@ -21,7 +21,7 @@ import {
 } from '../logic/startFx';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import { DropFlashes } from '../logic/carrierFx';
-import { StockFlash, leechDrainRate, tetherWidth } from '../logic/leech';
+import { DrainParticles, StockFlash, fieldTint, hasTether, leechDrainRate, particleCoord, tetherWidth } from '../logic/leech';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
@@ -58,6 +58,8 @@ const COLORS = {
     explosion: 0xffcc80,
     childOutline: 0xffffff,
     leechEye: 0x1a0f4d,
+    /** The stock particles along a leech's tether: lighter than the leech body. */
+    leechParticle: 0xe1bee7,
     gaugeDrained: 0xff5252
 };
 
@@ -166,6 +168,8 @@ export class Game extends Scene {
     /** The stock gauge's red cue after a leech drains stock, and whether the gauge was last drawn red. */
     private readonly stockFlash = new StockFlash();
     private shownStockRed = false;
+    /** Stock particles flowing along the leech tethers. */
+    private readonly drainParticles = new DrainParticles();
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     private readonly buttonFx = new ButtonEffects();
@@ -246,6 +250,7 @@ export class Game extends Scene {
         this.splitFx.clear();
         this.dropFlashes.clear();
         this.stockFlash.clear();
+        this.drainParticles.clear();
         this.shownStockRed = false;
         this.multiKillFx.clear();
         this.hitFx.clear();
@@ -429,6 +434,8 @@ export class Game extends Scene {
         this.splitFx.update(dt, this.world.splits);
         this.dropFlashes.update(dt, this.world.carrierDrops);
         this.stockFlash.update(dt, this.world.stockDrained);
+        const w = this.world;
+        this.drainParticles.update(dt, w.player.x, w.player.y, w.enemies, w.phase === 'playing', w.drainableStock);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
         this.startFx.update(dt, this.world.phase, this.world.phaseTime, this.world.player.x, this.world.player.y);
@@ -567,17 +574,25 @@ export class Game extends Scene {
         this.drawHitRing();
     }
 
-    /** A line from each leech inside the field to the player, thicker the harder it drains; only while playing. */
+    /**
+     * A line from each leech inside the drain range to the player, thicker the harder it drains; only while
+     * playing. The stock particles flowing along the tethers go right after, in front of the lines.
+     */
     private drawTethers() {
         const w = this.world;
-        if (w.phase !== 'playing') return;
         const p = w.player;
-        for (const e of w.enemies) {
-            if (e.kind !== 'leech' || e.removed) continue;
-            const d = Math.hypot(e.x - p.x, e.y - p.y);
-            if (d > FIELD_RADIUS) continue;
-            this.gfx.lineStyle(tetherWidth(leechDrainRate(d)), COLORS.leech, LEECH_TETHER_ALPHA);
-            this.gfx.lineBetween(e.x, e.y, p.x, p.y);
+        if (w.phase === 'playing') {
+            for (const e of w.enemies) {
+                if (e.kind !== 'leech' || e.removed) continue;
+                const d = Math.hypot(e.x - p.x, e.y - p.y);
+                if (!hasTether(d)) continue;
+                this.gfx.lineStyle(tetherWidth(leechDrainRate(d)), COLORS.leech, LEECH_TETHER_ALPHA);
+                this.gfx.lineBetween(e.x, e.y, p.x, p.y);
+            }
+        }
+        this.gfx.fillStyle(COLORS.leechParticle, 1);
+        for (const s of this.drainParticles.particles) {
+            this.gfx.fillCircle(particleCoord(p.x, s.endX, s.age), particleCoord(p.y, s.endY, s.age), LEECH_PARTICLE_RADIUS);
         }
     }
 
@@ -793,9 +808,11 @@ export class Game extends Scene {
         if (w.phase === 'playing') {
             // The field glows brighter as the stock fills up.
             const fx = this.absorbFx;
+            // Leeches drawing on the stock pull the field's colour toward theirs.
+            const color = lerpColor(COLORS.field, COLORS.leech, fieldTint(w.drainRate));
             this.drawFieldCircle(
                 p.x, p.y, FIELD_RADIUS, FIELD_FILL_REST_ALPHA + FIELD_FILL_STOCK_ALPHA * (w.stock / STOCK_MAX),
-                edgeWidth(fx.pulseAge), edgeAlpha(fx.pulseAge)
+                edgeWidth(fx.pulseAge), edgeAlpha(fx.pulseAge), color
             );
             const ring = absorbRingProgress(fx.ringAge);
             if (ring >= 0) {
@@ -812,11 +829,14 @@ export class Game extends Scene {
     }
 
     /** The absorb field: a translucent disc with its outline, the same look while readying and playing. */
-    private drawFieldCircle(x: number, y: number, radius: number, fillAlpha: number, edgeWidthPx: number, edgeAlphaValue: number) {
+    private drawFieldCircle(
+        x: number, y: number, radius: number, fillAlpha: number, edgeWidthPx: number, edgeAlphaValue: number,
+        color: number = COLORS.field
+    ) {
         const g = this.gfx;
-        g.fillStyle(COLORS.field, fillAlpha);
+        g.fillStyle(color, fillAlpha);
         g.fillCircle(x, y, radius);
-        g.lineStyle(edgeWidthPx, COLORS.field, edgeAlphaValue);
+        g.lineStyle(edgeWidthPx, color, edgeAlphaValue);
         g.strokeCircle(x, y, radius);
     }
 

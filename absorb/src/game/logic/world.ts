@@ -191,6 +191,9 @@ export class World {
     private readonly droppersThisStep: Enemy[] = [];
     /** Stock the leeches took during the latest step (for the stock gauge's red cue). */
     private drainedThisStep = 0;
+    /** Total drain rate (stock per second) of all leeches and the stock just before the drain, during the latest step. */
+    private drainRateThisStep = 0;
+    private stockBeforeDrain = 0;
     /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
     private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
@@ -242,6 +245,16 @@ export class World {
         return this.drainedThisStep;
     }
 
+    /** Sum of the leeches' drain rates (stock per second) in the latest step; 0 unless the step began and ended in the playing phase (the frame contact ends the run reports 0). */
+    get drainRate(): number {
+        return this.drainRateThisStep;
+    }
+
+    /** Stock the player had after absorbing, just before the latest drain (for the stock particles); 0 outside playing. */
+    get drainableStock(): number {
+        return this.stockBeforeDrain;
+    }
+
     /** Where splitters split during the latest step (for the split ring): the parent's spot, before clamping. */
     get splits(): readonly Point[] {
         return this.splitsThisStep;
@@ -268,6 +281,8 @@ export class World {
         this.dropsThisStep.length = 0;
         this.droppersThisStep.length = 0;
         this.drainedThisStep = 0;
+        this.drainRateThisStep = 0;
+        this.stockBeforeDrain = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -304,6 +319,11 @@ export class World {
         this.drainStock(dt);
         this.updateReleaseBullets(dt, true);
         this.checkContact();
+        if (this.phase !== 'playing') {
+            // The run ended on this contact: the drain cues (particles, field tint) are not shown for this frame.
+            this.drainRateThisStep = 0;
+            this.stockBeforeDrain = 0;
+        }
         this.spawnSplitterChildren();
         for (const d of this.dropsThisStep) this.enemies.push(d);
         this.removeGone();
@@ -458,13 +478,15 @@ export class World {
         this.nextLeechAt = this.elapsed + LEECH_INTERVAL;
     }
 
-    /** Takes stock from the player for every leech inside the field, in whole units; the rest carries over. */
+    /** Takes stock from the player for every leech inside LEECH_DRAIN_RADIUS, in whole units; the rest carries over. */
     private drainStock(dt: number): void {
         let rate = 0;
         const p = this.player;
         for (const e of this.enemies) {
             if (e.kind === 'leech' && !e.removed) rate += leechDrainRate(Math.hypot(e.x - p.x, e.y - p.y));
         }
+        this.drainRateThisStep = rate;
+        this.stockBeforeDrain = this.stock;
         if (rate === 0 && this.drainCarry === 0) return; // nothing draining, nothing carried: no work (and no allocation)
         const step = drainStep(this.drainCarry, rate, dt, this.stock);
         this.drainCarry = step.carry;

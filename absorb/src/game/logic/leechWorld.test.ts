@@ -319,46 +319,109 @@ describe('how a leech moves', () => {
         const e = leechAt(w, 60, 0);
         for (let i = 0; i < 60; i++) w.step(DT, { ...NONE, moveY: 1 }); // 1 s straight down: 320 px, 100..420
         expect(w.player.y).toBeCloseTo(420, 6);
-        // The player covered 320 px, the leech at most 100 px: it is left far behind, outside the 90 px field.
-        expect(Math.hypot(e.x - w.player.x, e.y - w.player.y)).toBeGreaterThan(90);
+        // The player covered 320 px, the leech at most 100 px: it is left far behind, outside the 150 px drain range.
+        expect(Math.hypot(e.x - w.player.x, e.y - w.player.y)).toBeGreaterThan(150);
     });
 });
 
 describe('what a leech drains', () => {
-    it('takes 1 stock on the 30th frame at the 60 px orbit (2 per second), then 1 more every 30 frames', () => {
+    it('takes 1 stock on the 28th frame at the 60 px orbit (2.16 per second), then 1 more every 28 frames', () => {
         const w = quietWorld();
         w.stock = 10;
         leechAt(w, 60, 0);
-        run(w, 29);
+        run(w, 27); // 27 × 0.036 = 0.972
         expect(w.stock).toBe(10);
         expect(w.stockDrained).toBe(0);
-        run(w, 1);
+        run(w, 1); // 1.008
         expect(w.stock).toBe(9);
         expect(w.stockDrained).toBe(1);
         run(w, 1);
         expect(w.stockDrained).toBe(0);
-        run(w, 29);
+        run(w, 26); // frame 55: 0.008 + 27 × 0.036 = 0.98
+        expect(w.stock).toBe(9);
+        run(w, 1); // frame 56: 1.016
         expect(w.stock).toBe(8);
     });
 
-    it('adds up two leeches: 4 per second takes 1 on the 15th frame', () => {
+    it('adds up two leeches: 4.32 per second takes 1 on the 14th frame', () => {
         const w = quietWorld();
         w.stock = 10;
         leechAt(w, 60, 0);
         leechAt(w, 60, Math.PI);
-        run(w, 14);
+        run(w, 13); // 13 × 0.072 = 0.936
         expect(w.stock).toBe(10);
-        run(w, 1);
+        run(w, 1); // 1.008
         expect(w.stock).toBe(9);
     });
 
-    it('takes nothing from a leech outside the field (still closing in from 200 px)', () => {
+    it('drains a leech outside the absorb field (90 px) but inside the drain range: 120 px is 0.72 per second', () => {
         const w = quietWorld();
         w.stock = 10;
-        leechAt(w, 200, 0);
-        run(w, 30); // 0.5 s: it has come in by 50 px at most, to 150 px
+        leechAt(w, 120, 0);
+        w.step(DT, NONE);
+        // One frame closer (at most 100 / 60 = 1.67 px): between 0.72 (120 px) and 3.6 × (1 − 118.33 / 150) = 0.76.
+        expect(w.drainRate).toBeGreaterThanOrEqual(0.72);
+        expect(w.drainRate).toBeLessThan(0.77);
+    });
+
+    it('takes nothing from a leech outside the drain range (still closing in from 250 px)', () => {
+        const w = quietWorld();
+        w.stock = 10;
+        leechAt(w, 250, 0);
+        run(w, 30); // 0.5 s: it has come in by 50 px at most, to 200 px
         expect(w.stock).toBe(10);
         expect(w.drainCarry).toBe(0);
+        expect(w.drainRate).toBe(0);
+    });
+
+    it('reports the total drain rate and the stock just before the drain for the effects', () => {
+        const w = quietWorld();
+        w.stock = 7;
+        leechAt(w, 60, 0);
+        leechAt(w, 60, Math.PI);
+        w.step(DT, NONE);
+        expect(w.drainRate).toBeCloseTo(4.32, 6);
+        expect(w.drainableStock).toBe(7);
+    });
+
+    it('reports no rate and no stock outside the playing phase', () => {
+        const w = new World(S, () => 0.5);
+        w.stock = 10;
+        leechAt(w, 60, 0);
+        w.step(DT, NONE); // ready
+        expect(w.drainRate).toBe(0);
+        expect(w.drainableStock).toBe(0);
+    });
+
+    it('reports no rate and no stock on the frame contact ends the run (no particles, no field tint that frame)', () => {
+        const w = quietWorld();
+        w.stock = 10;
+        w.player.lives = 1;
+        leechAt(w, 20, 0);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('ending');
+        expect(w.drainRate).toBe(0);
+        expect(w.drainableStock).toBe(0);
+    });
+
+    it('still reports the rate on a contact frame that leaves the run going (a life is left)', () => {
+        const w = quietWorld();
+        w.stock = 10;
+        leechAt(w, 20, 0);
+        w.step(DT, NONE);
+        expect(w.phase).toBe('playing');
+        expect(w.player.lives).toBe(2);
+        expect(w.drainRate).toBeGreaterThan(3);
+        expect(w.drainableStock).toBe(10);
+    });
+
+    it('reports the stock left after an automatic release as the stock the drain found', () => {
+        const w = quietWorld();
+        w.stock = 49;
+        leechAt(w, 60, 0);
+        w.enemyBullets.push({ x: w.player.x, y: w.player.y - 50, vx: 0, vy: 0, removed: false });
+        w.step(DT, NONE); // absorbed: 50 -> auto release -> 0, then the drain looks
+        expect(w.drainableStock).toBe(0);
     });
 
     it('does not take from an empty stock, and what built up meanwhile does not eat the stock absorbed later', () => {
@@ -368,7 +431,7 @@ describe('what a leech drains', () => {
         expect(w.stock).toBe(0);
         expect(w.drainCarry).toBe(0);
         w.stock = 5;
-        run(w, 29);
+        run(w, 27);
         expect(w.stock).toBe(5);
         run(w, 1);
         expect(w.stock).toBe(4);
