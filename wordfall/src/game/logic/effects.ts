@@ -23,7 +23,7 @@ import {
 } from '../params';
 import { traySlotRect } from './layout';
 import type { PickResult } from './round';
-import { bonusFor, scoreFor } from './scoring';
+import { bonusFor, multiBonus, scoreFor } from './scoring';
 
 /** Linear value between `from` and `to` after `t` of `duration` (clamped to the ends). */
 export function valueAt(from: number, to: number, t: number, duration: number): number {
@@ -33,6 +33,13 @@ export function valueAt(from: number, to: number, t: number, duration: number): 
 
 /** The pop-up text for a completed word of `length` letters: `+170  +7s`. */
 export const popText = (length: number): string => `+${scoreFor(length)}  +${bonusFor(length)}s`;
+
+/** The pop-up text for `n` (>= 2) words completed by one pick: `DOUBLE  +100  +5s`. */
+export function multiPopText(n: number): string {
+    const label = n === 2 ? 'DOUBLE' : n === 3 ? 'TRIPLE' : `MULTI x${n}`;
+    const b = multiBonus(n);
+    return `${label}  +${b.score}  +${b.sec}s`;
+}
 
 export interface PopTween {
     /** Wait before it starts (ms); nothing is shown until then. */
@@ -112,6 +119,8 @@ export interface EffectCounts {
     /** Completed-row highlights and pop-ups: one per completed word. */
     ghosts: number;
     pops: number;
+    /** The extra pop-up for two or more words completed at once (shown as the n-th pop-up of the pick). */
+    multiPop: number;
     /** The letter's flight to the tray (only when it was picked). */
     fly: number;
     /** The red tray rim and the screen shake (only when refused because the tray is full). */
@@ -121,11 +130,11 @@ export interface EffectCounts {
 
 /** Which effects one pick triggers, and how many of each. */
 export function effectCounts(result: PickResult): EffectCounts {
-    const none = { flash: 0, ghosts: 0, pops: 0, fly: 0, fullHint: 0, shake: 0 };
+    const none = { flash: 0, ghosts: 0, pops: 0, multiPop: 0, fly: 0, fullHint: 0, shake: 0 };
     if (result.kind === 'full') return { ...none, fullHint: 1, shake: 1 };
     if (result.kind === 'ignored') return none;
     const n = result.completed.length;
-    return { ...none, flash: n > 0 ? 1 : 0, ghosts: n, pops: n, fly: 1 };
+    return { ...none, flash: n > 0 ? 1 : 0, ghosts: n, pops: n, multiPop: n >= 2 ? 1 : 0, fly: 1 };
 }
 
 /** The Result score shown `t` ms after Result started: counts up to `score` over COUNT_UP_MS. */

@@ -63,10 +63,41 @@ describe('Round.pick', () => {
         expect(r.completedCount).toBe(0);
         r.pick('C'); // CAT completes, its row becomes SKY, which the leftover S K Y spell at once
         expect(r.completedWords).toEqual(['CAT', 'SKY']);
-        expect(r.score).toBe(scoreFor(3) + scoreFor(3));
-        expect(r.timeLeft).toBe(60 + bonusFor(3) + bonusFor(3));
+        // two words at once: the two word scores and times plus the multi bonus (+100, +5 s)
+        expect(r.score).toBe(scoreFor(3) + scoreFor(3) + 100);
+        expect(r.timeLeft).toBe(60 + bonusFor(3) + bonusFor(3) + 5);
         expect(r.completedCount).toBe(2);
         expect(r.appeared.map((t) => t.en)).toEqual(['CAT', 'DOG', 'SUN', 'SKY', 'CAT']);
+    });
+
+    it('gives the multi bonus once for a shared letter: C completes CAT and CUP together (+30 +30 +100, +3 +3 +5 s)', () => {
+        const r = new Round(zero);
+        r.targets = [{ en: 'CAT', ja: '' }, { en: 'CUP', ja: '' }, { en: 'DOG', ja: '' }];
+        r.tray = [...'ATUP'];
+        const res = r.pick('C');
+        expect(res.kind === 'picked' && res.completed.map((x) => x.en)).toEqual(['CAT', 'CUP']);
+        expect(r.score).toBe(160);
+        expect(r.timeLeft).toBe(71);
+        expect(r.completedCount).toBe(2); // WORDS counts words, not the bonus
+        expect(r.completedWords).toEqual(['CAT', 'CUP']);
+    });
+
+    it('adds no multi bonus for a single completion', () => {
+        const r = new Round(zero);
+        pickAll(r, 'CAT');
+        expect(r.score).toBe(30);
+        expect(r.timeLeft).toBe(63);
+    });
+
+    it('counts the multi bonus of a pick that reaches the frame where time runs out (0.2 s left, then a 0.5 s tick)', () => {
+        const r = new Round(zero);
+        r.targets = [{ en: 'CAT', ja: '' }, { en: 'CUP', ja: '' }, { en: 'DOG', ja: '' }];
+        r.tray = [...'ATUP'];
+        r.timeLeft = 0.2;
+        r.pick('C');
+        r.tick(0.5);
+        expect(r.timeLeft).toBeCloseTo(0.2 + 3 + 3 + 5 - 0.5, 10);
+        expect(r.phase).toBe('playing');
     });
 
     it('scores longer words more: a completed 8-letter word gives 230 and 8 seconds', () => {
@@ -217,10 +248,12 @@ describe('simulated plays keep the rules intact (seeded)', () => {
         let completions = 0;
         let fulls = 0;
         let discards = 0;
+        let multiPicks = 0;
         for (let seed = 1; seed <= 60; seed++) {
             const rng = seeded(seed);
             const r = new Round(rng);
             let bonus = 0;
+            let multiScore = 0;
             let time = 0;
             for (let step = 0; step < 250 && !r.isOver; step++) {
                 const roll = rng();
@@ -233,6 +266,9 @@ describe('simulated plays keep the rules intact (seeded)', () => {
                     if (res.kind === 'picked') {
                         completions += res.completed.length;
                         for (const c of res.completed) bonus += bonusFor(c.en.length);
+                        bonus += 5 * Math.max(0, res.completed.length - 1); // the multi bonus, from the spec
+                        multiScore += 100 * Math.max(0, res.completed.length - 1);
+                        if (res.completed.length >= 2) multiPicks++;
                     }
                 }
                 const dt = 0.1;
@@ -241,7 +277,7 @@ describe('simulated plays keep the rules intact (seeded)', () => {
                 if (r.tray.length > 10) expect.fail(`tray over capacity (seed ${seed})`);
                 if (new Set(r.targets.map((t) => t.en)).size !== 3) expect.fail(`duplicate targets (seed ${seed})`);
             }
-            const expectedScore = r.completedWords.reduce((s, en) => s + scoreFor(en.length), 0);
+            const expectedScore = r.completedWords.reduce((s, en) => s + scoreFor(en.length), 0) + multiScore;
             if (r.score !== expectedScore) expect.fail(`score books (seed ${seed})`);
             if (!r.isOver && Math.abs(r.timeLeft - (60 + bonus - time)) > 1e-6) expect.fail(`clock books (seed ${seed})`);
             if (r.completedCount !== r.completedWords.length) expect.fail(`count books (seed ${seed})`);
@@ -252,5 +288,6 @@ describe('simulated plays keep the rules intact (seeded)', () => {
         expect(completions).toBeGreaterThan(0);
         expect(fulls).toBeGreaterThan(0);
         expect(discards).toBeGreaterThan(0);
+        expect(multiPicks).toBeGreaterThan(0); // the multi bonus terms of the books were really exercised
     });
 });

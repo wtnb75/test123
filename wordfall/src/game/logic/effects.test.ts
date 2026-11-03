@@ -7,6 +7,7 @@ import {
     flyPlan,
     ghostTween,
     isLowTime,
+    multiPopText,
     popText,
     popTween,
     shouldBumpTime,
@@ -136,19 +137,41 @@ describe('effectCounts: what one pick triggers', () => {
     });
 
     it('a pick that completes nothing only flies the letter', () => {
-        expect(effectCounts(picked(0))).toEqual({ flash: 0, ghosts: 0, pops: 0, fly: 1, fullHint: 0, shake: 0 });
+        expect(effectCounts(picked(0))).toEqual({ flash: 0, ghosts: 0, pops: 0, multiPop: 0, fly: 1, fullHint: 0, shake: 0 });
     });
 
-    it('two completions give one flash and two highlights and pop-ups', () => {
-        expect(effectCounts(picked(2))).toEqual({ flash: 1, ghosts: 2, pops: 2, fly: 1, fullHint: 0, shake: 0 });
+    it('one completion gives one flash, one highlight and one pop-up, and no multi pop-up', () => {
+        expect(effectCounts(picked(1))).toEqual({ flash: 1, ghosts: 1, pops: 1, multiPop: 0, fly: 1, fullHint: 0, shake: 0 });
+    });
+
+    it('two completions give one flash, two highlights and pop-ups, and one extra multi pop-up', () => {
+        expect(effectCounts(picked(2))).toEqual({ flash: 1, ghosts: 2, pops: 2, multiPop: 1, fly: 1, fullHint: 0, shake: 0 });
+    });
+
+    it('three completions still give one multi pop-up', () => {
+        expect(effectCounts(picked(3))).toMatchObject({ flash: 1, ghosts: 3, pops: 3, multiPop: 1 });
     });
 
     it('a pick refused because the tray is full gives the red rim and the shake, and no flight', () => {
-        expect(effectCounts({ kind: 'full' })).toEqual({ flash: 0, ghosts: 0, pops: 0, fly: 0, fullHint: 1, shake: 1 });
+        expect(effectCounts({ kind: 'full' })).toEqual({ flash: 0, ghosts: 0, pops: 0, multiPop: 0, fly: 0, fullHint: 1, shake: 1 });
     });
 
     it('an ignored pick (after the end) triggers nothing', () => {
-        expect(effectCounts({ kind: 'ignored' })).toEqual({ flash: 0, ghosts: 0, pops: 0, fly: 0, fullHint: 0, shake: 0 });
+        expect(effectCounts({ kind: 'ignored' })).toEqual({ flash: 0, ghosts: 0, pops: 0, multiPop: 0, fly: 0, fullHint: 0, shake: 0 });
+    });
+});
+
+describe('multi pop-up (docs/spec/multi-complete.md "同時完成のポップアップ")', () => {
+    it('reads DOUBLE +100 +5s for two, TRIPLE +200 +10s for three, MULTI xN for four and more', () => {
+        expect(multiPopText(2)).toBe('DOUBLE  +100  +5s');
+        expect(multiPopText(3)).toBe('TRIPLE  +200  +10s');
+        expect(multiPopText(4)).toBe('MULTI x4  +300  +15s');
+        expect(multiPopText(5)).toBe('MULTI x5  +400  +20s');
+    });
+
+    it('starts as the n-th pop-up of the pick: n = 2 after 240 ms at y 258, n = 3 after 360 ms at y 282', () => {
+        expect(popTween(2)).toMatchObject({ delayMs: 240, fromY: 258, toY: 218 });
+        expect(popTween(3)).toMatchObject({ delayMs: 360, fromY: 282, toY: 242 });
     });
 });
 

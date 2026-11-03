@@ -22,12 +22,28 @@ export function findCompletable(tray: readonly string[], targets: readonly Word[
     return targets.findIndex((t) => canComplete(tray, t.en));
 }
 
-/** The tray without one copy of each letter of `word`; the rest keep their order. */
-export function consume(tray: readonly string[], word: string): string[] {
+/**
+ * The tray after `word` completes (docs/spec.md "完成"): its letters are taken out, except the copies the
+ * `others` (the other words on screen) still need. For a letter with `a` copies in `word`, `t` in the tray
+ * and at most `m` in any one of `others`, `max(t - a, min(t, m))` copies stay. Copies nearest the front go
+ * first; the rest keep their order.
+ */
+export function consume(tray: readonly string[], word: string, others: readonly string[] = []): string[] {
+    const have = counts(tray);
+    const otherCounts = others.map(counts);
     const rest = [...tray];
-    for (const c of word) {
-        const i = rest.indexOf(c);
-        if (i >= 0) rest.splice(i, 1);
+    for (const [c, a] of counts(word)) {
+        const t = have.get(c) ?? 0;
+        const m = Math.max(0, ...otherCounts.map((o) => o.get(c) ?? 0));
+        let toRemove = t - Math.max(t - a, Math.min(t, m));
+        for (let i = 0; i < rest.length && toRemove > 0; ) {
+            if (rest[i] === c) {
+                rest.splice(i, 1);
+                toRemove -= 1;
+            } else {
+                i += 1;
+            }
+        }
     }
     return rest;
 }
@@ -85,7 +101,7 @@ export function resolveCompletions(tray: readonly string[], targets: readonly Wo
         const word = next[i];
         completed.push(word);
         rows.push(i);
-        rest = consume(rest, word.en);
+        rest = consume(rest, word.en, next.filter((_, j) => j !== i).map((t) => t.en));
         const replacement = pickWord(rng, next.map((t) => t.en));
         drawn.push(replacement);
         next[i] = replacement;

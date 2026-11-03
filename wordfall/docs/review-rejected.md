@@ -17,3 +17,5 @@
 - `src/game/logic/best.ts`（`loadBest` が薄いラッパー）— 理由: `formatBest` を数値のまま保てて、画面側の変更が最小になる
 - `src/game/logic/best.ts`（スコア 0 を記録しないガードが wordfall 側にある。共有ストアに `minScore` を足す案）— 理由: spec で決めた設計。共有ストアは変えない
 - `src/game/scenes/Game.ts`（DEV 専用の `?qatime=` が `Round` の内部を直接書き換える）: 理由: QA の補助だけ。`Round` に時間の上限のような状態は無い
+- `src/game/logic/tray.ts` の `resolveCompletions`: 取り除く文字が 0 個の完成が続くと、連鎖に上限が無い — 理由: 続くには、新しく引いた語がその都度トレイの文字だけで揃う必要があり、確率が急速に 0 に近づく。上限は仕様に無い規則を足すことになる
+- `src/game/scenes/Game.ts` の `spawn`（手がかり用の縁 2 つと光を全部の文字に作る。遅延生成の案）: 理由: 作るのは 650 ms に 1 回だけ（プール化を見送った理由と同じ）。遅延生成は複雑さを増やすわりに得が小さい

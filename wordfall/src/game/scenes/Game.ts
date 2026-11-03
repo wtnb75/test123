@@ -15,6 +15,13 @@ import {
     HUD_Y,
     LETTER_SIZE,
     MEANING_OFFSET,
+    NEAR_RIM_W,
+    REACH_HALO_PAD,
+    REACH_RIM_W,
+    REACH_ROW_DY,
+    REACH_ROW_H,
+    REACH_ROW_PAD,
+    REACH_ROW_RIM_W,
     RESULT_DELAY,
     SCREEN_WIDTH,
     SPAWN_INTERVAL_MS,
@@ -24,11 +31,22 @@ import {
     TRAY_CAPACITY,
 } from '../params';
 import {
+    cueState,
+    haloAlpha,
+    NO_CUE,
+    nextReachClock,
+    pulse,
+    reachScale,
+    rowRimAlpha,
+    type CueState,
+} from '../logic/chance';
+import {
     bumpTween,
     effectCounts,
     flyPlan,
     ghostTween,
     isLowTime,
+    multiPopText,
     popText,
     popTween,
     shouldBumpTime,
@@ -57,9 +75,17 @@ import {
     UI_FONT,
 } from './ui';
 
+type CueStyle = 'none' | 'near' | 'reach';
+
 interface Letter extends FallingLetter {
     col: number;
     obj: GameObjects.Container;
+    /** Thin white rim (near letter) and thick one (reach letter), both inside the tile; hidden by default. */
+    nearRim: GameObjects.Rectangle;
+    reachRim: GameObjects.Rectangle;
+    /** Glow behind a reach letter; follows the tile's y while visible. */
+    halo: GameObjects.Rectangle;
+    style: CueStyle;
 }
 
 /** A target row's Text objects: its letters (and which are green now) and the meaning line. */
@@ -94,6 +120,10 @@ export class Game extends Scene {
     private shownTime = -1;
     private timeBump?: Tweens.Tween;
     private rimTimer?: Time.TimerEvent;
+    private cue: CueState = NO_CUE;
+    /** ms since the reach set became non-empty; -1 while it is empty. */
+    private reachClock = -1;
+    private rowRims: GameObjects.Rectangle[] = [];
 
     constructor() {
         super('Game');
@@ -117,6 +147,9 @@ export class Game extends Scene {
         this.shownTime = -1;
         this.timeBump = undefined; // the Scene instance is reused: nothing from the last play survives
         this.rimTimer = undefined;
+        this.cue = NO_CUE;
+        this.reachClock = -1;
+        this.rowRims = []; // the Scene instance is reused: the last play's frames are gone
         this.cameras.main.setBackgroundColor(BG_COLOR);
 
         this.scoreText = this.add
@@ -131,8 +164,10 @@ export class Game extends Scene {
         addLabel(this, SCREEN_WIDTH / 2, this.geom.hintY, 'トレイの文字をタップで捨てる', FONT_HINT, COLOR.muted);
         this.targetRows = [];
         this.buildTray();
+        this.buildRowRims();
         this.refreshTargets();
         this.refreshTray();
+        this.refreshCue();
         this.updateHud();
 
         this.guard = new RotateGuard(this);
@@ -154,7 +189,14 @@ export class Game extends Scene {
                 score: { get: () => this.round.score },
                 tray: { get: () => [...this.round.tray] },
                 targets: { get: () => this.round.targets.map((t) => t.en) },
-                letters: { get: () => this.letters.map((l) => ({ ch: l.ch, x: l.x, y: l.y })) },
+                letters: { get: () => this.letters.map((l) => ({ ch: l.ch, x: l.x, y: l.y, style: l.style })) },
+                cue: {
+                    get: () => ({
+                        reach: [...this.cue.reach],
+                        reachRows: [...this.cue.reachRows],
+                        near: [...this.cue.near],
+                    }),
+                },
                 guard: { get: () => this.guard.active },
             });
             (window as unknown as { __qa: unknown }).__qa = qa;
@@ -182,7 +224,12 @@ export class Game extends Scene {
         this.updateHud();
         if (this.round.isOver) {
             this.clearLetters();
+            this.clearCue();
             return;
+        }
+        if (this.reachClock >= 0) {
+            this.reachClock += delta;
+            this.pulseReach();
         }
         const due = stepSpawn(this.spawnAcc, delta, SPAWN_INTERVAL_MS);
         this.spawnAcc = due.accMs;
@@ -222,13 +269,15 @@ export class Game extends Scene {
         if (fx.fullHint > 0) this.showFullRim();
         if (result.kind !== 'picked') return;
         if (fx.fly > 0) this.flyLetter(letter, trayBefore);
-        letter.obj.destroy();
+        this.destroyLetter(letter);
         this.letters.splice(this.letters.indexOf(letter), 1);
         this.refreshAfterTrayChange();
         this.updateHud();
         if (fx.flash > 0) this.cameras.main.flash(COMPLETE_FLASH_MS); // ignored while a flash is still playing
         for (let k = 0; k < fx.ghosts; k++) this.spawnGhost(result.rows[k], result.completed[k]);
-        for (let k = 0; k < fx.pops; k++) this.spawnPop(k, result.completed[k].en.length);
+        for (let k = 0; k < fx.pops; k++) this.spawnPop(k, popText(result.completed[k].en.length));
+        // The extra line for completing several words at once follows the per-word pop-ups (k = n).
+        if (fx.multiPop > 0) this.spawnPop(result.completed.length, multiPopText(result.completed.length));
         // The TIME pulse after a completion goes through the same rule as the warning pulse in update().
         const timeUp = shouldBumpTime({
             completed: fx.ghosts > 0,
@@ -295,9 +344,9 @@ export class Game extends Scene {
     }
 
     /** `+170  +7s` rises near the top of the field (the k-th pop-up of one pick starts later and lower). */
-    private spawnPop(k: number, length: number) {
+    private spawnPop(k: number, label: string) {
         const pop = popTween(k);
-        const text = addLabel(this, SCREEN_WIDTH / 2, pop.fromY, popText(length), FONT_POP, COLOR.accent)
+        const text = addLabel(this, SCREEN_WIDTH / 2, pop.fromY, label, FONT_POP, COLOR.accent)
             .setDepth(DEPTH.pop)
             .setStroke(COLOR.popStroke, POP_STROKE_WIDTH)
             .setVisible(false); // nothing shows during the start delay
@@ -324,8 +373,84 @@ export class Game extends Scene {
         const label = this.add
             .text(0, 0, ch, { fontFamily: MONO_FONT, fontSize: `${FONT_LETTER}px`, color: COLOR.tileText })
             .setOrigin(0.5);
-        const obj = this.add.container(x, y, [tile, label]).setDepth(DEPTH.letters);
-        this.letters.push({ ch, x, y, col, obj });
+        const nearRim = this.add
+            .rectangle(0, 0, LETTER_SIZE - NEAR_RIM_W, LETTER_SIZE - NEAR_RIM_W)
+            .setStrokeStyle(NEAR_RIM_W, COLOR.cue)
+            .setVisible(false);
+        const reachRim = this.add
+            .rectangle(0, 0, LETTER_SIZE - REACH_RIM_W, LETTER_SIZE - REACH_RIM_W)
+            .setStrokeStyle(REACH_RIM_W, COLOR.cue)
+            .setVisible(false);
+        const obj = this.add.container(x, y, [tile, label, nearRim, reachRim]).setDepth(DEPTH.letters);
+        const halo = this.add
+            .rectangle(x, y, LETTER_SIZE + REACH_HALO_PAD, LETTER_SIZE + REACH_HALO_PAD, COLOR.tile)
+            .setDepth(DEPTH.halo)
+            .setVisible(false);
+        const letter: Letter = { ch, x, y, col, obj, nearRim, reachRim, halo, style: 'none' };
+        this.letters.push(letter);
+        this.styleLetter(letter);
+        this.pulseReach();
+    }
+
+    private destroyLetter(l: Letter) {
+        l.obj.destroy();
+        l.halo.destroy();
+    }
+
+    // ---- aim cue (docs/spec/multi-complete.md) ---------------------------------------------------------
+
+    /** Recomputes the cue from the tray and the words (after any change of either) and restyles what shows it. */
+    private refreshCue() {
+        this.cue = cueState(this.round.tray, this.round.targets);
+        this.reachClock = nextReachClock(this.reachClock, this.cue.reach);
+        this.letters.forEach((l) => this.styleLetter(l));
+        this.rowRims.forEach((r, row) => r.setVisible(this.cue.reachRows.includes(row)));
+        this.pulseReach();
+    }
+
+    private clearCue() {
+        this.cue = NO_CUE;
+        this.reachClock = -1;
+        this.rowRims.forEach((r) => r.setVisible(false));
+    }
+
+    private styleLetter(l: Letter) {
+        const style: CueStyle = this.cue.reach.has(l.ch) ? 'reach' : this.cue.near.has(l.ch) ? 'near' : 'none';
+        if (style === l.style) return;
+        l.style = style;
+        l.nearRim.setVisible(style === 'near');
+        l.reachRim.setVisible(style === 'reach');
+        l.halo.setVisible(style === 'reach');
+        if (style !== 'reach') l.obj.setScale(1);
+    }
+
+    /** Sets the reach tiles, halos and row frames to the current point of the pulse. */
+    private pulseReach() {
+        if (this.reachClock < 0) return;
+        const p = pulse(this.reachClock);
+        for (const l of this.letters) {
+            if (l.style !== 'reach') continue;
+            l.obj.setScale(reachScale(p));
+            l.halo.setAlpha(haloAlpha(p));
+        }
+        const rimAlpha = rowRimAlpha(p);
+        for (const r of this.rowRims) r.setAlpha(rimAlpha);
+    }
+
+    /** One frame per target row, hidden until that row completes with a reach letter. */
+    private buildRowRims() {
+        this.rowRims = this.round.targets.map((_, row) =>
+            this.add
+                .rectangle(
+                    SCREEN_WIDTH / 2,
+                    TARGET_Y0 + TARGET_ROW_STEP * row + REACH_ROW_DY,
+                    SCREEN_WIDTH - 2 * REACH_ROW_PAD,
+                    REACH_ROW_H,
+                )
+                .setStrokeStyle(REACH_ROW_RIM_W, COLOR.tile)
+                .setDepth(DEPTH.rowRim)
+                .setVisible(false),
+        );
     }
 
     private fall(dt: number) {
@@ -334,16 +459,17 @@ export class Game extends Scene {
             const l = this.letters[i];
             l.y += step;
             if (hasLanded(l.y, this.geom.removeY)) {
-                l.obj.destroy();
+                this.destroyLetter(l);
                 this.letters.splice(i, 1);
             } else {
                 l.obj.y = l.y;
+                l.halo.y = l.y;
             }
         }
     }
 
     private clearLetters() {
-        this.letters.forEach((l) => l.obj.destroy());
+        this.letters.forEach((l) => this.destroyLetter(l));
         this.letters = [];
     }
 
@@ -365,6 +491,7 @@ export class Game extends Scene {
     private refreshAfterTrayChange() {
         this.refreshTray();
         this.refreshTargets();
+        this.refreshCue();
     }
 
     /**
