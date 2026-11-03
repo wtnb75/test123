@@ -109,8 +109,8 @@ describe('stepSpawn across the phases', () => {
 });
 
 describe('combo opportunities follow the cap of the phase (comboRate itself is unchanged)', () => {
-    // combo roll, anchor, two neighbours, then each mole's kind roll (0.5), clock roll (0.99: not a clock) and golden roll (0.99: not golden)
-    const comboDraws = [0.1, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99];
+    // combo roll, pattern (0: cluster), anchor, two neighbours, then each mole's kind roll (0.5), clock roll (0.99: not a clock) and golden roll (0.99: not golden)
+    const comboDraws = [0.1, 0, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99];
 
     it('early phase with 2 pops out has room 2: no combo roll, a single spawn', () => {
         expect(stepSpawn(10000, 10000, [0, 1], seq([0, 0.5, 0.99, 0.99])).plan).toEqual([{ hole: 2, kind: 'mole' }]);
