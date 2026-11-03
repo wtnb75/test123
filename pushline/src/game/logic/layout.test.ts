@@ -91,17 +91,25 @@ describe('inRect / buttonAt', () => {
         expect(inRect(r, 9.9, 30)).toBe(false);
     });
 
-    it('finds Undo and Quit in portrait', () => {
-        expect(buttonAt(PORTRAIT, 130, 700)).toBe('undo');
-        expect(buttonAt(PORTRAIT, 350, 700)).toBe('quit');
-        expect(buttonAt(PORTRAIT, 30, 660)).toBe('undo');
-        expect(buttonAt(PORTRAIT, 240, 700)).toBeNull(); // the gap between them
-        expect(buttonAt(PORTRAIT, 130, 500)).toBeNull();
+    // docs/spec.md Game layout table: the three portrait buttons are 120 x 80 at x = 100 / 240 / 380, y = 700
+    it('finds Undo, Hint and Quit in portrait', () => {
+        expect(buttonAt(PORTRAIT, 100, 700)).toBe('undo');
+        expect(buttonAt(PORTRAIT, 240, 700)).toBe('hint');
+        expect(buttonAt(PORTRAIT, 380, 700)).toBe('quit');
+        expect(buttonAt(PORTRAIT, 40, 660)).toBe('undo'); // top-left corner of Undo
+        expect(buttonAt(PORTRAIT, 439.9, 739.9)).toBe('quit'); // bottom-right corner of Quit
+        expect(buttonAt(PORTRAIT, 170, 700)).toBeNull(); // the gap between Undo and Hint
+        expect(buttonAt(PORTRAIT, 310, 700)).toBeNull(); // the gap between Hint and Quit
+        expect(buttonAt(PORTRAIT, 240, 500)).toBeNull();
     });
 
-    it('finds Undo and Quit in landscape', () => {
+    it('finds Hint, Undo and Quit in landscape', () => {
+        expect(buttonAt(LANDSCAPE, 820, 100)).toBe('hint');
         expect(buttonAt(LANDSCAPE, 820, 220)).toBe('undo');
         expect(buttonAt(LANDSCAPE, 820, 340)).toBe('quit');
+        expect(buttonAt(LANDSCAPE, 820, 139.9)).toBe('hint'); // Hint covers y 60..140
+        expect(buttonAt(LANDSCAPE, 820, 140)).toBeNull();
+        expect(buttonAt(LANDSCAPE, 820, 160)).toBeNull();
         expect(buttonAt(LANDSCAPE, 820, 280)).toBeNull();
     });
 });
@@ -146,25 +154,40 @@ describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE
     const board: Rect = { x: l.boardX, y: l.boardY, w: PARAMS.cols * PARAMS.cellSize, h: PARAMS.rows * PARAMS.cellSize };
     const inside = (r: Rect) => r.x >= 0 && r.y >= 0 && r.x + r.w <= canvas.w && r.y + r.h <= canvas.h;
     const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-    const buttons: Rect[] = [l.undoButton, l.quitButton, l.titleButton, l.resultRetry, l.resultToTitle];
+    const buttons: Rect[] = [l.undoButton, l.hintButton, l.quitButton, l.titleButton, l.resultRetry, l.resultToTitle];
+    const gameButtons: Rect[] = [l.undoButton, l.hintButton, l.quitButton];
 
     it('keeps the 400 x 480 board inside the canvas', () => {
         expect([board.w, board.h]).toEqual([400, 480]);
         expect(inside(board)).toBe(true);
     });
 
-    it('keeps every button inside the canvas and at least 200 x 80', () => {
+    it('keeps every button inside the canvas and at least 80 high (and 200 wide, except the portrait game row)', () => {
         buttons.forEach((b) => {
             expect(inside(b)).toBe(true);
-            expect(b.w).toBeGreaterThanOrEqual(BUTTON_W);
             expect(b.h).toBeGreaterThanOrEqual(BUTTON_H);
+            if (l.orientation === 'landscape' || !gameButtons.includes(b)) expect(b.w).toBeGreaterThanOrEqual(BUTTON_W);
         });
     });
 
-    it('does not let the Undo and Quit buttons touch the board or each other', () => {
-        expect(overlap(l.undoButton, board)).toBe(false);
-        expect(overlap(l.quitButton, board)).toBe(false);
-        expect(overlap(l.undoButton, l.quitButton)).toBe(false);
+    it('lays the Undo / Hint / Quit buttons out as the spec table says', () => {
+        const centre = (r: Rect) => [r.x + r.w / 2, r.y + r.h / 2, r.w, r.h];
+        if (l.orientation === 'portrait') {
+            expect(gameButtons.map(centre)).toEqual([[100, 700, 120, 80], [240, 700, 120, 80], [380, 700, 120, 80]]);
+        } else {
+            expect(gameButtons.map(centre)).toEqual([[820, 220, 200, 80], [820, 100, 200, 80], [820, 340, 200, 80]]);
+        }
+    });
+
+    it('does not let the Undo, Hint and Quit buttons touch the board or each other', () => {
+        gameButtons.forEach((b, i) => {
+            expect(overlap(b, board)).toBe(false);
+            gameButtons.slice(i + 1).forEach((c) => expect(overlap(b, c)).toBe(false));
+        });
+    });
+
+    it('leaves a gap between the Game buttons and the best row (portrait: above the buttons)', () => {
+        gameButtons.forEach((b) => expect(overlap(bestBox(), b)).toBe(false));
     });
 
     it('does not let the Result buttons touch each other', () => {
@@ -192,6 +215,7 @@ describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE
         expect(inside(box)).toBe(true);
         expect(overlap(box, board)).toBe(false);
         expect(overlap(box, l.undoButton)).toBe(false);
+        expect(overlap(box, l.hintButton)).toBe(false);
         expect(overlap(box, l.quitButton)).toBe(false);
         // a generous box for "ライン 123" at the HUD font size, and for the moves counter "手数 40/40"
         const hudBox = (h: { x: number; y: number; originX: number }, ems: number): Rect => {

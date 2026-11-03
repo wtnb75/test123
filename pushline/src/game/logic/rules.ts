@@ -42,7 +42,6 @@ const snapshot = (state: State): Snapshot => ({
     grid: state.grid.map((row) => row.slice()),
     px: state.px,
     py: state.py,
-    moves: state.moves,
 });
 
 /** Moves one cell (pushing a movable block when it is in the way). Blocked moves change nothing. */
@@ -138,7 +137,8 @@ export function undo(state: State): boolean {
     state.grid = snap.grid;
     state.px = snap.px;
     state.py = snap.py;
-    state.moves = snap.moves;
+    // gives back the 1 that move cost; what a hint paid in between (docs/spec/hint.md) stays paid
+    state.moves += 1;
     return true;
 }
 

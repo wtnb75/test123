@@ -1,6 +1,7 @@
 import { Scene, type GameObjects, type Input } from 'phaser';
 import { PARAMS } from '../params';
 import type { Deps, Dir, MoveResult, Pt, State } from '../logic/types';
+import { hintAvailable, HintLight } from '../logic/hint';
 import { BestKeeper, bestLabel, browserStorage } from '../logic/best';
 import { Flow, QuitConfirm, type PointerAction } from '../logic/flow';
 import { cellAt, type Layout } from '../logic/layout';
@@ -35,7 +36,12 @@ export class Game extends Scene {
     private best!: BestKeeper;
     private bestText!: GameObjects.Text;
     private undoButton!: ButtonView;
+    private hintButton!: ButtonView;
     private quitButton!: ButtonView;
+    /** The row / column the hint lights (kept until the next move, an Undo or a clear), and its two drawings. */
+    private hint = new HintLight();
+    private hintFill!: GameObjects.Graphics;
+    private hintFrame!: GameObjects.Graphics;
     /** Red frame around the canvas that pulses in the `critical` tension (never interactive). */
     private edge!: GameObjects.Graphics;
     private tension: Tension = 'none';
@@ -82,7 +88,11 @@ export class Game extends Scene {
         this.best = new BestKeeper(browserStorage());
         this.bestText = addLabel(this, 0, 0, '', FONT_SIZE.best, COLORS.captionText).setDepth(DEPTH.hud);
         this.undoButton = createButton(this, 'Undo', COLORS.buttonDefault, DEPTH.hud);
+        this.hintButton = createButton(this, 'Hint', COLORS.buttonDefault, DEPTH.hud);
         this.quitButton = createButton(this, 'Quit', COLORS.buttonDanger, DEPTH.hud);
+        this.hint = new HintLight();
+        this.hintFill = this.add.graphics().setDepth(DEPTH.hint);
+        this.hintFrame = this.add.graphics().setDepth(DEPTH.hint);
         this.edge = this.add.graphics().setDepth(DEPTH.alert).setAlpha(0);
         this.tension = 'none';
 
@@ -120,6 +130,7 @@ export class Game extends Scene {
     private onKey(e: KeyboardEvent) {
         if (e.repeat || this.flow.phase !== 'playing') return;
         if (e.code === 'KeyZ' || e.code === 'Backspace') this.handle({ kind: 'undo' });
+        else if (e.code === 'KeyH') this.handle({ kind: 'hint' });
         else if (e.code === 'KeyR') this.quitNow();
         else if (KEY_DIRS[e.code]) this.handle({ kind: 'swipe', dir: KEY_DIRS[e.code] });
     }
@@ -132,8 +143,12 @@ export class Game extends Scene {
                 this.view.completeStaging();
                 this.flow.cancelWalk();
                 undo(this.state);
+                if (this.hint.onUndone()) this.drawHint(); // redraws with no line: erases the frame
                 this.view.dropStalePops(this.state.grid);
                 this.render();
+                break;
+            case 'hint':
+                this.onHint();
                 break;
             case 'quit':
                 // Two taps: the first only arms the button (a walk in progress goes on).
@@ -173,6 +188,44 @@ export class Game extends Scene {
         }
     }
 
+    /**
+     * The Hint button / H key. Already lit: nothing at all. Otherwise it pays and lights the line, or (moves
+     * too few, no clear in reach) only shakes the screen a little, without a red frame.
+     */
+    private onHint() {
+        const press = this.hint.press(this.state, this.flow.phase === 'playing');
+        if (press.kind === 'ignore') return;
+        if (press.kind === 'shake') {
+            this.cameras.main.shake(PARAMS.shakeMs, PARAMS.shakeIntensity);
+            return;
+        }
+        this.view.completeStaging();
+        this.flow.cancelWalk();
+        this.drawHint();
+        this.render();
+    }
+
+    /** Draws the lit line on the current board and starts its slow pulse (the frame only; the fill stays). */
+    private drawHint() {
+        this.tweens.killTweensOf(this.hintFrame);
+        this.hintFill.clear();
+        this.hintFrame.clear().setAlpha(1);
+        const line = this.hint.line;
+        if (!line) return;
+        const cols = this.state.grid[0].length;
+        const size = this.view.cellSize;
+        const o = this.view.cellOrigin(line.horizontal ? 0 : line.index, line.horizontal ? line.index : 0);
+        const w = line.horizontal ? cols * size : size;
+        const h = line.horizontal ? size : this.state.grid.length * size;
+        const half = PARAMS.hintFrameWidth / 2;
+        this.hintFill.fillStyle(COLORS.hint, PARAMS.hintFillAlpha).fillRect(o.x, o.y, w, h);
+        this.hintFrame.lineStyle(PARAMS.hintFrameWidth, COLORS.hint, 1).strokeRect(o.x + half, o.y + half, w - 2 * half, h - 2 * half);
+        this.tweens.add({
+            targets: this.hintFrame, alpha: PARAMS.hintFrameMinAlpha, duration: PARAMS.hintPulseMs / 2,
+            yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+    }
+
     /** An interruption, not a game over: no result, straight back to the title. */
     private quitNow() {
         if (this.flow.phase !== 'playing') return;
@@ -205,6 +258,7 @@ export class Game extends Scene {
     private step(dir: Dir): boolean {
         const result = move(this.state, dir, this.deps);
         if (!result.moved) return false;
+        if (this.hint.onMoved()) this.drawHint(); // redraws with no line: erases the frame
         // a board that grew on this clear is drawn at its new cell size from this move on (instant switch)
         this.view.setCols(this.state.grid[0].length);
         this.view.dropStalePops(this.state.grid);
@@ -226,6 +280,7 @@ export class Game extends Scene {
         this.view.setLayout(layout);
         this.flow.discardPress();
         this.placeUi();
+        this.drawHint();
         this.render();
     }
 
@@ -235,6 +290,7 @@ export class Game extends Scene {
         this.linesText.setPosition(l.hudLines.x, l.hudLines.y).setOrigin(l.hudLines.originX, 0.5);
         this.bestText.setPosition(l.hudBest.x, l.hudBest.y).setOrigin(0.5);
         this.undoButton.place(l.undoButton);
+        this.hintButton.place(l.hintButton);
         this.quitButton.place(l.quitButton);
         // Four bars along the canvas border (a stroked rectangle would notch the corners).
         const t = PARAMS.edgeWidth;
@@ -281,6 +337,10 @@ export class Game extends Scene {
         const undoAlpha = canUndo(s) ? 1 : PARAMS.disabledAlpha;
         this.undoButton.box.setAlpha(undoAlpha);
         this.undoButton.label.setAlpha(undoAlpha);
+        // Hint looks disabled while the moves are too few to pay for it, or the run is over
+        const hintAlpha = hintAvailable(s) ? 1 : PARAMS.disabledAlpha;
+        this.hintButton.box.setAlpha(hintAlpha);
+        this.hintButton.label.setAlpha(hintAlpha);
         // Dev build only: a read-only snapshot for the browser QA scripts (scripts/qa); removed from production.
         if (import.meta.env.DEV) {
             Object.assign(window, {
@@ -293,6 +353,7 @@ export class Game extends Scene {
                     shortest: s.shortest,
                     bonusCount: s.bonusCount,
                     orientation: this.layout.orientation,
+                    hint: this.hint.line,
                     rows: qaRows(s),
                 },
             });

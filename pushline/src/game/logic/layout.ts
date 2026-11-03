@@ -24,6 +24,7 @@ export interface Layout {
     /** Centre of the HUD's second row, the best record (centred text). */
     hudBest: Pt;
     undoButton: Rect;
+    hintButton: Rect;
     quitButton: Rect;
     titleName: Pt;
     /** Font size of the game name: the landscape side margin is narrower than the portrait width. */
@@ -38,12 +39,15 @@ export interface Layout {
 export const BUTTON_W = 200;
 export const BUTTON_H = 80;
 
-const button = (cx: number, cy: number): Rect => ({
-    x: cx - BUTTON_W / 2,
+const button = (cx: number, cy: number, w: number = BUTTON_W): Rect => ({
+    x: cx - w / 2,
     y: cy - BUTTON_H / 2,
-    w: BUTTON_W,
+    w,
     h: BUTTON_H,
 });
+
+/** Portrait's three in-game buttons (Undo / Hint / Quit) share the row, so each is narrower (docs/spec/hint.md). */
+const PORTRAIT_ROW_BUTTON_W = 120;
 
 export const PORTRAIT: Layout = {
     orientation: 'portrait',
@@ -55,8 +59,9 @@ export const PORTRAIT: Layout = {
     hudLines: { x: 440, y: 40, originX: 1 },
     // Between the board (bottom 590) and the buttons (top 660); the "+N" pop-ups rise from the moves counter instead.
     hudBest: { x: 240, y: 625 },
-    undoButton: button(130, 700),
-    quitButton: button(350, 700),
+    undoButton: button(100, 700, PORTRAIT_ROW_BUTTON_W),
+    hintButton: button(240, 700, PORTRAIT_ROW_BUTTON_W),
+    quitButton: button(380, 700, PORTRAIT_ROW_BUTTON_W),
     // Above and below the demo board, which sits where the Game board does.
     titleName: { x: 240, y: 60 },
     titleFontPx: 72,
@@ -77,6 +82,7 @@ export const LANDSCAPE: Layout = {
     // In the left margin, under the lines counter.
     hudBest: { x: 140, y: 340 },
     undoButton: button(820, 220),
+    hintButton: button(820, 100),
     quitButton: button(820, 340),
     // In the left and right margins of the demo board.
     titleName: { x: 140, y: 300 },
@@ -115,8 +121,9 @@ export function cellAt(layout: Layout, x: number, y: number, cols: number): Pt |
 }
 
 /** Which in-game button (if any) a canvas point is on. */
-export function buttonAt(layout: Layout, x: number, y: number): 'undo' | 'quit' | null {
+export function buttonAt(layout: Layout, x: number, y: number): 'undo' | 'hint' | 'quit' | null {
     if (inRect(layout.undoButton, x, y)) return 'undo';
+    if (inRect(layout.hintButton, x, y)) return 'hint';
     if (inRect(layout.quitButton, x, y)) return 'quit';
     return null;
 }
