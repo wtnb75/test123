@@ -21,6 +21,7 @@ import {
     SceneExit,
 } from './ui';
 import { typingInput } from './typingInput';
+import { logicalSize, RenderScaleSync } from './render';
 
 export interface ResultData {
     score: number;
@@ -61,6 +62,7 @@ export class Result extends Scene {
         this.retry = null;
         this.toTitle = null;
         this.labels = null;
+        new RenderScaleSync(this);
         // The best is judged and saved once, as the Result starts.
         const { best, isNew } = recordBest(bestStore, this.score);
         const cx = SCREEN_WIDTH / 2;
@@ -91,7 +93,7 @@ export class Result extends Scene {
             const qa = {};
             Object.defineProperties(qa, {
                 scene: { get: () => 'Result' },
-                size: { get: () => ({ w: this.scale.gameSize.width, h: this.scale.gameSize.height }) },
+                size: { get: () => { const s = logicalSize(this); return { w: s.width, h: s.height }; } },
                 guard: { get: () => this.guard.active },
                 score: { get: () => this.score },
                 cleared: { get: () => this.cleared },
@@ -118,7 +120,7 @@ export class Result extends Scene {
 
     private layout() {
         if (!this.labels) return;
-        const l = resultLayout(this.scale.gameSize.height);
+        const l = resultLayout(logicalSize(this).height);
         this.labels.title.setY(l.titleY);
         this.labels.score.setY(l.scoreY);
         this.labels.words.setY(l.wordsY);

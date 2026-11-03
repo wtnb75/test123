@@ -14,6 +14,7 @@ import {
     SceneExit,
 } from './ui';
 import { typingInput } from './typingInput';
+import { logicalSize, RenderScaleSync } from './render';
 
 const HELP_LINES = ['降ってくる英単語を打って消す', '床に着くとライフが 1 減る（3 つで終了）', '打ち間違えるとコンボが切れる'];
 
@@ -32,6 +33,7 @@ export class Title extends Scene {
     create() {
         // Scene instances are reused: drop the previous run's (destroyed) button before the notice reports to it.
         this.button = null;
+        new RenderScaleSync(this);
         const cx = SCREEN_WIDTH / 2;
         this.name = addLabel(this, cx, 0, 'TYPE RAIN', FONT_TITLE, COLOR.text, MONO_FONT);
         this.help = HELP_LINES.map((line) => addLabel(this, cx, 0, line, FONT_HELP, COLOR.sub));
@@ -50,7 +52,7 @@ export class Title extends Scene {
             const qa = {};
             Object.defineProperties(qa, {
                 scene: { get: () => 'Title' },
-                size: { get: () => ({ w: this.scale.gameSize.width, h: this.scale.gameSize.height }) },
+                size: { get: () => { const s = logicalSize(this); return { w: s.width, h: s.height }; } },
                 guard: { get: () => this.guard.active },
             });
             (window as unknown as { __qa: unknown }).__qa = qa;
@@ -58,7 +60,7 @@ export class Title extends Scene {
     }
 
     private layout() {
-        const l = titleLayout(this.scale.gameSize.height, HELP_LINES.length);
+        const l = titleLayout(logicalSize(this).height, HELP_LINES.length);
         this.name.setY(l.nameY);
         this.help.forEach((t, i) => t.setY(l.helpY[i]));
         this.best.setY(l.bestY);

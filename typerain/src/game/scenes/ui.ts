@@ -3,6 +3,7 @@ import { BUTTON_H, BUTTON_W, FONT_BUTTON } from '../params';
 import { BestStore } from 'best-store';
 import { ButtonPress, buttonLook } from '../logic/buttons';
 import { promptFontSize, ROTATE_PROMPT_TEXT, rotatePromptScale } from '../logic/screen';
+import { addText, logicalSize, setGlyphOrigin, toLogical } from './render';
 
 export const UI_FONT = 'sans-serif';
 export const MONO_FONT = 'monospace';
@@ -42,7 +43,7 @@ export const addLabel = (
     color: string = COLOR.text,
     font: string = UI_FONT,
 ): GameObjects.Text =>
-    scene.add.text(x, y, text, { fontFamily: font, fontSize: `${size}px`, color, align: 'center' }).setOrigin(0.5);
+    addText(scene, x, y, text, { fontFamily: font, fontSize: `${size}px`, color, align: 'center' }, 0.5, 0.5);
 
 export interface ButtonHandle {
     /** Move the button (the logical height changed). */
@@ -76,7 +77,9 @@ export function addButton(
     let hover = false;
     const mouseIsOver = () => {
         const mouse = scene.input.mousePointer;
-        return !mouse.isDown && zone.getBounds().contains(mouse.x, mouse.y);
+        // The pointer is in canvas pixels, the zone in logical coordinates. (The camera's own conversion is only
+        // refreshed when drawing, so right after a zoom change it would be stale.)
+        return !mouse.isDown && zone.getBounds().contains(toLogical(scene, mouse.x), toLogical(scene, mouse.y));
     };
     const refresh = () => {
         const look = buttonLook(press.isPressed, hover, accepting());
@@ -166,15 +169,19 @@ export class RotateGuard {
     }
 
     refresh(): void {
-        const { width, height } = this.scene.scale.gameSize;
+        const logical = logicalSize(this.scene);
+        const { width, height } = logical;
         const bleed = 40;
         this.bg.setPosition(width / 2, height / 2).setSize(width + 2 * bleed, height + 2 * bleed);
         this.bg.input?.hitArea.setSize(width + 2 * bleed, height + 2 * bleed);
         this.text.setPosition(width / 2, height / 2);
         const v = viewport(this.scene);
-        const scale = rotatePromptScale(v.width, v.height, this.scene.scale.gameSize);
+        const scale = rotatePromptScale(v.width, v.height, logical);
         const next = scale !== null;
-        if (next) this.text.setFontSize(promptFontSize(scale));
+        if (next) {
+            this.text.setFontSize(promptFontSize(scale));
+            setGlyphOrigin(this.text, 0.5, 0.5); // the height changed with the size
+        }
         const changed = next !== this.active || !this.reported;
         this.active = next;
         this.layer.setVisible(next);
