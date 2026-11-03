@@ -35,4 +35,7 @@
 - `src/game/logic/bestStreak.ts`（`StreakRecorder` / `recordBestStreak`）: `BestStore.record` を包むだけの薄い層で、テストが 1 行を言い直すだけ — 理由: テストに偽物を渡す継ぎ目で、`BestStore` に直接依存しないため。整理のみ（1 変更 1 目的）
 - `src/game/logic/bestStreak.ts`（`recordFinishedRound`）: 既存の戦績の連勝が、更新後の最初の勝ちで最高として記録される — 理由: 戦績の連勝は実際の連勝なので意図どおり。「戦績を消す」後に低くなる場合も spec に書いてある
 - `src/game/scenes/Game.ts`（最高の連勝）: 数えないラウンド（離れる・終わっていたデイリーの開き直し・再描画）で `record` を呼ばないことのテストが無い — 理由: 戦績と同じ `shouldRecordRound` のガードの 1 箇所に乗っていて、差分は呼び出しの差し替えだけ。Scene の配線は QA で確かめる
+- `src/game/types/index.ts`（`ValidationResult`）: `ok: false` と `reason` を判別共用体で結ばない — 理由: `reason` が無い拒否（`playing` 以外への送信）が仕様にある。型の整理だけで変更が広い
+- `src/game/logic/locale.ts`（`validationMessage`）: `digits` が無いときの英語の文は本番で届かない・文を `JA`/`EN` の表に移さない・`switch` に網羅の保証が無い — 理由: 旧実装の挙動を spec どおり保っている。桁数を埋め込む文は表に合わない。戻り値の型が `string` なので、コードを足して `case` を忘れると TS がエラーにする
+- `src/game/scenes/Game.ts`（通知の配線）: `validationMessage` に渡す `locale` と桁数の配線に単体テストが無い — 理由: 1 行の配線。ja / en の通知のスクリーンショットを QA で確かめる
 - `src/game/scenes/Game.ts`（`previousAnswer` の配線）: 直前の答えを候補数へ渡す配線に単体テストが無い — 理由: 配線は 3 行（`startRound` で設定、`init` で空、`refreshCandidateLine` で渡す）。純関数に切り出す利得が小さい。連続ラウンドの候補数は QA の実機確認で見る

@@ -1,3 +1,5 @@
+import type { ValidationReason } from '../types';
+
 export type Locale = 'ja' | 'en';
 
 export type TextKey =
@@ -51,3 +53,32 @@ export const detectLocale = (): Locale => {
 };
 
 export const translate = (locale: Locale, key: TextKey): string => (locale === 'ja' ? JA[key] : EN[key]);
+
+const withFactorization = (base: string, reason: { factorization?: string }): string =>
+    (reason.factorization ? `${base} (${reason.factorization})` : base);
+
+/**
+ * The notice text for a rejected guess. `digits` is the round's digit count
+ * (absent when there is no round); only the English length message uses it.
+ * Without a reason (a guess sent to a round that is not `playing`) it is the generic "check your input".
+ */
+export const validationMessage = (locale: Locale, reason: ValidationReason | undefined, digits?: number): string => {
+    if (reason === undefined) {
+        return translate(locale, 'checkInput');
+    }
+
+    const ja = locale === 'ja';
+    switch (reason.code) {
+        case 'length':
+            if (ja) {
+                return 'N桁の数字を入力してください';
+            }
+            return digits ? `Enter a ${digits}-digit number` : 'Enter the required number of digits';
+        case 'not-prime':
+            return withFactorization(ja ? '素数を入力してください' : 'Enter a prime number', reason);
+        case 'hard-green':
+            return ja ? 'ハードモード: 確定した位置の数字を変えられません' : 'Hard mode: confirmed digits must stay in place';
+        case 'hard-yellow':
+            return ja ? 'ハードモード: 判明した数字を必ず含めてください' : 'Hard mode: must include all revealed digits';
+    }
+};

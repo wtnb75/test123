@@ -1,7 +1,7 @@
 import { judgeGuess } from './judge';
 import { buildPrimeMap, choosePrime, createRng, type PrimeMap } from './primes';
 import { validateGuess, validateHardMode } from './validate';
-import type { DigitStatus, GameMode, RoundState } from '../types';
+import type { DigitStatus, GameMode, RoundState, ValidationReason } from '../types';
 
 export const ATTEMPT_LIMITS: Record<number, number> = {
     2: 3,
@@ -20,7 +20,8 @@ export interface GuessResult {
     round: RoundState;
     accepted: boolean;
     consumedAttempt: boolean;
-    message?: string;
+    /** Why the guess was rejected (absent for a guess sent to a round that is not `playing`). */
+    reason?: ValidationReason;
     colors?: DigitStatus[];
 }
 
@@ -74,7 +75,7 @@ export const applyGuess = (round: RoundState, guess: string): GuessResult => {
             round,
             accepted: false,
             consumedAttempt: false,
-            message: validation.message
+            reason: validation.reason
         };
     }
 
@@ -85,7 +86,7 @@ export const applyGuess = (round: RoundState, guess: string): GuessResult => {
                 round,
                 accepted: false,
                 consumedAttempt: false,
-                message: hardCheck.message
+                reason: hardCheck.reason
             };
         }
     }

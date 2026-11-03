@@ -93,6 +93,7 @@ describe('applyGuess', () => {
         expect(result.accepted).toBe(false);
         expect(result.consumedAttempt).toBe(false);
         expect(result.round).toEqual(round);
+        expect(result.reason).toBeUndefined();
     });
 
     it('不正入力は試行回数を消費しない', () => {
@@ -104,6 +105,17 @@ describe('applyGuess', () => {
         expect(result.accepted).toBe(false);
         expect(result.consumedAttempt).toBe(false);
         expect(result.round.attemptsUsed).toBe(0);
+        expect(result.reason).toEqual({ code: 'length' });
+    });
+
+    it('桁数は合っていて素数でない入力は非素数の理由と分解を返す', () => {
+        const game = createGame({ seed: 1, primeMap: PRIME_MAP });
+        const round = game.createRound(3);
+
+        const result = applyGuess(round, '105');
+
+        expect(result.consumedAttempt).toBe(false);
+        expect(result.reason).toEqual({ code: 'not-prime', factorization: '105 = 3 x 5 x 7' });
     });
 
     it('正しい入力は試行回数を消費し、履歴を追加する', () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { detectLocale, translate, type TextKey } from './locale';
+import { detectLocale, translate, validationMessage, type TextKey } from './locale';
 
 const KEYS: TextKey[] = ['clear', 'gameOver', 'reselectDigits', 'checkInput', 'normalMode', 'hardMode', 'dailyMode'];
 
@@ -41,6 +41,36 @@ describe('translate: stats texts', () => {
         expect(translate('en', 'statsEmpty')).toBe('No stats');
         expect(translate('en', 'statsClear')).toBe('Clear stats');
         expect(translate('en', 'statsClearConfirm')).toBe('Press again to erase all');
+    });
+});
+
+describe('validationMessage: 通知の文は理由のコードから作られ、表の文と 1 字も違わない', () => {
+    it('桁数不一致: 日本語は N のまま、英語はラウンドの桁数、桁数が無ければ一般文', () => {
+        const reason = { code: 'length' } as const;
+        expect(validationMessage('ja', reason, 4)).toBe('N桁の数字を入力してください');
+        expect(validationMessage('ja', reason)).toBe('N桁の数字を入力してください');
+        expect(validationMessage('en', reason, 4)).toBe('Enter a 4-digit number');
+        expect(validationMessage('en', reason)).toBe('Enter the required number of digits');
+    });
+
+    it('非素数: 分解があれば括弧で続け、無ければ文だけ', () => {
+        const withFactors = { code: 'not-prime', factorization: '15 = 3 x 5' } as const;
+        expect(validationMessage('ja', withFactors, 2)).toBe('素数を入力してください (15 = 3 x 5)');
+        expect(validationMessage('en', withFactors, 2)).toBe('Enter a prime number (15 = 3 x 5)');
+        expect(validationMessage('ja', { code: 'not-prime' }, 2)).toBe('素数を入力してください');
+        expect(validationMessage('en', { code: 'not-prime' }, 2)).toBe('Enter a prime number');
+    });
+
+    it('ハードモード: 位置固定と数字包含の文', () => {
+        expect(validationMessage('ja', { code: 'hard-green' }, 4)).toBe('ハードモード: 確定した位置の数字を変えられません');
+        expect(validationMessage('en', { code: 'hard-green' }, 4)).toBe('Hard mode: confirmed digits must stay in place');
+        expect(validationMessage('ja', { code: 'hard-yellow' }, 4)).toBe('ハードモード: 判明した数字を必ず含めてください');
+        expect(validationMessage('en', { code: 'hard-yellow' }, 4)).toBe('Hard mode: must include all revealed digits');
+    });
+
+    it('理由のコードが無いとき（playing 以外への送信）は入力確認の文', () => {
+        expect(validationMessage('ja', undefined, 4)).toBe('入力を確認してください');
+        expect(validationMessage('en', undefined, 4)).toBe('Please check your input');
     });
 });
 

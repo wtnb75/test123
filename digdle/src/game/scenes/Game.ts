@@ -10,6 +10,7 @@ import {
 } from '../logic/gameLayout';
 import { getBestStreakStore, recordFinishedRound } from '../logic/bestStreak';
 import { candidateLineShown, candidateLineText, countCandidates } from '../logic/candidates';
+import { validationMessage } from '../logic/locale';
 import { getSharedPrimeMap } from '../logic/primes';
 import { candidatesFromData, isDigitOption, modeFromData, titleDataFromGame } from '../logic/selectLayout';
 import {
@@ -530,7 +531,7 @@ export class Game extends Scene {
         const statusBefore = this.round.status;
         const result = applyGuess(this.round, this.currentGuess);
         if (!result.accepted) {
-            this.showToast(this.localizeValidationMessage(result.message ?? this.t('checkInput')));
+            this.showToast(validationMessage(this.locale, result.reason, this.round.n));
             return;
         }
 
@@ -703,37 +704,6 @@ export class Game extends Scene {
 
     private t(key: TextKey): string {
         return translate(this.locale, key);
-    }
-
-    private localizeValidationMessage(message: string): string {
-        if (this.locale === 'ja') {
-            return message;
-        }
-
-        const lengthPrefix = 'N桁の数字を入力してください';
-        const primePrefix = '素数を入力してください';
-        const hardGreen = 'ハードモード: 確定した位置の数字を変えられません';
-        const hardYellow = 'ハードモード: 判明した数字を必ず含めてください';
-
-        if (message.startsWith(lengthPrefix)) {
-            const digits = this.round?.n;
-            return digits ? `Enter a ${digits}-digit number` : 'Enter the required number of digits';
-        }
-
-        if (message.startsWith(primePrefix)) {
-            const suffix = message.slice(primePrefix.length).trim();
-            return suffix ? `Enter a prime number ${suffix}` : 'Enter a prime number';
-        }
-
-        if (message === hardGreen) {
-            return 'Hard mode: confirmed digits must stay in place';
-        }
-
-        if (message === hardYellow) {
-            return 'Hard mode: must include all revealed digits';
-        }
-
-        return message;
     }
 
     private updateKeyStatus(guess: string, colors: DigitStatus[]): void {
