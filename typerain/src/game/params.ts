@@ -7,6 +7,11 @@ export const SCREEN_HEIGHT_MAX = 800;
 export const ROTATE_PROMPT_SCALE = 0.875;
 export const PROMPT_REAL_FONT_SIZE = 18;
 export const PROMPT_MAX_FONT_SIZE = 30;
+/** Render scale k: the canvas has (SCREEN_WIDTH x k) by (H x k) real pixels. */
+export const RENDER_SCALE_MAX = 4;
+export const RENDER_PIXELS_MAX = 3_000_000;
+/** Logical px added under every text so descenders (g j p y) are never clipped. */
+export const TEXT_PAD_BOTTOM = 6;
 
 // Run
 export const LIVES = 3;

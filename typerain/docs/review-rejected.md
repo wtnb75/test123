@@ -18,3 +18,12 @@
 - `docs/spec.md`: 公開済みなのに frontmatter の `status_*` が `pending` に戻る — 理由: `game-spec` の改訂の通常の手順で、`game-publish` が最後に `done` に戻す
 - `src/game/logic/best.ts`: 0 点や NaN のとき保存の読み出しが 2 回走る — 理由: Result の 1 回だけで影響なし
 - `src/game/scenes/ui.ts`: 旧キー `typerain:best` の記録が `BEST ---` になる（移行すれば数行） — 理由: 合意済み（先に載せ替えた 5 ゲームと同じ決め）。読まない・移行しないと spec に書いた
+- `src/game/scenes/render.ts`: 揺れの最中に k が変わると強さが一時的にずれる — 理由: 揺れは 80〜150 ms で、その間に k が変わることはほぼ無い。直すには毎フレームの補正が要る
+- `src/game/scenes/render.ts`: `RenderScaleSync` を Scene ごとに作らず、ゲーム全体の `RESIZE` ハンドラ 1 つにまとめる — 理由: Scene ごとに Text の集合と後始末が違い、今の形のほうが単純
+- `src/game/scenes/render.ts`: `RESIZE` のたびに全 Text をたどる・k が H のせいで行き来する — 理由: 解像度が同じ Text は `setResolution` を呼ばず負荷は小さい。行き来は spec の式（ピクセル数の上限が H に依存）どおりで、ヒステリシスは spec の変更になる
+- `src/game/scenes/ui.ts`: `RotateGuard.refresh` が `RESIZE` のたびに `setFontSize` と `setGlyphOrigin` を呼ぶ — 理由: `setFontSize` の毎回呼び出しは以前からの動作で、案内が出ている間だけ
+- `src/game/scenes/render.ts`: `setText` で行数が変わると origin がずれる — 理由: 中心基準の文字は作ったあと内容が変わらない 1 行のラベル（変わる案内は再計算済み）
+- `src/game/main.ts`: `matchMedia` 自体が無い環境で例外 — 理由: WebGL が動く全ブラウザにある。`addEventListener` の有無だけ守る
+- `src/game/scenes/*.ts`: dev 専用の `size` getter が 3 か所で重複 — 理由: 本番に入らず、共通化の利点が小さい
+- `src/game/scenes/render.ts`: カメラのサイズと `gameSize` の更新順に依存する — 理由: カメラは作成時に `gameSize` で作られ、リサイズは `CameraManager` が先に処理する。QA で画面サイズを切り替えて確認済み
+- `src/game/scenes/render.ts`: Scene 側の連携にユニットテストが無い — 理由: 規約で `scenes/**` はカバレッジ対象外（QA で確認）。判定は純ロジックに出してテスト済み

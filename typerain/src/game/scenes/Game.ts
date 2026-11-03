@@ -28,6 +28,7 @@ import { Round, type Word } from '../logic/round';
 import { fallDistanceFor, floorYFor, wordYFor } from '../logic/screen';
 import { COLOR, DEPTH, MONO_FONT, RotateGuard, SceneExit } from './ui';
 import { typingInput } from './typingInput';
+import { addText, glyphHeight, logicalHeight, logicalSize, RenderScaleSync, setGlyphOrigin, shake } from './render';
 import type { ResultData } from './Result';
 
 interface WordView {
@@ -70,27 +71,24 @@ export class Game extends Scene {
         this.endTimer = 0;
         this.effects = 0;
         this.glowTimer = null;
-        const { width } = this.scale.gameSize;
+        new RenderScaleSync(this);
+        const { width } = logicalSize(this);
         this.floorLine = this.add.rectangle(width / 2, 0, width, 3, COLOR.floor).setDepth(DEPTH.base);
         this.lockBand = this.add
             .rectangle(0, 0, 10, WORD_H, COLOR.lockBand, LOCK_BAND_ALPHA)
             .setOrigin(0)
             .setDepth(DEPTH.band)
             .setVisible(false);
-        this.hint = this.add
-            .text(width / 2, 0, HINT_TEXT, { fontFamily: 'sans-serif', fontSize: `${FONT_HINT}px`, color: COLOR.sub })
-            .setOrigin(0.5)
-            .setDepth(DEPTH.base);
+        const hintStyle = { fontFamily: 'sans-serif', fontSize: `${FONT_HINT}px`, color: COLOR.sub };
+        this.hint = addText(this, width / 2, 0, HINT_TEXT, hintStyle, 0.5, 0.5).setDepth(DEPTH.base);
         const hud = { fontFamily: MONO_FONT, fontSize: `${FONT_HUD}px`, color: COLOR.text };
-        this.scoreText = this.add.text(HUD_MARGIN, HUD_Y, '', hud).setDepth(DEPTH.hud);
-        this.livesText = this.add.text(SCREEN_WIDTH - HUD_MARGIN, HUD_Y, '', hud).setOrigin(1, 0).setDepth(DEPTH.hud);
-        this.comboText = this.add
-            .text(HUD_MARGIN, COMBO_Y, '', { ...hud, fontSize: `${FONT_COMBO}px`, color: COLOR.accent })
-            .setOrigin(0, 0.5)
-            .setDepth(DEPTH.hud);
+        this.scoreText = addText(this, HUD_MARGIN, HUD_Y, '', hud).setDepth(DEPTH.hud);
+        this.livesText = addText(this, SCREEN_WIDTH - HUD_MARGIN, HUD_Y, '', hud, 1, 0).setDepth(DEPTH.hud);
+        const comboStyle = { ...hud, fontSize: `${FONT_COMBO}px`, color: COLOR.accent };
+        this.comboText = addText(this, HUD_MARGIN, COMBO_Y, '', comboStyle, 0, 0.5).setDepth(DEPTH.hud);
         // One heart's size, to place the heart that shrinks away when a life is lost.
-        const probe = this.add.text(0, 0, '♥', hud);
-        this.heart = { w: probe.width, h: probe.height };
+        const probe = addText(this, 0, 0, '♥', hud);
+        this.heart = { w: probe.width, h: glyphHeight(probe) };
         probe.destroy();
         this.guard = new RotateGuard(this);
         this.exit = new SceneExit(this);
@@ -115,7 +113,7 @@ export class Game extends Scene {
             const qa = {};
             Object.defineProperties(qa, {
                 scene: { get: () => 'Game' },
-                size: { get: () => ({ w: this.scale.gameSize.width, h: this.scale.gameSize.height }) },
+                size: { get: () => { const s = logicalSize(this); return { w: s.width, h: s.height }; } },
                 guard: { get: () => this.guard.active },
                 phase: { get: () => this.round.phase },
                 score: { get: () => this.round.score },
@@ -138,7 +136,7 @@ export class Game extends Scene {
             if (this.endTimer >= RESULT_DELAY) this.finish();
             return;
         }
-        const fallDistance = fallDistanceFor(this.scale.gameSize.height);
+        const fallDistance = fallDistanceFor(logicalHeight(this));
         const livesBefore = this.round.lives;
         const step = this.round.step(dt, fallDistance);
         if (step.spawned) this.addView(step.spawned);
@@ -150,7 +148,7 @@ export class Game extends Scene {
     private onChar(ch: string) {
         if (this.guard.active) return;
         const outcome = this.round.typeChar(ch);
-        if (outcome.kind === 'miss') this.cameras.main.shake(MISS_SHAKE_MS, MISS_SHAKE_INTENSITY);
+        if (outcome.kind === 'miss') shake(this, MISS_SHAKE_MS, MISS_SHAKE_INTENSITY);
         if (outcome.kind === 'clear') this.popCleared(outcome.word, outcome.points);
         if (outcome.kind !== 'ignored') {
             this.refreshHud();
@@ -170,8 +168,8 @@ export class Game extends Scene {
     private addView(word: Word) {
         const style = { fontFamily: MONO_FONT, fontSize: `${FONT_WORD}px` };
         this.views.set(word.id, {
-            base: this.add.text(word.x, 0, word.text, { ...style, color: COLOR.word }).setDepth(DEPTH.word),
-            typed: this.add.text(word.x, 0, '', { ...style, color: COLOR.typed }).setDepth(DEPTH.typed),
+            base: addText(this, word.x, 0, word.text, { ...style, color: COLOR.word }).setDepth(DEPTH.word),
+            typed: addText(this, word.x, 0, '', { ...style, color: COLOR.typed }).setDepth(DEPTH.typed),
             locked: false,
         });
     }
@@ -203,22 +201,20 @@ export class Game extends Scene {
         if (!base) return;
         const centerX = base.x + base.width / 2;
         const top = base.y;
-        base.setColor(COLOR.typed)
-            .setOrigin(0.5)
-            .setPosition(centerX, top + base.height / 2)
+        // Grow about the centre of the visible glyphs, not of the padded box.
+        setGlyphOrigin(base.setColor(COLOR.typed), 0.5, 0.5)
+            .setPosition(centerX, top + glyphHeight(base) / 2)
             .setDepth(DEPTH.fx);
         this.play({ targets: base, scale: CLEAR_POP_SCALE, alpha: 0, duration: CLEAR_POP_MS }, () => base.destroy());
-        const pop = this.add
-            .text(0, top, popText(points), { fontFamily: MONO_FONT, fontSize: `${FONT_POP}px`, color: COLOR.typed })
-            .setOrigin(0.5, 0)
-            .setDepth(DEPTH.pop);
+        const popStyle = { fontFamily: MONO_FONT, fontSize: `${FONT_POP}px`, color: COLOR.typed };
+        const pop = addText(this, 0, top, popText(points), popStyle, 0.5, 0).setDepth(DEPTH.pop);
         pop.setX(clampPopX(centerX, pop.width));
         this.play({ targets: pop, y: top - SCORE_POP_RISE, alpha: 0, duration: SCORE_POP_MS }, () => pop.destroy());
     }
 
     /** Words reached the floor: each flashes red where it landed, the floor glows, lost hearts shrink away. */
     private onLanded(landed: readonly Word[], lostHearts: number, fallDistance: number) {
-        this.cameras.main.shake(FLOOR_SHAKE_MS, FLOOR_SHAKE_INTENSITY);
+        shake(this, FLOOR_SHAKE_MS, FLOOR_SHAKE_INTENSITY);
         for (const w of landed) {
             const base = this.takeView(w.id);
             if (!base) continue;
@@ -248,16 +244,13 @@ export class Game extends Scene {
         const style = { fontFamily: MONO_FONT, fontSize: `${FONT_HUD}px`, color: COLOR.text };
         for (let i = 0; i < count; i++) {
             const x = SCREEN_WIDTH - HUD_MARGIN - remaining * this.heart.w - (i + 0.5) * this.heart.w;
-            const lost = this.add
-                .text(x, HUD_Y + this.heart.h / 2, '♥', style)
-                .setOrigin(0.5)
-                .setDepth(DEPTH.hud);
+            const lost = addText(this, x, HUD_Y + this.heart.h / 2, '♥', style, 0.5, 0.5).setDepth(DEPTH.hud);
             this.play({ targets: lost, scale: 0, duration: HEART_LOSE_MS }, () => lost.destroy());
         }
     }
 
     private placeViews() {
-        const fallDistance = fallDistanceFor(this.scale.gameSize.height);
+        const fallDistance = fallDistanceFor(logicalHeight(this));
         let banded = false;
         for (const w of this.round.words) {
             const view = this.views.get(w.id);
@@ -298,7 +291,7 @@ export class Game extends Scene {
 
     /** The logical height changed (keyboard opened or closed, device turned): re-place the floor and words. */
     private layout() {
-        const { width, height } = this.scale.gameSize;
+        const { width, height } = logicalSize(this);
         const floorY = floorYFor(height);
         this.floorLine.setPosition(width / 2, floorY);
         this.hint.setY((floorY + height) / 2);
