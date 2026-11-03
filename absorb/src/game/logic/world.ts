@@ -2,6 +2,7 @@ import { bossScore, bossVolley, createBoss, updateBoss } from './boss';
 import {
     BOSS_ANNOUNCE_DURATION, BOSS_CONTACT_DAMAGE, BOSS_FIRST_AT, BOSS_RESPAWN_DELAY, CARRIER_FIRST_AT, CARRIER_INTERVAL,
     ENDING_DURATION, ENEMY_BULLET_RADIUS, FIELD_RADIUS, FIRST_RAMMER_AT, HIT_STOCK_BONUS,
+    LEECH_FIRST_AT, LEECH_INTERVAL, LEECH_MAX,
     MAX_ENEMIES, MAX_RAMMERS, PLAYER_INVULNERABLE, PLAYER_LIVES, PLAYER_MIN_Y, PLAYER_RADIUS, PLAYER_SPEED,
     PLAYER_START_Y_RATIO, READY_DURATION, RELEASE_LIFETIME, RELEASE_RADIUS, RELEASE_SPEED,
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type ActorKind, type DefeatKind, type EnemyKind
@@ -9,9 +10,10 @@ import {
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
 import { getStage, pickEnemyKind } from './difficulty';
 import {
-    assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createSplitterChildren, specOf, updateCarrier,
-    updateEnemy, type Enemy, type EnemyContext
+    assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createLeech, createSplitterChildren, specOf,
+    updateCarrier, updateEnemy, updateLeech, type Enemy, type EnemyContext
 } from './enemy';
+import { drainStep, leechDrainRate } from './leech';
 import {
     angleTo, circlesOverlap, distanceSq, isFullyOffScreen, isOnScreen, randomRange, removeWhere, turnToward, type Point,
     type Rng
@@ -160,6 +162,10 @@ export class World {
     carrier: Enemy | null = null;
     /** Playing time at which the next carrier is due (it waits while a boss or a carrier is on the field). */
     nextCarrierAt = CARRIER_FIRST_AT;
+    /** Playing time at which the next leech is due (it waits while LEECH_MAX of them are on the field). */
+    nextLeechAt = LEECH_FIRST_AT;
+    /** The fraction of a stock unit the leeches have drained but not yet taken (public so tests can read the carry). */
+    drainCarry = 0;
     /** Seconds left on the "BOSS" announcement. */
     bossAnnounce = 0;
     /**
@@ -183,6 +189,8 @@ export class World {
     private readonly dropsThisStep: Enemy[] = [];
     /** Carriers that dropped an enemy during the latest step (for the drop flash). */
     private readonly droppersThisStep: Enemy[] = [];
+    /** Stock the leeches took during the latest step (for the stock gauge's red cue). */
+    private drainedThisStep = 0;
     /** Kills and base points per kind for the game-over breakdown, counted when each kill happens. */
     private readonly tally: ScoreBreakdown = emptyBreakdown();
     private readonly ctx: EnemyContext;
@@ -229,6 +237,11 @@ export class World {
         return this.droppersThisStep;
     }
 
+    /** Stock leeches drained during the latest step; 0 outside the playing phase. */
+    get stockDrained(): number {
+        return this.drainedThisStep;
+    }
+
     /** Where splitters split during the latest step (for the split ring): the parent's spot, before clamping. */
     get splits(): readonly Point[] {
         return this.splitsThisStep;
@@ -254,6 +267,7 @@ export class World {
         this.splitsThisStep.length = 0;
         this.dropsThisStep.length = 0;
         this.droppersThisStep.length = 0;
+        this.drainedThisStep = 0;
         if (this.bossAnnounce > 0) this.bossAnnounce = Math.max(0, this.bossAnnounce - dt);
         switch (this.phase) {
             case 'ready':
@@ -287,6 +301,7 @@ export class World {
         this.spawn(dt);
         this.updateEnemies(dt, true);
         this.updateEnemyBullets(dt, true);
+        this.drainStock(dt);
         this.updateReleaseBullets(dt, true);
         this.checkContact();
         this.spawnSplitterChildren();
@@ -390,12 +405,12 @@ export class World {
 
     /**
      * Counts rammers, or the regular enemies capped by MAX_ENEMIES (carrier drops included); the boss,
-     * splitter children and the carrier itself are in neither.
+     * splitter children, the carrier itself and leeches are in neither.
      */
     private countEnemies(rammers: boolean): number {
         let n = 0;
         for (const e of this.enemies) {
-            if (e.kind === 'boss' || e.kind === 'splitterChild' || e.kind === 'carrier') continue;
+            if (e.kind === 'boss' || e.kind === 'splitterChild' || e.kind === 'carrier' || e.kind === 'leech') continue;
             if ((e.kind === 'rammer') === rammers) n++;
         }
         return n;
@@ -429,6 +444,32 @@ export class World {
         if (!this.boss && this.elapsed >= this.nextBossAt) this.spawnBoss();
         // After the boss check, so a boss due in the same frame comes first and the carrier waits.
         if (!this.boss && !this.carrier && this.elapsed >= this.nextCarrierAt) this.spawnCarrier();
+        if (this.elapsed >= this.nextLeechAt && this.countLeeches() < LEECH_MAX) this.spawnLeech();
+    }
+
+    private countLeeches(): number {
+        let n = 0;
+        for (const e of this.enemies) if (e.kind === 'leech' && !e.removed) n++;
+        return n;
+    }
+
+    private spawnLeech(): void {
+        this.enemies.push(createLeech(this.nextId++, this.player, this.rng, this.screen));
+        this.nextLeechAt = this.elapsed + LEECH_INTERVAL;
+    }
+
+    /** Takes stock from the player for every leech inside the field, in whole units; the rest carries over. */
+    private drainStock(dt: number): void {
+        let rate = 0;
+        const p = this.player;
+        for (const e of this.enemies) {
+            if (e.kind === 'leech' && !e.removed) rate += leechDrainRate(Math.hypot(e.x - p.x, e.y - p.y));
+        }
+        if (rate === 0 && this.drainCarry === 0) return; // nothing draining, nothing carried: no work (and no allocation)
+        const step = drainStep(this.drainCarry, rate, dt, this.stock);
+        this.drainCarry = step.carry;
+        this.stock -= step.taken;
+        this.drainedThisStep = step.taken;
     }
 
     private spawnCarrier(): void {
@@ -463,6 +504,10 @@ export class World {
                     this.dropsThisStep.push(createDroppedEnemy(e.cargo, this.nextId++, e, this.rng, this.screen));
                     this.droppersThisStep.push(e);
                 }
+                continue;
+            }
+            if (e.kind === 'leech') {
+                updateLeech(e, dt, this.player);
                 continue;
             }
             const fired = e.kind === 'boss' ? updateBoss(e, dt, this.ctx) : updateEnemy(e, dt, this.ctx);

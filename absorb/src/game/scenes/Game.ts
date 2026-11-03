@@ -12,7 +12,7 @@ import {
     DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
+    LEECH_TETHER_ALPHA, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { PauseState } from '../logic/pause';
 import {
@@ -21,6 +21,7 @@ import {
 } from '../logic/startFx';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import { DropFlashes } from '../logic/carrierFx';
+import { StockFlash, leechDrainRate, tetherWidth } from '../logic/leech';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
 } from '../logic/debrisFx';
@@ -55,7 +56,9 @@ const COLORS = {
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
     explosion: 0xffcc80,
-    childOutline: 0xffffff
+    childOutline: 0xffffff,
+    leechEye: 0x1a0f4d,
+    gaugeDrained: 0xff5252
 };
 
 /** Hit tint / edge band sit over every play-area layer (popups at 5) and under the HUD and release button (10, 11). */
@@ -86,7 +89,8 @@ const DEBRIS_COLORS: Record<DefeatKind, number> = {
     heavy: debrisColor('heavy', COLORS.heavy),
     rammer: debrisColor('rammer', COLORS.rammer),
     splitter: debrisColor('splitter', COLORS.splitter),
-    carrier: debrisColor('carrier', COLORS.carrier)
+    carrier: debrisColor('carrier', COLORS.carrier),
+    leech: debrisColor('leech', COLORS.leech)
 };
 
 const TEXT_CSS_COLOR = cssColor(COLORS.text);
@@ -103,6 +107,9 @@ const CARRIER_TOP_RATIO = 0.5;
 const CARRIER_MARK_RATIO = 0.6;
 /** Half-width of the splitter diamond relative to its (vertical) half-height, the hit radius. */
 const DIAMOND_WIDTH_RATIO = 0.8;
+/** Leech ellipse: half-height relative to its half-width (the hit radius), and the eye's radius within it. */
+const LEECH_HEIGHT_RATIO = 0.7;
+const LEECH_EYE_RATIO = 0.35;
 const SCORE_POPUP_FONT_SIZE = 32;
 
 /** A counter's bound text, the kill count it shows and where it was last drawn. */
@@ -156,6 +163,9 @@ export class Game extends Scene {
     private readonly releaseFx = new ReleaseEffects();
     private readonly splitFx = new SplitEffects();
     private readonly dropFlashes = new DropFlashes();
+    /** The stock gauge's red cue after a leech drains stock, and whether the gauge was last drawn red. */
+    private readonly stockFlash = new StockFlash();
+    private shownStockRed = false;
     private readonly multiKillFx = new MultiKillEffects();
     private readonly hitFx = new HitEffects();
     private readonly buttonFx = new ButtonEffects();
@@ -235,6 +245,8 @@ export class Game extends Scene {
         this.releaseFx.clear();
         this.splitFx.clear();
         this.dropFlashes.clear();
+        this.stockFlash.clear();
+        this.shownStockRed = false;
         this.multiKillFx.clear();
         this.hitFx.clear();
         this.buttonFx.clear();
@@ -416,6 +428,7 @@ export class Game extends Scene {
         this.releaseFx.update(dt, this.world.releases);
         this.splitFx.update(dt, this.world.splits);
         this.dropFlashes.update(dt, this.world.carrierDrops);
+        this.stockFlash.update(dt, this.world.stockDrained);
         this.multiKillFx.update(dt, this.world.killUpdates, this.world.settlements);
         this.hitFx.update(dt, this.world.hits);
         this.startFx.update(dt, this.world.phase, this.world.phaseTime, this.world.player.x, this.world.player.y);
@@ -443,7 +456,9 @@ export class Game extends Scene {
                 phase: this.world.phase,
                 phaseTime: this.world.phaseTime,
                 score: this.world.score,
-                lives: this.world.player.lives
+                lives: this.world.player.lives,
+                // QA may set up a state by hand (elapsed time, stock, lives); never part of the production bundle.
+                world: this.world
             };
         }
         this.drawHud();
@@ -541,6 +556,7 @@ export class Game extends Scene {
         if (w.carrier) this.drawEnemy(w.carrier);
         this.drawDebris();
         this.drawSplitRings();
+        this.drawTethers();
 
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
@@ -549,6 +565,20 @@ export class Game extends Scene {
 
         this.drawPlayer();
         this.drawHitRing();
+    }
+
+    /** A line from each leech inside the field to the player, thicker the harder it drains; only while playing. */
+    private drawTethers() {
+        const w = this.world;
+        if (w.phase !== 'playing') return;
+        const p = w.player;
+        for (const e of w.enemies) {
+            if (e.kind !== 'leech' || e.removed) continue;
+            const d = Math.hypot(e.x - p.x, e.y - p.y);
+            if (d > FIELD_RADIUS) continue;
+            this.gfx.lineStyle(tetherWidth(leechDrainRate(d)), COLORS.leech, LEECH_TETHER_ALPHA);
+            this.gfx.lineBetween(e.x, e.y, p.x, p.y);
+        }
     }
 
     /** Red ring where the player was hit: right after the player (or its explosion). */
@@ -867,6 +897,14 @@ export class Game extends Scene {
                 g.fillCircle(e.x, e.y, h * CARRIER_MARK_RATIO);
                 break;
             }
+            case 'leech': {
+                // A flat ellipse with a dark eye: apart from the round heavy by shape as well as colour.
+                g.fillStyle(COLORS.leech, 1);
+                g.fillEllipse(e.x, e.y, r * 2, r * LEECH_HEIGHT_RATIO * 2);
+                g.fillStyle(COLORS.leechEye, 1);
+                g.fillCircle(e.x, e.y, r * LEECH_EYE_RATIO);
+                break;
+            }
             case 'boss':
                 // The boss shows its HP on the HUD bar instead of pips.
                 this.drawBoss(e);
@@ -887,7 +925,7 @@ export class Game extends Scene {
         }
         // Remaining HP as small pips under each enemy; the flat carrier hull keeps them snug and hull-wide.
         const carrier = e.kind === 'carrier';
-        const below = carrier ? r * CARRIER_HEIGHT_RATIO : r;
+        const below = carrier ? r * CARRIER_HEIGHT_RATIO : e.kind === 'leech' ? r * LEECH_HEIGHT_RATIO : r;
         const pitch = carrier ? CARRIER_PIP_PITCH : PIP_PITCH;
         g.fillStyle(0xffffff, 0.8);
         for (let i = 0; i < e.hp; i++) g.fillRect(e.x - (e.hp * pitch) / 2 + i * pitch, e.y + below + 4, 4, 3);
@@ -951,9 +989,11 @@ export class Game extends Scene {
             this.shownLives = w.player.lives;
             this.livesText.setText(`LIFE ${'♥'.repeat(Math.max(w.player.lives, 0))}`);
         }
-        if (w.stock !== this.shownStock) {
+        const red = this.stockFlash.isRed;
+        if (w.stock !== this.shownStock || red !== this.shownStockRed) {
             this.shownStock = w.stock;
-            this.stockText.setText(`${w.stock}/${STOCK_MAX}`);
+            this.shownStockRed = red;
+            this.stockText.setText(`${w.stock}/${STOCK_MAX}`).setColor(red ? cssColor(COLORS.gaugeDrained) : TEXT_CSS_COLOR);
             this.redrawGaugeAndButton();
         } else if (this.buttonFx.playing || this.buttonFxShown) {
             this.redrawGaugeAndButton();
@@ -984,7 +1024,7 @@ export class Game extends Scene {
         g.clear();
         g.fillStyle(COLORS.gaugeBack, 1);
         g.fillRect(x, GAUGE_Y, GAUGE_WIDTH, GAUGE_HEIGHT);
-        g.fillStyle(COLORS.gaugeFill, 1);
+        g.fillStyle(this.shownStockRed ? COLORS.gaugeDrained : COLORS.gaugeFill, 1);
         g.fillRect(x, GAUGE_Y, GAUGE_WIDTH * (stock / STOCK_MAX), GAUGE_HEIGHT);
         if (!this.buttonText) return;
         // The release button brightens once there is something to release, and reacts to a press.

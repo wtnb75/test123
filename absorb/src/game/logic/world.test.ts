@@ -24,6 +24,7 @@ function playingWorld(screen: ScreenSize = S, rng: () => number = () => 0.5): Wo
     w.step(3, NONE);
     w.spawnTimer = Infinity;
     w.rammerTimer = Infinity;
+    w.nextLeechAt = Infinity;
     return w;
 }
 

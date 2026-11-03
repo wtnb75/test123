@@ -8,6 +8,8 @@ export const KIND_COLORS = {
     splitter: 0x42a5f5,
     // Plain grey hull; its cargo shows as a mark in that kind's colour.
     carrier: 0x90a4ae,
+    // A blue-violet, away from the heavy's magenta-purple; the flat ellipse sets it apart by shape as well.
+    leech: 0x7c4dff,
     boss: 0xffd54f
 } as const;
 

@@ -10,3 +10,8 @@
 - `logic/retry.ts`: `resolve()` が本番コードから呼ばれていない — 理由: 既存の `retry.test.ts` が `resolve` の真偽値を固定しており、テストを緩めないため残す。呼び出しは増やさない
 - `scenes/GameOver.ts`: `retry` と `titleRect` をフィールド宣言で初期化し、`create` で作り直している — 理由: Scene の生成ごとに 1 回だけで、毎フレームの確保ではない。`elapsed` や `lines` と同じ書き方に揃えている
 - `logic/retry.ts`: `pointerDown(onTitleButton = false)` の既定値 — 理由: 本番の呼び出しは `GameOver.onPointerDown` の 1 か所だけ。既存の `retry.test.ts` が引数なしで `pointerDown()` を呼んでおり（リトライの意味で）、既定値を外すとそのテストの意味が変わる
+- `logic/enemy.ts`: `createLeech` が `placeAtEdge` の辺・位置の計算を写している — 理由: `placeAtEdge` は定位置（station）の設定と一体で、leech には定位置が無い。辺の選び方（`pickSpawnEdge`）は共有しており、残りは数行。分けると既存の敵の差分が広がる
+- `scenes/Game.ts`: 紐を描く条件と吸い取りの条件が別々に書かれている — 理由: どちらも `FIELD_RADIUS` と `leechDrainRate` を使い、紐は d ≤ 半径（spec どおり）。仕様の変更は spec と 1 か所ずつ同時に直す
+- `logic/leech.ts`: `leechOrbitPoint` が leech ごと・フレームごとに点を作る — 理由: 同時に最大 2 体で、1 フレーム 2 個の小さなオブジェクト。`drainStep` の分は、吸い取りが無いフレームでは呼ばないようにした
+- `logic/world.ts`: `countLeeches`・`drainStock`・`drawTethers` が敵の配列を毎回走査する — 理由: 敵は多くても十数体で、carrier の追跡用フィールドのような別の一覧を持つと、除去時の同期が増える
+- `logic/world.ts`: `drainCarry` が公開フィールド — 理由: `spawnTimer` などと同じく、テストが状態を直接置けるようにしている書き方

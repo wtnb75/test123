@@ -135,7 +135,7 @@ describe('dropped enemies', () => {
     });
 });
 
-/** A world in the playing phase with regular, rammer, boss and carrier spawns all paused. */
+/** A world in the playing phase with regular, rammer, boss, carrier and leech spawns all paused. */
 function quietWorld(rng: () => number = () => 0.5): World {
     const w = new World(S, rng);
     w.step(3, NONE);
@@ -143,6 +143,7 @@ function quietWorld(rng: () => number = () => 0.5): World {
     w.rammerTimer = Infinity;
     w.nextBossAt = Infinity;
     w.nextCarrierAt = Infinity;
+    w.nextLeechAt = Infinity;
     return w;
 }
 

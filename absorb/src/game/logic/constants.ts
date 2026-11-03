@@ -230,6 +230,29 @@ export const CARRIER_DROP_INTERVAL = 3;
 /** A dropping carrier's centre mark flashes white for this long. */
 export const CARRIER_DROP_FLASH = 0.15;
 
+export const LEECH_HP = 4;
+export const LEECH_SCORE = 400;
+export const LEECH_RADIUS = 14;
+/** A leech chases its orbit point at this speed; the point circles the player at LEECH_ORBIT_RADIUS... */
+export const LEECH_SPEED = 100;
+export const LEECH_ORBIT_RADIUS = 60;
+/** ...turning this fast (radians per second; 90 degrees). */
+export const LEECH_ORBIT_SPEED = Math.PI / 2;
+/** Stock drained per second by a leech touching the player; falls linearly to 0 at FIELD_RADIUS. */
+export const LEECH_DRAIN_MAX = 6;
+/** Slack for the drain tally, which sums frame deltas (30 frames of 2/60 per second land just under 1). */
+export const DRAIN_EPS = 1e-6;
+/** On its own schedule: first at LEECH_FIRST_AT, then LEECH_INTERVAL after the previous one appeared, at most LEECH_MAX at once. */
+export const LEECH_FIRST_AT = 40;
+export const LEECH_INTERVAL = 25;
+export const LEECH_MAX = 2;
+/** The tether to the player is this wide at no drain, widening to the max at LEECH_DRAIN_MAX. */
+export const LEECH_TETHER_MIN_WIDTH = 1;
+export const LEECH_TETHER_MAX_WIDTH = 6;
+export const LEECH_TETHER_ALPHA = 0.8;
+/** The stock gauge turns red for this long after a drain took stock. */
+export const LEECH_HUD_FLASH = 0.15;
+
 export type EnemyKind = 'grunt' | 'shooter' | 'heavy' | 'rammer' | 'splitter';
 
 export interface EnemySpec {
@@ -254,13 +277,16 @@ export const SPLITTER_CHILD_SPEC: EnemySpec = {
 };
 
 /** The boss and splitter children are kept out of EnemyKind so the regular spawn tables and ENEMY_SPECS stay unchanged. */
-export type ActorKind = EnemyKind | 'splitterChild' | 'carrier' | 'boss';
+export type ActorKind = EnemyKind | 'splitterChild' | 'carrier' | 'leech' | 'boss';
 
 /** The carrier: scheduled like the boss, so kept out of EnemyKind and the spawn tables too. */
 export const CARRIER_SPEC: EnemySpec = { hp: CARRIER_HP, score: CARRIER_SCORE, radius: CARRIER_RADIUS, fireInterval: 0 };
 
+/** The leech: scheduled on its own like the rammer, so kept out of EnemyKind and the spawn tables. */
+export const LEECH_SPEC: EnemySpec = { hp: LEECH_HP, score: LEECH_SCORE, radius: LEECH_RADIUS, fireInterval: 0 };
+
 /** How a killed regular enemy is reported (debris, breakdown): splitter children count as splitters. */
-export type DefeatKind = EnemyKind | 'carrier';
+export type DefeatKind = EnemyKind | 'carrier' | 'leech';
 
 /** The kinds a carrier can carry: the ones the regular spawn picks from. */
 export type CargoKind = Exclude<EnemyKind, 'rammer'>;
