@@ -55,3 +55,8 @@
 - `src/game/logic/streak.ts`: 時計の連続のルールが `nextStreak` と `resolveStrike` の早い return の 2 か所にある — 理由: 連続のルールは `nextStreak` だけが持ち、`resolveStrike` は得点の有無を決めるだけ。役割の分担で、二重管理ではない
 - `src/game/scenes/PopView.ts` (金のきらめきの無限の tween が、叩いたつぶれの約 160ms の間も動く): 叩いた Pop の後始末が squash の完了に依存する — 理由: 叩かれた Pop は squash の完了で `destroy()`（きらめきも止める）を通る既存の流れで、時間切れ・ending・Scene の終了でも止まる。つぶれの間だけで害はない
 - `src/game/logic/streak.ts` (`resolveStrike` の早い return に `never` の保証が無い): 新しい結果を足したときの漏れ — 理由: 新しい結果は `applyStrike` の型で型エラーになり、`nextStreak` の既定（0 に戻す）も単体テストで確かめる。保証を二重にするのは過剰
+- `src/game/logic/spawn.ts` linePlan: 直線が `comboSize` と連動せず固定の 3 匹（`comboSize` を 2 にすると空き枠を超えうる） — 理由: 仕様が直線を連続 3 穴と定めている（`comboSize` は 3 のまま変えない合意）。`comboSize` を動かすのは仕様の改訂で、そのとき直線の長さも決める
+- `src/game/logic/spawn.patterns.test.ts` 試走のオラクル: 囲むとかたまり（モグラ・ネコ・ネコ）の見分けがつかず、囲むの件数の確認が空になりうる — 理由: 強制した型の抽選（`COMBO, SURROUND`）で囲むを直接確かめるテストと、`pickComboPattern` の境界テストが別にあり、ミューテーション（型を常にかたまり／囲むの種類の入れ替え）はどちらも落ちた。試走は幾何の不変条件を見るためのもの
+- `src/game/logic/spawn.ts` pickComboPattern: 重みがすべて 0 のとき常に囲むになる — 理由: 重みは仕様の初期値 1・1・1 の調整用の定数で、全部 0 にする設定は想定しない
+- `src/game/logic/spawn.ts` lineCandidates: 毎回 192 本の候補を作る — 理由: コンボは 1 ラウンドに数回で実害がない。仕様が同じ分布の別の方法を許しているが、保守性のほうが重要
+- `src/game/logic/spawn.ts` surroundPlan: ネコの数が `comboSize` − 1 で、直線の 3 と別の定数に結びつく — 理由: 仕様に「ネコは `comboSize` − 1 個」と明記されている

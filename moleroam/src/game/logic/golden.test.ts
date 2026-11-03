@@ -50,9 +50,9 @@ describe('golden mole spawn (cat draw -> clock draw -> golden draw -> next pop)'
         // pop 1: cat roll 0.9, clock roll 0.99, golden roll 0.01 -> golden
         // pop 2: cat roll 0.1 -> cat (no more draws for it)
         // pop 3: cat roll 0.5, clock roll 0.99, golden roll 0.99 -> mole
-        const r = seq([0.1, 0, 0, 0.99, 0.9, 0.99, 0.01, 0.1, 0.5, 0.99, 0.99]);
+        const r = seq([0.1, 0, 0, 0, 0.99, 0.9, 0.99, 0.01, 0.1, 0.5, 0.99, 0.99]);
         expect(planSpawn([], r.rand).map((p) => p.kind)).toEqual(['golden', 'cat', 'mole']);
-        expect(r.calls()).toBe(11);
+        expect(r.calls()).toBe(12);
     });
 
     it('is never a decoy: the decoy roll is for cats only, so a golden mole draws nothing for it', () => {

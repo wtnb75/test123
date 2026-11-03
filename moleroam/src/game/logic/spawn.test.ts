@@ -24,6 +24,16 @@ const seeded = (seed: number): (() => number) => {
 
 const sorted = (list: number[]): number[] => [...list].sort((a, b) => a - b);
 
+/** Three holes whose centres step by the same vector, one hole apart (oracle for a line, from the board geometry). */
+const isStraightRun = (holes: number[]): boolean => {
+    if (holes.length !== 3) return false;
+    const [p, q, r] = holes.map((h) => holeCenter(h));
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const oneApart = Math.abs(dx) <= 320 && Math.abs(dy) <= 320 && (dx !== 0 || dy !== 0);
+    return oneApart && r.x - q.x === dx && r.y - q.y === dy;
+};
+
 describe('spawn timing', () => {
     it('first check is 500 ms after the start', () => {
         expect(firstSpawnAt()).toBe(500);
@@ -131,7 +141,7 @@ describe('planSpawn: combo spawn', () => {
     it('spawns an anchor and two of its neighbours with independent kinds', () => {
         // combo roll 0.1; anchor pick 0 -> hole 0; near [1, 8, 9]: pick 0 -> 1, then near [8, 9]: pick 0.99 -> 9;
         // kind rolls 0.9 (not a cat, clock roll 0.99 -> mole) / 0.1 (cat, no clock roll) / 0.5 (clock roll 0.99 -> mole)
-        expect(planSpawn([], seq([0.1, 0, 0, 0.99, 0.9, 0.99, 0.99, 0.1, 0.5, 0.99, 0.99]))).toEqual([
+        expect(planSpawn([], seq([0.1, 0, 0, 0, 0.99, 0.9, 0.99, 0.99, 0.1, 0.5, 0.99, 0.99]))).toEqual([
             { hole: 0, kind: 'mole' },
             { hole: 1, kind: 'cat' },
             { hole: 9, kind: 'mole' },
@@ -139,23 +149,23 @@ describe('planSpawn: combo spawn', () => {
     });
 
     it('makes a combo just under comboRate', () => {
-        expect(planSpawn([], seq([0.1999, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]))).toHaveLength(3);
+        expect(planSpawn([], seq([0.1999, 0, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]))).toHaveLength(3);
     });
 
     it('can be made of cats only', () => {
-        const plan = planSpawn([], seq([0.1, 0, 0, 0, 0.1, 0.1, 0.1]));
+        const plan = planSpawn([], seq([0.1, 0, 0, 0, 0, 0.1, 0.1, 0.1]));
         expect(plan.map((p) => p.kind)).toEqual(['cat', 'cat', 'cat']);
     });
 
     it('works from a corner anchor (last hole) without leaving the board', () => {
-        const plan = planSpawn([], seq([0.1, 0.999, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]));
+        const plan = planSpawn([], seq([0.1, 0, 0.999, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]));
         expect(plan.map((p) => p.hole)).toEqual([47, 38, 39]);
     });
 
     it('skips neighbours that are in use', () => {
         // used [1]: room 3, so a combo is possible; the free list starts at 0, which is the anchor,
         // and its free neighbours are 8 and 9
-        const plan = planSpawn([1], seq([0.1, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]));
+        const plan = planSpawn([1], seq([0.1, 0, 0, 0, 0, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99, 0.5, 0.99, 0.99]));
         expect(plan.map((p) => p.hole)).toEqual([0, 8, 9]);
     });
 
@@ -184,7 +194,7 @@ describe('planSpawn: clock kind (docs/spec/items.md)', () => {
         // combo roll 0.1; anchor 0; near picks 0 -> 1 and 0.99 -> 9;
         // pop 1: kind 0.5 (not a cat), clock 0.01 -> clock; pop 2: kind 0.5, clock 0.99 -> mole;
         // pop 3: kind 0.9, clock 0.99 -> mole
-        expect(planSpawn([], seq([0.1, 0, 0, 0.99, 0.5, 0.01, 0.5, 0.99, 0.99, 0.9, 0.99, 0.99]))).toEqual([
+        expect(planSpawn([], seq([0.1, 0, 0, 0, 0.99, 0.5, 0.01, 0.5, 0.99, 0.99, 0.9, 0.99, 0.99]))).toEqual([
             { hole: 0, kind: 'clock' },
             { hole: 1, kind: 'mole' },
             { hole: 9, kind: 'mole' },
@@ -196,6 +206,7 @@ describe('planSpawn: invariants over many random states (oracle: board geometry)
     it('only uses free holes, never duplicates, respects room, and keeps combos adjacent', () => {
         const rand = seeded(12345);
         let combos = 0;
+        let lineCombos = 0;
         let singles = 0;
         let cats = 0;
         let moles = 0;
@@ -219,10 +230,15 @@ describe('planSpawn: invariants over many random states (oracle: board geometry)
                 combos++;
                 if (room < 3) expect.fail('combo without room');
                 const a = holeCenter(holes[0]);
-                for (const h of holes.slice(1)) {
-                    const c = holeCenter(h);
-                    const adjacent = Math.abs(c.x - a.x) <= 320 && Math.abs(c.y - a.y) <= 320;
-                    if (!adjacent) expect.fail(`hole ${h} is not next to anchor ${holes[0]}`);
+                const straight = isStraightRun(holes);
+                if (straight && plan.every((p) => p.kind === 'mole')) lineCombos++;
+                if (!straight) {
+                    // a cluster or a surround: every other hole is next to the anchor
+                    for (const h of holes.slice(1)) {
+                        const c = holeCenter(h);
+                        const adjacent = Math.abs(c.x - a.x) <= 320 && Math.abs(c.y - a.y) <= 320;
+                        if (!adjacent) expect.fail(`hole ${h} is not next to anchor ${holes[0]}`);
+                    }
                 }
             } else if (plan.length === 1) {
                 singles++;
@@ -230,6 +246,7 @@ describe('planSpawn: invariants over many random states (oracle: board geometry)
         }
         // guard against a vacuous run
         expect(combos).toBeGreaterThan(0);
+        expect(lineCombos).toBeGreaterThan(0);
         expect(singles).toBeGreaterThan(0);
         expect(cats).toBeGreaterThan(0);
         expect(moles).toBeGreaterThan(0);

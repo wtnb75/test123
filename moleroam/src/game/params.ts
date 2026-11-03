@@ -38,6 +38,10 @@ export const PARAMS = {
     goldenArrowOutlinePx: 3,
     comboRate: 0.2,
     comboSize: 3,
+    // combo patterns (docs/spec/combo-patterns.md): relative weights of cluster / line / surround
+    comboWeightCluster: 1,
+    comboWeightLine: 1,
+    comboWeightSurround: 1,
     telegraphMs: 800,
     popLifetimeMs: 3000,
     hitRadius: 70,
