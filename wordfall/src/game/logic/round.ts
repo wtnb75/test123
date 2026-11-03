@@ -1,5 +1,5 @@
 import { START_TIME_SEC } from '../params';
-import { fallSpeed, bonusFor, scoreFor } from './scoring';
+import { fallSpeed, bonusFor, multiBonus, scoreFor } from './scoring';
 import { initialTargets } from './targets';
 import { addLetter, removeAt, resolveCompletions } from './tray';
 import type { Rng, Word } from './words';
@@ -65,6 +65,9 @@ export class Round {
             this.completedCount += 1;
             this.completedWords.push(w.en);
         }
+        const bonus = multiBonus(res.completed.length);
+        this.score += bonus.score;
+        this.timeLeft += bonus.sec;
         this.appeared.push(...res.drawn);
         return { kind: 'picked', completed: res.completed, rows: res.rows };
     }

@@ -22,6 +22,25 @@ export const TRAY_CAPACITY = TRAY_COLS * TRAY_ROWS;
 export const START_TIME_SEC = 60;
 export const BONUS_SEC_PER_LETTER = 1;
 export const SCORE_BY_LENGTH: Readonly<Record<number, number>> = { 3: 30, 4: 50, 5: 80, 6: 120, 7: 170, 8: 230 };
+/** Extra seconds and score per word beyond the first when one pick completes several (docs/spec/multi-complete.md). */
+export const MULTI_BONUS_SEC = 5;
+export const MULTI_BONUS_SCORE = 100;
+
+// Cues for the letters worth aiming at (docs/spec/multi-complete.md)
+/** A word counts toward a "near" letter when it is at most this many letters short. */
+export const NEAR_MAX_SHORT = 2;
+export const NEAR_RIM_W = 3;
+export const REACH_RIM_W = 4;
+export const REACH_PULSE_MS = 400;
+export const REACH_PULSE_SCALE = 1.15;
+export const REACH_HALO_PAD = 8;
+export const REACH_HALO_ALPHA_MIN = 0.25;
+export const REACH_HALO_ALPHA_MAX = 0.7;
+export const REACH_ROW_PAD = 8;
+export const REACH_ROW_H = 46;
+export const REACH_ROW_DY = 9;
+export const REACH_ROW_RIM_W = 2;
+export const REACH_ROW_RIM_ALPHA_MIN = 0.4;
 
 // Falling letters
 export const SPAWN_INTERVAL_MS = 650;

@@ -3,8 +3,16 @@ import {
     FALL_SPEED_MAX,
     FALL_SPEED_RAMP,
     FALL_SPEED_START,
+    MULTI_BONUS_SCORE,
+    MULTI_BONUS_SEC,
     SCORE_BY_LENGTH,
 } from '../params';
+
+/** The extra score and seconds for `n` words completed by one pick (nothing below two). */
+export function multiBonus(n: number): { score: number; sec: number } {
+    const extra = Math.max(0, n - 1);
+    return { score: MULTI_BONUS_SCORE * extra, sec: MULTI_BONUS_SEC * extra };
+}
 
 /** Score for completing a word of `length` letters. */
 export const scoreFor = (length: number): number => SCORE_BY_LENGTH[length] ?? 0;

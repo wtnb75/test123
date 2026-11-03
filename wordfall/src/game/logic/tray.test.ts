@@ -48,6 +48,45 @@ describe('consume', () => {
     });
 });
 
+describe('consume keeps the letters the other words still need (docs/spec.md "完成")', () => {
+    it('keeps the C that CUP needs when CAT completes: A T U P C -> U P C', () => {
+        expect(consume(L('ATUPC'), 'CAT', ['CUP', 'DOG'])).toEqual(['U', 'P', 'C']);
+    });
+
+    it('takes out letters no other word needs, as before: D O G X with CAT and SUN left -> X', () => {
+        expect(consume(L('DOGX'), 'DOG', ['CAT', 'SUN'])).toEqual(['X']);
+    });
+
+    it('keeps max(t - a, min(t, m)) copies: APPLE with A P P L E P and PICTURE left -> E P (P: max(1, min(3, 1)) = 1, E kept)', () => {
+        expect(consume(L('APPLEP'), 'APPLE', ['PICTURE', 'DOG'])).toEqual(['E', 'P']);
+    });
+
+    it('keeps more copies than the leftover when another word needs two: P P I T, word PIT, other APPLE -> P P', () => {
+        expect(consume(L('PPIT'), 'PIT', ['APPLE'])).toEqual(['P', 'P']);
+    });
+
+    it('counts one copy for several words that need the same letter', () => {
+        expect(consume(L('CAT'), 'CAT', ['CUP', 'COT'])).toEqual(['C', 'T']);
+    });
+
+    it('keeps one copy, not two, when two other words each need one C: C C A T with CAT done, CUP and COT left -> C T', () => {
+        expect(consume(L('CCAT'), 'CAT', ['CUP', 'COT'])).toEqual(['C', 'T']);
+    });
+
+    it('takes the copies nearest the front first', () => {
+        expect(consume(L('CXCC'), 'C', [])).toEqual(['X', 'C', 'C']);
+        expect(consume(L('CXCC'), 'CC', ['CAT'])).toEqual(['X', 'C']);
+    });
+
+    it('does nothing for a letter the tray does not hold even if another word needs it', () => {
+        expect(consume(L('X'), 'CAT', ['CUP'])).toEqual(['X']);
+    });
+
+    it('removes nothing when every letter of the word is needed by the others', () => {
+        expect(consume(L('SUN'), 'SUN', ['SKY', 'MOUNTAIN'])).toEqual(['S', 'U', 'N']);
+    });
+});
+
 describe('matchedMask', () => {
     it('marks APPLE letters covered by the tray A, P', () => {
         expect(matchedMask(L('PA'), 'APPLE')).toEqual([true, true, false, false, false]);
@@ -131,7 +170,32 @@ describe('resolveCompletions', () => {
         expect(res.completed.map((x) => x.en)).toEqual(['CAT', 'SKY']);
         expect(res.drawn.map((x) => x.en)).toEqual(['SKY', 'CAT']);
         expect(res.targets.map((x) => x.en)).toEqual(['CAT', 'DOG', 'SUN']);
-        expect(res.tray).toEqual([]);
+        // SKY's S stays: SUN, still on screen, needs it
+        expect(res.tray).toEqual(['S']);
+    });
+
+    it('completes two words from one pick when the shared letter stays: A T U P C with CAT, CUP, DOG', () => {
+        const res = resolveCompletions(L('ATUPC'), [w('CAT'), w('CUP'), w('DOG')], seq(0));
+        expect(res.completed.map((x) => x.en)).toEqual(['CAT', 'CUP']);
+        expect(res.rows).toEqual([0, 1]);
+        // CAT's row draws SUN (CAT, CUP, DOG are excluded); then CUP's row draws CAT (SUN, CUP, DOG are excluded)
+        expect(res.drawn.map((x) => x.en)).toEqual(['SUN', 'CAT']);
+        expect(res.targets.map((x) => x.en)).toEqual(['SUN', 'CAT', 'DOG']);
+        // CUP's U stays because the new SUN needs it
+        expect(res.tray).toEqual(['U']);
+    });
+
+    it('takes the C out when no word on screen needs it, so only CAT completes: A T U P C with CAT, DOG, SUN', () => {
+        const res = resolveCompletions(L('ATUPC'), [w('CAT'), w('DOG'), w('SUN')], seq(0));
+        expect(res.completed.map((x) => x.en)).toEqual(['CAT']);
+        expect(res.tray).toEqual(['U', 'P']);
+    });
+
+    it('counts a completion that removes no letters and replaces its row', () => {
+        const res = resolveCompletions(L('SUN'), [w('SUN'), w('SKY'), w('MOUNTAIN')], seq(0));
+        expect(res.completed.map((x) => x.en)).toEqual(['SUN']);
+        expect(res.tray).toEqual(['S', 'U', 'N']);
+        expect(res.targets.map((x) => x.en)).toEqual(['CAT', 'SKY', 'MOUNTAIN']);
     });
 
     it('does not change its inputs', () => {
@@ -194,6 +258,47 @@ describe('oracle: every small tray and word over {A, B}', () => {
         }
         expect(yes).toBeGreaterThan(0);
         expect(no).toBeGreaterThan(0);
+    });
+
+    it('consume with other words keeps max(t - a, min(t, m)) copies per letter and the order of what stays', () => {
+        // The oracle scans left to right with a per-letter removal budget (an independent route to the same spec rule).
+        const oracle = (tray: string[], word: string[], others: string[][]): string[] => {
+            const budget: Record<string, number> = {};
+            for (const c of 'AB') {
+                const t = countIn(tray, c);
+                const a = countIn(word, c);
+                const m = Math.max(0, ...others.map((o) => countIn(o, c)));
+                const keep = Math.max(t - a, Math.min(t, m));
+                budget[c] = t - keep;
+            }
+            return tray.filter((c) => {
+                if (budget[c] > 0) {
+                    budget[c] -= 1;
+                    return false;
+                }
+                return true;
+            });
+        };
+        const pool = strings(3).filter((s) => s.length > 0);
+        const otherSets: string[][][] = [[], ...pool.map((o) => [o]), ...pool.flatMap((o) => pool.map((p) => [o, p]))];
+        let keptMore = 0;
+        let removedSome = 0;
+        for (const tray of strings(4)) {
+            for (const word of pool) {
+                if (!canComplete(tray, word.join(''))) continue;
+                for (const others of otherSets) {
+                    const got = consume(tray, word.join(''), others.map((o) => o.join('')));
+                    const want = oracle(tray, word, others);
+                    if (got.join('') !== want.join('')) {
+                        expect.fail(`tray ${tray.join('')} word ${word.join('')} others ${others.map((o) => o.join('')).join(',')}`);
+                    }
+                    if (got.length > tray.length - word.length) keptMore++;
+                    if (got.length < tray.length) removedSome++;
+                }
+            }
+        }
+        expect(keptMore).toBeGreaterThan(0);
+        expect(removedSome).toBeGreaterThan(0);
     });
 
     it('consume leaves the tray size minus the word size when the tray completes the word', () => {

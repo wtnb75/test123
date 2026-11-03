@@ -22,6 +22,8 @@ export const COLOR = {
     accent: '#ffd166',
     good: '#06d6a0',
     tile: 0xffd166,
+    /** Rim of a cued tile: white, because the tile itself is yellow (docs/spec/multi-complete.md `COLOR.cue`). */
+    cue: 0xffffff,
     tileText: '#101a2e',
     slot: 0x1a2540,
     slotFilled: 0x3a5a8a,
@@ -46,7 +48,18 @@ export const SLOT_STROKE = {
 const BUTTON_LOOK_COLOR = { normal: COLOR.button, pressed: COLOR.buttonPressed, hover: COLOR.buttonHover } as const;
 
 /** Draw order, back to front (docs/spec.md "描画の順"); the rotate notice is above all of it. */
-export const DEPTH = { base: 0, targets: 1, tray: 2, letters: 3, fly: 4, ghost: 5, pop: 6, hud: 7 } as const;
+export const DEPTH = {
+    base: 0,
+    rowRim: 0.5,
+    targets: 1,
+    tray: 2,
+    halo: 2.5,
+    letters: 3,
+    fly: 4,
+    ghost: 5,
+    pop: 6,
+    hud: 7,
+} as const;
 
 /** One store for the whole page, so the in-memory fallback survives Scene changes. */
 export const bestStore = new BestStore('wordfall');
