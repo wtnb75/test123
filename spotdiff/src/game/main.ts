@@ -11,6 +11,8 @@ const StartGame = (parent: string) => {
         ...initialCanvasSize(),
         parent,
         backgroundColor: '#1d2330',
+        // the Game's pinch needs two touches (a third one is ignored there)
+        input: { activePointers: 3 },
         scale: {
             mode: Scale.FIT,
             autoCenter: Scale.CENTER_BOTH,
