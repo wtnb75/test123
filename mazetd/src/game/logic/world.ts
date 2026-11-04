@@ -42,7 +42,7 @@ import {
     type Terrain
 } from './board';
 import { cellCenterX, cellCenterY, type Tool } from './layout';
-import { enemyCount, enemyHp } from './wave';
+import { enemyCount, enemyHp, type EnemyKind, enemyKind, kindSpeedRate } from './wave';
 
 export type Phase = 'build' | 'wave' | 'cleared' | 'gameover';
 
@@ -54,6 +54,8 @@ export interface Enemy {
     id: number;
     hp: number;
     maxHp: number;
+    /** Fixed at spawn; an enemy without a kind is a normal one. */
+    kind?: EnemyKind;
     /** Distance walked along the path in px. */
     traveled: number;
     x: number;
@@ -291,14 +293,16 @@ function placeOnPath(state: GameState, enemy: Enemy): void {
 }
 
 function spawnDue(state: GameState, total: number): void {
-    const hp = enemyHp(state.wave);
     while (state.spawned < total && state.spawnClock + TIME_EPS >= state.spawned * SPAWN_INTERVAL) {
         const x = state.pathX[0];
         const y = state.pathY[0];
+        const kind = enemyKind(state.wave, state.spawned);
+        const hp = enemyHp(state.wave, kind);
         state.enemies.push({
             id: state.nextEnemyId++,
             hp,
             maxHp: hp,
+            kind,
             traveled: 0,
             x,
             y,
@@ -318,7 +322,8 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
         if (i < skipFrom) {
             // x and y still hold the position at the start of this frame: a slow tower looks at that one.
             e.slowed = isSlowed(state, e.x, e.y);
-            e.traveled += ENEMY_SPEED * speedFactor(state, e.traveled) * (e.slowed ? SLOW_RATE : 1) * dt;
+            // Left-associative, so a normal enemy (kind rate 1) moves bit-for-bit as before the kinds existed.
+            e.traveled += ENEMY_SPEED * kindSpeedRate(e.kind) * speedFactor(state, e.traveled) * (e.slowed ? SLOW_RATE : 1) * dt;
             if (e.traveled >= goalAt) {
                 state.lives = Math.max(0, state.lives - 1);
                 state.events.leaks++;

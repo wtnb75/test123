@@ -35,6 +35,7 @@ import {
 } from '../logic/config';
 import { getCell, getTerrain, indexOf, initialTerrain, isGoal, isStart } from '../logic/board';
 import { CellTimers, Countdown, PopupPool } from '../logic/effects';
+import { type EnemyKind, kindRadius } from '../logic/wave';
 import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell, type Tool } from '../logic/layout';
 import {
     ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update
@@ -83,6 +84,13 @@ const COLOR = {
     buttonDisabled: 0x263238,
     buttonFlash: 0x81d4fa
 };
+// Fill per enemy kind: normal keeps the original orange; fast is a bright yellow, tank a dark purple.
+const ENEMY_COLOR: Readonly<Record<EnemyKind, number>> = {
+    normal: COLOR.enemy,
+    fast: 0xfff176,
+    tank: 0x7b1fa2
+};
+const SLOW_RIM_W = 3;
 // Applied to the render texture that holds the opaque union of all range circles, so overlaps don't darken.
 const RANGE_FILL_ALPHA = 0.12;
 const LIFE_COLOR = '#ffffff';
@@ -552,12 +560,15 @@ export class Game extends Scene {
             else g.lineStyle(3, COLOR.shot).lineBetween(t.x, t.y, t.targetX, t.targetY);
         }
         for (const e of this.state.enemies) {
-            g.fillStyle(e.slowed ? COLOR.slowedEnemy : COLOR.enemy).fillCircle(e.x, e.y, ENEMY_RADIUS);
+            const r = kindRadius(e.kind);
+            g.fillStyle(ENEMY_COLOR[e.kind ?? 'normal']).fillCircle(e.x, e.y, r);
+            // A slowed enemy keeps its kind's fill; the slow tower's effect is the light-blue rim.
+            if (e.slowed) g.lineStyle(SLOW_RIM_W, COLOR.slowedEnemy).strokeCircle(e.x, e.y, r);
             if (e.hp < e.maxHp) {
-                const w = ENEMY_RADIUS * 2;
-                const top = e.y - ENEMY_RADIUS - 8;
-                g.fillStyle(COLOR.hpBack).fillRect(e.x - ENEMY_RADIUS, top, w, 4);
-                g.fillStyle(COLOR.hp).fillRect(e.x - ENEMY_RADIUS, top, (w * e.hp) / e.maxHp, 4);
+                const w = r * 2;
+                const top = e.y - r - 8;
+                g.fillStyle(COLOR.hpBack).fillRect(e.x - r, top, w, 4);
+                g.fillStyle(COLOR.hp).fillRect(e.x - r, top, (w * e.hp) / e.maxHp, 4);
             }
         }
         for (const p of this.popups.items) {
