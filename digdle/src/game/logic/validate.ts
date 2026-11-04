@@ -1,11 +1,6 @@
 import { isPrimeString } from './primes';
 import type { GuessHistory, ValidationResult } from '../types';
 
-export const INVALID_LENGTH_MESSAGE = 'N桁の数字を入力してください';
-export const INVALID_PRIME_MESSAGE = '素数を入力してください';
-export const HARD_MODE_GREEN_MESSAGE = 'ハードモード: 確定した位置の数字を変えられません';
-export const HARD_MODE_YELLOW_MESSAGE = 'ハードモード: 判明した数字を必ず含めてください';
-
 const factorize = (value: number): number[] => {
     const factors: number[] = [];
     let current = value;
@@ -53,15 +48,15 @@ export const validateGuess = (guess: string, digits: number): ValidationResult =
     if (guess.length !== digits) {
         return {
             ok: false,
-            message: INVALID_LENGTH_MESSAGE
+            reason: { code: 'length' }
         };
     }
 
     if (!isPrimeString(guess)) {
-        const hint = buildCompositeHint(guess);
+        const factorization = buildCompositeHint(guess);
         return {
             ok: false,
-            message: hint ? `${INVALID_PRIME_MESSAGE} (${hint})` : INVALID_PRIME_MESSAGE
+            reason: factorization ? { code: 'not-prime', factorization } : { code: 'not-prime' }
         };
     }
 
@@ -75,7 +70,7 @@ export const validateHardMode = (guess: string, history: GuessHistory[]): Valida
         // green: same position must have same digit
         for (let i = 0; i < entry.colors.length; i += 1) {
             if (entry.colors[i] === 'green' && guess[i] !== entry.guess[i]) {
-                return { ok: false, message: HARD_MODE_GREEN_MESSAGE };
+                return { ok: false, reason: { code: 'hard-green' } };
             }
         }
 
@@ -95,7 +90,7 @@ export const validateHardMode = (guess: string, history: GuessHistory[]): Valida
 
         for (const [digit, required] of revealedCounts.entries()) {
             if ((guessCounts.get(digit) ?? 0) < required) {
-                return { ok: false, message: HARD_MODE_YELLOW_MESSAGE };
+                return { ok: false, reason: { code: 'hard-yellow' } };
             }
         }
     }

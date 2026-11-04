@@ -25,9 +25,17 @@ export interface RoundState {
     history: GuessHistory[];
 }
 
+/** Why a guess was rejected. The notice text is built from this in `locale.ts`. */
+export type ValidationReason =
+    | { code: 'length' }
+    /** `factorization` is e.g. "15 = 3 x 5"; absent when the input has no prime factors to show. */
+    | { code: 'not-prime'; factorization?: string }
+    | { code: 'hard-green' }
+    | { code: 'hard-yellow' };
+
 export interface ValidationResult {
     ok: boolean;
-    message?: string;
+    reason?: ValidationReason;
 }
 
 /** Hands the selected mode and the candidate-count toggle back to the Title (so both stay as the player left them). */

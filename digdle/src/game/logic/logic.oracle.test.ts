@@ -11,15 +11,8 @@ import {
     SUPPORTED_DIGITS,
     type PrimeMap
 } from './primes';
-import {
-    HARD_MODE_GREEN_MESSAGE,
-    HARD_MODE_YELLOW_MESSAGE,
-    INVALID_LENGTH_MESSAGE,
-    INVALID_PRIME_MESSAGE,
-    validateGuess,
-    validateHardMode
-} from './validate';
-import type { DigitStatus, GuessHistory } from '../types';
+import { validateGuess, validateHardMode } from './validate';
+import type { DigitStatus, GuessHistory, ValidationReason } from '../types';
 
 // Checks against independent oracles: a reference implementation, a sieve, and known prime counts.
 
@@ -198,8 +191,11 @@ describe('createRng and choosePrime', () => {
 });
 
 describe('validateGuess against a sieve', () => {
-    const factorsOf = (message: string): number[] | null => {
-        const match = / \((\d+) = ([\d x]+)\)$/.exec(message);
+    const factorsOf = (reason: ValidationReason | undefined): number[] | null => {
+        if (reason?.code !== 'not-prime' || reason.factorization === undefined) {
+            return null;
+        }
+        const match = /^(\d+) = ([\d x]+)$/.exec(reason.factorization);
 
         return match ? match[2].split(' x ').map(Number) : null;
     };
@@ -223,7 +219,7 @@ describe('validateGuess against a sieve', () => {
                 continue;
             }
 
-            const factors = factorsOf(result.message ?? '');
+            const factors = factorsOf(result.reason);
             if (
                 factors === null ||
                 factors.length < 2 ||
@@ -231,23 +227,23 @@ describe('validateGuess against a sieve', () => {
                 factors.some((f) => !SIEVE[f]) ||
                 factors.join() !== [...factors].sort((a, b) => a - b).join()
             ) {
-                expect.fail(`'${guess}': bad hint in "${result.message}"`);
+                expect.fail(`'${guess}': bad hint in ${JSON.stringify(result.reason)}`);
             }
         }
     });
 
     it('rejects a leading-zero prime without a factorization hint, and shows the hint for a leading-zero composite', () => {
         // 0013 has the right length and its value is prime, but a leading zero is not a valid guess.
-        expect(validateGuess('0013', 4)).toEqual({ ok: false, message: INVALID_PRIME_MESSAGE });
-        expect(validateGuess('0007', 4)).toEqual({ ok: false, message: INVALID_PRIME_MESSAGE });
-        expect(validateGuess('0015', 4).message).toBe(`${INVALID_PRIME_MESSAGE} (0015 = 3 x 5)`);
+        expect(validateGuess('0013', 4)).toEqual({ ok: false, reason: { code: 'not-prime' } });
+        expect(validateGuess('0007', 4)).toEqual({ ok: false, reason: { code: 'not-prime' } });
+        expect(validateGuess('0015', 4).reason).toEqual({ code: 'not-prime', factorization: '0015 = 3 x 5' });
     });
 
     it('checks the length before anything else', () => {
-        expect(validateGuess('', 3)).toEqual({ ok: false, message: INVALID_LENGTH_MESSAGE });
-        expect(validateGuess('13', 3)).toEqual({ ok: false, message: INVALID_LENGTH_MESSAGE });
-        expect(validateGuess('1313', 3)).toEqual({ ok: false, message: INVALID_LENGTH_MESSAGE });
-        expect(validateGuess('abc', 3).message).toBe(INVALID_PRIME_MESSAGE);
+        expect(validateGuess('', 3)).toEqual({ ok: false, reason: { code: 'length' } });
+        expect(validateGuess('13', 3)).toEqual({ ok: false, reason: { code: 'length' } });
+        expect(validateGuess('1313', 3)).toEqual({ ok: false, reason: { code: 'length' } });
+        expect(validateGuess('abc', 3).reason).toEqual({ code: 'not-prime' });
     });
 });
 
@@ -297,15 +293,15 @@ describe('validateHardMode', () => {
 
     // Hard mode: keep every green in place and include every revealed digit as many times as it was
     // revealed, counting greens and yellows together (docs/spec.md).
-    const expectedHardModeMessage = (candidate: string, history: GuessHistory[]): string | undefined => {
+    const expectedHardModeCode = (candidate: string, history: GuessHistory[]): 'hard-green' | 'hard-yellow' | undefined => {
         for (const entry of history) {
             if (entry.colors.some((color, i) => color === 'green' && candidate[i] !== entry.guess[i])) {
-                return HARD_MODE_GREEN_MESSAGE;
+                return 'hard-green';
             }
             for (const digit of new Set(entry.guess)) {
                 const revealed = [...entry.guess].filter((g, i) => g === digit && entry.colors[i] !== 'gray').length;
                 if ([...candidate].filter((c) => c === digit).length < revealed) {
-                    return HARD_MODE_YELLOW_MESSAGE;
+                    return 'hard-yellow';
                 }
             }
         }
@@ -321,8 +317,8 @@ describe('validateHardMode', () => {
         expect(validateHardMode('1137', history)).toEqual({ ok: true });
         expect(validateHardMode('1317', history)).toEqual({ ok: true });
         // Only one 1 although two were revealed.
-        expect(validateHardMode('1337', history)).toEqual({ ok: false, message: HARD_MODE_YELLOW_MESSAGE });
-        expect(validateHardMode('1377', history)).toEqual({ ok: false, message: HARD_MODE_YELLOW_MESSAGE });
+        expect(validateHardMode('1337', history)).toEqual({ ok: false, reason: { code: 'hard-yellow' } });
+        expect(validateHardMode('1377', history)).toEqual({ ok: false, reason: { code: 'hard-yellow' } });
     });
 
     it('matches the rule for every guess after one earlier guess (digits 1, 3, 7)', () => {
@@ -330,9 +326,9 @@ describe('validateHardMode', () => {
             for (const first of strings('137', 4)) {
                 const history = round(answer, [first]);
                 for (const next of strings('137', 4)) {
-                    const expected = expectedHardModeMessage(next, history);
+                    const expected = expectedHardModeCode(next, history);
                     const actual = validateHardMode(next, history);
-                    if (actual.ok !== (expected === undefined) || actual.message !== expected) {
+                    if (actual.ok !== (expected === undefined) || actual.reason?.code !== expected) {
                         expect.fail(`answer=${answer} first=${first} next=${next}: got ${JSON.stringify(actual)} expected ${expected}`);
                     }
                 }
@@ -346,9 +342,9 @@ describe('validateHardMode', () => {
                 for (const second of strings('13', 4)) {
                     const history = round(answer, [first, second]);
                     for (const next of strings('13', 4)) {
-                        const expected = expectedHardModeMessage(next, history);
+                        const expected = expectedHardModeCode(next, history);
                         const actual = validateHardMode(next, history);
-                        if (actual.ok !== (expected === undefined) || actual.message !== expected) {
+                        if (actual.ok !== (expected === undefined) || actual.reason?.code !== expected) {
                             expect.fail(`answer=${answer} ${first},${second} next=${next}: got ${JSON.stringify(actual)} expected ${expected}`);
                         }
                     }
@@ -468,7 +464,7 @@ describe('game flow', () => {
 
         const dropsGreen = applyGuess(first.round, '137');
         expect(dropsGreen).toMatchObject({ accepted: false, consumedAttempt: false });
-        expect(dropsGreen.message).toContain('ハードモード');
+        expect(dropsGreen.reason).toEqual({ code: 'hard-green' });
         expect(dropsGreen.round).toBe(first.round);
     });
 
