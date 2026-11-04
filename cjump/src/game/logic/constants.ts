@@ -19,3 +19,7 @@ export const MEASURE_TIMEOUT_MS = 120000;
 export const ROUTE_TIME_START_S = 7;
 export const ROUTE_TIME_END_S = 9;
 export const ROUTE_TIME_TOLERANCE_S = 0.1;
+
+// Divisions of the spline arc-length table. Equals Phaser's Curve arcLengthDivisions default; keep it so
+// measured positions match the Game scene.
+export const SPLINE_ARC_DIVISIONS = 100;

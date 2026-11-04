@@ -17,7 +17,7 @@ import {
     isCollisionActive
 } from './character';
 import { advanceSpawnTimer } from './spawn';
-import { polylineLength, polylinePointAt } from './polyline';
+import { createSplineRoute } from './spline';
 import type { Point } from './waypoints';
 
 export interface BotView {
@@ -43,14 +43,15 @@ const BOUNDS = { width: GAME_WIDTH, height: GAME_HEIGHT };
 // Frame n (0-based) runs entirely at time (n + 1) * MEASURE_STEP_MS, in the same order as the Game scene.
 export function simulateRun(config: RunConfig): boolean {
     const { route, spawnIntervalMs, growthSpeedPxPerSec, rng, bot, timeoutMs } = config;
-    const speedPerMs = CHARACTER_PIXEL_SPEED_PER_SEC / 1000 / polylineLength(route);
+    const spline = createSplineRoute(route);
+    const speedPerMs = CHARACTER_PIXEL_SPEED_PER_SEC / 1000 / spline.length;
     let character = createCharacterState();
     let circles: CircleObstacle[] = [];
     let nextId = 0;
     let msSinceLastSpawn = 0;
 
     const touchesAt = (t: number, nowMs: number): boolean => {
-        const point = polylinePointAt(route, Math.min(t, 1));
+        const point = spline.pointAt(Math.min(t, 1));
         return circles.some(
             (circle) =>
                 !isWarning(circle, nowMs, CIRCLE_WARNING_MS) &&

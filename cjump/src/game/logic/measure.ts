@@ -9,7 +9,7 @@ import {
 } from './constants';
 import { getDifficultyParams, routeSeed } from './difficulty';
 import { generateWaypoints, type Point } from './waypoints';
-import { polylineLength } from './polyline';
+import { createSplineRoute } from './spline';
 import { createPrng } from './prng';
 import { simulateRun, type Bot } from './simulation';
 import { idleBot, reflexBot } from './bots';
@@ -33,7 +33,7 @@ export function stageRoute(stage: number): Point[] {
 }
 
 export function travelTimeMs(route: Point[]): number {
-    return (polylineLength(route) / CHARACTER_PIXEL_SPEED_PER_SEC) * 1000;
+    return (createSplineRoute(route).length / CHARACTER_PIXEL_SPEED_PER_SEC) * 1000;
 }
 
 export function encounteredCircles(travelMs: number, spawnIntervalMs: number): number {
