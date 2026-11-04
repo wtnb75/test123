@@ -45,6 +45,21 @@ export const SWAMP_SPEED_RATE = 0.5;
 export const ENEMY_RADIUS = 14;
 export const SPAWN_INTERVAL = 0.8;
 
+// Enemy kinds (spec/enemy-kinds.md): the kind follows from the wave and the spawn index i alone.
+export const FAST_FROM_WAVE = 3;
+export const TANK_FROM_WAVE = 5;
+export const KIND_CYCLE = 4;
+/** A fast enemy spawns when i mod KIND_CYCLE is FAST_SLOT; a tank when it is TANK_SLOT. */
+export const FAST_SLOT = 2;
+export const TANK_SLOT = 3;
+export const FAST_SPEED_RATE = 1.6;
+export const FAST_HP_RATE = 0.5;
+export const TANK_SPEED_RATE = 0.6;
+export const TANK_HP_RATE = 2;
+/** Drawing radii only; range and splash checks use the enemy's centre. A normal enemy is ENEMY_RADIUS. */
+export const FAST_RADIUS = 10;
+export const TANK_RADIUS = 18;
+
 export const TURRET_RANGE = 112;
 export const TURRET_DAMAGE = 1;
 export const TURRET_INTERVAL = 0.5;
