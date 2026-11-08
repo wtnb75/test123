@@ -121,7 +121,7 @@ export const WARN_PULSE_SCALE = 0.25;
 
 // Result buttons: "もう一度" is the primary look, "タイトルへ" the quiet one (implementation discretion, but the
 // quiet fill must keep white text at a contrast of 4.5:1 or more).
-export const PRIMARY_BUTTON = { normal: 0x2f6fd6, pressed: 0x2557ab, hover: 0x4a86e8 } as const;
+export const PRIMARY_BUTTON = { normal: 0x2f6fd6, pressed: 0x2557ab, hover: 0x3770d8 } as const;
 export const SECONDARY_BUTTON = { normal: 0x3a4460, pressed: 0x2c3550, hover: 0x4a5678 } as const;
 
 // Layout details the spec fixes (docs/spec.md "Title" / "Result" / "Game")
