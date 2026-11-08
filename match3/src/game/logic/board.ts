@@ -4,6 +4,18 @@ import { BOARD_MAX_TRIES, MATCH_MIN } from '../params';
 
 export type Cell = number | null;
 export type Board = Cell[][];
+/** The colour value of a colour stone (docs/spec/special-gems.md): it has no colour, so it never joins a run. */
+export const RAINBOW = -1;
+/** What a stone does when it is cleared. A colour stone is a `RAINBOW` cell with kind 'rainbow'. */
+export type Kind = 'normal' | 'lineRow' | 'lineCol' | 'bomb' | 'rainbow';
+/** The kind of every cell, laid out like the board. Empty cells are 'normal'. */
+export type Kinds = Kind[][];
+
+/** A board's worth of 'normal' kinds. */
+export const normalKinds = (rows: number, cols: number): Kinds =>
+    Array.from({ length: rows }, () => new Array<Kind>(cols).fill('normal'));
+
+const isColor = (v: Cell): v is number => v !== null && v >= 0;
 export interface Pos {
     r: number;
     c: number;
@@ -59,7 +71,7 @@ export function findMatches(board: Board): Pos[] {
     for (let r = 0; r < rows; r++) {
         let run = 1;
         for (let c = 1; c <= cols; c++) {
-            if (c < cols && board[r][c] !== null && board[r][c] === board[r][c - 1]) {
+            if (c < cols && isColor(board[r][c]) && board[r][c] === board[r][c - 1]) {
                 run++;
                 continue;
             }
@@ -70,7 +82,7 @@ export function findMatches(board: Board): Pos[] {
     for (let c = 0; c < cols; c++) {
         let run = 1;
         for (let r = 1; r <= rows; r++) {
-            if (r < rows && board[r][c] !== null && board[r][c] === board[r - 1][c]) {
+            if (r < rows && isColor(board[r][c]) && board[r][c] === board[r - 1][c]) {
                 run++;
                 continue;
             }
@@ -83,7 +95,8 @@ export function findMatches(board: Board): Pos[] {
 
 /**
  * The first swap that makes a match, or null when stuck. Order: stones top row first, left to right; for each
- * stone the partner to the right is tried before the one below. The board is left as it was.
+ * stone the partner to the right is tried before the one below. A swap with a colour stone always counts (it
+ * needs no match). The board is left as it was.
  */
 export function findMove(board: Board): [Pos, Pos] | null {
     const rows = board.length;
@@ -93,6 +106,7 @@ export function findMove(board: Board): [Pos, Pos] | null {
             const a = { r, c };
             for (const b of swapPartners(a, rows, cols)) {
                 if (b.r * cols + b.c < r * cols + c) continue; // each pair once, from its earlier stone
+                if (board[a.r][a.c] === RAINBOW || board[b.r][b.c] === RAINBOW) return [a, b];
                 swapCells(board, a, b);
                 const ok = findMatches(board).length > 0;
                 swapCells(board, a, b);
@@ -185,21 +199,34 @@ export function refill(board: Board, colors: number, rng: Rng): Added[] {
 
 /**
  * Rearranges the stones until the board has no match and a move. After `maxTries` failed arrangements the board is
- * built anew instead (the colour mix changes). Returns true when it was rebuilt.
+ * built anew instead (the colour mix changes, and with it every special stone is gone). Returns true when it was
+ * rebuilt. With `kinds`, each stone keeps its kind while it moves.
  */
-export function shuffleBoard(board: Board, colors: number, rng: Rng, maxTries: number): boolean {
+export function shuffleBoard(board: Board, colors: number, rng: Rng, maxTries: number, kinds?: Kinds): boolean {
     const rows = board.length;
     const cols = rows > 0 ? board[0].length : 0;
     const flat = board.flat();
+    const flatKinds = kinds ? kinds.flat() : [];
     for (let attempt = 0; attempt < maxTries; attempt++) {
         for (let i = flat.length - 1; i > 0; i--) {
             const j = Math.floor(rng() * (i + 1));
             [flat[i], flat[j]] = [flat[j], flat[i]];
+            if (kinds) [flatKinds[i], flatKinds[j]] = [flatKinds[j], flatKinds[i]];
         }
-        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c] = flat[r * cols + c];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                board[r][c] = flat[r * cols + c];
+                if (kinds) kinds[r][c] = flatKinds[r * cols + c];
+            }
+        }
         if (findMatches(board).length === 0 && hasMove(board)) return false;
     }
     const fresh = createBoard(rows, cols, colors, rng);
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c] = fresh[r][c];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            board[r][c] = fresh[r][c];
+            if (kinds) kinds[r][c] = 'normal';
+        }
+    }
     return true;
 }

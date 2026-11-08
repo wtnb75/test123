@@ -20,11 +20,12 @@ import {
     SHUFFLE_NOTICE_MS,
     SWAP_MS,
 } from '../params';
-import { findMove, type Pos } from '../logic/board';
+import { findMove, RAINBOW, type Kind, type Pos } from '../logic/board';
 import { cellAt, initialInput, isBoardKey, pressKey, swipe, swipeFrom, tapStone, touchOutside } from '../logic/input';
 import { boardRect, cellCenter, hudLayout, type HudLayout, type Rect } from '../logic/layout';
 import { Round, type NextState, type Step } from '../logic/round';
 import { centerOf, clampPopup, hudBest, movesWarning, popupLines, popupScale } from '../logic/score';
+import { gemKey } from '../logic/special';
 import {
     applyScreenSize,
     bestStore,
@@ -45,7 +46,8 @@ const NOTICE_RGB = [COLOR.noticeBg >> 16, (COLOR.noticeBg >> 8) & 0xff, COLOR.no
 type Phase = 'idle' | 'swapping' | 'resolving' | 'shuffling' | 'ending';
 type Gem = GameObjects.Image;
 
-const gemKey = (color: number): string => `gem${color}`;
+/** The kinds that keep their colour; the colour stone has its own texture. */
+const COLOURED_KINDS: Kind[] = ['normal', 'lineRow', 'lineCol', 'bomb'];
 
 /** Dev-only QA flag (`?qashuffle`); constant false in the production bundle. */
 let qaForceShuffle = import.meta.env.DEV && new URLSearchParams(window.location.search).has('qashuffle');
@@ -164,6 +166,21 @@ export class Game extends Scene {
                 moves: { get: () => this.shownMoves },
                 score: { get: () => this.shownScore },
                 board: { get: () => this.round.board.map((row) => [...row]) },
+                kinds: { get: () => this.round.kinds.map((row) => [...row]) },
+                // Replaces the board (and the kinds, normal when omitted) so QA can set up a hand-made position.
+                load: {
+                    value: (rows: number[][], kinds?: Kind[][]) => {
+                        rows.forEach((row, r) =>
+                            row.forEach((v, c) => {
+                                this.round.board[r][c] = v;
+                                this.round.kinds[r][c] = kinds?.[r][c] ?? 'normal';
+                            }),
+                        );
+                        this.clearHint();
+                        this.buildGems();
+                        this.scheduleHint();
+                    },
+                },
                 rect: { get: () => ({ ...this.rect }) },
                 size: { get: () => ({ w: this.scale.gameSize.width, h: this.scale.gameSize.height }) },
                 guard: { get: () => this.guard.active },
@@ -175,7 +192,7 @@ export class Game extends Scene {
                 // Dev-only QA aid: `?qapopups` shows the biggest pop-up (chain 6, three lines) at the four corners.
                 for (const [r, c] of [[0, 0], [0, 7], [7, 0], [7, 7]]) {
                     const cleared = Array.from({ length: 5 }, () => ({ r, c }));
-                    this.popup({ chain: 6, gain: 270, cleared, falls: [], added: [] });
+                    this.popup({ chain: 6, gain: 270, cleared, spawned: [], count: cleared.length, falls: [], added: [] });
                 }
             }
         }
@@ -184,20 +201,57 @@ export class Game extends Scene {
 
     // ---- building --------------------------------------------------------------------------------------
 
-    /** One circle-with-highlight texture per colour, made once and kept for the whole page. */
+    /**
+     * One texture per (colour, kind): a circle with a highlight, plus the mark of a special stone (a bar for a
+     * line, a ring for a bomb), and one colour wheel for the colour stone. Made once and kept for the whole page.
+     */
     private makeTextures() {
-        COLOR.gems.forEach((color, i) => {
-            if (this.textures.exists(gemKey(i))) return;
+        const make = (key: string, draw: (g: GameObjects.Graphics) => void) => {
+            if (this.textures.exists(key)) return;
             const g = this.add.graphics();
-            g.fillStyle(color, 1).fillCircle(CELL / 2, CELL / 2, CELL / 2 - STYLE.gemInset);
-            g.fillStyle(0xffffff, STYLE.gemShineAlpha).fillCircle(
-                CELL / 2 - STYLE.gemShineOffset,
-                CELL / 2 - STYLE.gemShineOffset,
-                STYLE.gemShineRadius,
-            );
-            g.generateTexture(gemKey(i), CELL, CELL);
+            draw(g);
+            g.generateTexture(key, CELL, CELL);
             g.destroy();
+        };
+        const mid = CELL / 2;
+        COLOR.gems.forEach((color, i) => {
+            for (const kind of COLOURED_KINDS) {
+                make(gemKey(i, kind), (g) => {
+                    g.fillStyle(color, 1).fillCircle(mid, mid, mid - STYLE.gemInset);
+                    g.fillStyle(0xffffff, STYLE.gemShineAlpha).fillCircle(
+                        mid - STYLE.gemShineOffset,
+                        mid - STYLE.gemShineOffset,
+                        STYLE.gemShineRadius,
+                    );
+                    this.drawMark(g, kind);
+                });
+            }
         });
+        make(gemKey(RAINBOW, 'rainbow'), (g) => {
+            const radius = mid - STYLE.gemInset;
+            const slice = (Math.PI * 2) / COLOR.gems.length;
+            COLOR.gems.forEach((color, i) => {
+                const from = -Math.PI / 2 + i * slice;
+                g.fillStyle(color, 1).slice(mid, mid, radius, from, from + slice, false).fillPath();
+            });
+            g.lineStyle(STYLE.wheelRim, COLOR.mark, 1).strokeCircle(mid, mid, radius - STYLE.wheelRim / 2);
+        });
+    }
+
+    /** The white mark (with a dark outline, so it reads on every colour) of a line or bomb stone. */
+    private drawMark(g: GameObjects.Graphics, kind: Kind) {
+        const mid = CELL / 2;
+        const { markLength: len, markThickness: thick, markOutline: out } = STYLE;
+        const bar = (w: number, h: number, color: number, grow: number) =>
+            g.fillStyle(color, 1).fillRect(mid - w / 2 - grow, mid - h / 2 - grow, w + 2 * grow, h + 2 * grow);
+        if (kind === 'lineRow' || kind === 'lineCol') {
+            const [w, h] = kind === 'lineRow' ? [len, thick] : [thick, len];
+            bar(w, h, COLOR.markOutline, out);
+            bar(w, h, COLOR.mark, 0);
+        } else if (kind === 'bomb') {
+            g.lineStyle(thick + 2 * out, COLOR.markOutline, 1).strokeCircle(mid, mid, STYLE.markRingRadius);
+            g.lineStyle(thick, COLOR.mark, 1).strokeCircle(mid, mid, STYLE.markRingRadius);
+        }
     }
 
     /** The plate behind the board: it shows where the board is. */
@@ -212,13 +266,15 @@ export class Game extends Scene {
 
     private buildGems() {
         this.gems.flat().forEach((g) => g?.destroy());
-        this.gems = this.round.board.map((row, r) => row.map((color, c) => this.spawn(r, c, color as number)));
+        this.gems = this.round.board.map((row, r) =>
+            row.map((color, c) => this.spawn(r, c, color as number, this.round.kinds[r][c])),
+        );
     }
 
     /** A stone of `color` in column `c`, drawn at the height of `row` (a row above the board for refills). */
-    private spawn(row: number, c: number, color: number): Gem {
+    private spawn(row: number, c: number, color: number, kind: Kind = 'normal'): Gem {
         const at = cellCenter(this.rect, { r: row, c });
-        return this.add.image(at.x, at.y, gemKey(color)).setDepth(DEPTH.gems);
+        return this.add.image(at.x, at.y, gemKey(color, kind)).setDepth(DEPTH.gems);
     }
 
     private buildHud() {
@@ -425,6 +481,8 @@ export class Game extends Scene {
         this.refreshHud();
         this.bumpScore();
         this.popup(step);
+        // The stones that turn into special stones stay; they change their look at the moment the others shrink.
+        for (const s of step.spawned) (this.gems[s.r][s.c] as Gem).setTexture(gemKey(s.color, s.kind));
         const dying = step.cleared.map((p) => this.gems[p.r][p.c] as Gem);
         step.cleared.forEach((p) => (this.gems[p.r][p.c] = null));
         await this.tween(dying, { scale: 0, alpha: 0 }, CLEAR_MS);
@@ -451,11 +509,11 @@ export class Game extends Scene {
 
     /** `CHAIN xn` / `BONUS` / `+points` floating up from the middle of the cleared stones. */
     private popup(step: Step) {
-        const mid = centerOf(step.cleared.map((p) => cellCenter(this.rect, p)));
+        const mid = centerOf([...step.cleared, ...step.spawned].map((p) => cellCenter(this.rect, p)));
         const size = popupScale(step.chain);
         const at = clampPopup(mid.x, mid.y, this.rect.y, this.rect.y + this.rect.h, size);
         const text = this.add
-            .text(at.x, at.y, popupLines(step.cleared.length, step.chain, step.gain).join('\n'), {
+            .text(at.x, at.y, popupLines(step.count, step.chain, step.gain).join('\n'), {
                 fontFamily: UI_FONT,
                 fontSize: `${Math.round(FONT_POP * size)}px`,
                 color: step.chain >= 2 ? COLOR.accent : COLOR.text,

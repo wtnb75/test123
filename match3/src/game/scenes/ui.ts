@@ -31,6 +31,9 @@ export const COLOR = {
     cursor: 0xffd166,
     noticeBg: 0x000000,
     popStroke: '#101a2e',
+    /** The mark of a special stone (white) and its dark outline, so the mark reads on every stone colour. */
+    mark: 0xffffff,
+    markOutline: 0x101a2e,
 } as const;
 
 /** Looks of the board's frames, the notice and the pop-up outline (docs/spec.md "演出・UI（Game）"). */
@@ -48,6 +51,13 @@ export const STYLE = {
     gemShineRadius: 6,
     gemShineOffset: 6,
     gemShineAlpha: 0.35,
+    /** Special stone marks (docs/spec/special-gems.md): bar length and thickness, ring radius, dark outline width. */
+    markLength: 26,
+    markThickness: 5,
+    markRingRadius: 9,
+    markOutline: 2,
+    /** The colour stone: the width of the white rim of its wheel of six colours (the wheel is as big as a stone). */
+    wheelRim: 2,
 } as const;
 
 /** Draw order, back to front (docs/spec.md "描画の順"). The HUD text sits above the cover that hides refills. */

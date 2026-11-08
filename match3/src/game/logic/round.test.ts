@@ -85,11 +85,15 @@ describe('Round.swap with a match', () => {
     it('adds the bonus for 4 stones at once: (4 × 10 + 20) × 1 = 60', () => {
         const rows = stamp(uniqueBoard(8, 8), 9, [[7, 0], [7, 1], [7, 3], [6, 2]]);
         const { round, ctl } = roundWith(rows);
-        ctl.next(0.1, 0.3, 0.5, 0.7); // colours 0, 1, 3, 4 for (0,0)..(0,3)
+        ctl.next(0.1, 0.3, 0.7); // colours 0, 1, 4 for (0,0), (0,1), (0,3): three stones vanish, one stays as a line stone
         const out = round.swap(pos(6, 2), pos(7, 2));
-        expect(out.accepted && out.steps[0].cleared).toHaveLength(4);
+        // Four in a row count for four stones; one of them stays on the board as a line stone (special-gems.md).
+        expect(out.accepted && out.steps[0].count).toBe(4);
+        expect(out.accepted && out.steps[0].cleared).toHaveLength(3);
+        expect(out.accepted && out.steps[0].spawned).toHaveLength(1);
         expect(round.score).toBe(4 * SCORE_PER_GEM + BONUS_PER_EXTRA_GEM);
         expect(round.score).toBe(60);
+        expect(ctl.pending()).toBe(0); // exactly three refills drew random numbers
     });
 
     it('plays a chain: a refill that makes a new match gives step 2 at double value, and chain resets next swap', () => {
