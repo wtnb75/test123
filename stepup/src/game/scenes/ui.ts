@@ -13,11 +13,14 @@ import {
 export const UI_FONT = 'sans-serif';
 
 export const BG_COLOR = 0x1b2540;
+/** The same background as a CSS colour string (for `setBackgroundColor`). */
+export const BG_CSS = '#1b2540';
 export const COLOR = {
     text: '#ffffff',
     sub: '#ccd6e0',
     muted: '#8899aa',
     accent: '#ffe066',
+    goalText: '#66ff99',
     player: 0xffe066,
     ground: 0x445577,
     built: 0x66d9ef,

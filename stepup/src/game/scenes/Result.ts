@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { FONT_RESULT, FONT_RESULT_TITLE } from '../params';
 import { resultInputOpen, resultLayout, resultTexts } from '../logic/layout';
 import type { Outcome } from '../logic/sim';
-import { addButton, addLabel, type ButtonHandle, COLOR, onKeyDown, RotateGuard, SceneExit } from './ui';
+import { addButton, addLabel, BG_CSS, type ButtonHandle, COLOR, onKeyDown, RotateGuard, SceneExit } from './ui';
 
 export interface ResultData {
     outcome: Outcome;
@@ -22,13 +22,13 @@ export class Result extends Scene {
     create(data: Partial<ResultData>) {
         const outcome = data.outcome ?? 'hit';
         const { width, height } = this.scale.gameSize;
-        this.cameras.main.setBackgroundColor('#1b2540');
+        this.cameras.main.setBackgroundColor(BG_CSS);
         this.startedAt = this.time.now;
         const cx = width / 2;
         const layout = resultLayout(height);
         const texts = resultTexts(outcome, data.meters ?? 0);
         addLabel(this, cx, layout.stageY, 'ステージ 1', FONT_RESULT, COLOR.sub);
-        addLabel(this, cx, layout.titleY, texts.title, FONT_RESULT_TITLE, outcome === 'clear' ? '#66ff99' : COLOR.accent);
+        addLabel(this, cx, layout.titleY, texts.title, FONT_RESULT_TITLE, outcome === 'clear' ? COLOR.goalText : COLOR.accent);
         addLabel(this, cx, layout.reasonY, texts.reason, FONT_RESULT);
         addLabel(this, cx, layout.heightY, texts.height, FONT_RESULT);
 

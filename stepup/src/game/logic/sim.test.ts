@@ -97,9 +97,12 @@ describe('stepSim', () => {
         const s = noBullets(createSim(528));
         s.viewTop = s.goalY - GOAL_VIEW_MARGIN + 0.1;
         s.player.y = s.viewTop + 300;
-        stepSim(s, 0, 0, 1, idle);
+        // small steps keep the run alive for both frames, so the second frame really checks the stop
+        stepSim(s, 0, 0, 0.01, idle);
+        expect(s.outcome).toBeNull();
         expect(s.viewTop).toBe(s.goalY - 170);
-        stepSim(s, 0, 0, 1, idle);
+        stepSim(s, 0, 0, 0.01, idle);
+        expect(s.outcome).toBeNull();
         expect(s.viewTop).toBe(s.goalY - 170);
         expect(s.viewTop).toBe(-1906); // H = 528: goalY -1736, 170 px below the top edge
     });

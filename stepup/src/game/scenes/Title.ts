@@ -6,6 +6,7 @@ import {
     addLabel,
     type ButtonHandle,
     applyScreenSize,
+    BG_CSS,
     COLOR,
     onKeyDown,
     RotateGuard,
@@ -23,7 +24,7 @@ export class Title extends Scene {
 
     create() {
         const { width, height } = applyScreenSize(this);
-        this.cameras.main.setBackgroundColor('#1b2540');
+        this.cameras.main.setBackgroundColor(BG_CSS);
         const cx = width / 2;
         const layout = titleLayout(height);
         addLabel(this, cx, layout.nameY, '空中足場のぼり', FONT_TITLE);

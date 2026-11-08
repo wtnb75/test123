@@ -1,15 +1,17 @@
-import { type GameObjects, type Input, Scene, type Types } from 'phaser';
+import { Core, type GameObjects, type Input, Scene, type Types } from 'phaser';
 import {
     BULLET_R,
     DT_MAX,
     FONT_HINT,
     FONT_HUD,
+    GOAL_VIEW_MARGIN,
     HINT_OFFSET_1,
     HINT_OFFSET_2,
     HUD_X,
     HUD_Y,
     PLAYER_H,
     PLAYER_W,
+    PX_PER_METER,
     RESULT_DELAY,
 } from '../params';
 import { warnTilt, warnTriangle } from '../logic/bullets';
@@ -21,6 +23,7 @@ import { combineDir, TouchTracker } from '../logic/touch';
 import {
     addLabel,
     applyScreenSize,
+    BG_CSS,
     COLOR,
     DEPTH,
     onKeyDown,
@@ -56,7 +59,7 @@ export class Game extends Scene {
         this.touch = new TouchTracker();
         this.pending = 0;
         this.endingFor = 0;
-        this.cameras.main.setBackgroundColor('#1b2540');
+        this.cameras.main.setBackgroundColor(BG_CSS);
         this.cameras.main.scrollY = this.sim.viewTop;
 
         const cx = this.scale.gameSize.width / 2;
@@ -84,7 +87,10 @@ export class Game extends Scene {
         this.input.on('pointermove', this.onMove, this);
         this.input.on('pointerup', this.onUp, this);
         this.input.on('pointerupoutside', this.onUp, this);
+        // A finger lifted while the window was not looking never reports its release: forget them all.
+        this.game.events.on(Core.Events.BLUR, this.onBlur, this);
         this.events.once('shutdown', () => {
+            this.game.events.off(Core.Events.BLUR, this.onBlur, this);
             this.input.off('pointerdown', this.onDown, this);
             this.input.off('pointermove', this.onMove, this);
             this.input.off('pointerup', this.onUp, this);
@@ -114,10 +120,10 @@ export class Game extends Scene {
                 // Jump the player to a height (metres) in the air, to reach the goal quickly.
                 warp: (m: number) => {
                     const s = this.sim;
-                    s.player.y = s.startY - m * 10;
+                    s.player.y = s.startY - m * PX_PER_METER;
                     s.player.vy = 0;
                     s.highestFeetY = Math.min(s.highestFeetY, s.player.y);
-                    s.viewTop = Math.max(s.goalY - 170, s.player.y - s.height * 0.6);
+                    s.viewTop = Math.max(s.goalY - GOAL_VIEW_MARGIN, s.player.y - s.height * 0.6);
                     s.field.bullets.length = 0;
                     s.field.warns.length = 0;
                 },
@@ -131,10 +137,16 @@ export class Game extends Scene {
         return !this.guard.active && !this.sim.outcome;
     }
 
+    private onBlur() {
+        this.touch.clear();
+    }
+
     private onDown(p: Input.Pointer) {
         if (!this.accepting()) return;
         if (!p.wasTouch && !p.leftButtonDown()) return; // only the left mouse button plays
-        this.pending += this.touch.down(p.id, p.x, p.y, this.time.now);
+        // Phaser's own down / up times come from the browser event: a stalled frame must not turn a long press
+        // into a tap, and both ends of a press use the same clock.
+        this.pending += this.touch.down(p.id, p.x, p.y, p.downTime);
     }
 
     private onMove(p: Input.Pointer) {
@@ -144,7 +156,7 @@ export class Game extends Scene {
     private onUp(p: Input.Pointer) {
         if (!p.wasTouch && p.button !== 0) return;
         if (p.wasCanceled) this.touch.cancel(p.id);
-        else if (this.accepting()) this.pending += this.touch.up(p.id, this.time.now);
+        else if (this.accepting()) this.pending += this.touch.up(p.id, p.upTime);
         else this.touch.cancel(p.id);
     }
 
