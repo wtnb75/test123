@@ -98,6 +98,11 @@ export const PARAMS = {
     tapRingWidth: 4,
     tapFrameWidth: 6,
 
+    // how-to-play hint of the first game (docs/spec/effects.md "遊び方の一言")
+    howToPlayShowMs: 6000,
+    howToPlayFadeMs: 300,
+    howToPlayFontPx: 28,
+
     // hint (docs/spec/hint.md)
     hintCost: HINT_COST,
     // usable only with at least this many moves (the cost plus one: the hint never ends the run)

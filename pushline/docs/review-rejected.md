@@ -44,3 +44,5 @@
 - `src/game/scenes/Game.ts` (ヒントの Scene 側の寿命（tween・再描画・消去）に自動テストが無い): QA で見る — 理由: spec の完了条件が QA（光る前・光った後・向きの変更）で確認すると定めている。状態の遷移は `HintLight` で単体テスト済み
 - `jump-dog.png` (リポジトリ直下の未追跡ファイル): PR に混ざる — 理由: このブランチの変更ではない（セッション開始時からある）。コミットに入れない
 - `src/game/logic/best.test.ts`: 「0 ライン時に行を出さない」の `it.each` の行が長く、`INVALID_SAVED` と値が重なる — 理由: lint は通り、短い代表値を意図して別に持っている。`INVALID_SAVED` の網羅は `parseBest` のテストが担う
+- `src/game/scenes/Game.ts` (遊び方の一言: 入場で記録を使い切るので、タブが裏に回ると読まれないまま消える／毎フレーム `setAlpha`／Quit で `dismissHowTo()` を呼ばない／`HowToPlayNote` の `dismissed` が本番で使われない): 低リスク・影響なし — 理由: 時計は他の演出と同じ Scene の時計にすると spec が決めている。毎フレームの `setAlpha` は割り当てのない 1 回の呼び出し。Quit は Scene の終了で破棄され、見た目の結果は同じ。`dismiss()` は null にする前に呼ばれ、単体テストで固定済み
+- `src/game/logic/howToPlay.test.ts` / `layout.test.ts` (ストレージを触らないテストが弱い／文字幅 12 字 × 28 px と 1.3 em の仮定／`DEPTH.note` の順序を固定するテストが無い): 構造上ストレージに触れず、文字幅と描画順は spec が決めている — 理由: Scene の配線・実際の文字幅・描画順は spec の完了条件どおり QA のスクリーンショットで確認する

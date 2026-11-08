@@ -4,6 +4,7 @@ import type { Deps, Dir, MoveResult, Pt, State } from '../logic/types';
 import { hintAvailable, HintLight } from '../logic/hint';
 import { BestKeeper, bestLabel, browserStorage } from '../logic/best';
 import { Flow, QuitConfirm, type PointerAction } from '../logic/flow';
+import { HOW_TO_PLAY_TEXT, HowToPlayNote, pageHowToPlay } from '../logic/howToPlay';
 import { cellAt, type Layout } from '../logic/layout';
 import { canUndo, createState, move, tapOutcome, undo } from '../logic/rules';
 import { minClearPlan } from '../logic/solve';
@@ -45,6 +46,9 @@ export class Game extends Scene {
     /** Red frame around the canvas that pulses in the `critical` tension (never interactive). */
     private edge!: GameObjects.Graphics;
     private tension: Tension = 'none';
+    /** The first game's one-line hint (null in every later game, and once it is gone). */
+    private howTo: HowToPlayNote | null = null;
+    private howToText: GameObjects.Text | null = null;
 
     constructor() {
         super('Game');
@@ -95,6 +99,13 @@ export class Game extends Scene {
         this.hintFrame = this.add.graphics().setDepth(DEPTH.hint);
         this.edge = this.add.graphics().setDepth(DEPTH.alert).setAlpha(0);
         this.tension = 'none';
+        this.howTo = null;
+        this.howToText = null;
+        if (pageHowToPlay.claim()) {
+            this.howTo = new HowToPlayNote(this.deps.now());
+            this.howToText = addLabel(this, 0, 0, HOW_TO_PLAY_TEXT, PARAMS.howToPlayFontPx, COLORS.captionText)
+                .setDepth(DEPTH.note).setAlpha(0);
+        }
 
         this.registerInput();
         watchOrientation(this, () => this.layout, (layout) => this.relayout(layout));
@@ -105,6 +116,7 @@ export class Game extends Scene {
     update() {
         const now = this.deps.now();
         this.pump(now);
+        this.updateHowTo(now);
         if (this.quitShown) this.refreshQuitButton(now); // takes the label back when the time is up
         if (this.view.takeDirty()) this.render();
     }
@@ -264,12 +276,34 @@ export class Game extends Scene {
         this.view.dropStalePops(this.state.grid);
         this.playEffects(result);
         this.render();
+        // The hint goes at once (no fade) with the first line clear, so it never meets the "+N" / "最短!".
+        if (result.clearedRows.length + result.clearedCols.length > 0) this.dismissHowTo();
         if (this.state.over) {
+            this.dismissHowTo();
             this.flow.beginEnding(this.deps.now());
             this.quit.reset();
             this.refreshQuitButton();
         }
         return true;
+    }
+
+    // ---- first-game hint ---------------------------------------------------------------------
+
+    /** Follows the hint's fade; destroys the text once it is over (time up, or dismissed). */
+    private updateHowTo(now: number) {
+        if (!this.howTo || !this.howToText) return;
+        if (this.howTo.isGone(now)) {
+            this.dismissHowTo();
+            return;
+        }
+        this.howToText.setAlpha(this.howTo.alpha(now));
+    }
+
+    private dismissHowTo() {
+        this.howTo?.dismiss();
+        this.howToText?.destroy();
+        this.howTo = null;
+        this.howToText = null;
     }
 
     // ---- layout ------------------------------------------------------------------------------
@@ -289,6 +323,7 @@ export class Game extends Scene {
         this.movesText.setPosition(l.hudMoves.x, l.hudMoves.y).setOrigin(l.hudMoves.originX, 0.5);
         this.linesText.setPosition(l.hudLines.x, l.hudLines.y).setOrigin(l.hudLines.originX, 0.5);
         this.bestText.setPosition(l.hudBest.x, l.hudBest.y).setOrigin(0.5);
+        this.howToText?.setPosition(l.howToPlay.x, l.howToPlay.y);
         this.undoButton.place(l.undoButton);
         this.hintButton.place(l.hintButton);
         this.quitButton.place(l.quitButton);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMS } from '../params';
+import { HOW_TO_PLAY_TEXT } from './howToPlay';
 import {
     BUTTON_H, BUTTON_W, buttonAt, cellAt, classifyGesture, inRect, LANDSCAPE, layoutFor, orientationOf, pickLayout,
     PORTRAIT, type Layout, type Rect,
@@ -148,6 +149,8 @@ describe('classifyGesture', () => {
 // Font sizes of the HUD rows (FONT_SIZE.hud / FONT_SIZE.best in scenes/ui.ts, which this logic test does not import).
 const HUD_FONT_PX = 32;
 const BEST_FONT_PX = 26;
+// docs/spec/effects.md "遊び方の一言の文字の大きさ" (written here by hand, not read from PARAMS).
+const HOW_TO_FONT_PX = 28;
 
 describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE]])('%s layout geometry', (_name, l) => {
     const canvas: Rect = { x: 0, y: 0, w: l.viewW, h: l.viewH };
@@ -224,6 +227,30 @@ describe.each<[string, Layout]>([['portrait', PORTRAIT], ['landscape', LANDSCAPE
         };
         expect(overlap(box, hudBox(l.hudLines, 6.5))).toBe(false);
         expect(overlap(box, hudBox(l.hudMoves, 7))).toBe(false);
+    });
+
+    it('puts the how-to-play hint at the spec centre of the free band above the board', () => {
+        expect(l.howToPlay).toEqual(l.orientation === 'portrait' ? { x: 240, y: 82 } : { x: 480, y: 30 });
+    });
+
+    it('keeps the how-to-play hint (12 letters at 28 px, 1.3 em high) on the canvas and clear of the HUD, the board and the buttons', () => {
+        expect(PARAMS.howToPlayFontPx).toBe(HOW_TO_FONT_PX);
+        expect(HOW_TO_PLAY_TEXT).toHaveLength(12);
+        const w = HOW_TO_PLAY_TEXT.length * HOW_TO_FONT_PX; // spec: about 336 px wide
+        const h = 1.3 * HOW_TO_FONT_PX;
+        const box: Rect = { x: l.howToPlay.x - w / 2, y: l.howToPlay.y - h / 2, w, h };
+        expect(inside(box)).toBe(true);
+        expect(overlap(box, board)).toBe(false);
+        [l.undoButton, l.hintButton, l.quitButton].forEach((b) => expect(overlap(box, b)).toBe(false));
+        expect(overlap(box, bestBox())).toBe(false);
+        // the HUD texts at the 32 px font size: 1.3 em high, 7 em ("手数 40/40") and 6.5 em ("ライン 123") wide
+        const hudBox = (a: { x: number; y: number; originX: number }, ems: number): Rect => {
+            const hw = ems * HUD_FONT_PX;
+            const hh = 1.3 * HUD_FONT_PX;
+            return { x: a.x - a.originX * hw, y: a.y - hh / 2, w: hw, h: hh };
+        };
+        expect(overlap(box, hudBox(l.hudMoves, 7))).toBe(false);
+        expect(overlap(box, hudBox(l.hudLines, 6.5))).toBe(false);
     });
 
     it('keeps the existing HUD anchors where they were (regression)', () => {
