@@ -136,8 +136,9 @@ export class Game extends Scene {
         this.input.on('pointerupoutside', this.onUp, this);
         // A finger lifted while the window was not looking never reports its release: forget them all.
         this.game.events.on(Core.Events.BLUR, this.onBlur, this);
+        // No camera clean-up here: Phaser shuts the camera manager down first (and destroying a camera resets
+        // its effects); `create` resets the shake at the start of the next run.
         this.events.once('shutdown', () => {
-            this.cameras.main.resetFX();
             this.game.events.off(Core.Events.BLUR, this.onBlur, this);
             this.input.off('pointerdown', this.onDown, this);
             this.input.off('pointermove', this.onMove, this);

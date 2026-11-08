@@ -10,4 +10,10 @@
 - `src/game/scenes/ui.ts`: `BG_CSS` と `BG_COLOR`、`COLOR.goalText` と `COLOR.goal` が同じ色を 2 回書いている — 理由: 見た目の細部（実装裁量）で挙動に影響しない。変えるときは同じファイルの隣の行
 - `src/game/scenes/Game.ts` の開発専用 `warp` の `0.6` — 理由: QA 用のおおまかな位置合わせで、本番ビルドには入らない
 - `src/game/scenes/Game.ts` の `onBlur`: blur で `pending` とキーの状態を消さない — 理由: キーは Phaser が blur で自動的にリセットする。`pending` は高々 1 フレーム分（案内のときと同じ）
+- `src/game/scenes/Game.ts` の update: 毎フレーム `before`（`{ x, y, onGround, vy }`）を 1 個作る — 理由: 1 フレームに 1 個の小さなオブジェクトで、上の「小さな毎フレームの生成」と同じ種類
+- `src/game/scenes/Game.ts` の `renderOverlay`: 変わらない溝・ゴールの印を毎フレーム描き直す。`0.25`（溝の不透明度）と土煙の `- 2` が params.ts に無い — 理由: 描画の負荷は無視できる。2 つの値は見た目の細部（実装裁量）
+- `src/game/scenes/ui.ts`: 控えめなボタンの縁の太さ・色が三項演算子の直書き — 理由: 見た目の細部（実装裁量）
+- `src/game/logic/color.ts`: テストでしか使われない関数（`luminance` など）が本番のソースにある — 理由: 使われないのでビルドで除かれる。仕様の「4.5:1 を確かめる」ための純関数として残す
+- `src/game/scenes/Game.ts` の `renderOverlay`: 帯の位置は `scale.gameSize.height`、濃さは `sim.height` と、画面の高さの出どころが 2 つある — 理由: Game の間は論理サイズが変わらない（`create` で決めて固定）ので、常に同じ値
+- `src/game/logic/effects.test.ts` の「開始・ゴールの足場は点滅しない」が、ガードの有無で結果が変わらない — 理由: 指摘が誤り。テストは年齢 2.65 の足場の `kind` だけを変えて使うので、ガードを外すと 0.15 になって落ちる
 - `src/game/logic/physics.test.ts` の「上昇中は通り抜ける」: `vy >= 0` の条件を確かめていない — 理由: 上昇中は前の足が上面以上にあれば新しい足は上面に届かないので、`vy >= 0` が無くても結果が変わらない（等価変異。変異チェックで確認済み）

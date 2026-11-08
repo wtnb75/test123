@@ -6,7 +6,7 @@ status_spec: done
 status_impl: done
 status_test: done
 status_check: done
-status_codereview: pending
+status_codereview: done
 status_qa: pending
 status_polish: pending
 status_balance: pending
@@ -215,7 +215,7 @@ Title のゲーム名は `FONT_TITLE` 36、Result の「クリア！」「ゲー
 #### 演出・UI（Result）
 
 - ボタンの強弱: 「もう一度」は主ボタン（今の青）、「タイトルへ」は控えめなボタン（暗い灰青の塗りと細い縁）にする。どちらも文字は `FONT_BUTTON` の白で、塗りとの明るさの比（WCAG のコントラスト比）が 4.5:1 以上になる塗りにする（暗い灰青なら例えば `0x3a4460` で約 9.6:1）。位置・大きさ・押す・ホバーの仕組みは変えない。主ボタンのほうが、塗りの明るさ・彩度が高く、一目で次の操作だと分かること（色の細部は実装裁量）
-- Title の START は今のまま（主ボタンと同じ青）。Title・Result のほかの見た目は変えない
+- Title の START は今のまま（主ボタンと同じ青）。ただし主ボタンのホバーの塗りは、白文字とのコントラスト比 4.5:1 を保つため、以前（MVP）のホバーの色より少し暗い青にしてある（Title の START も同じ。押した色・通常の色は変えない）。Title・Result のほかの見た目は変えない
 
 ## ルール
 
