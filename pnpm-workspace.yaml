@@ -1,4 +1,5 @@
 packages:
+- 'flipbreak'
 - 'stepup'
 - 'match3'
 - 'typerain'
