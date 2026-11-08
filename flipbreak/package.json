@@ -31,7 +31,19 @@
     "vitest": "catalog:"
   },
   "dependencies": {
+    "best-store": "workspace:*",
     "phaser": "catalog:",
     "terser": "catalog:"
+  },
+  "index": {
+    "title": "フリップブレイク",
+    "summary": "フリッパーで玉を打ち上げて、バンパーで跳ね返る軌道を読みながらブロックを全部崩すブロック崩し × ピンボール。玉を溜めて発射し、5 つの面に挑む。",
+    "tags": [
+      "ブロック崩し",
+      "ピンボール",
+      "タッチ",
+      "マウス",
+      "キーボード"
+    ]
   }
 }
