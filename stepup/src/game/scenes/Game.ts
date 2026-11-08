@@ -166,6 +166,16 @@ export class Game extends Scene {
             });
             Object.assign(qa, {
                 press: () => this.pending++,
+                // Put a bullet on the player (ends the run with a hit on the next frame).
+                hit: () => {
+                    const p = this.sim.player;
+                    this.sim.field.bullets.push({ x: p.x, y: p.y - 10, vx: 0, vy: 0 });
+                },
+                // Drop the player below the bottom edge of the view (ends the run left behind).
+                leftBehind: () => {
+                    this.sim.player.y = this.sim.viewTop + this.sim.height + PLAYER_H + 5;
+                    this.sim.player.onGround = false;
+                },
                 // Jump the player to a height (metres) in the air, to reach the goal quickly.
                 warp: (m: number) => {
                     const s = this.sim;
