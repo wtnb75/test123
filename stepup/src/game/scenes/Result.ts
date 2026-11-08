@@ -37,7 +37,9 @@ export class Result extends Scene {
         this.exit = new SceneExit(this);
         const accepting = () => !this.guard.active && resultInputOpen(this.time.now - this.startedAt);
         buttons.push(addButton(this, cx, layout.retryY, 'もう一度', () => this.exit.to('Game'), accepting));
-        buttons.push(addButton(this, cx, layout.titleButtonY, 'タイトルへ', () => this.exit.to('Title'), accepting));
+        buttons.push(
+            addButton(this, cx, layout.titleButtonY, 'タイトルへ', () => this.exit.to('Title'), accepting, 'secondary'),
+        );
         onKeyDown(this, (key) => {
             if ((key === ' ' || key === 'Enter') && accepting()) this.exit.to('Game');
         });

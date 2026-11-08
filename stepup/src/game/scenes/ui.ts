@@ -1,5 +1,5 @@
 import { Scale, type GameObjects, type Input, type Scene } from 'phaser';
-import { BUTTON_H, BUTTON_W, FONT_BUTTON } from '../params';
+import { BUTTON_H, BUTTON_W, FONT_BUTTON, PRIMARY_BUTTON, SECONDARY_BUTTON } from '../params';
 import { ButtonPress, buttonLook } from '../logic/buttons';
 import { firstTimeOnly, isImeCommitKey, keyName } from '../logic/keys';
 import {
@@ -26,23 +26,30 @@ export const COLOR = {
     built: 0x66d9ef,
     goal: 0x66ff99,
     bullet: 0xff5566,
-    button: 0x2f6fd6,
-    buttonPressed: 0x2557ab,
-    buttonHover: 0x4a86e8,
+    playerHit: 0xff4d5e,
+    confetti: [0xffe066, 0x66ff99, 0x66d9ef],
+    puff: 0xffffff,
+    barTrack: 0xffffff,
+    barMarker: 0xffe066,
 } as const;
 
-/** Draw order, back to front (docs/spec.md "描画の順"); the rotate notice is above all of it. */
+/**
+ * Draw order, back to front (docs/spec.md "描画の順"): hint < world (platforms, dust, bullets, player, confetti)
+ * < overlay (bottom band, progress bar) < warn marks < HUD; the rotate notice is above all of it.
+ */
 export const DEPTH = {
     hint: 0,
     world: 1,
-    warn: 2,
-    hud: 3,
+    overlay: 2,
+    warn: 3,
+    hud: 4,
 } as const;
 
 /** A pressed button's look is scaled a little; the tap area is not (cosmetic: 実装裁量). */
 const BUTTON_PRESS_SCALE = 0.96;
 
-const BUTTON_LOOK_COLOR = { normal: COLOR.button, pressed: COLOR.buttonPressed, hover: COLOR.buttonHover } as const;
+export type ButtonStyle = 'primary' | 'secondary';
+const BUTTON_LOOK_COLOR = { primary: PRIMARY_BUTTON, secondary: SECONDARY_BUTTON } as const;
 
 /** The area Scale.FIT fits the canvas into (the parent element), so checks match the real scale. */
 const viewport = (scene: Scene): ScreenSize => ({
@@ -97,8 +104,13 @@ export function addButton(
     label: string,
     onPress: () => void,
     accepting: () => boolean = () => true,
+    style: ButtonStyle = 'primary',
 ): ButtonHandle {
-    const box = scene.add.rectangle(0, 0, BUTTON_W, BUTTON_H, COLOR.button).setStrokeStyle(3, 0xffffff);
+    const colors = BUTTON_LOOK_COLOR[style];
+    // The quiet button has a thinner, greyer rim.
+    const box = scene.add
+        .rectangle(0, 0, BUTTON_W, BUTTON_H, colors.normal)
+        .setStrokeStyle(style === 'primary' ? 3 : 2, style === 'primary' ? 0xffffff : 0x8899aa);
     const text = addLabel(scene, 0, 0, label, FONT_BUTTON);
     const visual = scene.add.container(x, y, [box, text]);
     // The tap area is a separate zone so scaling the look doesn't change it.
@@ -112,7 +124,7 @@ export function addButton(
     };
     const refresh = () => {
         const look = buttonLook(press.isPressed, hover, accepting());
-        box.setFillStyle(BUTTON_LOOK_COLOR[look]);
+        box.setFillStyle(colors[look]);
         visual.setScale(look === 'pressed' ? BUTTON_PRESS_SCALE : 1);
     };
     zone.on('pointerdown', (p: Input.Pointer) => {

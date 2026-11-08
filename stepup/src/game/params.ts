@@ -83,6 +83,47 @@ export const FONT_BUTTON = 18;
 export const FONT_TITLE = 36;
 export const FONT_RESULT_TITLE = 32;
 
+// Effects and UI cues (docs/spec.md "演出・UI"): presentation only, no rule reads these.
+export const DANGER_RANGE = 100;
+export const DANGER_H = 24;
+export const DANGER_MAX_ALPHA = 0.5;
+export const BAR_W = 4;
+export const BAR_RIGHT = 4;
+export const BAR_TOP = 56;
+export const BAR_BOTTOM_MARGIN = 16;
+export const BAR_MARKER_W = 12;
+export const BAR_MARKER_H = 4;
+export const ENDING_BLINK_S = 0.1;
+export const GOAL_BLINK_ALPHA = 0.4;
+export const SHAKE_MS = 250;
+export const SHAKE_INTENSITY = 0.01;
+export const CONFETTI_COUNT = 24;
+export const CONFETTI_SIZE = 6;
+export const CONFETTI_S = 0.8;
+export const CONFETTI_SPEED = 160;
+export const CONFETTI_SPEED_STEP = 40;
+export const CONFETTI_GRAVITY = 400;
+export const PUFF_COUNT = 4;
+export const PUFF_SPACING = 8;
+export const PUFF_MAX = 4;
+export const PUFF_S = 0.25;
+export const PUFF_R0 = 3;
+export const PUFF_R1 = 8;
+export const PUFF_ALPHA = 0.6;
+export const LAND_PUFF_MIN_VY = 150;
+export const PLATFORM_GROW_S = 0.1;
+export const PLATFORM_BLINK_WARN_S = 0.5;
+export const PLATFORM_BLINK_S = 0.1;
+export const PLATFORM_BLINK_ALPHA = 0.15;
+export const WARN_PULSE_S = 0.3;
+export const WARN_PULSE_PERIOD = 0.15;
+export const WARN_PULSE_SCALE = 0.25;
+
+// Result buttons: "もう一度" is the primary look, "タイトルへ" the quiet one (implementation discretion, but the
+// quiet fill must keep white text at a contrast of 4.5:1 or more).
+export const PRIMARY_BUTTON = { normal: 0x2f6fd6, pressed: 0x2557ab, hover: 0x4a86e8 } as const;
+export const SECONDARY_BUTTON = { normal: 0x3a4460, pressed: 0x2c3550, hover: 0x4a5678 } as const;
+
 // Layout details the spec fixes (docs/spec.md "Title" / "Result" / "Game")
 export const HUD_X = 8;
 export const HUD_Y = 6;
