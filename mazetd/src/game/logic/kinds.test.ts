@@ -5,30 +5,31 @@ import { baseEnemyHp, enemyCount, type EnemyKind, enemyHp, enemyKind, kindRadius
 import { createGame, type Enemy, type GameState, startWave, update } from './world';
 
 // Expected values below come from the spec table (docs/spec/enemy-kinds.md), not from the implementation.
-// [wave, count, normal, fast, tank, base HP, fast HP, tank HP]
-const TABLE: ReadonlyArray<readonly [number, number, number, number, number, number, number, number]> = [
-    [1, 8, 8, 0, 0, 3, 0, 0],
-    [2, 10, 10, 0, 0, 5, 0, 0],
-    [3, 12, 9, 3, 0, 7, 4, 0],
-    [4, 14, 11, 3, 0, 9, 5, 0],
-    [5, 16, 8, 4, 4, 11, 6, 22],
-    [6, 18, 10, 4, 4, 13, 7, 26],
-    [7, 20, 10, 5, 5, 15, 8, 30],
-    [8, 22, 12, 5, 5, 17, 9, 34],
-    [9, 24, 12, 6, 6, 19, 10, 38],
-    [10, 26, 14, 6, 6, 21, 11, 42]
+// [wave, count, normal, fast, tank, flyer, base HP, fast HP, tank HP]
+const TABLE: ReadonlyArray<readonly [number, number, number, number, number, number, number, number, number]> = [
+    [1, 8, 8, 0, 0, 0, 3, 0, 0],
+    [2, 10, 10, 0, 0, 0, 5, 0, 0],
+    [3, 12, 9, 3, 0, 0, 7, 4, 0],
+    [4, 14, 9, 3, 0, 2, 9, 5, 0],
+    [5, 16, 6, 4, 4, 2, 11, 6, 22],
+    [6, 18, 8, 4, 4, 2, 13, 7, 26],
+    [7, 20, 8, 5, 5, 2, 15, 8, 30],
+    [8, 22, 9, 5, 5, 3, 17, 9, 34],
+    [9, 24, 9, 6, 6, 3, 19, 10, 38],
+    [10, 26, 11, 6, 6, 3, 21, 11, 42]
 ];
 
 const kindsOf = (wave: number): EnemyKind[] =>
     Array.from({ length: enemyCount(wave) }, (_, i) => enemyKind(wave, i));
 
 describe('which kind each enemy of a wave is', () => {
-    it.each(TABLE)('wave %i has %i enemies: %i normal, %i fast, %i tank', (wave, n, normal, fast, tank) => {
+    it.each(TABLE)('wave %i has %i enemies: %i normal, %i fast, %i tank, %i flyer', (wave, n, normal, fast, tank, flyer) => {
         const kinds = kindsOf(wave);
         expect(kinds).toHaveLength(n);
         expect(kinds.filter((k) => k === 'normal')).toHaveLength(normal);
         expect(kinds.filter((k) => k === 'fast')).toHaveLength(fast);
         expect(kinds.filter((k) => k === 'tank')).toHaveLength(tank);
+        expect(kinds.filter((k) => k === 'flyer')).toHaveLength(flyer);
         // The closed forms of the spec.
         expect(fast).toBe(wave >= 3 ? Math.floor((n + 1) / 4) : 0);
         expect(tank).toBe(wave >= 5 ? Math.floor(n / 4) : 0);
@@ -45,11 +46,12 @@ describe('which kind each enemy of a wave is', () => {
         expect(kindsOf(3)).toEqual([N, N, F, N, N, N, F, N, N, N, F, N]);
     });
 
-    it('makes indices 2, 6, 10, 14 fast and 3, 7, 11, 15 tank in wave 5', () => {
+    it('makes indices 2, 6, 10, 14 fast, 3, 7, 11, 15 tank and 5, 13 flyers in wave 5', () => {
         const N = 'normal';
         const F = 'fast';
         const T = 'tank';
-        expect(kindsOf(5)).toEqual([N, N, F, T, N, N, F, T, N, N, F, T, N, N, F, T]);
+        const L = 'flyer';
+        expect(kindsOf(5)).toEqual([N, N, F, T, N, L, F, T, N, N, F, T, N, L, F, T]);
     });
 
     it('starts fast at wave 3 and tank at wave 5 exactly (index 2 and 3 of the wave before stay normal)', () => {
@@ -68,7 +70,7 @@ describe('which kind each enemy of a wave is', () => {
 });
 
 describe('max HP per kind', () => {
-    it.each(TABLE)('wave %i: base, fast and tank max HP follow the spec table', (wave, _n, _a, fast, tank, base, fastHp, tankHp) => {
+    it.each(TABLE)('wave %i: base, fast and tank max HP follow the spec table', (wave, _n, _a, fast, tank, _f, base, fastHp, tankHp) => {
         expect(baseEnemyHp(wave)).toBe(base);
         expect(enemyHp(wave)).toBe(base);
         expect(enemyHp(wave, 'normal')).toBe(base);
