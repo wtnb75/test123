@@ -14,3 +14,8 @@
 - `src/game/scenes/Game.ts`・`core/powerup.ts`: Scene の配線（フレームの順序・バリアで防いだときの地雷の爆発・ドロップの乱数）に単体テストが無い／`resolveFailure` の 3 値のうち `absorbed` と `ignored` を区別して使っていない／アイテムの色・線の太さがリテラル — 理由: Scene は単体テストの対象外で、仕様どおりブラウザ QA で確かめる。3 値は結果の意味をテストで固定する API の説明。色は Scene 内の見た目の値で、既存の描画も同じ書き方
 - `src/game/scenes/Game.ts`: 変更した条件の近くに、元からの日本語のコメントが残る — 理由: 元からあるコメントで、この変更で足したコメントは英語にした。既存のコメントの書き換えは別件
 - `src/game/core/powerup.test.ts` / `powerup.ts`: 誤差の確認が `sum < 1` という浮動小数点の事実を前提にする／猶予の終わり際に点滅の位相が最大 1e-9 秒ずれる — 理由: 前提を明示して境界のテストを自己説明にしている。位相のずれは見た目のみで 1e-9 秒
+- `src/game/core/field.ts` stepField: 毎フレーム `filter` で敵機・弾の配列を作り直す／`src/game/scenes/Game.ts` syncField: 毎フレーム Map を引いて位置を合わせる／`shotVelocities` が発射ごとに中間の配列を作る — 理由: 移動前の Scene も配列を毎フレーム作っていた。敵・弾は数十個、発射は 1〜2 秒に 1 回で、コストは測れない。挙動を変えない移動なので、性能の作り直しは別件（nit）
+- `src/game/core/field.ts` StepResult: `events` が `state.events` と同じ参照の重複 — 理由: 呼び出しを読みやすくするために残した。次の更新で消えることは型のコメントに書いてある（nit）
+- `src/game/core/field.ts` 定数（編隊の間隔・出現 y・中心 x の余白など）が `core/constants.ts` でなく field.ts にある — 理由: 従来は Scene のリテラルで、名前を付けて近くに置いた。パラメータ表の値ではない（nit）
+- `src/game/core/field.ts` removeEnemiesAt / removeBulletsAt: 爆発による削除が events でなく戻り値の id で Scene に届く（2 経路）— 理由: 現状は呼び出し側が戻り値で描画物を壊しており、コメントにも書いた。`core-mines` で爆発を core へ移すときに 1 本化する（nit）
+- `src/game/scenes/Game.ts` update: 突進の接触で中断した更新でも syncField が全ての描画物を core の位置に合わせる — 理由: 中断した更新で core が動かさなかった敵機・弾は位置が変わらないので、見た目は従来と同じ（描画のみ）

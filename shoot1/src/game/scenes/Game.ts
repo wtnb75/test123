@@ -8,7 +8,6 @@ import {
     MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
     MINE_RIPPLE_START_RADIUS, MINE_RIPPLE_ALPHA,
-    ENEMY_SPEED,
     ITEM_RADIUS, BARRIER_RING_MARGIN,
     BG_STAR_COUNT, BG_STAR_SPEED_MIN, BG_STAR_SPEED_MAX, BG_SCANLINE_GAP, BG_SCANLINE_ALPHA
 } from '../core/constants';
@@ -18,43 +17,21 @@ import { bulletTextureKey } from './bulletTextures';
 import {
     circlesOverlap, getTargetsInExplosion,
     clampPosition, inputToVelocity, joystickToVelocity,
-    angleToVec, angleTo, calcNWayAngles, calcScore, calcChainExplosionRadius
+    calcScore, calcChainExplosionRadius
 } from '../core/physics';
-import { getDifficultyParams, type BulletType, type DifficultyParams } from '../core/difficulty';
-import { advanceFormationTimer, calcRowFormation, calcVFormation, pickFormationType } from '../core/formation';
+import {
+    createFieldState, removeBulletsAt, removeEnemiesAt, stepField,
+    type BulletState, type EnemyState, type FieldEvents
+} from '../core/field';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
 import {
     addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isGraceActive, isItemGone, itemSpawnX,
     itemTouchesPlayer, mineDots, pickUpBarrier, resolveFailure, rollItemDrop,
     type BarrierState, type ItemKind
 } from '../core/powerup';
-import {
-    advanceStopper, isRushGone, isStopperGone, rushTouchesPlayer, rushVelocity,
-    soloKindOf, soloSpawnDue, soloSpawnX, type SoloKind, type StopPhase
-} from '../core/soloEnemy';
+import { rushTouchesPlayer } from '../core/soloEnemy';
 
 // --- 型定義 ---
-type Bullet = {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    gfx: Phaser.GameObjects.Image;
-};
-
-type Enemy = {
-    kind: 'formation' | SoloKind;
-    x: number;
-    y: number;
-    vy: number;
-    vx: number;
-    phase: StopPhase;     // 停止して撃つ敵のみ使う（それ以外は 'descend' のまま）
-    holdLeft: number;     // 停止の残り秒（停止中のみ）
-    fireTimer: number;
-    bulletType: BulletType;
-    gfx: Phaser.GameObjects.Graphics;
-};
-
 type Mine = {
     x: number;
     y: number;
@@ -105,8 +82,10 @@ export class Game extends Scene {
     private backdrop!: Phaser.GameObjects.Rectangle;
     private backdropColor = -1;
     private stars: { gfx: Phaser.GameObjects.Arc; speed: number }[] = [];
-    private bullets: Bullet[] = [];
-    private enemies: Enemy[] = [];
+    // enemies and bullets live in core (field); the Scene only keeps their game objects, by id
+    private field = createFieldState();
+    private enemyGfx = new Map<number, Phaser.GameObjects.Graphics>();
+    private bulletGfx = new Map<number, Phaser.GameObjects.Image>();
     private mines: Mine[] = [];
     private items: Item[] = [];
 
@@ -115,8 +94,6 @@ export class Game extends Scene {
     private barrier: BarrierState = createBarrierState();
     private startTime = 0;
     private gameOver = false;
-    private formationTimer = Infinity;
-    private soloSpawnedCount = 0;
 
     // キー入力
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -152,17 +129,15 @@ export class Game extends Scene {
 
     create() {
         this.gameOver = false;
-        this.bullets = [];
-        this.enemies = [];
+        this.field = createFieldState();
+        this.enemyGfx = new Map();
+        this.bulletGfx = new Map();
         this.mines = [];
         this.items = [];
         this.barrier = createBarrierState();
         this.mineState = createMineState(MINE_INITIAL_COUNT);
         // time.now is stale until the first update after a scene restart, so the clock starts there
         this.startTime = -1;
-        // start past any interval so the first formation spawns on the first update
-        this.formationTimer = Infinity;
-        this.soloSpawnedCount = 0;
         this.px = GAME_WIDTH / 2;
         this.py = GAME_HEIGHT - 80;
 
@@ -225,8 +200,8 @@ export class Game extends Scene {
                     mineStock: this.mineState.count,
                     barrier: { ...this.barrier },
                     items: this.items.map((i) => ({ kind: i.kind, x: i.x, y: i.y })),
-                    enemies: this.enemies.map((e) => ({ kind: e.kind, x: e.x, y: e.y })),
-                    bullets: this.bullets.length,
+                    enemies: this.field.enemies.map((e) => ({ kind: e.kind, x: e.x, y: e.y })),
+                    bullets: this.field.bullets.length,
                     mines: this.mines.map((m) => ({ x: m.x, y: m.y, age: m.age })),
                     hud: { mine: this.mineText.text, barrierShown: this.barrierText.visible, ringShown: this.barrierRing.visible, playerAlpha: this.playerGfx.alpha }
                 })
@@ -388,101 +363,48 @@ export class Game extends Scene {
         mine.warning?.setVisible(inBlast);
     }
 
-    private spawnFormation() {
-        const elapsedSec = (this.time.now - this.startTime) / 1000;
-        const params = getDifficultyParams(elapsedSec);
-        const count = params.formationSize;
-        const useV = pickFormationType(params.formationShapes, Math.random()) === 'v';
-        const centerX = Phaser.Math.Between(80, GAME_WIDTH - 80);
-        const spacing = 52;
-
-        const positions = useV
-            ? calcVFormation(count, centerX, -20, spacing)
-            : calcRowFormation(count, centerX, -20, spacing);
-
-        const bulletType: BulletType = useV ? 'aimed' : 'straight';
-
-        for (const pos of positions) {
-            // 敵機は菱形で描く（当たり判定は ENEMY_RADIUS の円のまま）
-            const gfx = this.add.graphics({ x: pos.x, y: pos.y }).setDepth(4);
-            drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
-            this.enemies.push({
-                kind: 'formation',
-                x: pos.x,
-                y: pos.y,
-                vx: 0,
-                vy: ENEMY_SPEED,
-                phase: 'descend',
-                holdLeft: 0,
-                fireTimer: 0.5 + Math.random() * 0.5,
-                bulletType,
-                gfx
-            });
-        }
-    }
-
-    // 単体の敵（突進する敵・停止して撃つ敵）。上端の外から出す
-    private spawnSolo(kind: SoloKind) {
-        const x = soloSpawnX(Math.random());
-        const y = -ENEMY_RADIUS;
-        if (kind === 'rush') {
-            const v = rushVelocity(x, y, this.px, this.py);
-            // 頂点（ENEMY_SHAPE の上の頂点）を、進む向きに合わせる
-            const gfx = this.add.graphics({ x, y }).setDepth(4).setRotation(Math.atan2(v.vy, v.vx) + Math.PI / 2);
-            drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
-            this.enemies.push({ kind, x, y, vx: v.vx, vy: v.vy, phase: 'descend', holdLeft: 0, fireTimer: 0, bulletType: 'straight', gfx });
-        } else {
+    /** Draws a newly spawned enemy: a diamond (formation, rusher) or a dot-in-circle (stopper). Hit areas stay circles. */
+    private createEnemyGfx(enemy: EnemyState) {
+        const gfx = this.add.graphics({ x: enemy.x, y: enemy.y }).setDepth(4);
+        if (enemy.kind === 'stop') {
             // 停止して撃つ敵: 赤い円に白い点（当たり判定は ENEMY_RADIUS の円）
-            const gfx = this.add.graphics({ x, y }).setDepth(4);
             gfx.fillStyle(0xff4444, 1).fillCircle(0, 0, ENEMY_RADIUS);
             gfx.fillStyle(0xffffff, 1).fillCircle(0, 0, 2);
-            this.enemies.push({ kind, x, y, vx: 0, vy: 0, phase: 'descend', holdLeft: 0, fireTimer: 0, bulletType: 'straight', gfx });
+        } else {
+            // 突進する敵は、頂点（ENEMY_SHAPE の上の頂点）を進む向きに合わせる
+            if (enemy.kind === 'rush') gfx.setRotation(Math.atan2(enemy.vy, enemy.vx) + Math.PI / 2);
+            drawPolygon(gfx, ENEMY_SHAPE, 0xff4444);
+        }
+        this.enemyGfx.set(enemy.id, gfx);
+    }
+
+    private createBulletGfx(b: BulletState) {
+        const gfx = this.add.image(b.x, b.y, bulletTextureKey(b.type)).setDepth(3).setRotation(bulletRotation(b.vx, b.vy));
+        this.bulletGfx.set(b.id, gfx);
+    }
+
+    private destroyEnemyGfx(ids: readonly number[]) {
+        for (const id of ids) {
+            this.enemyGfx.get(id)?.destroy();
+            this.enemyGfx.delete(id);
         }
     }
 
-    private updateEnemyFire(enemy: Enemy, dt: number, params: DifficultyParams) {
-        enemy.fireTimer -= dt;
-        if (enemy.fireTimer > 0) return;
-        enemy.fireTimer = params.fireIntervalSec + Math.random() * 0.3;
-        const types = params.bulletTypes;
-        enemy.bulletType = types[Math.floor(Math.random() * types.length)];
-        this.fireEnemy(enemy);
-    }
-
-    private spawnBullet(x: number, y: number, vx: number, vy: number, type: BulletType) {
-        const gfx = this.add.image(x, y, bulletTextureKey(type)).setDepth(3).setRotation(bulletRotation(vx, vy));
-        this.bullets.push({ x, y, vx, vy, gfx });
-    }
-
-    private fireEnemy(enemy: Enemy) {
-        const elapsedSec = (this.time.now - this.startTime) / 1000;
-        const params = getDifficultyParams(elapsedSec);
-        const speed = params.bulletSpeed;
-        const bt = enemy.bulletType;
-
-        if (bt === 'straight') {
-            this.spawnBullet(enemy.x, enemy.y, 0, speed, bt);
-        } else if (bt === 'aimed') {
-            const angle = angleTo(enemy.x, enemy.y, this.px, this.py);
-            const v = angleToVec(angle);
-            this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
-        } else if (bt === 'nway3' || bt === 'nway5') {
-            const n = bt === 'nway3' ? 3 : 5;
-            const base = angleTo(enemy.x, enemy.y, this.px, this.py);
-            const angles = calcNWayAngles(base, n, Math.PI / 5);
-            for (const a of angles) {
-                const v = angleToVec(a);
-                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
-            }
-        } else if (bt === 'spread8') {
-            for (let i = 0; i < 8; i++) {
-                const a = (i / 8) * Math.PI * 2;
-                const v = angleToVec(a);
-                this.spawnBullet(enemy.x, enemy.y, v.x * speed, v.y * speed, bt);
-            }
-        } else if (bt === 'fast') {
-            this.spawnBullet(enemy.x, enemy.y, 0, speed * 2, bt);
+    private destroyBulletGfx(ids: readonly number[]) {
+        for (const id of ids) {
+            this.bulletGfx.get(id)?.destroy();
+            this.bulletGfx.delete(id);
         }
+    }
+
+    /** Makes the game objects match core: create what spawned, destroy what is gone, then place every one. */
+    private syncField(events: FieldEvents) {
+        for (const e of events.spawnedEnemies) this.createEnemyGfx(e);
+        for (const b of events.spawnedBullets) this.createBulletGfx(b);
+        this.destroyEnemyGfx(events.removedEnemyIds);
+        this.destroyBulletGfx(events.removedBulletIds);
+        for (const e of this.field.enemies) this.enemyGfx.get(e.id)?.setPosition(e.x, e.y);
+        for (const b of this.field.bullets) this.bulletGfx.get(b.id)?.setPosition(b.x, b.y);
     }
 
     private triggerExplosion(mine: Mine, visited: Set<Mine>, chainCount = 0): boolean {
@@ -511,22 +433,16 @@ export class Game extends Scene {
         }
 
         // 巻き込み: 敵機
-        const enemyPositions = this.enemies.map(e => ({ x: e.x, y: e.y }));
+        const enemyPositions = this.field.enemies.map(e => ({ x: e.x, y: e.y }));
         const hitEnemies = getTargetsInExplosion(mine.x, mine.y, radius, enemyPositions);
         // each removed enemy may drop an item, rolled in the enemy list's order (docs/spec/power-ups.md)
         for (const idx of hitEnemies) this.maybeDropItem(enemyPositions[idx].x, enemyPositions[idx].y);
-        for (const idx of hitEnemies.slice().reverse()) {
-            this.enemies[idx].gfx.destroy();
-            this.enemies.splice(idx, 1);
-        }
+        this.destroyEnemyGfx(removeEnemiesAt(this.field, hitEnemies));
 
         // 巻き込み: 弾
-        const bulletPositions = this.bullets.map(b => ({ x: b.x, y: b.y }));
+        const bulletPositions = this.field.bullets.map(b => ({ x: b.x, y: b.y }));
         const hitBullets = getTargetsInExplosion(mine.x, mine.y, radius, bulletPositions);
-        for (const idx of hitBullets.slice().reverse()) {
-            this.bullets[idx].gfx.destroy();
-            this.bullets.splice(idx, 1);
-        }
+        this.destroyBulletGfx(removeBulletsAt(this.field, hitBullets));
 
         // 自機への爆風判定
         const playerHitByBlast = circlesOverlap(mine.x, mine.y, radius, this.px, this.py, PLAYER_RADIUS);
@@ -718,61 +634,12 @@ export class Game extends Scene {
         // --- Items: fall, leave below the screen, get picked up. Ones an explosion drops this frame start next frame ---
         this.updateItems(dt);
 
-        // --- 編隊出現 ---
-        const params = getDifficultyParams(elapsedSec);
-        const formation = advanceFormationTimer(this.formationTimer, dt, params.formationIntervalSec);
-        this.formationTimer = formation.timer;
-        if (formation.spawn) this.spawnFormation();
-
-        // --- 単体の敵（突進・停止）---
-        if (soloSpawnDue(elapsedSec, this.soloSpawnedCount)) {
-            this.spawnSolo(soloKindOf(this.soloSpawnedCount));
-            this.soloSpawnedCount += 1;
-        }
-
-        // --- 敵機更新 ---
-        for (const enemy of this.enemies) {
-            if (enemy.kind === 'stop') {
-                // 停止の開始から 0〜0.3 秒後に最初の弾。停止中だけ撃つ
-                if (advanceStopper(enemy, dt)) enemy.fireTimer = Math.random() * 0.3;
-                if (enemy.phase === 'hold') this.updateEnemyFire(enemy, dt, params);
-            } else {
-                enemy.x += enemy.vx * dt;
-                enemy.y += enemy.vy * dt;
-                if (enemy.kind === 'formation') this.updateEnemyFire(enemy, dt, params);
-            }
-            enemy.gfx.setPosition(enemy.x, enemy.y);
-
-            // 突進する敵が自機に触れるとゲームオーバー
-            if (enemy.kind === 'rush' && rushTouchesPlayer(enemy.x, enemy.y, this.px, this.py)) {
-                if (this.fail('突進 !')) return;
-            }
-        }
-        // 画面外の敵機を削除
-        this.enemies = this.enemies.filter(e => {
-            const gone = e.kind === 'rush' ? isRushGone(e.x, e.y)
-                : e.kind === 'stop' ? isStopperGone(e)
-                : e.y > GAME_HEIGHT + 40;
-            if (gone) {
-                e.gfx.destroy();
-                return false;
-            }
-            return true;
-        });
-
-        // --- 弾更新 ---
-        for (const b of this.bullets) {
-            b.x += b.vx * dt;
-            b.y += b.vy * dt;
-            b.gfx.setPosition(b.x, b.y);
-        }
-        this.bullets = this.bullets.filter(b => {
-            if (b.x < -20 || b.x > GAME_WIDTH + 20 || b.y < -20 || b.y > GAME_HEIGHT + 20) {
-                b.gfx.destroy();
-                return false;
-            }
-            return true;
-        });
+        // --- Enemies and bullets (core): spawn, move, fire, remove. A rusher touching the player ends the frame there ---
+        const stepped = stepField(this.field, {
+            dt, elapsedSec, playerX: this.px, playerY: this.py, rand: Math.random
+        }, (enemy) => enemy.kind === 'rush' && rushTouchesPlayer(enemy.x, enemy.y, this.px, this.py) && this.fail('突進 !'));
+        this.syncField(stepped.events);
+        if (stepped.aborted) return;
 
         // --- 地雷更新 ---
         const minesToExplode: Mine[] = [];
@@ -797,7 +664,7 @@ export class Game extends Scene {
             this.updateMineRings(mine);
 
             // 敵機との判定
-            for (const enemy of this.enemies) {
+            for (const enemy of this.field.enemies) {
                 if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) {
                     minesToExplode.push(mine);
                     break;
@@ -830,7 +697,7 @@ export class Game extends Scene {
         }
 
         // --- 弾と自機の当たり判定 ---
-        for (const b of this.bullets) {
+        for (const b of this.field.bullets) {
             if (circlesOverlap(b.x, b.y, BULLET_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
                 if (this.fail('被弾 !')) return;
                 break;
