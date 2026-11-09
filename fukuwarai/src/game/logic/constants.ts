@@ -57,3 +57,12 @@ export const RESULT_RETRY_HEIGHT_PX = 60;
 // Crossfade timing (ms): one fade, and the hold while one face is fully visible.
 export const RESULT_FADE_MS = 700;
 export const RESULT_HOLD_MS = 1300;
+
+// Best score line on Result and Title (docs/spec.md「ベスト点の表示」).
+export const RESULT_BEST_Y = 410;
+export const RESULT_NEW_RECORD_FONT_PX = 28;
+export const RESULT_BEST_FONT_PX = 26;
+export const RESULT_NEW_RECORD_COLOR = '#2a9d8f';
+export const BEST_TEXT_COLOR = '#8a6d3b';
+export const TITLE_BEST_Y = 495;
+export const TITLE_BEST_FONT_PX = 26;

@@ -1,5 +1,7 @@
 import { Scene } from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from '../logic/constants';
+import { bestStore } from './bestStore';
+import { titleBestText } from '../logic/best';
+import { BEST_TEXT_COLOR, GAME_WIDTH, GAME_HEIGHT, TITLE_BEST_FONT_PX, TITLE_BEST_Y } from '../logic/constants';
 
 export class Title extends Scene {
     constructor() {
@@ -21,6 +23,16 @@ export class Title extends Scene {
             fontFamily: 'sans-serif',
             fontSize: '18px',
         }).setOrigin(0.5);
+
+        // Best score from earlier plays; nothing is shown before the first record.
+        const bestText = titleBestText(bestStore.load());
+        if (bestText !== null) {
+            this.add.text(GAME_WIDTH / 2, TITLE_BEST_Y, bestText, {
+                color: BEST_TEXT_COLOR,
+                fontFamily: 'sans-serif',
+                fontSize: `${TITLE_BEST_FONT_PX}px`,
+            }).setOrigin(0.5);
+        }
 
         const startY = GAME_HEIGHT * 0.6;
         const startBtn = this.add.rectangle(GAME_WIDTH / 2, startY, GAME_WIDTH * 0.6, 64, 0xffb703)

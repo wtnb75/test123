@@ -16,4 +16,9 @@
 - `src/game/scenes/Game.ts`: `answers` と `topicIndex` が 2 つのフィールドで、同期が必要 — 理由: `create` の 1 か所で続けて代入し、他では書き換えない。getter にする整理は、この変更の範囲外。
 - `docs/spec.md`: 採点のカーブの測定値が、QA 前なのに事実として書かれている — 理由: 値は実ブラウザの測定で、`game-qa` で同じ測定を（実際のお題のデータで）やり直して確かめる。
 - `docs/spec.md`（frontmatter）: 公開後改訂の `game:reset` で `qa` 以降が `pending` に戻る差分 — 理由: `game-spec` の手順による意図的な再初期化（公開済みの仕様を変えたため）。
+- `src/game/scenes/Game.ts`: 2D コンテキストが取れず採点が 0 点になった回が、ベスト点として保存される — 理由: 失敗時の既存のフォールバック。spec は「初回は 0 点でも新記録」と決めており、実点が出れば上書きされる。
+- `src/game/scenes/Result.ts`: `hasScore` が `score` と二重の状態 — 理由: spec が「`score` なしでは記録しない、表示は `load()`」と決めている。直接起動は通常のプレイでは通らない。
+- `src/game/logic/best.test.ts`: `best-store` 自身の挙動（NaN・保存失敗・同点・再読み込み）を再テストしている — 理由: spec のテスト観点が、この手計算の流れ・保存失敗・インスタンス共有をテストすると明示している。
+- `src/game/logic/best.test.ts`: レイアウトのテストが定数の数値の写しで、実際の重なりを守らない — 理由: spec の「位置の確認」と同じ手計算の根拠。実際の見た目は `game-qa` のスクリーンショットで確かめる。
+- `src/game/scenes/Result.ts`: `create` の再入で `record` が再実行されうる — 理由: `Result` を `restart` する経路は無く、リスクが低い。
 
