@@ -9,6 +9,12 @@ export const SCORE_PER_GEM = 10;
 export const BONUS_PER_EXTRA_GEM = 20;
 /** A match needs this many in a row; the bonus counts cleared cells beyond it. */
 export const MATCH_MIN = 3;
+/** A straight run of this many stones leaves a line stone (docs/spec/special-gems.md). */
+export const LINE_MIN = 4;
+/** A straight run of this many or more leaves a colour stone. */
+export const RAINBOW_MIN = 5;
+/** A bomb clears this many cells around itself in each direction (1 = the 3 x 3 around it). */
+export const BOMB_RADIUS = 1;
 export const SHUFFLE_MAX_TRIES = 100;
 /** Safety net for board generation (a constant rng can make every attempt fail to have a move). */
 export const BOARD_MAX_TRIES = 1000;
