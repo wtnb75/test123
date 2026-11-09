@@ -69,7 +69,7 @@ describe('graveArt', () => {
       '             /         IN         \\             ',
       '            /        PEACE         \\            ',
       '            |                      |            ',
-      '            |       Stage 20       |            ',
+      '            |         B20F         |            ',
       '            |     killed by a      |            ',
       '            |         mine         |            ',
       '   \\|/ \\ |/ |  Score:19  High:19   | \\|/ / \\|/  ',
@@ -87,7 +87,7 @@ describe('graveArt', () => {
       '             /         IN         \\             ',
       '            /        PEACE         \\            ',
       '            |                      |            ',
-      '            |       Stage 20       |            ',
+      '            |         B20F         |            ',
       '            |     killed by a      |            ',
       '   \\|/ \\ |/ |         mine         | \\|/ / \\|/  ',
       ' \\\\|/|/\\|\\|/|  Score:19  High:19   |/|\\|//\\|\\/|\\',
@@ -141,7 +141,7 @@ describe('graveArt', () => {
       '        ________________        ',
       '       /                \\       ',
       '      /      R.I.P.      \\      ',
-      '     /      Stage 5       \\     ',
+      '     /        B5F         \\     ',
       '    /     killed by a      \\    ',
       '    |         mine         |    ',
       '    |   Score:4  High:4    |    ',
@@ -153,7 +153,7 @@ describe('graveArt', () => {
   it('variant C is the small stone whose bottom edge runs on as ground (5 rows)', () => {
     expect(texts('C', info({ stageNo: 100, cause: 'false-flag', high: 99 }))).toEqual([
       '      ____________________      ',
-      '     /  R.I.P. Stage 100  \\     ',
+      '     /    R.I.P. B100F    \\     ',
       '    |stepped on false flag |    ',
       '    |  Score:99  High:99   |    ',
       '____|______________________|____'

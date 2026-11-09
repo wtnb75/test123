@@ -1,5 +1,6 @@
 // Saved values (high score, start stage): a failing storage never stops the game (docs/spec.md 技術要件).
 import { bestKey, parseBest, type Best } from 'best-store';
+import { depthLabel } from './floorLabel';
 
 /** The storage key of the high score: `first-game.best` (docs/spec.md 技術要件). */
 export const HIGHSCORE_KEY = bestKey('first-game');
@@ -43,8 +44,8 @@ export const parseHighScore = (raw: string | null): number => {
   return best !== null && Number.isSafeInteger(best.score) && best.score >= 0 ? best.score || 0 : 0;
 };
 
-/** The best-store `label` of a high score: the stage reached (score = stage number - 1). */
-export const highScoreLabel = (score: number): string => `Stage ${score + 1}`;
+/** The best-store `label` of a high score: the floor reached (score = floor number - 1), e.g. `B13F`. */
+export const highScoreLabel = (score: number): string => depthLabel(score);
 
 /** The best score of this page's session: kept outside the Scene so NEW GAME and RETRY do not lose it. */
 export type SessionBest = { best: number };

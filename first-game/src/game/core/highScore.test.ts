@@ -15,7 +15,7 @@ import {
 
 const KEY = 'hs';
 /** A saved high score in the shared best-store shape (docs/spec.md 技術要件). */
-const rec = (score: number): string => JSON.stringify({ score, label: `Stage ${score + 1}` });
+const rec = (score: number): string => JSON.stringify({ score, label: `B${score + 1}F` });
 
 const memoryStore = (initial: Record<string, string> = {}): KeyValueStore & { data: Record<string, string> } => {
   const data = { ...initial };
@@ -41,6 +41,7 @@ describe('parseHighScore', () => {
   it.each([
     [rec(12), 12],
     [rec(0), 0],
+    ['{"score":12,"label":"Stage 13"}', 12], // the label of an earlier save is not read
     ['{"score":12,"label":"x"}', 12],
     ['{"score":12,"label":""}', 12],
     ['{"score":9007199254740991,"label":"x"}', 9007199254740991],
@@ -71,9 +72,10 @@ describe('storage key and label', () => {
     expect(HIGHSCORE_KEY).toBe(bestKey('first-game'));
   });
 
-  it('labels a score by the stage it reaches (score 12 -> Stage 13)', () => {
-    expect(highScoreLabel(12)).toBe('Stage 13');
-    expect(highScoreLabel(0)).toBe('Stage 1');
+  it('labels a score by the floor it reaches (score 12 -> B13F)', () => {
+    expect(highScoreLabel(12)).toBe('B13F');
+    expect(highScoreLabel(0)).toBe('B1F');
+    expect(highScoreLabel(99)).toBe('B100F');
   });
 });
 
@@ -124,13 +126,13 @@ describe('recordScore', () => {
     recordScore(store, KEY, session, 3);
     expect(store.data[KEY]).toBe(rec(5));
     recordScore(store, KEY, session, 6);
-    expect(store.data[KEY]).toBe('{"score":6,"label":"Stage 7"}');
+    expect(store.data[KEY]).toBe('{"score":6,"label":"B7F"}');
   });
 
   it('writes the record once per beating score, as {score, label} under the given key only', () => {
     const store = memoryStore();
     recordScore(store, HIGHSCORE_KEY, createSessionBest(), 7);
-    expect(store.data).toEqual({ 'first-game.best': '{"score":7,"label":"Stage 8"}' });
+    expect(store.data).toEqual({ 'first-game.best': '{"score":7,"label":"B8F"}' });
   });
 
   it('does not read the previous key minefield-rogue-highscore, and leaves it alone', () => {
@@ -139,7 +141,7 @@ describe('recordScore', () => {
     expect(currentHighScore(store, HIGHSCORE_KEY, session)).toBe(0);
     recordScore(store, HIGHSCORE_KEY, session, 2);
     expect(store.data['minefield-rogue-highscore']).toBe('9');
-    expect(store.data[HIGHSCORE_KEY]).toBe('{"score":2,"label":"Stage 3"}');
+    expect(store.data[HIGHSCORE_KEY]).toBe('{"score":2,"label":"B3F"}');
   });
 
   it('writes over a broken saved value when the score is above 0, and not for score 0', () => {

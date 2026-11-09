@@ -1,5 +1,6 @@
 // The gravestone screen (docs/spec/game-over.md "墓石画面（2 段目）"): the tombstone art, which variant fits, where it goes. No Phaser.
 
+import { floorLabel } from './floorLabel';
 import { RESTART_BUTTON_HEIGHT, RESTART_ROW_Y_RATIO } from './restartButtons';
 
 /** After the gravestone screen appears, RETRY / NEW GAME / TITLE inputs are ignored for this long (ms). */
@@ -113,7 +114,7 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
 
   if (variant === 'C') {
     add(stone(`  ${'_'.repeat(20)}`));
-    add(stone(` /${centerText(`R.I.P. Stage ${info.stageNo}`, 20)}\\`));
+    add(stone(` /${centerText(`R.I.P. ${floorLabel(info.stageNo)}`, 20)}\\`));
     add(wall(mine ? 'killed by a mine' : 'stepped on false flag'));
     add(wall(score));
     record();
@@ -128,12 +129,12 @@ const artRows = (variant: GraveVariant, info: GraveInfo): Array<[string, boolean
     add(stone(` /${centerText('IN', 20)}\\`));
     add(stone(`/${centerText('PEACE', 22)}\\`));
     add(wall(''));
-    add(wall(`Stage ${info.stageNo}`));
+    add(wall(floorLabel(info.stageNo)));
     add(wall(cause1));
     add(wall(cause2));
   } else {
     add(stone(`  /${centerText('R.I.P.', 18)}\\`));
-    add(stone(` /${centerText(`Stage ${info.stageNo}`, 20)}\\`));
+    add(stone(` /${centerText(floorLabel(info.stageNo), 20)}\\`));
     add(stone(`/${centerText(cause1, 22)}\\`));
     add(wall(cause2));
   }
