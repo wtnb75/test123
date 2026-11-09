@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
+import { canPlaceMine, canSetStart, forbiddenZone, toBoardText, type Grid } from '../logic/board';
 import {
     evaluateDifficulty,
-    getNeighbors as neighborsOf,
     type BoardCell,
     type BoardState,
     type DifficultyEvaluation
@@ -18,7 +18,7 @@ import {
     zoomKeyAction,
     type ZoomAction
 } from '../logic/zoom';
-import { openCell, playCellView, startPlay, toggleFlag, type PlayState } from '../logic/play';
+import { adjacentMineCount, openCell, playCellView, startPlay, toggleFlag, type PlayState } from '../logic/play';
 import {
     DISPLAY_MODE_DEFAULT,
     displayModeButtonLabel,
@@ -203,7 +203,7 @@ export class Game extends Scene {
         this.ui.boardScroll.addEventListener('wheel', this.onBoardWheel, { passive: false });
 
         this.ui.copyBtn.addEventListener('click', async () => {
-            const text = this.toBoardText();
+            const text = toBoardText(this.grid(), this.startIndex);
             const copied = await this.copyTextToClipboard(text);
             this.setStatus(copied ? '盤面テキストをクリップボードにコピーしました。' : 'コピーに失敗しました。');
         });
@@ -343,6 +343,7 @@ export class Game extends Scene {
         }
         const board = this.play !== null ? this.toBoardState() : null;
         const forbidden = this.forbiddenCells();
+        const grid = this.grid();
         const buttons = this.ui.boardGrid.querySelectorAll<HTMLButtonElement>('.editmin-cell');
         buttons.forEach((button, i) => {
             const cell = this.cells[i];
@@ -360,7 +361,7 @@ export class Game extends Scene {
                 button.textContent = 'B';
                 return;
             }
-            const count = this.computeAdjacentMineCount(i);
+            const count = adjacentMineCount(grid, i);
             button.textContent = String(count);
             if (count >= 1 && count <= 8) {
                 button.classList.add(`n${count}`);
@@ -389,7 +390,7 @@ export class Game extends Scene {
     }
 
     private forbiddenCells(): Set<number> {
-        return this.startIndex === null ? new Set<number>() : this.getForbiddenSet(this.startIndex);
+        return this.startIndex === null ? new Set<number>() : forbiddenZone(this.startIndex, this.widthCells, this.heightCells);
     }
 
     private cellState(index: number, forbidden: Set<number>): PaleCellState {
@@ -398,27 +399,6 @@ export class Game extends Scene {
             isStart: this.startIndex === index,
             isForbidden: forbidden.has(index)
         };
-    }
-
-    private toBoardText(): string {
-        const lines: string[] = [];
-        for (let y = 0; y < this.heightCells; y += 1) {
-            const row: string[] = [];
-            for (let x = 0; x < this.widthCells; x += 1) {
-                const index = y * this.widthCells + x;
-                if (this.startIndex === index) {
-                    row.push('X');
-                    continue;
-                }
-                if (this.cells[index].hasMine) {
-                    row.push('B');
-                    continue;
-                }
-                row.push(String(this.computeAdjacentMineCount(index)));
-            }
-            lines.push(row.join(' '));
-        }
-        return lines.join('\n');
     }
 
     private async copyTextToClipboard(text: string): Promise<boolean> {
@@ -464,30 +444,9 @@ export class Game extends Scene {
         return Array.from({ length: size }, () => ({ hasMine: false }));
     }
 
-    private getNeighbors(index: number): number[] {
-        return neighborsOf(index, this.widthCells, this.heightCells);
-    }
-
-    private getForbiddenSet(startIndex: number): Set<number> {
-        const zone = new Set<number>([startIndex]);
-        for (const n of this.getNeighbors(startIndex)) {
-            zone.add(n);
-        }
-        return zone;
-    }
-
-    private hasMineInZone(startIndex: number): boolean {
-        const zone = this.getForbiddenSet(startIndex);
-        for (const i of zone) {
-            if (this.cells[i].hasMine) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private computeAdjacentMineCount(index: number): number {
-        return this.getNeighbors(index).reduce((sum, n) => sum + (this.cells[n].hasMine ? 1 : 0), 0);
+    /** The size and mines the board rules (logic/board.ts) read. */
+    private grid(): Grid {
+        return { width: this.widthCells, height: this.heightCells, cells: this.cells };
     }
 
     private onCellClick(index: number, event: MouseEvent): void {
@@ -500,7 +459,7 @@ export class Game extends Scene {
         }
 
         if (this.startMode) {
-            if (this.hasMineInZone(index)) {
+            if (!canSetStart(this.grid(), index)) {
                 this.setStatus('開始マス周囲に爆弾があるため、開始マス設定を拒否しました。');
                 return;
             }
@@ -514,7 +473,7 @@ export class Game extends Scene {
             return;
         }
 
-        if (this.startIndex !== null && this.getForbiddenSet(this.startIndex).has(index)) {
+        if (!canPlaceMine(this.grid(), this.startIndex, index)) {
             this.setStatus('開始マス制約: このセルには爆弾を置けません。');
             return;
         }

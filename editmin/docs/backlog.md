@@ -8,16 +8,6 @@
 - 狙いの中心: 「遠くから見ると絵になる盤面」を作れること（全体を見る・塗る・確かめる）と、判定（ソルバー・難度）が信用できること。
 - 現状の事実: 盤面は DOM のボタン（セル 32 px 固定、最大 50 × 50）で、クリックのたびに全セルを描き直す。評価（`evaluateDifficulty`）は 50 × 50 でも 1 回 50〜75 ms。「盤面テキストをコピー」がある（形式は `spec.md` の「操作仕様」に書いた）。
 
-### 盤面の規則を Scene から logic へ移す（`board-logic`）
-
-- 狙い: 開始マスの周囲の禁止・数字の計算・テキスト形式が Scene の private メソッドにあり、単体テストの対象外。ドラッグ・対称・読み込みは、どれもこの規則を使う。根拠: `src/game/scenes/Game.ts`（`getForbiddenSet`・`hasMineInZone`・`computeAdjacentMineCount`・`toBoardText`・`onCellClick`）、`scaffold/vitest.base.mjs`（`src/game/scenes/**` はカバレッジの対象外）
-- 何を足すか: これらを `src/game/logic/` の純粋な関数へ移し、テストを足す。挙動は変えない。
-- コアループへの効き方: 広げない — 後続のカードの土台。
-- 種別: presentation-only（リファクタリング。挙動は変えない）
-- 規模: S
-- 出どころ: コードレビュー
-- メモ: `undo-resize`・`paint-drag`・`symmetry`・`import-board` の前に行う。
-
 ### 元に戻す／やり直す、全消去、サイズ変更で地雷を保持する（`undo-resize`）
 
 - 狙い: 地雷 1 つの変更で解けなくなっても、戻せない。「反映」を押すと盤面全体と開始マスが消え、作った絵が失われる。根拠: `Game.ts`（取り消しの仕組みが無い。`createCells` で作り直す）

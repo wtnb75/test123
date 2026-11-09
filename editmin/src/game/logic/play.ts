@@ -20,7 +20,7 @@ export type FlagResult = { ok: true; state: PlayState } | { ok: false; reason: '
 export const FLAG_LABEL = '⚑';
 
 /** The number on a cell: the adjacent mines (0 on a mine-free neighbourhood). */
-export function adjacentMineCount(board: BoardState, index: number): number {
+export function adjacentMineCount(board: Pick<BoardState, 'width' | 'height' | 'cells'>, index: number): number {
     return getNeighbors(index, board.width, board.height).filter((n) => board.cells[n].hasMine).length;
 }
 
