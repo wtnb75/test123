@@ -1,6 +1,13 @@
 import { GameObjects, Scene, Tweens } from 'phaser';
+import { bestStore } from './bestStore';
+import { resultBestText, scoreLabel, titleBestText } from '../logic/best';
 import {
+    BEST_TEXT_COLOR,
     GAME_WIDTH,
+    RESULT_BEST_FONT_PX,
+    RESULT_BEST_Y,
+    RESULT_NEW_RECORD_COLOR,
+    RESULT_NEW_RECORD_FONT_PX,
     RESULT_FACE_CENTER_Y,
     RESULT_FACE_LABEL_Y,
     RESULT_FADE_MS,
@@ -27,6 +34,8 @@ const TOGGLE_PLAY = '正解と切り替えて見る';
 
 export class Result extends Scene {
     private score = 0;
+    // False when Result was started without a score: nothing is recorded then.
+    private hasScore = false;
     private playerTransforms: Record<DraggablePartId, PartTransform> | null = null;
     private topicIndex = 0;
 
@@ -36,6 +45,7 @@ export class Result extends Scene {
 
     init(data: ResultData) {
         this.score = data.score ?? 0;
+        this.hasScore = typeof data.score === 'number' && Number.isFinite(data.score);
         this.playerTransforms = data.playerTransforms ?? null;
         const index = data.topicIndex ?? 0;
         this.topicIndex = Number.isInteger(index) && index >= 0 && index < TOPICS.length ? index : 0;
@@ -78,6 +88,8 @@ export class Result extends Scene {
             fontStyle: 'bold',
         }).setOrigin(0.5);
 
+        this.addBestLine();
+
         // Small answer reference, for comparison — not the main attraction.
         this.add.text(GAME_WIDTH / 2, 440, '正解', {
             color: '#8a6d3b',
@@ -117,6 +129,26 @@ export class Result extends Scene {
         const toTitle = () => this.scene.start('Title');
         titleBtn.on('pointerdown', toTitle);
         titleLabel.on('pointerdown', toTitle);
+    }
+
+    /**
+     * Records this play's score and shows "新記録！" or the standing best under the score
+     * (docs/spec.md「ベスト点の表示」). Without a score nothing is recorded; the best so far is shown
+     * if there is one.
+     */
+    private addBestLine() {
+        const result = this.hasScore ? bestStore.record(this.score, scoreLabel(this.score)) : null;
+        const text = result !== null ? resultBestText(result) : titleBestText(bestStore.load());
+        if (text === null) {
+            return;
+        }
+        const isNew = result?.isNew === true;
+        this.add.text(GAME_WIDTH / 2, RESULT_BEST_Y, text, {
+            color: isNew ? RESULT_NEW_RECORD_COLOR : BEST_TEXT_COLOR,
+            fontFamily: 'sans-serif',
+            fontSize: `${isNew ? RESULT_NEW_RECORD_FONT_PX : RESULT_BEST_FONT_PX}px`,
+            fontStyle: isNew ? 'bold' : 'normal',
+        }).setOrigin(0.5);
     }
 
     /**
