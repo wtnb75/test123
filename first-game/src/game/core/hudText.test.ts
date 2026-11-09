@@ -75,11 +75,11 @@ describe('fixed sentences', () => {
         expect(stageStartMessage('keys', 7)).toBe('Move: arrows/QWEA-XZDC/hjklyubn  Run: Shift+dir  Flag: f+dir  Chord: S');
         expect(stageStartMessage('keys', 7)).toBe(KEY_HINT);
         expect(FLAG_WAIT_MESSAGE).toBe('Flag: pick a direction (Esc cancels)');
-        expect(stageStartMessage('touch', 7)).toBe('You enter stage 7.');
+        expect(stageStartMessage('touch', 7)).toBe('You enter B7F.');
     });
 
     it('formats the stage jump, the invalid stage and the flag mode', () => {
-        expect(jumpMessage(12)).toBe('You jump to stage 12.');
+        expect(jumpMessage(12)).toBe('You jump to B12F.');
         expect(invalidStageMessage(100)).toBe('Stage must be 1-100.');
         expect(flagModeMessage(true)).toBe('Flag mode on.');
         expect(flagModeMessage(false)).toBe('Flag mode off.');
@@ -99,31 +99,31 @@ describe('fixed sentences', () => {
 });
 
 describe('statusLine', () => {
-    it('writes stage, score (stage - 1) and high score in the rogue format', () => {
-        expect(statusLine(5, 9)).toBe('Stage:5  Score:4  High:9');
-        expect(statusLine(1, 0)).toBe('Stage:1  Score:0  High:0');
-        expect(statusLine(100, 12)).toBe('Stage:100  Score:99  High:12');
+    it('writes the floor, score (floor - 1) and the deepest floor reached (high score + 1) in the rogue format', () => {
+        expect(statusLine(5, 9)).toBe('B5F  Score:4  High:B10F');
+        expect(statusLine(1, 0)).toBe('B1F  Score:0  High:B1F');
+        expect(statusLine(100, 99)).toBe('B100F  Score:99  High:B100F');
     });
 });
 
 describe('fitFontSize', () => {
     const modelWidth = (text: string) => (size: number) => (text.length * 6 * size) / 10;
 
-    it('keeps 18 px when the text just fits (24 chars x 0.6 x 18 = 259.2 <= 260)', () => {
-        expect(fitFontSize(modelWidth('Stage:1  Score:0  High:0'), 260)).toEqual({ size: 18, wrap: false });
+    it('keeps 18 px when the text fits (22 chars x 0.6 x 18 = 237.6 <= 260)', () => {
+        expect(fitFontSize(modelWidth('B1F  Score:0  High:B1F'), 260)).toEqual({ size: 18, wrap: false });
     });
 
-    it('steps down 1 px at a time to the largest size that fits (28 chars: 15 px at 260)', () => {
-        expect(fitFontSize(modelWidth('Stage:100  Score:99  High:99'), 260)).toEqual({ size: 15, wrap: false });
+    it('steps down 1 px at a time to the largest size that fits (27 chars: 16 px at 260)', () => {
+        expect(fitFontSize(modelWidth('B100F  Score:99  High:B100F'), 260)).toEqual({ size: 16, wrap: false });
     });
 
-    it('falls back to 14 px and asks for wrapping when 14 px does not fit (28 chars at 190)', () => {
-        expect(fitFontSize(modelWidth('Stage:100  Score:99  High:99'), 190)).toEqual({ size: 14, wrap: true });
+    it('falls back to 14 px and asks for wrapping when 14 px does not fit (27 chars at 190)', () => {
+        expect(fitFontSize(modelWidth('B100F  Score:99  High:B100F'), 190)).toEqual({ size: 14, wrap: true });
     });
 
     it('accepts the exact boundary of 14 px without wrapping', () => {
-        // 28 x 0.6 x 14 = 235.2
-        expect(fitFontSize(modelWidth('Stage:100  Score:99  High:99'), 235.2)).toEqual({ size: 14, wrap: false });
+        // 27 x 0.6 x 14 = 226.8
+        expect(fitFontSize(modelWidth('B100F  Score:99  High:B100F'), 226.8)).toEqual({ size: 14, wrap: false });
     });
 });
 

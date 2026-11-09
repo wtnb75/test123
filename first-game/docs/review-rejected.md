@@ -114,3 +114,8 @@
 - `scenes/Game.ts`（通路の自動移動中に Shift + 移動で走りが始まるかもしれない）— 理由: 通路の歩行中は `flow.phase` が `corridor` で `flow.playing` が偽なので、キー入力は最初の判定で戻る（`flow.ts`）
 - `scenes/Game.ts`（走りの歩数を起動時に固定し、途中の結果を見ない）— 理由: 走りの間に開いたマスは変わらない（開いたマスの上を通るだけ）。変わるのは死亡・ゴールだけで、それは applyResult が止める
 - `docs/spec.md`（タップで歩く の例で、扉のマスが盤面の外にあると読める）— 理由: 扉のマスは盤面の内側のマス（「扉のマス」の定義。盤面の外にあるのは扉の印だけ）。タップは内側のマスに届く
+- `core/highScore.ts`（`highScoreLabel` が `depthLabel` を呼ぶだけで名前が二重）— 理由: spec が両方の名前の役割（保存ラベル・High の表示）を別に決めていて、テストもある。実害なし
+- `core/floorLabel.ts`（`depthLabel` に負数・NaN のガードが無い）— 理由: 不正な保存値は `parseHighScore` が 0 にする（spec「保存の失敗とハイスコア」）。呼び出し側が検証済みの値だけを渡す
+- `docs/spec.md`（旧ラベル `Stage N` が、記録を更新するまでトップページに残る）— 理由: spec に意図した挙動として明記し、合意済み（保存の `label` は読まない）
+- `core/hudText.ts`（dev の `Stage must be 1-100.` と `You jump to B12F.` の表記が混ざる）— 理由: dev 専用の入力（STAGE ボタン・`?stage=`）の名前は変えないと合意済み
+- `core/gravePanel.ts`（7 桁のフロアで石の行の幅が成り立つか）— 理由: `B<n>F` は旧表記 `Stage <n>` より短く、最長行はスコアの行のまま（幅の計算は変わらない）

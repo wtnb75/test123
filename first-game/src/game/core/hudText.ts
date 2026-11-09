@@ -1,5 +1,7 @@
 // What the HUD says (docs/spec.md "HUD のメッセージとステータス"): wording, status line, text sizing. No Phaser.
 
+import { depthLabel, floorLabel } from './floorLabel';
+
 export type InputKind = 'keys' | 'touch';
 
 /** Largest and smallest status-line font size in px (the main information never goes below 14 px). */
@@ -42,9 +44,9 @@ const cells = (k: number): string => `${k} ${k === 1 ? 'cell' : 'cells'}`;
 const mines = (k: number): string => `${k} ${k === 1 ? 'mine' : 'mines'}`;
 
 export const stageStartMessage = (input: InputKind, stageNo: number): string =>
-    input === 'keys' ? KEY_HINT : `You enter stage ${stageNo}.`;
+    input === 'keys' ? KEY_HINT : `You enter ${floorLabel(stageNo)}.`;
 
-export const jumpMessage = (stageNo: number): string => `You jump to stage ${stageNo}.`;
+export const jumpMessage = (stageNo: number): string => `You jump to ${floorLabel(stageNo)}.`;
 
 export const invalidStageMessage = (stageMax: number): string => `Stage must be 1-${stageMax}.`;
 
@@ -107,9 +109,9 @@ export const resultMessage = (
     }
 };
 
-/** The status line: `Stage:<n>  Score:<n - 1>  High:<h>`. */
+/** The status line: `B<n>F  Score:<n - 1>  High:B<h + 1>F` (`h` = the high score). */
 export const statusLine = (stageNo: number, highScore: number): string =>
-    `Stage:${stageNo}  Score:${stageNo - 1}  High:${highScore}`;
+    `${floorLabel(stageNo)}  Score:${stageNo - 1}  High:${depthLabel(highScore)}`;
 
 /**
  * Largest integer font size in [min, max] whose text still fits `availableWidth`. `widthAt(size)` is the
