@@ -451,28 +451,6 @@ export class Game extends Scene {
         const entry = this.questions[this.currentIndex];
         this.slots = generateSlots(entry, this.adaptivePool, this.config.langMode.slot, Math.random, this.adaptiveSlotCount, this.config.langMode.tile);
 
-        const correctCount = this.slots.filter((s) => isCorrect(entry, s, this.config.langMode.slot)).length;
-        if (correctCount !== 1) {
-            // eslint-disable-next-line no-console
-            console.warn(
-                `[KogoDrop] Q${this.currentIndex + 1}: 正解スロット数=${correctCount}`,
-                `tile="${getLangValue(entry, this.config.langMode.tile)}"`,
-                this.slots.map((s, i) => ({
-                    slot: i,
-                    value: getLangValue(s, this.config.langMode.slot),
-                    correct: isCorrect(entry, s, this.config.langMode.slot),
-                })),
-            );
-        } else {
-            // eslint-disable-next-line no-console
-            console.log(
-                `[KogoDrop] Q${this.currentIndex + 1}:`,
-                `tile="${getLangValue(entry, this.config.langMode.tile)}"`,
-                `slots=[${this.slots.map((s) => `"${getLangValue(s, this.config.langMode.slot)}"`).join(', ')}]`,
-                `correctAt=${this.slots.findIndex((s) => isCorrect(entry, s, this.config.langMode.slot))}`,
-            );
-        }
-
         for (let i = 0; i < this.adaptiveSlotCount; i++) {
             const slotVal = getLangValue(this.slots[i], this.config.langMode.slot);
             this.slotViews[i].label.setText(slotVal);

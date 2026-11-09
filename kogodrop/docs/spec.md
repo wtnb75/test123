@@ -354,6 +354,7 @@ NEXT プレビューはタイルと同じフィールドを表示する:
 - 全問正解の場合は復習ボタンが表示されない
 - NEXT欄に次の単語プレビューが1件表示される
 - `verified: false` の語が出題プール・Review Scene に混入しない
+- プレイ中（Game Scene。再挑戦ラウンド・苦手な語の切り替えも含む）、出題内容・スロットの値・正解の位置をコンソールに出さない。確かめ方: `src/` の本番コード（`*.test.ts` を除く）に `console.*` と、それ用の `eslint-disable no-console` が 0 件。「正解スロットが 1 つ」は `generateSlots` の単体テスト（難易度ごと・全語・スロット数 4〜6・適応で入れ替わりうる出題プールとの組み合わせ）で確かめる
 - `npm run lint` / `npm run test` / `npm run test:coverage` / `npm run build` がすべて通る
 - テストカバレッジ 90% 以上（未達時は未到達分岐と補完計画を明示）
 

@@ -712,6 +712,30 @@ describe('data integrity: dummy slots on the real word data', () => {
             }
         }
     });
+
+    // The adaptive tiers show 4, 5 or 6 slots and may swap the pool for a larger difficulty's pool while the
+    // question comes from the chosen one, so the one-correct-slot guarantee is also checked for those pairings.
+    it.each([
+        ['easy', 'easy'], ['easy', 'normal'], ['easy', 'hard'],
+        ['normal', 'normal'], ['normal', 'hard'], ['hard', 'hard']
+    ] as const)('%s words on the %s pool: one correct slot at 4, 5 and 6 slots', (questionDifficulty, poolDifficulty) => {
+        const questions = getPool(kogoList, questionDifficulty);
+        const pool = getPool(kogoList, poolDifficulty);
+        let boards = 0;
+        for (const { slot, tile } of modes) {
+            for (const slotCount of [4, 5, 6]) {
+                for (const correct of questions) {
+                    const slots = generateSlots(correct, pool, slot, Math.random, slotCount, tile);
+                    const correctSlots = slots.filter((s) => isCorrect(correct, s, slot));
+                    if (slots.length !== slotCount || correctSlots.length !== 1) {
+                        expect.fail(`${correct.id} in ${slot} mode with ${slotCount} slots: ${slots.length} slots, ${correctSlots.length} correct`);
+                    }
+                    boards++;
+                }
+            }
+        }
+        expect(boards).toBe(questions.length * modes.length * 3);
+    });
 });
 
 describe('data integrity: kogoList', () => {

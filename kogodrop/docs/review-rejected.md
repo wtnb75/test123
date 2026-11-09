@@ -15,3 +15,6 @@
 - `src/game/logic/kogodrop.ts` `createQuestionSequence`: `weightOf` が 5 番目の位置引数で、呼び出しが長い — 理由: 既存の引数の並び（`rng`・`excludeIds`）に足しただけ。オプションのオブジェクトにする変更は別の目的
 - `src/game/scenes/Title.ts` 記録を消す操作: Scene 終了時のタイマーの後始末を明示的に書いていない、Scene の結線が単体テストの対象外 — 理由: Phaser の Clock が Scene の終了で `delayedCall` を破棄する。Scene の結線は `game-qa` の範囲
 - `src/game/scenes/Game.ts` 回答ごとの同期保存（`JSON.stringify` + `localStorage.setItem`）: 保存の遅い環境でフラッシュの開始の瞬間に引っかかりうる — 理由: 最大 160 語の小さなデータ。仕様は回答ごとの保存
+- `src/game/scenes/Game.ts` `startNewTile`: ログを消したあと、正解スロットが 0 や 2 になっても黙って進む（開発用の検査か、先頭の一致への代替を足す案） — 理由: ログの削除が目的。不変条件は `generateSlots` の単体テスト（スロット数 4〜6・適応のプールとの組み合わせ）で守る
+- `docs/spec.md` 完了条件: 「`eslint-disable no-console` が 0 件」を lint の設定（`reportUnusedDisableDirectives` など）で強制する案 — 理由: この変更の目的の外。確かめ方は grep として完了条件に書いた
+- `docs/spec.md` の `status_*`: ログの削除だけなのに balance / polish / publish まで `pending` に戻る — 理由: `game-spec` の手順（改訂は `task game:reset` を全段階で行う）。コードも変わるので、clarification-only の経路には当たらない
