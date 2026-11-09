@@ -1,7 +1,8 @@
 import { Scene } from 'phaser';
-import { allocate, MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES, type AllocationResult } from '../logic/allocate';
+import { MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES } from '../logic/allocate';
 import { buildResultHtml } from '../logic/resultHtml';
-import { budgetFromUnits, parseBudget, remainderOf, unitsFromBudget } from '../logic/budget';
+import { budgetFromUnits, parseBudget, unitsFromBudget } from '../logic/budget';
+import { decideCalc, type CalcMode } from '../logic/liveCalc';
 
 type UiRefs = {
     root: HTMLDivElement;
@@ -12,12 +13,15 @@ type UiRefs = {
     unitPriceInput: HTMLInputElement;
     calculateBtn: HTMLButtonElement;
     error: HTMLDivElement;
+    staleNote: HTMLDivElement;
     result: HTMLDivElement;
 };
 
 export class Game extends Scene {
     private oddsValues: string[] = ['', ''];
     private ui?: UiRefs;
+    // true while a result is on screen (a failed auto calculation keeps it and shows a notice)
+    private hasResult = false;
 
     constructor() {
         super('Game');
@@ -40,6 +44,7 @@ export class Game extends Scene {
             unitPriceInput: root.querySelector('[data-role="unit-price"]') as HTMLInputElement,
             calculateBtn: root.querySelector('[data-role="calculate"]') as HTMLButtonElement,
             error: root.querySelector('[data-role="error"]') as HTMLDivElement,
+            staleNote: root.querySelector('[data-role="stale-note"]') as HTMLDivElement,
             result: root.querySelector('[data-role="result"]') as HTMLDivElement
         };
 
@@ -70,6 +75,7 @@ export class Game extends Scene {
             </div>
             <button class="dutchcalc-btn dutchcalc-btn-primary" data-role="calculate">計算</button>
             <div class="dutchcalc-error" data-role="error"></div>
+            <div class="dutchcalc-stale" data-role="stale-note" hidden>入力が無効です。下は直前の有効な入力の結果です</div>
             <div class="dutchcalc-result" data-role="result"></div>
           </div>
         </div>`;
@@ -89,10 +95,17 @@ export class Game extends Scene {
         });
 
         this.ui.calculateBtn.addEventListener('click', () => {
-            this.runCalculation();
+            this.runCalculation('button');
         });
 
-        // Budget and units are linked both ways when either changes; neither change calculates.
+        // Every edit of a field recalculates; the budget and units links below also recalculate.
+        for (const input of [this.ui.totalUnitsInput, this.ui.budgetInput, this.ui.unitPriceInput]) {
+            input.addEventListener('input', () => {
+                this.runCalculation('auto');
+            });
+        }
+
+        // Budget and units are linked both ways when either changes (the link itself does not calculate).
         this.ui.budgetInput.addEventListener('change', () => {
             const budget = parseBudget(this.ui?.budgetInput.value ?? '');
             const unitPrice = Number(this.ui?.unitPriceInput.value);
@@ -102,6 +115,7 @@ export class Game extends Scene {
             const units = unitsFromBudget(budget, unitPrice);
             if (units !== null) {
                 this.ui.totalUnitsInput.value = String(units);
+                this.runCalculation('auto');
             }
         });
 
@@ -112,6 +126,7 @@ export class Game extends Scene {
                 return;
             }
             this.ui.budgetInput.value = String(budgetFromUnits(units, unitPrice));
+            this.runCalculation('auto');
         });
 
         // The budget's upper limit follows the unit price (the unit count's limit times the price).
@@ -149,6 +164,14 @@ export class Game extends Scene {
             input.dataset.role = 'odds-input';
             input.addEventListener('input', () => {
                 this.oddsValues[index] = input.value;
+                this.runCalculation('auto');
+            });
+            input.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' || event.isComposing) {
+                    return;
+                }
+                event.preventDefault();
+                this.focusNextOdds(index);
             });
 
             const removeBtn = document.createElement('button');
@@ -161,6 +184,7 @@ export class Game extends Scene {
                 }
                 this.oddsValues.splice(index, 1);
                 this.renderCandidates();
+                this.runCalculation('auto');
             });
 
             row.appendChild(label);
@@ -172,35 +196,56 @@ export class Game extends Scene {
         this.ui.addBtn.disabled = this.oddsValues.length >= MAX_CANDIDATES;
     }
 
-    private runCalculation(): void {
+    // Enter in an odds field: move to the next row, or add a row after the last one (up to the limit).
+    private focusNextOdds(index: number): void {
         if (!this.ui) {
             return;
         }
-
-        this.ui.error.textContent = '';
-        this.ui.result.innerHTML = '';
-
-        const odds = this.oddsValues.map((v) => Number(v));
-        const totalUnits = Number(this.ui.totalUnitsInput.value);
-        const unitPrice = Number(this.ui.unitPriceInput.value);
-        const budget = parseBudget(this.ui.budgetInput.value);
-
-        try {
-            const result = allocate({ odds, totalUnits, unitPrice });
-            // the leftover is shown only when a budget was entered, and uses the budget at this moment
-            const remainder = budget === null ? undefined : remainderOf(budget, result.totalInvestment);
-            this.renderResult(result, unitPrice, remainder);
-        } catch (err) {
-            this.ui.error.textContent = err instanceof Error ? err.message : String(err);
+        if (index === this.oddsValues.length - 1) {
+            if (this.oddsValues.length >= MAX_CANDIDATES) {
+                return;
+            }
+            this.oddsValues.push('');
+            this.renderCandidates();
         }
+        const inputs = this.ui.candidateList.querySelectorAll<HTMLInputElement>('[data-role="odds-input"]');
+        inputs[index + 1]?.focus();
     }
 
-    private renderResult(result: AllocationResult, unitPrice: number, remainder?: number): void {
+    // `auto` (every edit) leaves the screen alone while a field is blank and keeps the last result when
+    // the input is invalid; `button` always shows the error and clears the result.
+    private runCalculation(mode: CalcMode): void {
         if (!this.ui) {
             return;
         }
 
-        this.ui.result.innerHTML = buildResultHtml(result, unitPrice, remainder);
+        const outcome = decideCalc(
+            {
+                oddsTexts: this.oddsValues,
+                totalUnitsText: this.ui.totalUnitsInput.value,
+                unitPriceText: this.ui.unitPriceInput.value,
+                budgetText: this.ui.budgetInput.value
+            },
+            mode
+        );
+
+        if (outcome.kind === 'incomplete') {
+            return;
+        }
+        if (outcome.kind === 'ok') {
+            this.ui.error.textContent = '';
+            this.ui.staleNote.hidden = true;
+            this.ui.result.innerHTML = buildResultHtml(outcome.result, outcome.unitPrice, outcome.remainder);
+            this.hasResult = true;
+            return;
+        }
+
+        this.ui.error.textContent = outcome.message;
+        if (mode === 'button') {
+            this.ui.result.innerHTML = '';
+            this.hasResult = false;
+        }
+        this.ui.staleNote.hidden = !this.hasResult;
     }
 
     private onResize(): void {
