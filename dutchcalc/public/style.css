@@ -96,6 +96,16 @@ canvas {
     min-height: 1.2em;
 }
 
+.dutchcalc-stale {
+    color: var(--error);
+    margin-top: 4px;
+    font-size: 14px;
+}
+
+.dutchcalc-stale[hidden] {
+    display: none;
+}
+
 .dutchcalc-table {
     width: 100%;
     border-collapse: collapse;
