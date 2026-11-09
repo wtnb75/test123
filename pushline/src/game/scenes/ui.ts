@@ -30,7 +30,7 @@ export const COLORS = {
 } as const;
 
 /** Draw order, back to front (docs/spec.md "描画順"). */
-export const DEPTH = { board: 0, ghost: 1, player: 2, fx: 3, hint: 4, mark: 5, hud: 10, alert: 20 } as const;
+export const DEPTH = { board: 0, ghost: 1, player: 2, fx: 3, hint: 4, mark: 5, hud: 10, note: 15, alert: 20 } as const;
 
 /**
  * Picks the layout for the window as it is now and switches the logical canvas to it.

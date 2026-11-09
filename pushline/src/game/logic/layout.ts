@@ -23,6 +23,8 @@ export interface Layout {
     hudLines: { x: number; y: number; originX: number };
     /** Centre of the HUD's second row, the best record (centred text). */
     hudBest: Pt;
+    /** Centre of the first game's one-line hint, in the free band above the board. */
+    howToPlay: Pt;
     undoButton: Rect;
     hintButton: Rect;
     quitButton: Rect;
@@ -59,6 +61,8 @@ export const PORTRAIT: Layout = {
     hudLines: { x: 440, y: 40, originX: 1 },
     // Between the board (bottom 590) and the buttons (top 660); the "+N" pop-ups rise from the moves counter instead.
     hudBest: { x: 240, y: 625 },
+    // Band y 55-110 between the HUD row (y 40) and the board top (110).
+    howToPlay: { x: 240, y: 82 },
     undoButton: button(100, 700, PORTRAIT_ROW_BUTTON_W),
     hintButton: button(240, 700, PORTRAIT_ROW_BUTTON_W),
     quitButton: button(380, 700, PORTRAIT_ROW_BUTTON_W),
@@ -81,6 +85,8 @@ export const LANDSCAPE: Layout = {
     hudLines: { x: 140, y: 280, originX: 0.5 },
     // In the left margin, under the lines counter.
     hudBest: { x: 140, y: 340 },
+    // Band y 0-60 above the board (top 60), between the left HUD column and the right buttons.
+    howToPlay: { x: 480, y: 30 },
     undoButton: button(820, 220),
     hintButton: button(820, 100),
     quitButton: button(820, 340),
