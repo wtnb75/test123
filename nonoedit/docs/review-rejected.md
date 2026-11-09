@@ -13,4 +13,8 @@
 - `src/game/core/editOps.ts`: 範囲の走査が複数回・クロージャで、盤面外の座標を検査しない — 理由: 25 × 25 で無視できる。盤面外の扱いは切り出し前と同じで、挙動を変えない
 - `src/game/scenes/Game.ts`: タップかドラッグかの判定（`drag.moved`）に自動テストが無い — 理由: Scene はカバレッジの対象外で、spec が Scene の受け持ちと決めている。実ブラウザの QA で確かめる
 - `src/game/core/editOps.ts` / `Game.ts`: 改行コードが混在する（`Game.ts` は CRLF、新しいファイルは LF）— 理由: `Game.ts` の CRLF を保って差分を小さくするため。統一は別の目的
+- `src/game/core/analysisView.ts` `hardest`: `unsolved` のとき `-` にする（`hardestTechnique` は `logical` を見ないのに表示で隠す）— 理由: spec の `Hardest` の値の表で合意した動作
+- `src/game/scenes/Game.ts` モバイルの情報タブ: 行を 16 px 間隔に詰めた、`timeout: 3s` が `hardest` の行の右端で重なりうる — 理由: `unsolved` のときは `hardest` が `-` で重ならない。最小画面での収まりは QA のスクリーンショットで確かめる
+- `docs/spec/solver.md` / `Game.ts`: 行ラベルが小文字の `hardest:`（spec は `Hardest`）— 理由: 文言（英語）は実装裁量。他の行と揃えている
+- `src/game/scenes/Game.ts` パネル: 行の y 座標を手で並べている — 理由: 元からの書き方で、この変更の目的の外
 - `docs/spec.md`: frontmatter の段階が `pending` に戻っている — 理由: `game-spec` のリセットによる想定どおりの状態。PR を開く前に各段階が `done` に戻る

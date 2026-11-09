@@ -46,9 +46,9 @@ describe('constants', () => {
 });
 
 describe('analysisPanelModel', () => {
-    it('pending: the six values are …, every technique count is -, and no timeout row', () => {
+    it('pending: the seven values (Hardest included) are …, every technique count is -, and no timeout row', () => {
         const model = analysisPanelModel(finished, true);
-        expect([model.solvable, model.unique, model.logical, model.difficulty, model.score, model.remaining]).toEqual(['…', '…', '…', '…', '…', '…']);
+        expect([model.solvable, model.unique, model.logical, model.difficulty, model.hardest, model.score, model.remaining]).toEqual(['…', '…', '…', '…', '…', '…', '…']);
         for (const technique of TECHNIQUES) {
             expect(model.techniques[technique]).toBe('-');
         }
@@ -71,6 +71,20 @@ describe('analysisPanelModel', () => {
         expect(model.techniques['probe-consistency']).toBe('2');
         expect(model.techniques['edge-overlap']).toBe('0');
         expect(model.timeoutShown).toBe(false);
+    });
+
+    it('idle: Hardest is the full id of the last technique used in the application order', () => {
+        expect(analysisPanelModel({ ...finished, difficulty: 'hard', techniquesUsed: { 'full-line-fill': 2, 'region-split': 1 } }, false).hardest).toBe('region-split');
+        expect(analysisPanelModel({ ...finished, difficulty: 'normal', techniquesUsed: { 'candidate-common': 1, 'cross-constraint': 1 } }, false).hardest).toBe('cross-constraint');
+    });
+
+    it('idle: Hardest is - when the rank is unsolved, even if techniques were used', () => {
+        const model = analysisPanelModel({ ...finished, difficulty: 'unsolved', techniquesUsed: { 'probe-consistency': 3 } }, false);
+        expect(model.hardest).toBe('-');
+    });
+
+    it('idle: Hardest is - for an easy result where no technique was used', () => {
+        expect(analysisPanelModel({ ...finished, difficulty: 'easy', techniquesUsed: {} }, false).hardest).toBe('-');
     });
 
     it('idle: a timed-out result shows the timeout row', () => {

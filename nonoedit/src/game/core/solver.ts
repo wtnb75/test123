@@ -483,17 +483,36 @@ const applyProbeConsistency = (
     return { updates };
 };
 
-const estimateDifficulty = (score: number, logical: boolean): DifficultyRank => {
-    if (!logical) {
+/**
+ * The hardest technique that was used: the last one in the fixed application order with a count of 1 or
+ * more, or null when none was used. It does not depend on whether the analysis completed.
+ */
+export const hardestTechnique = (techniquesUsed: Partial<Record<SolveTechnique, number>>): SolveTechnique | null => {
+    for (let i = orderedTechniques.length - 1; i >= 0; i -= 1) {
+        if ((techniquesUsed[orderedTechniques[i]] ?? 0) > 0) {
+            return orderedTechniques[i];
+        }
+    }
+    return null;
+};
+
+// Rank by the hardest technique needed, not by how often techniques were used (docs/spec/solver.md).
+const normalTechniques: ReadonlySet<SolveTechnique> = new Set(['candidate-common', 'cross-constraint']);
+const easyTechniques: ReadonlySet<SolveTechnique> = new Set(['full-line-fill', 'full-line-empty', 'edge-overlap']);
+
+/** `complete` is `logical && solvable`: anything else is `unsolved` whatever the techniques were. */
+export const rankFromTechniques = (
+    techniquesUsed: Partial<Record<SolveTechnique, number>>,
+    complete: boolean,
+): DifficultyRank => {
+    if (!complete) {
         return 'unsolved';
     }
-    if (score <= 20) {
+    const hardest = hardestTechnique(techniquesUsed);
+    if (hardest === null || easyTechniques.has(hardest)) {
         return 'easy';
     }
-    if (score <= 60) {
-        return 'normal';
-    }
-    return 'hard';
+    return normalTechniques.has(hardest) ? 'normal' : 'hard';
 };
 
 export const analyzePuzzle = (solution: BinaryCell[][], rowHints: number[][], colHints: number[][], maxMillis = 3000): AnalysisResult => {
@@ -674,7 +693,7 @@ const runAnalysis = (solution: BinaryCell[][], rowHints: number[][], colHints: n
         score += (techniquesUsed[tech] ?? 0) * weights[tech];
     }
 
-    const difficulty = estimateDifficulty(score, logical && solvable);
+    const difficulty = rankFromTechniques(techniquesUsed, logical && solvable);
 
     return {
         solvable,

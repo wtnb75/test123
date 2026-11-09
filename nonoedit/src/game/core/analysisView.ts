@@ -1,9 +1,12 @@
+import { hardestTechnique } from './solver';
 import type { AnalysisResult, SolveTechnique } from './types';
 
 // What the analysis panel, Copy and Test Play do while an analysis is pending (docs/spec/analysis-async.md).
 
 export const PENDING_VALUE = '…';
 export const PENDING_COUNT = '-';
+/** The `Hardest` value when there is no technique to show (unsolved, or nothing was needed) */
+export const NO_HARDEST = '-';
 export const MESSAGE_ANALYSIS_STARTED = 'Analysis started';
 export const MESSAGE_ANALYSIS_UPDATED = 'Analysis updated';
 export const MESSAGE_COPY_BLOCKED = 'Analysis running: copy after it finishes';
@@ -38,6 +41,8 @@ export type AnalysisPanelModel = {
     unique: string;
     logical: string;
     difficulty: string;
+    /** the hardest technique id, "-" when unsolved or none was used, "…" while pending */
+    hardest: string;
     score: string;
     remaining: string;
     /** the count of each technique, or "-" while pending */
@@ -58,6 +63,7 @@ export const analysisPanelModel = (analysis: AnalysisResult, pending: boolean): 
             unique: PENDING_VALUE,
             logical: PENDING_VALUE,
             difficulty: PENDING_VALUE,
+            hardest: PENDING_VALUE,
             score: PENDING_VALUE,
             remaining: PENDING_VALUE,
             techniques,
@@ -69,6 +75,7 @@ export const analysisPanelModel = (analysis: AnalysisResult, pending: boolean): 
         unique: String(analysis.unique),
         logical: String(analysis.logical),
         difficulty: analysis.difficulty,
+        hardest: analysis.difficulty === 'unsolved' ? NO_HARDEST : (hardestTechnique(analysis.techniquesUsed) ?? NO_HARDEST),
         score: String(analysis.score),
         remaining: String(analysis.remainingCells),
         techniques,
