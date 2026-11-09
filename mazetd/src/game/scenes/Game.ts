@@ -36,6 +36,7 @@ import {
 import { getCell, getTerrain, indexOf, initialTerrain, isGoal, isStart } from '../logic/board';
 import { CellTimers, Countdown, PopupPool } from '../logic/effects';
 import { type EnemyKind, kindRadius } from '../logic/wave';
+import { showsFlightLine, visibleRoute } from '../logic/flight';
 import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell, type Tool } from '../logic/layout';
 import {
     ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update
@@ -84,12 +85,19 @@ const COLOR = {
     buttonDisabled: 0x263238,
     buttonFlash: 0x81d4fa
 };
-// Fill per enemy kind: normal keeps the original orange; fast is a bright yellow, tank a dark purple.
+// Fill per enemy kind: normal keeps the original orange; fast is a bright yellow, tank a dark purple, flyer a pink diamond.
+const FLYER_COLOR = 0xf48fb1;
 const ENEMY_COLOR: Readonly<Record<EnemyKind, number>> = {
     normal: COLOR.enemy,
     fast: 0xfff176,
-    tank: 0x7b1fa2
+    tank: 0x7b1fa2,
+    flyer: FLYER_COLOR
 };
+// Build-phase flight-route line: short pink dashes along the S-to-G line.
+const FLIGHT_DASH = 6;
+const FLIGHT_GAP = 6;
+const FLIGHT_LINE_W = 2;
+const FLIGHT_LINE_ALPHA = 0.55;
 const SLOW_RIM_W = 3;
 // Applied to the render texture that holds the opaque union of all range circles, so overlaps don't darken.
 const RANGE_FILL_ALPHA = 0.12;
@@ -439,6 +447,33 @@ export class Game extends Scene {
         }
         this.drawRanges();
         if (this.state.phase === 'build') this.drawPathPreview(g);
+        if (showsFlightLine(this.state.phase, this.state.wave)) this.drawFlightLine(g);
+    }
+
+    /** Dashed line over the board along the flyers' route, outside the S and G cells. */
+    private drawFlightLine(g: GameObjects.Graphics) {
+        const seg = visibleRoute(this.state.route);
+        if (seg === null) return;
+        const dx = seg.x1 - seg.x0;
+        const dy = seg.y1 - seg.y0;
+        const len = Math.hypot(dx, dy);
+        const ux = dx / len;
+        const uy = dy / len;
+        g.lineStyle(FLIGHT_LINE_W, FLYER_COLOR, FLIGHT_LINE_ALPHA);
+        for (let d = 0; d < len; d += FLIGHT_DASH + FLIGHT_GAP) {
+            const end = Math.min(d + FLIGHT_DASH, len);
+            g.lineBetween(seg.x0 + ux * d, seg.y0 + uy * d, seg.x0 + ux * end, seg.y0 + uy * end);
+        }
+    }
+
+    /** Diamond whose corners are r px from the centre (the flyer's shape). */
+    private traceDiamond(g: GameObjects.Graphics, x: number, y: number, r: number) {
+        g.beginPath();
+        g.moveTo(x, y - r);
+        g.lineTo(x + r, y);
+        g.lineTo(x, y + r);
+        g.lineTo(x - r, y);
+        g.closePath();
     }
 
     /** Dark blue-green cell with two wave lines. */
@@ -561,9 +596,24 @@ export class Game extends Scene {
         }
         for (const e of this.state.enemies) {
             const r = kindRadius(e.kind);
-            g.fillStyle(ENEMY_COLOR[e.kind ?? 'normal']).fillCircle(e.x, e.y, r);
+            const flyer = e.kind === 'flyer';
+            g.fillStyle(ENEMY_COLOR[e.kind ?? 'normal']);
+            if (flyer) {
+                this.traceDiamond(g, e.x, e.y, r);
+                g.fillPath();
+            } else {
+                g.fillCircle(e.x, e.y, r);
+            }
             // A slowed enemy keeps its kind's fill; the slow tower's effect is the light-blue rim.
-            if (e.slowed) g.lineStyle(SLOW_RIM_W, COLOR.slowedEnemy).strokeCircle(e.x, e.y, r);
+            if (e.slowed) {
+                g.lineStyle(SLOW_RIM_W, COLOR.slowedEnemy);
+                if (flyer) {
+                    this.traceDiamond(g, e.x, e.y, r);
+                    g.strokePath();
+                } else {
+                    g.strokeCircle(e.x, e.y, r);
+                }
+            }
             if (e.hp < e.maxHp) {
                 const w = r * 2;
                 const top = e.y - r - 8;

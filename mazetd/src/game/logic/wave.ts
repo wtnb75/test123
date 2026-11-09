@@ -9,6 +9,12 @@ import {
     FAST_RADIUS,
     FAST_SLOT,
     FAST_SPEED_RATE,
+    FLYER_CYCLE,
+    FLYER_FROM_WAVE,
+    FLYER_HP_RATE,
+    FLYER_RADIUS,
+    FLYER_SLOT,
+    FLYER_SPEED_RATE,
     KIND_CYCLE,
     SCORE_PER_KILL,
     SCORE_PER_LIFE,
@@ -19,7 +25,7 @@ import {
     TANK_SPEED_RATE
 } from './config';
 
-export type EnemyKind = 'normal' | 'fast' | 'tank';
+export type EnemyKind = 'normal' | 'fast' | 'tank' | 'flyer';
 
 export function enemyCount(wave: number): number {
     return ENEMY_COUNT_BASE + ENEMY_COUNT_STEP * (wave - 1);
@@ -32,16 +38,23 @@ export function baseEnemyHp(wave: number): number {
 
 /** The kind of the enemy spawned i-th (0-based) in the given wave; no randomness. */
 export function enemyKind(wave: number, index: number): EnemyKind {
+    // The flyer slot is a normal one modulo KIND_CYCLE, so it never competes with the fast and tank slots.
+    if (wave >= FLYER_FROM_WAVE && index % FLYER_CYCLE === FLYER_SLOT) return 'flyer';
     const slot = index % KIND_CYCLE;
     if (wave >= TANK_FROM_WAVE && slot === TANK_SLOT) return 'tank';
     if (wave >= FAST_FROM_WAVE && slot === FAST_SLOT) return 'fast';
     return 'normal';
 }
 
-/** Max HP of an enemy of `kind` in `wave`. Fast rounds up (never below 1); the product is rounded to dodge float noise. */
+function scaledHpCeil(base: number, rate: number): number {
+    return Math.max(1, Math.ceil(Math.round(base * rate * 1e6) / 1e6));
+}
+
+/** Max HP of an enemy of `kind` in `wave`. Fast and flyer round up (never below 1); the product is rounded to dodge float noise. */
 export function enemyHp(wave: number, kind: EnemyKind = 'normal'): number {
     const base = baseEnemyHp(wave);
-    if (kind === 'fast') return Math.max(1, Math.ceil(Math.round(base * FAST_HP_RATE * 1e6) / 1e6));
+    if (kind === 'fast') return scaledHpCeil(base, FAST_HP_RATE);
+    if (kind === 'flyer') return scaledHpCeil(base, FLYER_HP_RATE);
     if (kind === 'tank') return base * TANK_HP_RATE;
     return base;
 }
@@ -50,6 +63,7 @@ export function enemyHp(wave: number, kind: EnemyKind = 'normal'): number {
 export function kindSpeedRate(kind: EnemyKind = 'normal'): number {
     if (kind === 'fast') return FAST_SPEED_RATE;
     if (kind === 'tank') return TANK_SPEED_RATE;
+    if (kind === 'flyer') return FLYER_SPEED_RATE;
     return 1;
 }
 
@@ -57,6 +71,7 @@ export function kindSpeedRate(kind: EnemyKind = 'normal'): number {
 export function kindRadius(kind: EnemyKind = 'normal'): number {
     if (kind === 'fast') return FAST_RADIUS;
     if (kind === 'tank') return TANK_RADIUS;
+    if (kind === 'flyer') return FLYER_RADIUS;
     return ENEMY_RADIUS;
 }
 

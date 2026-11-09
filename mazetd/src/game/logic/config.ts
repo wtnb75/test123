@@ -60,6 +60,20 @@ export const TANK_HP_RATE = 2;
 export const FAST_RADIUS = 10;
 export const TANK_RADIUS = 18;
 
+// Flyers (spec/flyers.md): they replace some normal enemies from FLYER_FROM_WAVE on and fly straight from S to G.
+export const FLYER_FROM_WAVE = 4;
+export const FLYER_CYCLE = 8;
+/**
+ * A flyer spawns when i mod FLYER_CYCLE is FLYER_SLOT. FLYER_CYCLE must be a multiple of KIND_CYCLE and the slot must
+ * not be a fast or tank one modulo KIND_CYCLE, or flyers would replace fast/tank enemies (flyers.test.ts pins this).
+ */
+export const FLYER_SLOT = 5;
+/** Flyers ignore the swamp, so this is their whole speed factor (a slow tower still halves it). */
+export const FLYER_SPEED_RATE = 1;
+export const FLYER_HP_RATE = 1;
+/** Distance from the centre to each corner of the flyer's diamond; drawing only. */
+export const FLYER_RADIUS = 14;
+
 export const TURRET_RANGE = 112;
 export const TURRET_DAMAGE = 1;
 export const TURRET_INTERVAL = 0.5;

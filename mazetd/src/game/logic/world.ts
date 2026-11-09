@@ -42,6 +42,7 @@ import {
     type Terrain
 } from './board';
 import { cellCenterX, cellCenterY, type Tool } from './layout';
+import { createFlightRoute, type FlightRoute, routePoint } from './flight';
 import { enemyCount, enemyHp, type EnemyKind, enemyKind, kindSpeedRate } from './wave';
 
 export type Phase = 'build' | 'wave' | 'cleared' | 'gameover';
@@ -56,7 +57,7 @@ export interface Enemy {
     maxHp: number;
     /** Fixed at spawn; an enemy without a kind is a normal one. */
     kind?: EnemyKind;
-    /** Distance walked along the path in px. */
+    /** Distance walked along the path in px; for a flyer, the distance flown along the flight route. */
     traveled: number;
     x: number;
     y: number;
@@ -107,6 +108,8 @@ export interface GameState {
     path: CellPos[];
     pathX: number[];
     pathY: number[];
+    /** The straight line flyers follow from S to G; fixed for the whole game. */
+    route: FlightRoute;
     enemies: Enemy[];
     turrets: Turret[];
     slows: SlowTower[];
@@ -127,6 +130,7 @@ const COST: Readonly<Record<Exclude<CellKind, 'empty'>, number>> = {
 
 /** A new game; without `terrain` the board is all plain (the terrain-less board the unit tests use). */
 export function createGame(terrain?: readonly Terrain[]): GameState {
+    const board = createBoard(undefined, undefined, terrain);
     const state: GameState = {
         phase: 'build',
         wave: 1,
@@ -135,10 +139,11 @@ export function createGame(terrain?: readonly Terrain[]): GameState {
         kills: 0,
         tool: 'wall',
         message: null,
-        board: createBoard(undefined, undefined, terrain),
+        board,
         path: [],
         pathX: [],
         pathY: [],
+        route: createFlightRoute(board.start, board.goal),
         enemies: [],
         turrets: [],
         slows: [],
@@ -320,24 +325,45 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
         const e = enemies[i];
         // Enemies spawned this frame stay on the start cell.
         if (i < skipFrom) {
+            const flying = e.kind === 'flyer';
             // x and y still hold the position at the start of this frame: a slow tower looks at that one.
             e.slowed = isSlowed(state, e.x, e.y);
-            // Left-associative, so a normal enemy (kind rate 1) moves bit-for-bit as before the kinds existed.
-            e.traveled += ENEMY_SPEED * kindSpeedRate(e.kind) * speedFactor(state, e.traveled) * (e.slowed ? SLOW_RATE : 1) * dt;
-            if (e.traveled >= goalAt) {
+            // A flyer ignores the swamp. Left-associative, so a normal enemy (kind rate 1) moves bit-for-bit as before.
+            const terrainRate = flying ? 1 : speedFactor(state, e.traveled);
+            e.traveled += ENEMY_SPEED * kindSpeedRate(e.kind) * terrainRate * (e.slowed ? SLOW_RATE : 1) * dt;
+            if (e.traveled >= (flying ? state.route.len : goalAt)) {
                 state.lives = Math.max(0, state.lives - 1);
                 state.events.leaks++;
                 continue;
             }
-            placeOnPath(state, e);
+            if (flying) {
+                routePoint(state.route, e.traveled, e);
+            } else {
+                placeOnPath(state, e);
+            }
         }
         enemies[w++] = e;
     }
     enemies.length = w;
 }
 
-/** The living enemy in range that is furthest along the path; ties keep the older one. */
+/** Distance an enemy still has to cover to reach G, in px (a flyer along the route, the others along the path). */
+function remainingTo(state: GameState, e: Enemy, pathLen: number): number {
+    return (e.kind === 'flyer' ? state.route.len : pathLen) - e.traveled;
+}
+
+/**
+ * Whether `a` is closer to G than `b`. Two walkers (or two flyers) share a line, so the one that went further wins
+ * exactly; different lines are compared by the remaining distance in px.
+ */
+function isCloser(state: GameState, a: Enemy, b: Enemy, pathLen: number): boolean {
+    if ((a.kind === 'flyer') === (b.kind === 'flyer')) return a.traveled > b.traveled;
+    return remainingTo(state, a, pathLen) < remainingTo(state, b, pathLen);
+}
+
+/** The living enemy in range that is closest to G; ties keep the older one. */
 function pickTarget(state: GameState, t: Turret, range2: number): Enemy | null {
+    const pathLen = pathLength(state);
     let target: Enemy | null = null;
     for (const e of state.enemies) {
         if (e.hp <= 0) continue;
@@ -345,7 +371,7 @@ function pickTarget(state: GameState, t: Turret, range2: number): Enemy | null {
         const dy = e.y - t.y;
         if (dx * dx + dy * dy > range2) continue;
         // Enemies are stored in spawn order, so a strict comparison keeps the older one on ties.
-        if (target === null || e.traveled > target.traveled) target = e;
+        if (target === null || isCloser(state, e, target, pathLen)) target = e;
     }
     return target;
 }
