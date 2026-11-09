@@ -6,16 +6,6 @@
 - 1 つのカードは 1 つの目的にする（1 変更 1 目的）。
 - 外部の画像・音のアセットは、足してよいかをユーザーに確認してからにする（仕様は図形描画で代替）。
 
-### 敵・弾の更新と出現を core へ移す（`core-enemies`）
-
-- 狙い: 敵の出現・発射・移動・消滅が `scenes/Game.ts`（848 行）にあり、単体テストの対象外で、乱数が `Math.random` に固定されている。`formations`・`tough-enemy` は、ここに足すことになる。根拠: `src/game/scenes/Game.ts`（`spawnFormation`・`spawnSolo`・`updateEnemyFire`・`fireEnemy`、`update` の敵機と弾の節）、`scaffold/vitest.base.mjs`（`src/game/scenes/**` はカバレッジの対象外）
-- 何を足すか: 敵と弾の状態の更新を、`src/game/core/` の純粋なモジュールへ移す（乱数は注入する）。Scene は描画の同期だけを行う。挙動は変えない。
-- コアループへの効き方: 広げない — 後続のカードの土台。自動プレイで測れるようになる。
-- 種別: presentation-only（リファクタリング。挙動は変えない）
-- 規模: M
-- 出どころ: コードレビュー
-- メモ: `formations`・`tough-enemy` の前に行う。
-
 ### 地雷の爆発と連鎖を core へ移す（`core-mines`）
 
 - 狙い: 爆発の巻き込み・連鎖・自爆・アイテムのドロップが、Scene の再帰メソッドの中で描画と混ざっていて、単体テストの対象外。`kill-score`・`tough-enemy`・`power-blast` は、この判定を変える。根拠: `src/game/scenes/Game.ts`（`triggerExplosion`）、`scaffold/vitest.base.mjs`（`src/game/scenes/**` はカバレッジの対象外）
@@ -24,7 +14,7 @@
 - 種別: presentation-only（リファクタリング。挙動は変えない）
 - 規模: M
 - 出どころ: コードレビュー
-- メモ: `core-enemies` の後。連鎖の遅延は演出だけで、判定は同じフレームで終わる（この順を変えない）。
+- メモ: 連鎖の遅延は演出だけで、判定は同じフレームで終わる（この順を変えない）。
 
 ### 編隊の種類を足す（くの字・波状・包囲）（`formations`）
 
@@ -34,7 +24,7 @@
 - 種別: gameplay
 - 規模: M（編隊の座標計算・動き、難易度の時間割）
 - 出どころ: spec 分析
-- メモ: 編隊の座標計算は `core/formation.ts` の純粋な関数にできる（既存のテストの形に合わせる）。`core-enemies` の後。
+- メモ: 編隊の座標計算は `core/formation.ts` の純粋な関数にできる（既存のテストの形に合わせる）。敵と弾の更新は `core/` にある。
 
 ### 渦巻き弾を足す（`spiral-bullets`）
 
@@ -44,7 +34,7 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: spec 分析
-- メモ: `core-enemies` の後。
+- メモ: 敵と弾の更新は `core/` にある。
 
 ### 爆破で消した敵・弾・連鎖を、スコアに足す（`kill-score`）
 
