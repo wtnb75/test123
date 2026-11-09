@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { generateColHints, generateRowHints } from './hints';
 import { exportPBM, importPBM } from './pbm';
-import type { AnalysisResult } from './types';
+import { analyzePuzzle } from './solver';
+import type { AnalysisResult, BinaryCell } from './types';
 
 const sampleAnalysis: AnalysisResult = {
     solvable: true,
@@ -30,6 +32,24 @@ describe('pbm', () => {
         expect(text).toContain('# difficulty: easy');
         expect(text).toContain('# score: 12');
         expect(text).toContain('# unique: true');
+    });
+
+    it('writes the new rank as # difficulty and the weighted sum as # score for a solved board', () => {
+        // Fixture needing probe-consistency: rank hard (hardest technique), score 75 (sum of count x weight).
+        const board: BinaryCell[][] = [
+            [1, 0, 1, 0, 0, 1],
+            [0, 1, 1, 0, 0, 0],
+            [0, 1, 0, 0, 1, 0],
+            [1, 1, 0, 1, 1, 0],
+            [0, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 0, 1],
+        ];
+        const analysis = analyzePuzzle(board, generateRowHints(board), generateColHints(board), 3000);
+        const text = exportPBM(board, analysis);
+
+        expect(analysis.techniquesUsed['probe-consistency']).toBeGreaterThan(0);
+        expect(text).toContain('# difficulty: hard');
+        expect(text).toContain('# score: 75');
     });
 
     it('imports PBM while ignoring comments', () => {

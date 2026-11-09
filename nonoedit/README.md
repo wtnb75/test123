@@ -70,12 +70,21 @@
 - `box-reduction`
 - `probe-consistency`
 
+難易度ランクは、解析が使った手筋のうち最も重いもので決まります（盤面のサイズや使った回数には依存しません）。決まった順序で手筋を当てた結果なので、他の手順なら軽い手筋だけで解ける盤面が、重いランクになることがあります。
+
+- `easy`: 使った手筋が `full-line-fill` / `full-line-empty` / `edge-overlap` だけ
+- `normal`: 最も重く使った手筋が `candidate-common` / `cross-constraint`
+- `hard`: `region-split` / `box-reduction` / `probe-consistency` を使った
+- `unsolved`: 手筋を使い切っても未確定のマスが残る（解なし、または解析が 3 秒で終わらない場合も含む）
+
+解析パネルの `Hardest` に、必要になった最も重い手筋が出ます。
+
 ## PBM 仕様
 
 形式は Netpbm `P1`。エクスポート時に以下コメントを付与します。
 
-- `# difficulty: <rank>`
-- `# score: <value>`
+- `# difficulty: <rank>`（`easy` / `normal` / `hard` / `unsolved`。解くのに必要になった最も重い手筋で決まる）
+- `# score: <value>`（手筋の回数×重みの総和。補助の値）
 - `# unique: <true|false>`
 
 インポート時はコメント行を無視します。

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { analyzePuzzle } from './solver';
+import { analyzePuzzle, hardestTechnique, rankFromTechniques } from './solver';
 import { generateColHints, generateRowHints } from './hints';
-import type { BinaryCell } from './types';
+import type { BinaryCell, SolveTechnique } from './types';
 
 const analyzeGrid = (grid: BinaryCell[][], maxMillis = 3000) =>
     analyzePuzzle(grid, generateRowHints(grid), generateColHints(grid), maxMillis);
@@ -250,7 +250,168 @@ describe('solver advanced techniques', () => {
         const result = analyzeGrid(regionSplitGrid);
 
         expect(result.techniquesUsed['region-split']).toBeGreaterThan(0);
-        expect(result).toMatchObject({ solvable: true, unique: true, logical: true, remainingCells: 0, difficulty: 'normal' });
+        // The rank follows the hardest technique needed: region-split is in the hard group (docs/spec/solver.md).
+        expect(result).toMatchObject({ solvable: true, unique: true, logical: true, remainingCells: 0, difficulty: 'hard' });
+    });
+});
+
+// Expected values come from the rank table in docs/spec/solver.md, worked out by hand.
+describe('hardestTechnique', () => {
+    it('returns null when no technique was used', () => {
+        expect(hardestTechnique({})).toBeNull();
+    });
+
+    it('returns the last technique in the application order, not the most used or the heaviest by weight', () => {
+        expect(hardestTechnique({ 'full-line-fill': 30, 'edge-overlap': 5 })).toBe('edge-overlap');
+        expect(hardestTechnique({ 'candidate-common': 1, 'cross-constraint': 1 })).toBe('cross-constraint');
+        // probe-consistency has weight 8 but comes after box-reduction (weight 12) in the order
+        expect(hardestTechnique({ 'box-reduction': 1, 'probe-consistency': 1 })).toBe('probe-consistency');
+    });
+
+    it('follows the fixed application order for every adjacent pair of techniques', () => {
+        const order: SolveTechnique[] = [
+            'full-line-fill',
+            'full-line-empty',
+            'edge-overlap',
+            'candidate-common',
+            'cross-constraint',
+            'region-split',
+            'box-reduction',
+            'probe-consistency',
+        ];
+        const used: Partial<Record<SolveTechnique, number>> = {};
+        for (const technique of order) {
+            used[technique] = 1;
+        }
+        for (let i = order.length - 1; i >= 0; i -= 1) {
+            expect(hardestTechnique(used)).toBe(order[i]);
+            delete used[order[i]];
+        }
+        expect(hardestTechnique(used)).toBeNull();
+    });
+
+    it('does not add a hardest field to the analysis result (it is derived from techniquesUsed)', () => {
+        const result = analyzeGrid(probeGrid);
+
+        expect(Object.keys(result)).not.toContain('hardest');
+    });
+
+    it('ignores techniques with a count of 0', () => {
+        expect(hardestTechnique({ 'full-line-fill': 1, 'box-reduction': 0 })).toBe('full-line-fill');
+    });
+});
+
+describe('rankFromTechniques', () => {
+    it('ranks easy when only fill / empty / overlap were needed, however often', () => {
+        expect(rankFromTechniques({ 'full-line-fill': 30, 'edge-overlap': 5 }, true)).toBe('easy');
+        expect(rankFromTechniques({ 'full-line-empty': 500 }, true)).toBe('easy');
+    });
+
+    it('ranks easy when no technique was used', () => {
+        expect(rankFromTechniques({}, true)).toBe('easy');
+    });
+
+    it('ranks normal for candidate-common or cross-constraint, even after many easy steps', () => {
+        expect(rankFromTechniques({ 'edge-overlap': 100, 'candidate-common': 1 }, true)).toBe('normal');
+        expect(rankFromTechniques({ 'cross-constraint': 1 }, true)).toBe('normal');
+        expect(rankFromTechniques({ 'candidate-common': 1, 'cross-constraint': 1 }, true)).toBe('normal');
+    });
+
+    it('ranks hard for region-split, box-reduction or probe-consistency, even once', () => {
+        expect(rankFromTechniques({ 'edge-overlap': 100, 'region-split': 1 }, true)).toBe('hard');
+        expect(rankFromTechniques({ 'box-reduction': 1 }, true)).toBe('hard');
+        expect(rankFromTechniques({ 'probe-consistency': 1 }, true)).toBe('hard');
+    });
+
+    it('ranks unsolved when the analysis is not complete, whatever the techniques were', () => {
+        expect(rankFromTechniques({ 'probe-consistency': 3 }, false)).toBe('unsolved');
+        expect(rankFromTechniques({}, false)).toBe('unsolved');
+    });
+
+    it('does not depend on the counts: scaling every count keeps the rank', () => {
+        const used: Partial<Record<SolveTechnique, number>> = { 'full-line-fill': 2, 'candidate-common': 1 };
+        const scaled: Partial<Record<SolveTechnique, number>> = { 'full-line-fill': 200, 'candidate-common': 100 };
+
+        expect(rankFromTechniques(scaled, true)).toBe(rankFromTechniques(used, true));
+    });
+});
+
+describe('rank on real boards', () => {
+    it('ranks a no-solution board unsolved even though logic finishes it (logical true, solvable false)', () => {
+        const grid = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 0 as const));
+        const rows = Array.from({ length: 5 }, () => [5]);
+        const cols = Array.from({ length: 5 }, () => [0]);
+
+        const result = analyzePuzzle(grid, rows, cols, 3000);
+
+        expect(result).toMatchObject({ logical: true, solvable: false, difficulty: 'unsolved' });
+        expect(hardestTechnique(result.techniquesUsed)).toBe('full-line-fill');
+    });
+
+    it('ranks a full-width row board easy: every line is a single full-line-fill', () => {
+        // Hand-worked: all rows hint [5] on a width of 5 leave no gap, so full-line-fill is the hardest technique.
+        const grid = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 1 as const));
+
+        const result = analyzeGrid(grid);
+
+        expect(result).toMatchObject({ solvable: true, unique: true, logical: true, difficulty: 'easy' });
+        expect(hardestTechnique(result.techniquesUsed)).not.toBe('candidate-common');
+    });
+
+    it('ranks a single lone cell board normal: a [1] hint in a length-5 line needs candidate enumeration', () => {
+        // Hand-worked: one black cell at the top-right. Rows/columns with hint [1] cannot be settled by fill, empty
+        // or overlap (the gap is 4), so the lone cell needs candidate-common.
+        const grid = Array.from({ length: 5 }, (_, y) => Array.from({ length: 5 }, (_, x) => (y === 0 && x === 4 ? 1 : 0) as BinaryCell));
+
+        const result = analyzeGrid(grid);
+
+        expect(result).toMatchObject({ solvable: true, unique: true, logical: true, difficulty: 'normal' });
+        expect(hardestTechnique(result.techniquesUsed)).toBe('candidate-common');
+    });
+
+    it('ranks a board that needs probe-consistency to finish as logical and hard', () => {
+        const result = analyzeGrid(probeGrid);
+
+        expect(result.logical).toBe(true);
+        expect(result.techniquesUsed['probe-consistency']).toBeGreaterThan(0);
+        expect(result.difficulty).toBe('hard');
+    });
+
+    it('keeps the rank equal to the rank of the techniques used, on seeded boards of several sizes', () => {
+        let seed = 12345;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) % 4294967296;
+            return seed / 4294967296;
+        };
+        const seen: Record<string, number> = {};
+        for (const size of [4, 5, 6]) {
+            for (let i = 0; i < 25; i += 1) {
+                const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => (random() < 0.5 ? 1 : 0) as BinaryCell));
+                const result = analyzeGrid(grid);
+                expect(result.difficulty).toBe(rankFromTechniques(result.techniquesUsed, result.logical && result.solvable));
+                seen[result.difficulty] = (seen[result.difficulty] ?? 0) + 1;
+            }
+        }
+
+        // Guard against a vacuous run: the seeded boards reach every rank group but easy-only boards may be rare.
+        expect(seen.normal).toBeGreaterThan(0);
+        expect(seen.hard).toBeGreaterThan(0);
+        expect(seen.unsolved).toBeGreaterThan(0);
+    });
+
+    it('does not change the score: it stays the weighted sum of the technique counts', () => {
+        const result = analyzeGrid(boxReductionGrid);
+
+        expect(result.score).toBe(
+            (result.techniquesUsed['full-line-fill'] ?? 0) * 1 +
+                (result.techniquesUsed['full-line-empty'] ?? 0) * 1 +
+                (result.techniquesUsed['edge-overlap'] ?? 0) * 2 +
+                (result.techniquesUsed['candidate-common'] ?? 0) * 5 +
+                (result.techniquesUsed['cross-constraint'] ?? 0) * 4 +
+                (result.techniquesUsed['region-split'] ?? 0) * 8 +
+                (result.techniquesUsed['box-reduction'] ?? 0) * 12 +
+                (result.techniquesUsed['probe-consistency'] ?? 0) * 8,
+        );
     });
 });
 

@@ -27,11 +27,11 @@
 - コピー文字列だけで問題盤面を完全復元できる形式にする
 - 出力時は人間が読みやすいよう、1 行 1 行列で整形する
 - エクスポート時はコメント行に解析メタ情報を毎回付与する
-  - `# difficulty: <rank>`
-  - `# score: <value>`
+  - `# difficulty: <rank>`（`easy` / `normal` / `hard` / `unsolved`。解くのに必要になった最も重い手筋で決まる。[論理解可否判定と難易度判定](solver.md)）
+  - `# score: <value>`（手筋の回数×重みの総和。ランクとは独立した補助の値）
   - `# unique: <true|false>`
 
-想定例:
+想定例（`difficulty` と `score` の値は例示）:
 
 ```text
 P1
@@ -77,6 +77,7 @@ P1
   - export -> import の往復で情報が失われない
   - `P1` ヘッダ、サイズ、セル列を正しく解釈できる
   - コメント行として `difficulty`、`score`、`unique` が毎回出力される
+  - `# difficulty` は解析結果のランク（最も重い手筋で決まる定義のもの）、`# score` は解析結果のスコア（回数×重みの総和）と一致する。`techniquesUsed` が `{ edge-overlap: 100, region-split: 1 }` の解析結果からは `# difficulty: hard`、`# score: 208` になる（100 × 2 + 1 × 8）
 
 ## 完了条件
 

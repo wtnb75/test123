@@ -831,14 +831,15 @@ export class Game extends Scene {
 
         if (!this.isMobileLayout) {
             // Keep analysis panel inside the viewport on narrow non-mobile widths (e.g. 769-819px).
-            const statusX = Math.max(24, Math.min(Math.max(820, worldWidth - 200), worldWidth - 180));
+            const statusX = Math.max(24, worldWidth - 200);
             this.add.text(statusX, 120, 'Analysis', TITLE_STYLE);
             this.add.text(statusX, 150, `solvable: ${panel.solvable}`, UI_STYLE);
             this.add.text(statusX, 170, `unique: ${panel.unique}`, UI_STYLE);
             this.add.text(statusX, 190, `logical: ${panel.logical}`, UI_STYLE);
             this.add.text(statusX, 210, `difficulty: ${panel.difficulty}`, UI_STYLE);
-            this.add.text(statusX, 230, `score: ${panel.score}`, UI_STYLE);
-            this.add.text(statusX, 250, `remaining: ${panel.remaining}`, UI_STYLE);
+            this.add.text(statusX, 230, `hardest: ${panel.hardest}`, UI_STYLE);
+            this.add.text(statusX, 250, `score: ${panel.score}`, UI_STYLE);
+            this.add.text(statusX, 270, `remaining: ${panel.remaining}`, UI_STYLE);
             const techLabels: Array<[SolveTechnique, string]> = [
                 ['full-line-fill', 'fill'],
                 ['full-line-empty', 'empty'],
@@ -849,7 +850,7 @@ export class Game extends Scene {
                 ['box-reduction', 'box'],
                 ['probe-consistency', 'probe'],
             ];
-            let techY = 270;
+            let techY = 290;
             for (const [key, label] of techLabels) {
                 const count = panel.techniques[key];
                 const color = count !== '0' && count !== '-' ? '#d8d8d8' : '#666666';
@@ -871,13 +872,15 @@ export class Game extends Scene {
 
             if (this.mobileTab === 'analysis') {
                 const t = panel.techniques;
-                this.add.text(panelX + 10, panelY + 8, `solvable: ${panel.solvable}  unique: ${panel.unique}`, { ...UI_STYLE, fontSize: '13px' });
-                this.add.text(panelX + 10, panelY + 28, `logical: ${panel.logical}  difficulty: ${panel.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
-                this.add.text(panelX + 10, panelY + 48, `score: ${panel.score}  remaining: ${panel.remaining}`, { ...UI_STYLE, fontSize: '13px' });
-                this.add.text(panelX + 10, panelY + 68, `f:${t['full-line-fill']} e:${t['full-line-empty']} o:${t['edge-overlap']} c:${t['candidate-common']} x:${t['cross-constraint']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
-                this.add.text(panelX + 10, panelY + 82, `s:${t['region-split']} b:${t['box-reduction']} p:${t['probe-consistency']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
+                this.add.text(panelX + 10, panelY + 4, `solvable: ${panel.solvable}  unique: ${panel.unique}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 20, `logical: ${panel.logical}  difficulty: ${panel.difficulty}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 36, `hardest: ${panel.hardest}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 52, `score: ${panel.score}  remaining: ${panel.remaining}`, { ...UI_STYLE, fontSize: '13px' });
+                this.add.text(panelX + 10, panelY + 70, `f:${t['full-line-fill']} e:${t['full-line-empty']} o:${t['edge-overlap']} c:${t['candidate-common']} x:${t['cross-constraint']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
+                this.add.text(panelX + 10, panelY + 84, `s:${t['region-split']} b:${t['box-reduction']} p:${t['probe-consistency']}`, { ...UI_STYLE, fontSize: '12px', color: '#aaaaaa' });
                 if (panel.timeoutShown) {
-                    this.add.text(panelX + 10, panelY + 96, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' });
+                    // Same row as `hardest:` (always short), right-aligned: the technique rows can be wide.
+                    this.add.text(panelX + panelW - 10, panelY + 36, 'timeout: 3s', { ...UI_STYLE, fontSize: '13px', color: '#ffcc66' }).setOrigin(1, 0);
                 }
             } else if (this.mobileTab === 'data') {
                 this.add.text(panelX + 10, panelY + 10, 'PBM I/O', { ...UI_STYLE, fontSize: '13px' });
