@@ -20,7 +20,8 @@ import {
     SHUFFLE_NOTICE_MS,
     SWAP_MS,
 } from '../params';
-import { findMove, RAINBOW, type Kind, type Pos } from '../logic/board';
+import { RAINBOW, type Kind, type Pos } from '../logic/board';
+import { findHint } from '../logic/hint';
 import { cellAt, initialInput, isBoardKey, pressKey, swipe, swipeFrom, tapStone, touchOutside } from '../logic/input';
 import { boardRect, cellCenter, hudLayout, type HudLayout, type Rect } from '../logic/layout';
 import { Round, type NextState, type Step } from '../logic/round';
@@ -185,7 +186,7 @@ export class Game extends Scene {
                 size: { get: () => ({ w: this.scale.gameSize.width, h: this.scale.gameSize.height }) },
                 guard: { get: () => this.guard.active },
                 hinting: { get: () => this.hintGems.length > 0 },
-                move: { get: () => findMove(this.round.board) },
+                move: { get: () => findHint(this.round.board, this.round.kinds) },
             });
             (window as unknown as { __qa: unknown }).__qa = qa;
             if (new URLSearchParams(window.location.search).has('qapopups')) {
@@ -409,10 +410,10 @@ export class Game extends Scene {
         this.hintGems = [];
     }
 
-    /** Pulses the two stones of the first available move until the player acts. */
+    /** Pulses the two stones of the hint's move (the lowest, biggest clear) until the player acts. */
     private showHint() {
         this.hintTimer = null;
-        const move = this.phase === 'idle' ? findMove(this.round.board) : null;
+        const move = this.phase === 'idle' ? findHint(this.round.board, this.round.kinds) : null;
         if (!move) return;
         this.hintGems = move.map((p) => this.gems[p.r][p.c] as Gem);
         this.tweens.add({ targets: this.hintGems, scale: HINT_SCALE, duration: HINT_HALF_MS, yoyo: true, repeat: -1 });
