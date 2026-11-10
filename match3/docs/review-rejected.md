@@ -16,3 +16,8 @@
 - `src/game/logic/special.ts` の `groupRuns`: グループの配列を毎回複製していて二次の計算量 — 理由: 盤面は 64 マスで、体感できない。
 - `src/game/scenes/Game.ts` の `COLOURED_KINDS`: 種類の一覧が `Kind` と別に手書き — 理由: (色, 種類) のテクスチャ名が 25 通りで重ならないことをテストで固定していて、足し忘れは QA の画像で見える。
 - `src/game/logic/autoplay.test.ts`: max ボットが候補ごとに `tryFirst` を 2 回呼ぶ — 理由: テスト全体で約 3 秒で、直す価値が無い。
+- `src/game/logic/hint.ts` の `findHint`: 段が消える数より優先されるので、特殊な石を作る手より下の段の 3 個消しを指す — 理由: 合意した基準（下の段 → 消える数 → 探索の順）そのもの。見直すなら spec の改訂で、PR のテストプレイで確かめる。
+- `src/game/logic/hint.ts` の `swapIn`: 交換の複製が `swapCells` / `Round.swapStones` と 3 つになる — 理由: 共通化は `board.ts` と `round.ts` を触る整理で、この変更の目的の外。
+- `src/game/logic/hint.ts` の `findHint`: 数えるときに交換の順（先の石を先に）で数が変わりうる — 理由: 2 つの交換する石は色が違い、同じ並びの「できる位置」に両方は入らないので、順は数に効かない。テストで全組・全局面の順序違いの数が一致することを確かめている。
+- `src/game/logic/hint.ts` の `findHint`: 盤面と石の種類を複製している — 理由: spec の技術要件が複製を求めていて、出す瞬間に 1 回だけ呼ぶので、コストは 64 マス分で無視できる。
+- `src/game/logic/hint.test.ts`: オラクルのテストの下限（`states` など）が種 1〜12 に依存する — 理由: 空振りを防ぐための下限で、余裕を持たせてある。種や生成の変更で落ちたときは、下限を見直すきっかけになる。
