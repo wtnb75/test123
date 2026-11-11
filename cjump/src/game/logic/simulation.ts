@@ -17,6 +17,7 @@ import {
     isCollisionActive
 } from './character';
 import { advanceSpawnTimer } from './spawn';
+import { placeCircleCenter } from './placement';
 import { createSplineRoute } from './spline';
 import type { Point } from './waypoints';
 
@@ -29,6 +30,8 @@ export interface BotView {
 export type Bot = (view: BotView) => boolean;
 
 export interface RunConfig {
+    // Stage number: sets the share of circles aimed at the route ahead (placement.ts).
+    stage: number;
     route: Point[];
     spawnIntervalMs: number;
     growthSpeedPxPerSec: number;
@@ -42,7 +45,7 @@ const BOUNDS = { width: GAME_WIDTH, height: GAME_HEIGHT };
 // Returns true when the route end is reached without touching a circle edge.
 // Frame n (0-based) runs entirely at time (n + 1) * MEASURE_STEP_MS, in the same order as the Game scene.
 export function simulateRun(config: RunConfig): boolean {
-    const { route, spawnIntervalMs, growthSpeedPxPerSec, rng, bot, timeoutMs } = config;
+    const { stage, route, spawnIntervalMs, growthSpeedPxPerSec, rng, bot, timeoutMs } = config;
     const spline = createSplineRoute(route);
     const speedPerMs = CHARACTER_PIXEL_SPEED_PER_SEC / 1000 / spline.length;
     let character = createCharacterState();
@@ -81,7 +84,8 @@ export function simulateRun(config: RunConfig): boolean {
         const tick = advanceSpawnTimer(msSinceLastSpawn, MEASURE_STEP_MS, spawnIntervalMs);
         msSinceLastSpawn = tick.msSinceLastSpawn;
         if (tick.shouldSpawn) {
-            circles.push(createCircle(nextId++, rng, BOUNDS, nowMs));
+            const aheadPointAt = (ms: number) => spline.pointAt(Math.min(1, character.t + ms * speedPerMs));
+            circles.push(createCircle(nextId++, placeCircleCenter(rng, stage, aheadPointAt, BOUNDS), nowMs));
         }
 
         circles = circles.filter(

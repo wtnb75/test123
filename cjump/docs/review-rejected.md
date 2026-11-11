@@ -18,3 +18,10 @@
 - `src/game/logic/difficulty.ts`（`routeSeed`）: 小数・`NaN` のステージ番号を守らない — 理由: ステージ番号は `StageSelect` が渡す 1〜10 の整数だけ。`getDifficultyParams` と同じ扱いにするのが spec。
 - `src/game/logic/difficulty.ts`: `ROUTE_SEEDS` の置き場所が難易度の関数と別の性質 — 理由: 置き場所は実装裁量（`constants.ts` か `difficulty.ts`）。
 - `src/game/logic/regression.test.ts`: import の並び・`it.each` の変数名が `stage` のまま — 理由: 見た目だけの指摘。
+- `logic/placement.ts`（`forwardRatio`）: ステージが `NaN` のとき全部の円が前方になる — 理由: ステージ番号は `StageSelect` が渡す 1〜10 の整数だけ。`routeSeed` と同じ扱い（上の指摘）。
+- `scenes/Game.ts` / `logic/simulation.ts`: 前方の点を求める関数 `aheadPointAt` が 2 か所にあり、Scene の配線が単体テストされない — 理由: 式は 1 行で、Scene の接着剤は QA で確かめる（spec の決め）。共通化は別の変更。
+- `logic/placement.ts`: 画面の外に出る前方の円を端に丸めるので、端に円が集まる — 理由: spec が決めた丸め（「円の位置の決め方」）。分布の偏りは測定の値に含まれている。
+- `logic/placement.test.ts`: 「パラメータの値を固定する」テストが値の再掲 — 理由: `regression.test.ts` と同じ、spec の値を守る回帰の保護。`game-balance` で変えるときは spec と一緒に直す。
+- `logic/placement.test.ts`: パターン選択の `1/3 → 1` が浮動小数の丸めに頼る — 理由: spec が境界として挙げた値で、IEEE-754 では `1/3*3 === 1` が決まっている。
+- `logic/simulation.ts`: 発生ごとに `aheadPointAt` のクロージャを作る — 理由: 測定は 1 ステージ約 3 秒に収まっており、問題が出てから最適化する（上の指摘 3 と同じ）。
+- `docs/spec.md` の進捗キー: QA・balance・polish が `pending` のまま — 理由: 指摘ではなく、spec の改訂による下流のリセット（正しい動作）。

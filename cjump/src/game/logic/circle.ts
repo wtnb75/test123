@@ -1,3 +1,5 @@
+import type { Point } from './waypoints';
+
 export interface CircleObstacle {
     id: number;
     x: number;
@@ -10,13 +12,8 @@ export interface ScreenBounds {
     height: number;
 }
 
-export function createCircle(id: number, rng: () => number, bounds: ScreenBounds, nowMs: number): CircleObstacle {
-    return {
-        id,
-        x: rng() * bounds.width,
-        y: rng() * bounds.height,
-        spawnedAtMs: nowMs
-    };
+export function createCircle(id: number, center: Point, nowMs: number): CircleObstacle {
+    return { id, x: center.x, y: center.y, spawnedAtMs: nowMs };
 }
 
 export function getRadius(

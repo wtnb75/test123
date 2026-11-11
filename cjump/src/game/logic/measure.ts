@@ -46,6 +46,7 @@ function clearRate(stage: number, bot: Bot, runs: number): number {
     let cleared = 0;
     for (let run = 0; run < runs; run++) {
         const ok = simulateRun({
+            stage,
             route,
             spawnIntervalMs: difficulty.circleSpawnIntervalMs,
             growthSpeedPxPerSec: difficulty.circleGrowthSpeedPxPerSec,

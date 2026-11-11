@@ -9,28 +9,34 @@ const ROUTE = [
     { x: 130, y: 0 }
 ];
 
+// Each circle draws six values (ux, uy, ug, ut, ua, ud). ug = 0.99 is never below the forward ratio, so the circle
+// is placed uniformly at (ux * GAME_WIDTH, uy * GAME_HEIGHT).
+function uniformCircleDraws(x: number, y: number): number[] {
+    return [x / GAME_WIDTH, y / GAME_HEIGHT, 0.99, 0, 0, 0];
+}
+
 // First circle is centered at (65, 0); every later circle is far from the route.
 function rngWithCircleAtMiddle(centerX = 65): () => number {
-    const values = [centerX / GAME_WIDTH, 0];
+    const first = uniformCircleDraws(centerX, 0);
+    const far = uniformCircleDraws(900, 500);
     let calls = 0;
     return () => {
         const call = calls++;
-        if (call < values.length) {
-            return values[call];
-        }
-        return call % 2 === 0 ? 900 / GAME_WIDTH : 500 / GAME_HEIGHT;
+        return call < first.length ? first[call] : far[(call - first.length) % far.length];
     };
 }
 
 function rngAllFar(): () => number {
+    const far = uniformCircleDraws(900, 500);
     let calls = 0;
-    return () => (calls++ % 2 === 0 ? 900 / GAME_WIDTH : 500 / GAME_HEIGHT);
+    return () => far[calls++ % far.length];
 }
 
 // Hand-worked: with growth 300 px/s the edge of the middle circle (active ~700 ms after t=0,
 // plus up to one spawn-interval of delay) reaches the character at roughly t = 0.85-0.9 s,
 // i.e. before the route ends at 1.0 s.
 const baseConfig = {
+    stage: 1,
     route: ROUTE,
     spawnIntervalMs: 200,
     growthSpeedPxPerSec: 300,
@@ -123,6 +129,29 @@ describe('simulateRun', () => {
         };
         simulateRun({ ...baseConfig, rng: rngWithCircleAtMiddle(), bot: probe });
         expect(seen.some((touch) => touch)).toBe(true);
+    });
+});
+
+describe('simulateRun circle placement', () => {
+    // First circle draws: ux/uy far away, ug = 0.7 (uniform at stage 1: ratio 0.6; forward at stage 10: ratio 0.8),
+    // ut = 0.5 (2000 ms ahead, past the 1000 ms route end, so the route end (130,0)), a quarter turn, the nearest
+    // offset (40 px): a forward circle centered at (130, 40), whose edge crosses the route end before it is reached.
+    function rngForwardOnlyAtHighStage(): () => number {
+        const first = [900 / GAME_WIDTH, 500 / GAME_HEIGHT, 0.7, 0.5, 0.25, 0];
+        const far = uniformCircleDraws(900, 500);
+        let calls = 0;
+        return () => {
+            const call = calls++;
+            return call < first.length ? first[call] : far[(call - first.length) % far.length];
+        };
+    }
+
+    it('clears at stage 1 where the circle is uniform and far, but an idle run fails at stage 10 where it is aimed ahead', () => {
+        const run = (stage: number, bot: Bot) =>
+            simulateRun({ ...baseConfig, stage, rng: rngForwardOnlyAtHighStage(), bot });
+        expect(run(1, idleBot)).toBe(true);
+        expect(run(10, idleBot)).toBe(false);
+        expect(run(10, reflexBot)).toBe(true);
     });
 });
 
