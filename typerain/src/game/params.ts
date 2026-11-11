@@ -25,6 +25,8 @@ export const SPAWN_START_SEC = 2.4;
 export const SPAWN_MIN_SEC = 0.8;
 export const SPAWN_DECAY_PER_SEC = 0.02;
 export const SPAWN_GAP = 4;
+/** Pause after a board wipe (a word landed with lives left) before the next word spawns. */
+export const WIPE_PAUSE_SEC = 1.2;
 /** Fall speeds are fractions of the fall distance per second, so every screen height gives the same pace. */
 export const FALL_SPEED_START = 0.084;
 export const FALL_SPEED_RAMP = 0.0014;
@@ -50,6 +52,8 @@ export const SCORE_POP_RISE = 40;
 export const LAND_FLASH_MS = 250;
 export const FLOOR_GLOW_MS = 250;
 export const HEART_LOSE_MS = 300;
+export const WIPE_FADE_MS = 250;
+export const WIPE_SHRINK_SCALE = 0.6;
 export const LOCK_BAND_ALPHA = 0.15;
 export const LOCK_PAD_X = 4;
 /** Typed characters are read from the hidden input's value; past this length it is emptied. */

@@ -21,6 +21,8 @@ import {
     SCORE_POP_MS,
     SCORE_POP_RISE,
     SCREEN_WIDTH,
+    WIPE_FADE_MS,
+    WIPE_SHRINK_SCALE,
     WORD_H,
 } from '../params';
 import { clampPopX, heartsLost, lockBandRect, popText } from '../logic/effects';
@@ -54,7 +56,7 @@ export class Game extends Scene {
     private hint!: GameObjects.Text;
     private endTimer = 0;
     private offFocus: (() => void) | null = null;
-    /** Timed effects playing right now (clear / pop-up / landed flash / floor glow / lost heart). */
+    /** Timed effects playing right now (clear / pop-up / landed flash / floor glow / lost heart / wiped word). */
     private effects = 0;
     private glowTimer: Time.TimerEvent | null = null;
     private heart = { w: 0, h: 0 };
@@ -141,6 +143,7 @@ export class Game extends Scene {
         const step = this.round.step(dt, fallDistance);
         if (step.spawned) this.addView(step.spawned);
         if (step.floorHits > 0) this.onLanded(step.landed, heartsLost(livesBefore, this.round.lives), fallDistance);
+        if (step.wiped.length > 0) this.fadeWiped(step.wiped, fallDistance);
         if (this.round.ended) typingInput().blur();
         this.placeViews();
     }
@@ -224,6 +227,24 @@ export class Game extends Scene {
         this.glowFloor();
         this.loseHearts(lostHearts);
         this.refreshHud();
+    }
+
+    /** Words cleared by the board wipe shrink and fade out in grey where they were (no score pop-up). */
+    private fadeWiped(wiped: readonly Word[], fallDistance: number) {
+        for (const w of wiped) {
+            const base = this.takeView(w.id);
+            if (!base) continue;
+            // The view may not have been placed this frame yet (a word that just spawned), so use the word's own place.
+            const centerX = w.x + base.width / 2;
+            const top = wordYFor(w.p, fallDistance);
+            // Shrink about the centre of the visible glyphs, not of the padded box.
+            setGlyphOrigin(base.setColor(COLOR.wiped), 0.5, 0.5)
+                .setPosition(centerX, top + glyphHeight(base) / 2)
+                .setDepth(DEPTH.fx);
+            this.play({ targets: base, scale: WIPE_SHRINK_SCALE, alpha: 0, duration: WIPE_FADE_MS }, () =>
+                base.destroy(),
+            );
+        }
     }
 
     /** The floor line turns white and fades back to red; a new landing restarts the count. */
