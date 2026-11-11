@@ -1,8 +1,12 @@
 import { Scene } from 'phaser';
 
+import { breakdownText } from '../logic/scoring';
+
 interface ResultData {
     score?: number;
-    collateralClears?: number;
+    placed?: number;
+    collateral?: number;
+    streakBonus?: number;
     digitCount?: number;
     finalExpression?: string;
 }
@@ -10,7 +14,9 @@ interface ResultData {
 export class Result extends Scene
 {
     private score = 0;
-    private collateralClears = 0;
+    private placed = 0;
+    private collateral = 0;
+    private streakBonus = 0;
     private digitCount = 2;
     private finalExpression = '';
 
@@ -22,7 +28,9 @@ export class Result extends Scene
     init (data: ResultData)
     {
         this.score = data.score ?? 0;
-        this.collateralClears = data.collateralClears ?? 0;
+        this.placed = data.placed ?? 0;
+        this.collateral = data.collateral ?? 0;
+        this.streakBonus = data.streakBonus ?? 0;
         this.digitCount = data.digitCount ?? 2;
         this.finalExpression = data.finalExpression ?? '';
     }
@@ -60,7 +68,7 @@ export class Result extends Scene
             wordWrap: { width: width - 36 }
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height * 0.66, `COLLATERAL CLEAR\n${this.collateralClears}`, {
+        this.add.text(width / 2, height * 0.66, breakdownText(this.placed, this.collateral, this.streakBonus), {
             align: 'center',
             color: '#d7e3fc',
             fontFamily: 'sans-serif',
