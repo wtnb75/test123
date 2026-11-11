@@ -18,6 +18,8 @@ export const COLOR = {
     typed: '#ffd84d',
     floor: 0xff5555,
     warn: '#ff6b6b',
+    /** Words cleared by a board wipe (grey, not the red of a word that landed). */
+    wiped: '#8a8f9c',
     lockBand: 0xffffff,
     /** The floor line while it glows after a landing (it fades back to `floor`). */
     floorGlow: 0xffffff,

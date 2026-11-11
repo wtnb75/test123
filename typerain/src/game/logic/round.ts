@@ -7,6 +7,7 @@ import {
     LIVES,
     MAX_ON_SCREEN,
     SPAWN_GAP,
+    WIPE_PAUSE_SEC,
     WORD_H,
 } from '../params';
 import { fallSpeedAt, spawnIntervalAt } from './difficulty';
@@ -40,6 +41,11 @@ export interface StepResult {
     floorHits: number;
     /** Those words themselves (already removed from `words`), lowest first. */
     landed: readonly Word[];
+    /**
+     * Words cleared by the board wipe (a word landed and lives remain): every word on screen, including one
+     * that spawned this step. Empty when there was no wipe. Already removed from `words`; no score or combo.
+     */
+    wiped: readonly Word[];
 }
 
 export class Round {
@@ -57,6 +63,8 @@ export class Round {
     private spawnTimer = 0;
     private nextId = 1;
     private lastSpawnedId: number | null = null;
+    /** Seconds left of the pause after a board wipe, during which nothing spawns (0 when not pausing). */
+    private wipePauseLeft = 0;
 
     constructor(private readonly rng: Rng) {}
 
@@ -93,11 +101,12 @@ export class Round {
      * floor. `fallDistance` is the current height's fall distance in px (see `fallDistanceFor`).
      */
     step(dtSec: number, fallDistance: number): StepResult {
-        const result: StepResult = { spawned: null, floorHits: 0, landed: NO_WORDS };
+        const result: StepResult = { spawned: null, floorHits: 0, landed: NO_WORDS, wiped: NO_WORDS };
         if (this.phase !== 'playing') return result;
         const dt = Math.min(dtSec, DT_MAX_SEC);
         this.elapsed += dt;
         this.spawnTimer += dt;
+        this.wipePauseLeft = Math.max(0, this.wipePauseLeft - dt);
         if (this.canSpawn(fallDistance)) {
             this.spawnTimer = 0;
             result.spawned = this.spawn();
@@ -116,9 +125,15 @@ export class Round {
             this.combo = 0;
             if (this.lives === 0) {
                 this.phase = 'ending';
-                break;
+                return result;
             }
         }
+        // Lives remain: a missed word costs a life but also clears the board, and nothing spawns for a moment.
+        result.wiped = this.words.splice(0);
+        this.targetId = null;
+        this.wipePauseLeft = WIPE_PAUSE_SEC;
+        // The next word is due as soon as the pause is over, whatever the spawn interval is (it resets at the spawn).
+        this.spawnTimer = Number.POSITIVE_INFINITY;
         return result;
     }
 
@@ -129,6 +144,7 @@ export class Round {
     }
 
     private canSpawn(fallDistance: number): boolean {
+        if (this.wipePauseLeft > 0) return false;
         // The first word comes FIRST_SPAWN_SEC after the start; later ones every spawn interval.
         const wait = this.nextId === 1 ? FIRST_SPAWN_SEC : spawnIntervalAt(this.elapsed);
         if (this.spawnTimer < wait) return false;

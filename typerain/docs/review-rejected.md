@@ -27,3 +27,8 @@
 - `src/game/scenes/*.ts`: dev 専用の `size` getter が 3 か所で重複 — 理由: 本番に入らず、共通化の利点が小さい
 - `src/game/scenes/render.ts`: カメラのサイズと `gameSize` の更新順に依存する — 理由: カメラは作成時に `gameSize` で作られ、リサイズは `CameraManager` が先に処理する。QA で画面サイズを切り替えて確認済み
 - `src/game/scenes/render.ts`: Scene 側の連携にユニットテストが無い — 理由: 規約で `scenes/**` はカバレッジ対象外（QA で確認）。判定は純ロジックに出してテスト済み
+- `src/game/logic/round.ts`: 一掃のフレームに出た単語が、出てすぐ一掃される（`spawned` と `wiped` の両方に入る） — 理由: spec が明示した 1 フレームだけの稀なケース。出現を一掃の後ろに回すと出現・落下の順序（spec の「同じフレームの順序」）が変わる
+- `src/game/scenes/Game.ts`: `fadeWiped` が `popCleared` と似た手順を繰り返す — 理由: 2 か所だけで、色・位置の出どころ・tween の値が違う。共通化の利点が小さい
+- `src/game/logic/round.ts`: 一掃のあとの出現のタイマーに `Infinity` を入れる（別のフラグにする案） — 理由: `spawnTimer` は private で `spawn()` が 0 に戻す。`Infinity` を読む箇所は無く、フラグを足すより単純
+- `src/game/logic/round.test.ts`: `dt` = 0.1 の待ちのテストが 2〜3 step の幅を許す — 理由: spec が浮動小数の誤差で 1 step ずれることを認めている。厳密な境界は `dt` = 0.0625 のテストが固定している
+- `src/game/logic/round.test.ts`: 「出す間隔が長いときも待ちは 1.2 秒」のテストが前提（タイマーがほぼ空）を assert していない — 理由: 修正前のコードで失敗することを確認済み（回帰を捕まえる）。前提が崩れると他のテストも変わる

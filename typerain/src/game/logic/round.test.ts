@@ -187,7 +187,10 @@ describe('words reaching the floor', () => {
         r.combo = 4;
         const s = r.step(0.1, D); // moves p by about 0.0084
         expect(s.floorHits).toBe(1);
-        expect(r.words.map((w) => w.text)).toEqual(['cat']);
+        expect(s.landed.map((w) => w.text)).toEqual(['dog']);
+        // The other word (not yet at the floor) is cleared by the board wipe, not left on screen.
+        expect(s.wiped.map((w) => w.text)).toEqual(['cat']);
+        expect(r.words).toHaveLength(0);
         expect(r.lives).toBe(2);
         expect(r.combo).toBe(0);
     });
@@ -241,7 +244,8 @@ describe('words reaching the floor', () => {
         const s = r.step(0.0625, D);
         expect(s.landed.map((w) => w.text)).toEqual(['dog', 'cat']);
         expect(s.floorHits).toBe(2);
-        expect(r.words.map((w) => w.text)).toEqual(['sun']);
+        expect(s.wiped.map((w) => w.text)).toEqual(['sun']); // the word still falling is wiped, not landed
+        expect(r.words).toHaveLength(0);
     });
 
     it('does not list a word that landed after the last life was lost (it is ignored)', () => {
@@ -278,9 +282,168 @@ describe('after the round has ended', () => {
         r.step(0.0625, D);
         const elapsed = r.elapsed;
         const s = r.step(0.0625, D);
-        expect(s).toEqual({ spawned: null, floorHits: 0, landed: [] });
+        expect(s).toEqual({ spawned: null, floorHits: 0, landed: [], wiped: [] });
         expect(r.elapsed).toBe(elapsed);
         expect(r.typeChar('c')).toEqual({ kind: 'ignored' });
+    });
+});
+
+describe('board wipe (a landing with lives left clears the board)', () => {
+    it('clears every other word, drops the lock-on and keeps score and cleared count', () => {
+        const r = roundWith(word(1, 'cat', 1.2), word(2, 'dog', 0.5), word(3, 'sun', 0.3));
+        r.typeChar('d'); // lock on to dog, which is not the word that lands
+        r.score = 120;
+        r.cleared = 7;
+        const s = r.step(0.0625, D);
+        expect(s.landed.map((w) => w.text)).toEqual(['cat']);
+        expect(s.wiped.map((w) => w.text).sort()).toEqual(['dog', 'sun']);
+        expect(r.words).toHaveLength(0);
+        expect(r.targetId).toBeNull();
+        expect(r.lives).toBe(2);
+        expect([r.score, r.cleared]).toEqual([120, 7]);
+        expect(r.phase).toBe('playing');
+    });
+
+    it('does not wipe when no word reached the floor (and wiped is empty)', () => {
+        const r = roundWith(word(1, 'cat', 0.5), word(2, 'dog', 0.3));
+        const s = r.step(0.0625, D);
+        expect(s.wiped).toEqual([]);
+        expect(r.words).toHaveLength(2);
+    });
+
+    it('does not wipe on the landing that costs the last life: the board stays and nothing is wiped', () => {
+        const r = roundWith(word(1, 'cat', 1.2), word(2, 'dog', 0.5));
+        r.lives = 1;
+        const s = r.step(0.0625, D);
+        expect(r.ended).toBe(true);
+        expect(s.wiped).toEqual([]);
+        expect(r.words.map((w) => w.text)).toEqual(['dog']);
+    });
+
+    it('wipes once when two words land together with lives left (3 -> 1), losing two lives', () => {
+        const r = roundWith(word(1, 'cat', 1.2), word(2, 'dog', 1.1), word(3, 'sun', 0.4));
+        const s = r.step(0.0625, D);
+        expect(s.floorHits).toBe(2);
+        expect(r.lives).toBe(1);
+        expect(s.wiped.map((w) => w.text)).toEqual(['sun']);
+        expect(r.phase).toBe('playing');
+    });
+
+    it('does not wipe when two words land together and the lives run out (2 -> 0)', () => {
+        const r = roundWith(word(1, 'cat', 1.2), word(2, 'dog', 1.1), word(3, 'sun', 0.4));
+        r.lives = 2;
+        const s = r.step(0.0625, D);
+        expect(r.ended).toBe(true);
+        expect(s.wiped).toEqual([]);
+        expect(r.words.map((w) => w.text)).toEqual(['sun']);
+    });
+
+    it('also wipes the word that spawned in the same step as the landing, and still reports it as spawned', () => {
+        const r = new Round(() => 0);
+        for (let i = 0; i < 6; i++) r.step(0.0625, D); // 0.375 s: the first word is due on the next step
+        r.words.push(word(99, 'zzz', 1.5));
+        const s = r.step(0.0625, D);
+        expect(s.spawned?.text).toBe('cat');
+        expect(s.landed.map((w) => w.text)).toEqual(['zzz']);
+        expect(s.wiped).toEqual([s.spawned]); // the same word object, wiped on the step it appeared
+        expect(r.words).toHaveLength(0);
+    });
+
+    it('spawns nothing for WIPE_PAUSE_SEC (1.2 s) even though the spawn interval has long passed', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.step(0.0625, D); // the wipe step (counts as 0 s)
+        for (let i = 0; i < 19; i++) expect(r.step(0.0625, D).spawned).toBeNull(); // up to 1.1875 s
+        expect(r.step(0.0625, D).spawned).not.toBeNull(); // 1.25 s: the pause is over
+    });
+
+    it('keeps the pause at 1.2 s with dt = 0.1: nothing after 11 steps (1.1 s), a word within the next 2 (float slack)', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.step(0.1, D); // the wipe step
+        for (let i = 0; i < 11; i++) expect(r.step(0.1, D).spawned).toBeNull();
+        const next = [r.step(0.1, D).spawned, r.step(0.1, D).spawned];
+        expect(next.some((w) => w !== null)).toBe(true);
+    });
+
+    it('counts the pause with dt capped at DT_MAX_SEC: one 5 s frame only takes 0.1 s off it', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.step(0.1, D); // the wipe step
+        expect(r.step(5, D).spawned).toBeNull(); // 1.1 s left, not 0
+        for (let i = 0; i < 9; i++) expect(r.step(0.1, D).spawned).toBeNull(); // about 0.2 s left
+        const next = [r.step(0.1, D).spawned, r.step(0.1, D).spawned, r.step(0.1, D).spawned];
+        expect(next.some((w) => w !== null)).toBe(true);
+    });
+
+    it('ends the pause on time even when the spawn timer was nearly empty at the wipe (interval 2.1 s at t = 15)', () => {
+        const r = new Round(() => 0);
+        for (let i = 0; i < 7 && r.words.length === 0; i++) r.step(0.0625, D); // the first word spawns
+        expect(r.words).toHaveLength(1);
+        r.elapsed = 15; // the spawn interval is 2.1 s, far above the 1.2 s pause
+        r.words.push(word(99, 'zzz', 1.5));
+        r.step(0.0625, D); // the wipe step: the spawn timer is only about 0.06 s
+        expect(r.words).toHaveLength(0);
+        for (let i = 0; i < 19; i++) expect(r.step(0.0625, D).spawned).toBeNull(); // up to 1.1875 s
+        expect(r.step(0.0625, D).spawned).not.toBeNull(); // 1.25 s, not 2.1 s
+    });
+
+    it('does not wipe on a miss or a clear: the other words stay', () => {
+        const r = roundWith(word(1, 'cat', 0.5), word(2, 'dog', 0.4));
+        expect(r.typeChar('x')).toEqual({ kind: 'miss' });
+        expect(r.words).toHaveLength(2);
+        'cat'.split('').forEach((c) => r.typeChar(c));
+        expect(r.words.map((w) => w.text)).toEqual(['dog']);
+    });
+
+    it('leaves the elapsed time (difficulty) as it was when it wipes', () => {
+        const r = roundWith(word(7, 'sun', 1.2));
+        const before = r.elapsed;
+        r.step(0.0625, D);
+        expect(r.elapsed).toBe(before + 0.0625);
+        expect(r.words).toHaveLength(0);
+    });
+
+    it('does not let the shrinking spawn interval shorten the pause (the pause is its own countdown)', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.elapsed = 200; // the spawn interval is at its 0.8 s floor
+        r.step(0.0625, D);
+        for (let i = 0; i < 12; i++) expect(r.step(0.0625, D).spawned).toBeNull(); // 0.75 s: under the 0.8 s interval
+        for (let i = 0; i < 7; i++) expect(r.step(0.0625, D).spawned).toBeNull(); // 1.1875 s
+        expect(r.step(0.0625, D).spawned).not.toBeNull();
+    });
+
+    it('goes back to the normal spawn interval after the first word following the pause', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.elapsed = 200; // interval 0.8 s
+        r.step(0.0625, D);
+        let first = false;
+        for (let i = 0; i < 100 && !first; i++) first = r.step(0.0625, D).spawned !== null;
+        expect(first).toBe(true);
+        r.words[0].p = 0.5; // lower than the spawn gap so the next word is limited by the interval only
+        let steps = 0;
+        let next = false;
+        while (!next && steps < 100) {
+            next = r.step(0.0625, D).spawned !== null;
+            steps += 1;
+        }
+        expect(steps).toBeGreaterThanOrEqual(12); // 0.75 s still under 0.8 s
+        expect(steps).toBeLessThanOrEqual(13); // 0.8125 s
+    });
+
+    it('treats typing on the emptied board as a miss, and wiping gives no score or combo', () => {
+        const r = roundWith(word(1, 'cat', 1.2), word(2, 'dog', 0.4));
+        r.combo = 3;
+        r.step(0.0625, D);
+        expect(r.combo).toBe(0);
+        expect(r.typeChar('d')).toEqual({ kind: 'miss' });
+        expect(r.score).toBe(0);
+    });
+
+    it('wipes again on a later landing, even within the pause (every life lost with lives left wipes)', () => {
+        const r = roundWith(word(1, 'cat', 1.2));
+        r.step(0.0625, D);
+        r.words.push(word(5, 'dog', 1.2), word(6, 'sun', 0.2));
+        const s = r.step(0.0625, D);
+        expect(s.wiped.map((w) => w.text)).toEqual(['sun']);
+        expect(r.lives).toBe(1);
     });
 });
 
