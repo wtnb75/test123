@@ -10,12 +10,18 @@
 - `src/game/scenes/Game.ts` spawnEnemy 系: 編隊と単体の敵で Enemy のオブジェクトリテラルを 3 箇所に書いている — 理由: 既存の編隊の書き方に合わせた。項目の追加は今後の拡張で見直す（nit）
 - `src/game/scenes/Game.ts` Enemy 型: 停止用の phase / holdLeft を全敵に持たせている — 理由: 型の再設計は 1 変更 1 目的の外。今回は kind で分岐して誤用はない（nit）
 - `src/game/scenes/Game.ts` update: 退場の判定で編隊は `40` のリテラル、単体は `SOLO_OFFSCREEN_MARGIN` — 理由: 編隊の 40 は従来のまま（1 変更 1 目的）。値は同じで動作は一致（nit）
-- `src/game/scenes/Game.ts` update（地雷の更新）: 毎フレーム `[...this.mines]` の複製と `includes` で除去済みを調べる — 理由: 地雷は最大 5 発で、触れた地雷が爆発して配列が変わる（バリアで防いだあとも続ける）ための正しさの手当て。コストは測れない
+- `src/game/core/minefield.ts` stepMinefield: 毎フレーム `[...mines.mines]` の複製・`due`・`visited` の配列と Set・フックのクロージャを作る — 理由: 地雷は最大 5 発で、触れた地雷が爆発して配列が変わる（バリアで防いだあとも続ける）ための正しさの手当て。移動前の Scene も複製を作っていた。コストは測れない
 - `src/game/scenes/Game.ts`・`core/powerup.ts`: Scene の配線（フレームの順序・バリアで防いだときの地雷の爆発・ドロップの乱数）に単体テストが無い／`resolveFailure` の 3 値のうち `absorbed` と `ignored` を区別して使っていない／アイテムの色・線の太さがリテラル — 理由: Scene は単体テストの対象外で、仕様どおりブラウザ QA で確かめる。3 値は結果の意味をテストで固定する API の説明。色は Scene 内の見た目の値で、既存の描画も同じ書き方
 - `src/game/scenes/Game.ts`: 変更した条件の近くに、元からの日本語のコメントが残る — 理由: 元からあるコメントで、この変更で足したコメントは英語にした。既存のコメントの書き換えは別件
 - `src/game/core/powerup.test.ts` / `powerup.ts`: 誤差の確認が `sum < 1` という浮動小数点の事実を前提にする／猶予の終わり際に点滅の位相が最大 1e-9 秒ずれる — 理由: 前提を明示して境界のテストを自己説明にしている。位相のずれは見た目のみで 1e-9 秒
 - `src/game/core/field.ts` stepField: 毎フレーム `filter` で敵機・弾の配列を作り直す／`src/game/scenes/Game.ts` syncField: 毎フレーム Map を引いて位置を合わせる／`shotVelocities` が発射ごとに中間の配列を作る — 理由: 移動前の Scene も配列を毎フレーム作っていた。敵・弾は数十個、発射は 1〜2 秒に 1 回で、コストは測れない。挙動を変えない移動なので、性能の作り直しは別件（nit）
 - `src/game/core/field.ts` StepResult: `events` が `state.events` と同じ参照の重複 — 理由: 呼び出しを読みやすくするために残した。次の更新で消えることは型のコメントに書いてある（nit）
 - `src/game/core/field.ts` 定数（編隊の間隔・出現 y・中心 x の余白など）が `core/constants.ts` でなく field.ts にある — 理由: 従来は Scene のリテラルで、名前を付けて近くに置いた。パラメータ表の値ではない（nit）
-- `src/game/core/field.ts` removeEnemiesAt / removeBulletsAt: 爆発による削除が events でなく戻り値の id で Scene に届く（2 経路）— 理由: 現状は呼び出し側が戻り値で描画物を壊しており、コメントにも書いた。`core-mines` で爆発を core へ移すときに 1 本化する（nit）
 - `src/game/scenes/Game.ts` update: 突進の接触で中断した更新でも syncField が全ての描画物を core の位置に合わせる — 理由: 中断した更新で core が動かさなかった敵機・弾は位置が変わらないので、見た目は従来と同じ（描画のみ）
+- `src/game/scenes/Game.ts` update: 地雷でゲームオーバーになった更新で、先の地雷の点滅・輪が 1 フレーム古いまま — 理由: spec に明記した許容（中断した更新では行わない）。止まった画面で見えない
+- `src/game/core/minefield.ts` explode: `index !== -1` の防御が到達しない — 理由: 防御として無害。外すと、前提が崩れたとき `splice(-1, 1)` が末尾の地雷を消す（nit）
+- `src/game/core/minefield.test.ts` 新旧の比較: 基準実装が定数をリテラル（12・14・10・0.5）で持ち、将来の調整で壊れる — 理由: 従来の挙動を固定した写しで、意図的。定数を変える拡張は、その spec の変更とともにこの基準も直す
+- `src/game/scenes/Game.ts` applyExplosions: `EXPLOSION_COLORS` が爆発ごとに作られる — 理由: 移す前も爆発ごとに作っていた。要素 4 個で、コストは測れない（nit）
+- `src/game/core/minefield.ts` explode: 引数が 7 個で、文脈を 1 つの object にまとめたい — 理由: 整理は今回の目的（挙動を変えずに移す）の外。次の拡張で引数が増えたときに見直す（nit）
+- `src/game/scenes/Game.ts` mineViews: core のリストと同期が要り、通知されない除去があると描画物が残る — 理由: 今は地雷の除去がすべて爆発として通知される。除去の規則を足す拡張で、その spec と一緒に見直す
+- `src/game/core/minefield.ts` onTouchBurst: 更新の途中で Scene に処理を渡すコールバックが脆い — 理由: spec が実装裁量として委ねた形で、`stepField` の中断フックと同じ作り。Scene は field を触らない
