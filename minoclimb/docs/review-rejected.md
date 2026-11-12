@@ -51,3 +51,10 @@
 - `src/game/logic/resultInput.ts` (`AGAIN_KEY` / `NEXT_KEY` が `RETRY_KEYS` と重複): `RETRY_KEYS` から導く — 理由: クリアでは R と Space の役が違い、Enter は入れないと spec が決めている。リトライの集合から導くと役の違いが隠れる。
 - `src/game/scenes/Game.ts` (`init(data)` が `stage` を検証しない): 整数・1 以上を確かめる — 理由: 呼ぶのは内部の Scene（Title・Result）だけ。検証すると呼び出し側のバグを隠す。
 - `src/game/logic/stage.test.ts` (Round の回帰テストと、実フォントでの幅が無い): 足す — 理由: `Round` は `stage` を受け取らないので、回帰の対象になる入力が無い。実フォントの幅（340 px・348 px）は Scene の描画で、QA のスクリーンショットで確かめる。
+
+- `src/game/logic/roundRising.test.ts` (積み上がりすぎのせり上がりで `drain(round)` が `[]` なのは `step` が終わったラウンドの出来事を捨てるから、で、`risen` を返さない規則を固定できない): 直接 `rise()` を見るべき — 理由: 終わったラウンドの出来事は読み手に渡らない仕様（`step` の末尾）で、見えない差。`rise()` は private で、返り値の分岐は `riseGrid` の単体テストと、期限・時計が戻らないことの検査で押さえている。
+- `src/game/logic/roundRising.order.test.ts` (`RISE_FLASH_TIME` の光のテストは既存の `flashAlpha` と定数の一致しか見ない): `BoardView` の光を検査すべき — 理由: 光の描画は Scene（BoardView）で、QA のスクリーンショットで確かめる（1 行目の方針）。テストは時間規則と CLEAR_FLASH_TIME との一致の固定だけが目的。
+- `src/game/logic/rising.ts` (`pushUpForRise` が `player.ts` の `overlapsSolid` と `EPS` を複製している): `player.ts` に移して共有する — 理由: 1e-6 は spec が内部の微小値として決めたもの（行消しと同じ規則）で、境界はテストで固定した（1e-6 未満の沈みは接している扱い）。移動は無関係なリファクタリングになり、この変更の目的（せり上がり）から外れる。
+- `src/game/scenes/BoardView.ts` (`Flash` を判別可能な union にする): 番兵値（-1・空配列）をやめる — 理由: 既存の `Flash` の形（`row: -1` で光の種類を分けていた）を `kind` で明示しただけで、イベントの種類は 3 つで閉じている。型の整理は別の変更。
+- `src/game/logic/crumble.ts` (`followRise` が `target.r` を守らず、`TOP_OUT_ROW` が 0 に調整されると行 −1 を指す): 下限を見る — 理由: 行 0〜`TOP_OUT_ROW − 1` は積み上がりすぎの判定の前提で空であり（せり上がりの積み上がりすぎが先に判定される）、`TOP_OUT_ROW` を 0 にするのは危険域という仕様の前提を壊す変更で、そのときは spec から直す。
+- `src/game/scenes/Game.ts` (`!this.isDemo && risingEnabled(this.stage)` の `isDemo` が冗長): どちらか 1 つにする — 理由: spec が「`Demo` は渡さない = 無効」と、ステージによらない除外を明示している。`stage` の初期値に頼らない意図的な二重の保証。

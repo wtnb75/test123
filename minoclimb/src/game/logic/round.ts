@@ -9,6 +9,7 @@ import {
 import { Crumble } from './crumble';
 import { cellsAfterClear } from './effects';
 import { shapeCells, type Cell } from './pieces';
+import { cellsAfterRise, holeColumn, pushUpForRise, riseDue, riseGrid } from './rising';
 
 /** The pause is cut into this many quarters; each has its own sway step, and the last one always returns. */
 const SWAY_QUARTERS = 4;
@@ -30,7 +31,10 @@ export type LoseReason = 'crushed' | 'toppedOut';
 /** What just happened, for the presentation layer (it never has to infer this from the state). */
 export type RoundEvent =
     | { kind: 'locked'; cells: Cell[] } // positions after any line clear of the same frame
-    | { kind: 'cleared'; rows: number[] }; // row indices at the moment of the clear
+    | { kind: 'cleared'; rows: number[] } // row indices at the moment of the clear
+    // The field moved up one row and a new bottom row came in; the other events of that frame are given
+    // in the risen field's coordinates.
+    | { kind: 'risen'; hole: number };
 
 export type Flow =
     | { kind: 'wait'; timer: number }
@@ -47,6 +51,10 @@ export interface RoundOptions {
      * The game passes Math.random; by default it is a fixed stream, so tests and the demo runs repeat.
      */
     swayRng?: () => number;
+    /** True from stage 2 on: a row rises from below every RISE_INTERVAL seconds (docs/spec/rising.md). Off by default. */
+    rising?: boolean;
+    /** The random source of the rising row's hole column, apart from the field's. The game passes Math.random. */
+    riseRng?: () => number;
 }
 
 export class Round {
@@ -67,6 +75,11 @@ export class Round {
     private readonly crumbleEnabled: boolean;
     private readonly hesitateEnabled: boolean;
     private readonly swayRng: () => number;
+    private readonly riseRng: () => number;
+    /** Whether rows rise in this round (stage 2 and later). */
+    readonly rising: boolean;
+    /** Seconds on the rise timer: from the start of the round or the last rise (counted only while `rising`). */
+    riseElapsed = 0;
     /** Seconds left of the current hesitation pause (0 when the mino is not paused). */
     private hold = 0;
     /** True once the current falling mino has used its one hesitation. */
@@ -79,6 +92,8 @@ export class Round {
         this.crumbleEnabled = options.crumble ?? true;
         this.hesitateEnabled = options.hesitate ?? true;
         this.swayRng = options.swayRng ?? fixedStream(1);
+        this.riseRng = options.riseRng ?? fixedStream(2);
+        this.rising = options.rising ?? false;
     }
 
     /** Hands the pending events to `handle`, oldest first, and forgets them. */
@@ -95,6 +110,7 @@ export class Round {
     step(dtRaw: number, input: MoveInput): void {
         if (this.status !== 'playing') return;
         const dt = Math.min(dtRaw, P.MAX_DT);
+        if (this.rising) this.riseElapsed += dt;
 
         this.player = stepPlayer(this.grid, this.player, input, dt);
         const reachedBeforeFlow = reachedGoal(this.player);
@@ -216,12 +232,37 @@ export class Round {
         }
         const absolute = piece.cells.map(({ c, r }) => ({ c: piece.col + c, r: lockedRow + r }));
         const cleared = clearLines(this.grid);
-        this.events.push({ kind: 'locked', cells: cellsAfterClear(absolute, cleared) });
+        let lockedCells = cellsAfterClear(absolute, cleared);
+        let clearedRows = cleared;
         if (cleared.length > 0) {
-            this.events.push({ kind: 'cleared', rows: cleared });
             this.crumble.followClears(cleared);
             this.player = shiftForClears(this.grid, this.player, cleared);
         }
+        const hole = this.rising && riseDue(this.riseElapsed) ? this.rise() : null;
+        if (hole !== null) {
+            // The flashes are drawn on the risen field, one row up.
+            lockedCells = cellsAfterRise(lockedCells);
+            clearedRows = clearedRows.map((r) => r - 1);
+        }
+        this.events.push({ kind: 'locked', cells: lockedCells });
+        if (clearedRows.length > 0) this.events.push({ kind: 'cleared', rows: clearedRows });
+        if (hole !== null) this.events.push({ kind: 'risen', hole });
+    }
+
+    /**
+     * One rise (docs/spec/rising.md "せり上がりの手順"), right after a lock and its line clear. Returns the hole
+     * column, or null when the field was stacked too high by it (the round is lost then and nothing else happens).
+     */
+    private rise(): number | null {
+        const hole = holeColumn(this.riseRng());
+        if (riseGrid(this.grid, hole)) {
+            this.lose('toppedOut');
+            return null;
+        }
+        this.player = pushUpForRise(this.grid, this.player);
+        this.crumble.followRise();
+        this.riseElapsed = 0;
+        return hole;
     }
 
     private lose(reason: LoseReason): void {

@@ -4,10 +4,14 @@ import { crumbleBlink, flashAlpha, hintAlpha } from '../logic/effects';
 import type { StickView } from '../logic/input';
 import type { Round, RoundEvent } from '../logic/round';
 import { type Cell } from '../logic/pieces';
+import { riseMarker } from '../logic/rising';
 import { dropFrameView, frameView, telegraphView } from '../logic/telegraph';
 import { fitFontSize, hudText } from '../logic/stage';
 
 const COLORS = [0x00d0d0, 0xf0d000, 0xa000d0, 0x00c040, 0xd02020, 0x2040e0, 0xf08000];
+// The cells of a risen row (value RISE_CELL), told apart from the seven minos.
+const RISE_COLOR = 0x6c7380;
+const RISE_MARK_COLOR = 0xff6a3d;
 const BACKGROUND = 0x10131c;
 const DANGER_BAND = 0x4a2a14;
 const GOAL_LINE = 0xffe040;
@@ -24,15 +28,22 @@ const HINT_MAX_ALPHA = 0.55;
 const LOCK_FLASH_MAX_ALPHA = 0.7;
 const CLEAR_FLASH_MAX_ALPHA = 0.8;
 const CRUMBLE_MAX_ALPHA = 0.85;
+const RISE_FLASH_MAX_ALPHA = 0.7;
+const RISE_MARK_ALPHA = 0.9;
 
 interface Flash {
-    /** Cells of a lock flash; empty for a clear flash. */
+    kind: 'lock' | 'clear' | 'rise';
+    /** Cells of a lock flash; empty for the others. */
     cells: Cell[];
-    /** Row of a clear flash; -1 for a lock flash. */
+    /** Row of a clear flash; unused by the others. */
     row: number;
+    /** Hole column of a rise flash (its cell stays dark); unused by the others. */
+    hole: number;
     /** Seconds since the flash started. */
     t: number;
 }
+
+const FLASH_TIME = { lock: P.LOCK_FLASH_TIME, clear: P.CLEAR_FLASH_TIME, rise: P.RISE_FLASH_TIME } as const;
 
 export interface BoardViewOptions {
     /** The operation hints of the first seconds (not shown behind the Title). */
@@ -88,11 +99,15 @@ export class BoardView {
         for (let r = 0; r < P.ROWS; r++) {
             for (let c = 0; c < P.COLS; c++) {
                 const v = round.grid[r][c];
-                if (v !== 0) g.fillStyle(COLORS[v - 1], 1).fillRect(c * C + 1, r * C + 1, C - 2, C - 2);
+                if (v !== 0) {
+                    const color = v === P.RISE_CELL ? RISE_COLOR : COLORS[v - 1];
+                    g.fillStyle(color, 1).fillRect(c * C + 1, r * C + 1, C - 2, C - 2);
+                }
             }
         }
 
         this.drawCrumble(round);
+        this.drawRiseMarker(round);
         this.drawFlashes();
         this.drawFlow(round, time);
 
@@ -132,7 +147,7 @@ export class BoardView {
         round.drainEvents(this.onRoundEvent);
         for (let i = this.flashes.length - 1; i >= 0; i--) {
             const f = this.flashes[i];
-            if (f.t >= (f.row < 0 ? P.LOCK_FLASH_TIME : P.CLEAR_FLASH_TIME)) this.flashes.splice(i, 1);
+            if (f.t >= FLASH_TIME[f.kind]) this.flashes.splice(i, 1);
         }
     }
 
@@ -145,13 +160,34 @@ export class BoardView {
         this.board.fillStyle(FLASH, a).fillRect(target.c * C + 1, target.r * C + 1, C - 2, C - 2);
     }
 
+    /** Small triangles on the bottom edge warn that a row is about to rise (stage 2 and later). */
+    private drawRiseMarker(round: Round): void {
+        if (!round.rising) return;
+        const marker = riseMarker(round.riseElapsed);
+        if (!marker.visible || !marker.on) return;
+        const C = P.CELL;
+        const w = P.RISE_MARK_W * C;
+        const h = P.RISE_MARK_H * C;
+        const base = P.ROWS * C;
+        const g = this.board.fillStyle(RISE_MARK_COLOR, RISE_MARK_ALPHA);
+        for (let c = 0; c < P.COLS; c++) {
+            const cx = (c + 0.5) * C;
+            g.fillTriangle(cx - w / 2, base, cx + w / 2, base, cx, base - h);
+        }
+    }
+
     private drawFlashes(): void {
         const g = this.board;
         const C = P.CELL;
         for (const f of this.flashes) {
-            if (f.row >= 0) {
+            if (f.kind === 'clear') {
                 const a = CLEAR_FLASH_MAX_ALPHA * flashAlpha(f.t, P.CLEAR_FLASH_TIME);
                 g.fillStyle(FLASH, a).fillRect(0, f.row * C, WIDTH, C);
+            } else if (f.kind === 'rise') {
+                const a = RISE_FLASH_MAX_ALPHA * flashAlpha(f.t, P.RISE_FLASH_TIME);
+                for (let c = 0; c < P.COLS; c++) {
+                    if (c !== f.hole) g.fillStyle(FLASH, a).fillRect(c * C + 1, (P.ROWS - 1) * C + 1, C - 2, C - 2);
+                }
             } else {
                 const a = LOCK_FLASH_MAX_ALPHA * flashAlpha(f.t, P.LOCK_FLASH_TIME);
                 for (const { c, r } of f.cells) g.fillStyle(FLASH, a).fillRect(c * C + 1, r * C + 1, C - 2, C - 2);
@@ -160,8 +196,9 @@ export class BoardView {
     }
 
     private readonly onRoundEvent = (event: RoundEvent): void => {
-        if (event.kind === 'locked') this.flashes.push({ cells: event.cells, row: -1, t: 0 });
-        else for (const row of event.rows) this.flashes.push({ cells: [], row, t: 0 });
+        if (event.kind === 'locked') this.flashes.push({ kind: 'lock', cells: event.cells, row: -1, hole: -1, t: 0 });
+        else if (event.kind === 'risen') this.flashes.push({ kind: 'rise', cells: [], row: -1, hole: event.hole, t: 0 });
+        else for (const row of event.rows) this.flashes.push({ kind: 'clear', cells: [], row, hole: -1, t: 0 });
     };
 
     private updateHints(dt: number, active: boolean): void {

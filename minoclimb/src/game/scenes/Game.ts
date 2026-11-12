@@ -3,6 +3,7 @@ import { P } from '../params';
 import { InputArbiter, type StickView } from '../logic/input';
 import type { MoveInput } from '../logic/player';
 import { Round } from '../logic/round';
+import { risingEnabled } from '../logic/rising';
 import { FIRST_STAGE } from '../logic/stage';
 import { BoardView, type BoardViewOptions } from './BoardView';
 import type { ResultData } from './Result';
@@ -39,7 +40,7 @@ export class Game extends Scene {
     /** Milliseconds since the round ended. */
     private sinceEnd = 0;
 
-    /** The stage being played (docs/spec/stages.md): only shown, no rule depends on it. */
+    /** The stage being played (docs/spec/stages.md): shown, and from stage 2 on rows rise (docs/spec/rising.md). */
     protected stage = FIRST_STAGE;
 
     constructor(key = 'Game') {
@@ -57,7 +58,10 @@ export class Game extends Scene {
         this.clock = 0;
         this.playSec = 0;
         this.sinceEnd = 0;
-        this.round = new Round(Math.random, { swayRng: Math.random });
+        // Rows rise from stage 2 on, never in the demo behind the Title (docs/spec/rising.md).
+        this.round = new Round(Math.random, {
+            swayRng: Math.random, rising: !this.isDemo && risingEnabled(this.stage), riseRng: Math.random,
+        });
         this.view = new BoardView(this, this.viewOptions());
         this.setupControls();
         this.view.draw(this.round, null, 0, 0, false);

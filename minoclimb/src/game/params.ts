@@ -63,6 +63,18 @@ export const P = {
     CLEAR_FLASH_TIME: 0.2,
     RESULT_SHAKE_TIME: 0.2,
     RESULT_SHAKE_INTENSITY: 0.006,
+    // Rising rows (docs/spec/rising.md): from this stage on, a row pushes up from below every RISE_INTERVAL seconds
+    RISE_FROM_STAGE: 2,
+    RISE_INTERVAL: 12,
+    // the value of a cell of a risen row (the mino kinds are 1..7)
+    RISE_CELL: 8,
+    // the marker blinks for the last RISE_WARN_TIME seconds, and while the rise waits for a mino to lock
+    RISE_WARN_TIME: 2,
+    RISE_BLINK_HZ: 4,
+    // marker triangle size, in cells
+    RISE_MARK_W: 0.8,
+    RISE_MARK_H: 0.5,
+    RISE_FLASH_TIME: 0.2,
     DEMO_RUN_MS: 30000,
     DEMO_FADE_MS: 400,
     DEMO_END_HOLD_MS: 1200,
