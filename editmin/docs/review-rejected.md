@@ -15,4 +15,10 @@
 - `src/game/logic/board.ts`（`zoneHasMine` と `canSetStart`）: 同じ規則の入り口が 2 つ — 理由: spec が「禁止領域に爆弾があるか」「開始マスを設定できるか」を別の規則として挙げ、テストも分けている。
 - `src/game/logic/evaluateDifficulty.ts`: ソルバー内に開始マス周囲の集合を作る処理がある — 理由: 既存のコードで、この変更は `evaluateDifficulty` とそのテストを変えない約束。
 - `src/game/logic/board.test.ts`: 範囲外の開始マス・トグル後の再計算の専用テストが無い — 理由: 範囲外の入力の扱いは spec で定めていない。トグル後の再計算は爆弾の有無で `toBoardText` の結果が変わるテストで押さえている。
+- `src/game/scenes/Game.ts`（`onHistoryKey`）: キーの自動リピート（`event.repeat`）でも取り消しが続く。長押しで履歴を使い切る — 理由: エディタの標準の挙動で、やり直しで戻せる。spec に制限の定めが無く、足すと挙動を決める変更になる。
+- `src/game/scenes/Game.ts`（`updatePlayUi`）: 履歴ボタンが disabled になるとフォーカスが落ちる — 理由: マスの描き直しでもフォーカスが落ちる既存の作りと同じで、この変更の範囲外。
+- `src/game/scenes/Game.ts`（「反映」）: 丸めたサイズが入力欄に戻らない。入力欄の `min`/`max` の直書き — 理由: 今までどおり（spec は、入力欄を戻すのは取り消し・やり直しのあとだけと定義）。`min`/`max` は既存。
+- `src/game/scenes/Game.ts`（状態表示と `updateAnalysis`）: 「評価エラー」が取り消し・「反映」の状態表示を上書きしうる — 理由: 制約を満たす盤面では評価エラーに到達しない。トグルと同じ既存の順序。
+- `src/game/scenes/Game.ts`（`snapshot` / `applySnapshot`）: 盤面のコピーが多く、地雷を 2 つの表現で持つ — 理由: 2500 マスで測定できる差は無く、マスのボタンの描き直しのほうが重い。履歴の 100 手 × 2500 は小さい。
+- `src/game/scenes/Game.ts`（履歴ボタン）: タップの的が 44 px 未満 — 理由: 既存のサイドバーのボタンと同じ見た目。backlog の `look-mobile` で扱う。
 - `src/game/scenes/Game.ts`（`onCellClick` の結線）: `canSetStart` / `canPlaceMine` の呼び出しが単体テストされない — 理由: Scene は spec でブラウザの確認（QA）の対象。QA で開始マスの拒否・禁止マスへの拒否の文言を確かめる。

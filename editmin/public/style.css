@@ -167,7 +167,8 @@ canvas {
     border-color: #9c3f26;
 }
 
-.editmin-zoom-row {
+.editmin-zoom-row,
+.editmin-history-row {
     flex-wrap: wrap;
 }
 

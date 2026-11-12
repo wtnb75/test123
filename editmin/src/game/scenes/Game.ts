@@ -31,9 +31,20 @@ import {
     type DisplayMode,
     type PaleCellState
 } from '../logic/displayMode';
-
-const MIN_SIZE = 2;
-const MAX_SIZE = 50;
+import {
+    clampSize,
+    clearMines,
+    emptyHistory,
+    hasAnyMine,
+    historyButtonState,
+    historyKeyAction,
+    recordMove,
+    redo,
+    resizeSnapshot,
+    undo,
+    type BoardSnapshot,
+    type History
+} from '../logic/history';
 
 /** Whether the key event comes from a text field (the W and H inputs), where the shortcuts must not act. */
 const isTypingInInput = (event: KeyboardEvent): boolean => {
@@ -50,6 +61,9 @@ type UiRefs = {
     applySizeBtn: HTMLButtonElement;
     startBtn: HTMLButtonElement;
     copyBtn: HTMLButtonElement;
+    undoBtn: HTMLButtonElement;
+    redoBtn: HTMLButtonElement;
+    clearBtn: HTMLButtonElement;
     playToggleBtn: HTMLButtonElement;
     playHint: HTMLDivElement;
     zoomOutBtn: HTMLButtonElement;
@@ -75,6 +89,8 @@ export class Game extends Scene {
     private displayMode: DisplayMode = DISPLAY_MODE_DEFAULT;
     /** The play of docs/spec/play-test.md; null while editing. Never saved. */
     private play: PlayState | null = null;
+    /** The undo / redo history of docs/spec/undo-history.md. Never saved; empty after a restart. */
+    private history: History = emptyHistory();
     private ui?: UiRefs;
 
     constructor() {
@@ -85,6 +101,7 @@ export class Game extends Scene {
         this.cells = this.createCells(this.widthCells * this.heightCells);
         // A restart starts editing again, with no play and no start cell.
         this.play = null;
+        this.history = emptyHistory();
         this.startIndex = null;
         this.startMode = false;
         this.cameras.main.setBackgroundColor(0xf4f1e8);
@@ -103,6 +120,9 @@ export class Game extends Scene {
             applySizeBtn: root.querySelector('[data-role="apply-size"]') as HTMLButtonElement,
             startBtn: root.querySelector('[data-role="start-mode"]') as HTMLButtonElement,
             copyBtn: root.querySelector('[data-role="copy-board"]') as HTMLButtonElement,
+            undoBtn: root.querySelector('[data-role="undo"]') as HTMLButtonElement,
+            redoBtn: root.querySelector('[data-role="redo"]') as HTMLButtonElement,
+            clearBtn: root.querySelector('[data-role="clear-mines"]') as HTMLButtonElement,
             playToggleBtn: root.querySelector('[data-role="play-toggle"]') as HTMLButtonElement,
             playHint: root.querySelector('[data-role="play-hint"]') as HTMLDivElement,
             zoomOutBtn: root.querySelector('[data-role="zoom-out"]') as HTMLButtonElement,
@@ -144,6 +164,11 @@ export class Game extends Scene {
               <button data-role="start-mode">開始マスを指定</button>
                             <button data-role="copy-board">盤面テキストをコピー</button>
             </div>
+            <div class="editmin-row editmin-history-row">
+              <button data-role="undo" disabled>元に戻す</button>
+              <button data-role="redo" disabled>やり直す</button>
+              <button data-role="clear-mines" disabled>全消去</button>
+            </div>
             <div class="editmin-row">
               <button data-role="play-toggle">プレイ</button>
             </div>
@@ -163,7 +188,7 @@ export class Game extends Scene {
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />元に戻す: Ctrl（⌘）+Z、やり直す: Ctrl（⌘）+Shift+Z / Ctrl+Y<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
           </div>
         </div>`;
     }
@@ -176,16 +201,23 @@ export class Game extends Scene {
         this.ui.applySizeBtn.addEventListener('click', () => {
             const w = Number(this.ui?.widthInput.value ?? this.widthCells);
             const h = Number(this.ui?.heightInput.value ?? this.heightCells);
-            const nextW = Math.max(MIN_SIZE, Math.min(MAX_SIZE, Number.isFinite(w) ? Math.floor(w) : this.widthCells));
-            const nextH = Math.max(MIN_SIZE, Math.min(MAX_SIZE, Number.isFinite(h) ? Math.floor(h) : this.heightCells));
-            this.widthCells = nextW;
-            this.heightCells = nextH;
-            this.cells = this.createCells(nextW * nextH);
-            this.startIndex = null;
+            const nextW = clampSize(w, this.widthCells);
+            const nextH = clampSize(h, this.heightCells);
+            const before = this.snapshot();
+            const after = resizeSnapshot(before, nextW, nextH);
+            this.commitMove(before, after);
             this.startMode = false;
-            this.setStatus(`盤面サイズを ${nextW}x${nextH} に変更しました。`);
+            this.ui!.startBtn.classList.remove('active');
+            const released = before.startIndex !== null && after.startIndex === null;
+            this.setStatus(
+                `盤面サイズを ${nextW}x${nextH} に変更しました。${released ? '開始マスは盤面の外になったため解除しました。' : ''}`
+            );
             this.renderAll();
         });
+        this.ui.undoBtn.addEventListener('click', () => this.stepHistory('undo'));
+        this.ui.redoBtn.addEventListener('click', () => this.stepHistory('redo'));
+        this.ui.clearBtn.addEventListener('click', () => this.clearAllMines());
+        window.addEventListener('keydown', this.onHistoryKey);
 
         this.ui.startBtn.addEventListener('click', () => {
             this.startMode = !this.startMode;
@@ -215,6 +247,7 @@ export class Game extends Scene {
     private removeInputListeners(): void {
         window.removeEventListener('keydown', this.onZoomKey);
         window.removeEventListener('keydown', this.onDisplayKey);
+        window.removeEventListener('keydown', this.onHistoryKey);
         this.ui?.boardScroll.removeEventListener('wheel', this.onBoardWheel);
         this.ui?.boardGrid.removeEventListener('contextmenu', this.onBoardContextMenu);
         this.scale.off('resize', this.onResize, this);
@@ -225,6 +258,70 @@ export class Game extends Scene {
             event.preventDefault();
         }
     };
+
+    private readonly onHistoryKey = (event: KeyboardEvent): void => {
+        const action = historyKeyAction(event, isTypingInInput(event), this.play !== null);
+        if (action !== null) {
+            event.preventDefault();
+            this.stepHistory(action);
+        }
+    };
+
+    /** The whole editable state, as the history keeps it. */
+    private snapshot(): BoardSnapshot {
+        return {
+            width: this.widthCells,
+            height: this.heightCells,
+            mines: this.cells.map((c) => c.hasMine),
+            startIndex: this.startIndex
+        };
+    }
+
+    /** Makes `snapshot` the board (size, mines, start cell); zoom, scroll and mode stay. */
+    private applySnapshot(snapshot: BoardSnapshot): void {
+        this.widthCells = snapshot.width;
+        this.heightCells = snapshot.height;
+        this.cells = snapshot.mines.map((hasMine) => ({ hasMine }));
+        this.startIndex = snapshot.startIndex;
+    }
+
+    /** Applies a move's result to the board and records it (a move that changes nothing is not recorded). */
+    private commitMove(before: BoardSnapshot, after: BoardSnapshot): void {
+        this.history = recordMove(this.history, before, after);
+        this.applySnapshot(after);
+    }
+
+    private stepHistory(action: 'undo' | 'redo'): void {
+        if (this.play !== null) {
+            return;
+        }
+        const step = (action === 'undo' ? undo : redo)(this.history, this.snapshot());
+        if (step === null) {
+            return;
+        }
+        this.history = step.history;
+        this.applySnapshot(step.snapshot);
+        if (this.ui) {
+            // The inputs show the restored size (a plain move leaves what the user typed alone).
+            this.ui.widthInput.value = String(this.widthCells);
+            this.ui.heightInput.value = String(this.heightCells);
+        }
+        this.setStatus(action === 'undo' ? '元に戻しました。' : 'やり直しました。');
+        this.renderAll();
+    }
+
+    private clearAllMines(): void {
+        const before = this.snapshot();
+        if (this.play !== null || !hasAnyMine(before)) {
+            return;
+        }
+        if (!window.confirm('地雷をすべて消しますか？（「元に戻す」で戻せます）')) {
+            return;
+        }
+        this.commitMove(before, clearMines(before));
+        this.setStatus('地雷をすべて消しました。');
+        this.renderAll();
+    }
 
     private readonly onDisplayKey = (event: KeyboardEvent): void => {
         if (isDisplayModeKey(event, isTypingInInput(event))) {
@@ -463,7 +560,8 @@ export class Game extends Scene {
                 this.setStatus('開始マス周囲に爆弾があるため、開始マス設定を拒否しました。');
                 return;
             }
-            this.startIndex = index;
+            const before = this.snapshot();
+            this.commitMove(before, { ...before, startIndex: index });
             this.startMode = false;
             if (this.ui) {
                 this.ui.startBtn.classList.remove('active');
@@ -478,7 +576,10 @@ export class Game extends Scene {
             return;
         }
 
-        this.cells[index].hasMine = !this.cells[index].hasMine;
+        const before = this.snapshot();
+        const mines = [...before.mines];
+        mines[index] = !mines[index];
+        this.commitMove(before, { ...before, mines });
         this.renderAll();
     }
 
@@ -616,6 +717,10 @@ export class Game extends Scene {
         for (const el of [this.ui.applySizeBtn, this.ui.startBtn, this.ui.widthInput, this.ui.heightInput, this.ui.displayModeBtn]) {
             el.disabled = playing;
         }
+        const buttons = historyButtonState(this.history, this.cells.some((c) => c.hasMine), playing);
+        this.ui.undoBtn.disabled = !buttons.undoEnabled;
+        this.ui.redoBtn.disabled = !buttons.redoEnabled;
+        this.ui.clearBtn.disabled = !buttons.clearEnabled;
         this.ui.playStatus.textContent = this.playStatusText();
         this.applyGridDisplayClasses();
         this.applyCellViews();
