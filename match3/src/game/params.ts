@@ -19,6 +19,25 @@ export const SHUFFLE_MAX_TRIES = 100;
 /** Safety net for board generation (a constant rng can make every attempt fail to have a move). */
 export const BOARD_MAX_TRIES = 1000;
 
+// ---- stone looks (docs/spec.md "石の形", docs/spec/special-gems.md) --------------------------------------
+/** The round stone's gap to the cell edge: its radius is CELL / 2 - GEM_INSET. */
+export const GEM_INSET = 4;
+export const GEM_SHINE_ALPHA = 0.35;
+export const GEM_SHINE_RADIUS = 6;
+export const GEM_SHINE_OFFSET = 6;
+/** Every silhouette fits a square of this side, centred in the cell. */
+export const SHAPE_BOX = 40;
+/** A silhouette's area is at least this share of the round stone's. */
+export const SHAPE_AREA_MIN_RATIO = 0.6;
+/** Marks of a line / bomb stone on a round stone, before the dark outline around them. */
+export const MARK_LENGTH = 26;
+export const MARK_THICKNESS = 5;
+export const MARK_RING_RADIUS = 9;
+export const MARK_OUTLINE = 2;
+/** A mark that does not fit a silhouette may shrink down to these (the thickness stays). */
+export const MARK_BAR_MIN = 16;
+export const MARK_RING_MIN = 5;
+
 // ---- input -----------------------------------------------------------------------------------------
 export const CELL = 44;
 export const SWIPE_RATIO = 0.4;

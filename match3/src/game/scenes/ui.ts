@@ -46,16 +46,6 @@ export const STYLE = {
     noticePadX: 24,
     noticePadY: 14,
     popStrokeWidth: 4,
-    /** Stone texture: radius inset from the cell edge, highlight radius and offset, highlight opacity. */
-    gemInset: 4,
-    gemShineRadius: 6,
-    gemShineOffset: 6,
-    gemShineAlpha: 0.35,
-    /** Special stone marks (docs/spec/special-gems.md): bar length and thickness, ring radius, dark outline width. */
-    markLength: 26,
-    markThickness: 5,
-    markRingRadius: 9,
-    markOutline: 2,
     /** The colour stone: the width of the white rim of its wheel of six colours (the wheel is as big as a stone). */
     wheelRim: 2,
 } as const;
