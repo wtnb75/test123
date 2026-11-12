@@ -198,3 +198,13 @@ tasks:
     - defer: ./scripts/qa/down.sh {{ .PACKAGE }} {{ .PORT }}
     - ./scripts/qa/share.sh {{ .PACKAGE }} {{ .PORT }}
     - sleep infinity
+  share:branch:
+    desc: pick a remote branch, find the game it changes, and share it from a temporary worktree (BRANCH= optional)
+    vars:
+      PORT: '{{ .PORT | default 5191 }}'
+    env:
+      ALL_GAMES: '{{ .ALL_GAMES | replace "\n" " " }}'
+      PORT: '{{ .PORT }}'
+    interactive: true
+    cmds:
+    - ./scripts/share-branch.sh {{ .BRANCH }}
