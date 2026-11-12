@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { indexOf, type Terrain } from './board';
 import { CELL, COINS_START, GRID_COLS, GRID_ROWS, KILL_REWARD, LIVES_START, WAVE_BONUS } from './config';
-import { baseEnemyHp, enemyCount, type EnemyKind, enemyHp, enemyKind, kindRadius, kindSpeedRate } from './wave';
+import { baseEnemyHp, enemyCount, type EnemyKind, enemyHp, enemyKind, kindRadius, kindSpeedRate, waveSpawnTotal } from './wave';
 import { createGame, type Enemy, type GameState, startWave, update } from './world';
 
 // Expected values below come from the spec table (docs/spec/enemy-kinds.md), not from the implementation.
@@ -180,7 +180,7 @@ function quietWave(terrain?: Terrain[], build?: (s: GameState) => void): GameSta
     const s = createGame(terrain);
     build?.(s);
     startWave(s);
-    s.spawned = enemyCount(s.wave);
+    s.spawned = waveSpawnTotal(s.wave);
     return s;
 }
 

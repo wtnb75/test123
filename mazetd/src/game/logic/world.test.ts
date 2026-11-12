@@ -14,6 +14,7 @@ import {
     update,
     ageShotLines
 } from './world';
+import { waveSpawnTotal } from './wave';
 
 // Hand-derived geometry: board left 18, top 96, 56px cells; S centre (270,124); straight path 11 cells = 616px.
 const S_X = 270;
@@ -37,7 +38,8 @@ function manualWave(turrets: [number, number][] = [], wave = 1): GameState {
     s.wave = wave;
     for (const [c, r] of turrets) setCell(s.board, c, r, 'turret');
     startWave(s);
-    s.spawned = 8 + 2 * (wave - 1);
+    // Everything of the wave has spawned (the boss too in a boss wave), so only the enemies the test adds exist.
+    s.spawned = waveSpawnTotal(wave);
     return s;
 }
 

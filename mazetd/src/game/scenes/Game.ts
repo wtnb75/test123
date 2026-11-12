@@ -37,14 +37,15 @@ import { getCell, getTerrain, indexOf, initialTerrain, isGoal, isStart } from '.
 import { CellTimers, Countdown, PopupPool } from '../logic/effects';
 import { type EnemyKind, kindRadius } from '../logic/wave';
 import { showsFlightLine, visibleRoute } from '../logic/flight';
-import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, pointToCell, type Tool } from '../logic/layout';
+import { BOARD_RECT, BUTTONS, type ButtonId, buttonAt, cellCenterX, cellCenterY, hpBarTop, pointToCell, type Tool } from '../logic/layout';
 import {
-    ageShotLines, createGame, type GameState, messageText, selectTool, startWave, tapCell, update
+    ageShotLines, createGame, type Enemy, type GameState, messageText, selectTool, startWave, tapCell, update
 } from '../logic/world';
 
 export interface ResultData {
     cleared: boolean;
     kills: number;
+    bossKills: number;
     lives: number;
     wave: number;
 }
@@ -91,7 +92,8 @@ const ENEMY_COLOR: Readonly<Record<EnemyKind, number>> = {
     normal: COLOR.enemy,
     fast: 0xfff176,
     tank: 0x7b1fa2,
-    flyer: FLYER_COLOR
+    flyer: FLYER_COLOR,
+    boss: 0xb71c1c
 };
 // Build-phase flight-route line: short pink dashes along the S-to-G line.
 const FLIGHT_DASH = 6;
@@ -197,6 +199,39 @@ export class Game extends Scene {
         this.events.once('shutdown', () => this.input.off('pointerdown', this.onPointerDown, this));
 
         this.redrawStatic();
+
+        // Dev-only QA hook (not in the production bundle): read the state and jump to a later wave to reach the boss waves.
+        if (import.meta.env.DEV) {
+            const state = this.state;
+            const qa = {
+                get phase() {
+                    return state.phase;
+                },
+                get wave() {
+                    return state.wave;
+                },
+                get lives() {
+                    return state.lives;
+                },
+                get coins() {
+                    return state.coins;
+                },
+                get enemyKinds() {
+                    return state.enemies.map((e) => `${e.kind ?? 'normal'}:${e.hp}/${e.maxHp}`);
+                },
+                setBossHp: (hp: number) => {
+                    for (const e of state.enemies) if (e.kind === 'boss') e.hp = hp;
+                },
+                setup: (wave: number, lives: number, coins: number) => {
+                    state.wave = wave;
+                    state.lives = lives;
+                    state.coins = coins;
+                    this.refreshHud();
+                    this.redrawStatic();
+                }
+            };
+            (window as unknown as { __qa: unknown }).__qa = qa;
+        }
     }
 
     private initEffects() {
@@ -270,7 +305,7 @@ export class Game extends Scene {
     private stepWave(dt: number) {
         const phase = update(this.state, dt);
         const { events } = this.state;
-        for (let i = 0; i < events.killX.length; i++) this.popups.spawn(events.killX[i], events.killY[i]);
+        for (let i = 0; i < events.killX.length; i++) this.popups.spawn(events.killX[i], events.killY[i], events.killReward[i]);
         if (events.leaks > 0) {
             this.leakFlash.start();
             this.lifeFlash.start();
@@ -353,8 +388,8 @@ export class Game extends Scene {
     }
 
     private beginEnding(cleared: boolean) {
-        const { kills, lives, wave } = this.state;
-        const data: ResultData = { cleared, kills, lives, wave };
+        const { kills, bossKills, lives, wave } = this.state;
+        const data: ResultData = { cleared, kills, bossKills, lives, wave };
         this.ending = true;
         this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Result', data));
         this.cameras.main.fadeOut(FADE_TIME * 1000, 0, 0, 0);
@@ -383,6 +418,8 @@ export class Game extends Scene {
                 continue;
             }
             const t = p.age / POPUP_TIME;
+            const label = `+${p.reward}`;
+            if (text.text !== label) text.setText(label);
             text.setVisible(true).setPosition(p.x, p.y - POPUP_RISE * t).setAlpha(1 - t);
         }
     }
@@ -594,37 +631,42 @@ export class Game extends Scene {
             }
             else g.lineStyle(3, COLOR.shot).lineBetween(t.x, t.y, t.targetX, t.targetY);
         }
-        for (const e of this.state.enemies) {
-            const r = kindRadius(e.kind);
-            const flyer = e.kind === 'flyer';
-            g.fillStyle(ENEMY_COLOR[e.kind ?? 'normal']);
-            if (flyer) {
-                this.traceDiamond(g, e.x, e.y, r);
-                g.fillPath();
-            } else {
-                g.fillCircle(e.x, e.y, r);
-            }
-            // A slowed enemy keeps its kind's fill; the slow tower's effect is the light-blue rim.
-            if (e.slowed) {
-                g.lineStyle(SLOW_RIM_W, COLOR.slowedEnemy);
-                if (flyer) {
-                    this.traceDiamond(g, e.x, e.y, r);
-                    g.strokePath();
-                } else {
-                    g.strokeCircle(e.x, e.y, r);
-                }
-            }
-            if (e.hp < e.maxHp) {
-                const w = r * 2;
-                const top = e.y - r - 8;
-                g.fillStyle(COLOR.hpBack).fillRect(e.x - r, top, w, 4);
-                g.fillStyle(COLOR.hp).fillRect(e.x - r, top, (w * e.hp) / e.maxHp, 4);
-            }
-        }
+        // The boss goes first so the smaller enemies are drawn on top of it.
+        for (const e of this.state.enemies) if (e.kind === 'boss') this.drawEnemy(g, e);
+        for (const e of this.state.enemies) if (e.kind !== 'boss') this.drawEnemy(g, e);
         for (const p of this.popups.items) {
             if (!p.active || p.age >= KILL_FX) continue;
             const t = p.age / KILL_FX;
             g.lineStyle(3, COLOR.killRing, 1 - t).strokeCircle(p.x, p.y, ENEMY_RADIUS * (1 + t));
+        }
+    }
+
+    private drawEnemy(g: GameObjects.Graphics, e: Enemy) {
+        const r = kindRadius(e.kind);
+        const flyer = e.kind === 'flyer';
+        g.fillStyle(ENEMY_COLOR[e.kind ?? 'normal']);
+        if (flyer) {
+            this.traceDiamond(g, e.x, e.y, r);
+            g.fillPath();
+        } else {
+            g.fillCircle(e.x, e.y, r);
+        }
+        // A slowed enemy keeps its kind's fill; the slow tower's effect is the light-blue rim.
+        if (e.slowed) {
+            g.lineStyle(SLOW_RIM_W, COLOR.slowedEnemy);
+            if (flyer) {
+                this.traceDiamond(g, e.x, e.y, r);
+                g.strokePath();
+            } else {
+                g.strokeCircle(e.x, e.y, r);
+            }
+        }
+        // The boss shows its HP bar from the moment it spawns; the others once they are hurt.
+        if (e.kind === 'boss' || e.hp < e.maxHp) {
+            const w = r * 2;
+            const top = hpBarTop(e.y, r);
+            g.fillStyle(COLOR.hpBack).fillRect(e.x - r, top, w, 4);
+            g.fillStyle(COLOR.hp).fillRect(e.x - r, top, (w * e.hp) / e.maxHp, 4);
         }
     }
 
