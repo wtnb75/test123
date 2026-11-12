@@ -23,12 +23,14 @@ export class AbsorbEffects {
     /** Seconds since the last pulse / ring started; Infinity when none is playing. */
     pulseAge = Infinity;
     ringAge = Infinity;
+    /** The absorb radius the current ring started from (fixed for the ring's whole life, boost or not). */
+    ringBase = FIELD_RADIUS;
 
     /**
      * Ages every effect by dt, then starts new ones for the bullets absorbed this frame. Effects
      * only live while playing: any other phase (including the frame the run ends) clears them all.
      */
-    update(dt: number, absorbed: readonly Point[], playing: boolean): void {
+    update(dt: number, absorbed: readonly Point[], playing: boolean, fieldRadius: number = FIELD_RADIUS): void {
         if (!playing) {
             this.clear();
             return;
@@ -40,6 +42,7 @@ export class AbsorbEffects {
         if (absorbed.length === 0) return;
         this.pulseAge = 0;
         this.ringAge = 0;
+        this.ringBase = fieldRadius;
         for (const p of absorbed) this.sucks.push({ x: p.x, y: p.y, age: 0 });
     }
 
@@ -104,6 +107,7 @@ export function absorbRingProgress(age: number): number {
     return effectProgress(age, ABSORB_RING_DURATION);
 }
 
-export function absorbRingRadius(progress: number): number {
-    return FIELD_RADIUS + (ABSORB_RING_MAX_RADIUS - FIELD_RADIUS) * progress;
+/** Outer ring radius: it grows by the same distance whatever radius it started from (`base`, the field's then). */
+export function absorbRingRadius(progress: number, base: number = FIELD_RADIUS): number {
+    return base + (ABSORB_RING_MAX_RADIUS - FIELD_RADIUS) * progress;
 }

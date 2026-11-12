@@ -230,6 +230,23 @@ export const CARRIER_DROP_INTERVAL = 3;
 /** A dropping carrier's centre mark flashes white for this long. */
 export const CARRIER_DROP_FLASH = 0.15;
 
+/** The reward a killed carrier drops (docs/spec/powerup.md): a diamond that falls straight down... */
+export const POWERUP_ITEM_RADIUS = 12;
+export const POWERUP_ITEM_SPEED = 90;
+/** ...and, once the field swallows it, widens the field for this long (a second one resets the clock). */
+export const POWERUP_DURATION = 10;
+export const POWERUP_FIELD_RADIUS = 135;
+/** The last stretch of the boost, when the field's edge blinks between gold and its normal colour. */
+export const POWERUP_BLINK_TIME = 2;
+export const POWERUP_BLINK_HALF_PERIOD = 0.125;
+/** Slack for the boost clock, which sums frame deltas (same reasoning as DRAIN_EPS). */
+export const POWERUP_EPS = 1e-6;
+/** The ring that expands from the player when an item is taken. */
+export const POWERUP_PICKUP_RING_DURATION = 0.3;
+export const POWERUP_PICKUP_RING_WIDTH = 4;
+/** Item, boosted edge and pickup ring colour: yellow, clear of the boss's amber (0xffd54f) and every other kind colour (tested). */
+export const POWERUP_COLOR = 0xffff00;
+
 export const LEECH_HP = 4;
 export const LEECH_SCORE = 400;
 export const LEECH_RADIUS = 14;

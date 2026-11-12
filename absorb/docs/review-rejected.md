@@ -19,3 +19,9 @@
 - `logic/leech.ts`: `leechOrbitPoint` が leech ごと・フレームごとに点を作る — 理由: 同時に最大 2 体で、1 フレーム 2 個の小さなオブジェクト。`drainStep` の分は、吸い取りが無いフレームでは呼ばないようにした
 - `logic/world.ts`: `countLeeches`・`drainStock`・`drawTethers` が敵の配列を毎回走査する — 理由: 敵は多くても十数体で、carrier の追跡用フィールドのような別の一覧を持つと、除去時の同期が増える
 - `logic/world.ts`: `drainCarry` が公開フィールド — 理由: `spawnTimer` などと同じく、テストが状態を直接置けるようにしている書き方
+- `logic/absorbFx.ts`（`AbsorbEffects.update` の `fieldRadius` が省略可で、渡し忘れると 90px に戻る）— 理由: 既存の `absorbFx.test.ts` が 3 引数で呼んでおり、必須にすると既存テストの呼び出しを変えることになる。呼び出しは `Game` の 1 か所だけで、強化中の輪の基準は新しいテストが確かめている
+- `logic/world.ts`（`powerupElapsed`・`fieldRadius` が公開の書き換え可能なフィールド）— 理由: `World` は他の状態（`stock`・`elapsed`・`drainCarry` など）も、テストと QA が直接設定できるよう公開フィールドにしている。同じ書き方に揃えた
+- `logic/powerup.ts`（`PickupEffects` が他の演出クラスと同じ「経過時間 Infinity から始め、きっかけで 0、プレイ中だけ進める」を再実装している）— 理由: 演出クラスは 1 つ 10 行ほどの小さな時計を、それぞれ持つ作りで（`AbsorbEffects`・`DropFlashes` など）、共通化すると既存の演出の差分が広がる
+- `logic/powerup.ts`（`stepItem` の引数が 6 つで `canTake` の真偽値を取る）— 理由: 移動・取る・消すの順を 1 か所に固定するための関数で、各境界を単体テストが確かめている。引数の取り違えは同じ型の数値が並ぶ点だけで、呼び出しは `World.updateItems` の 1 か所
+- `scenes/Game.ts`（縁の色の決め方が `powerup.ts` と Scene に分かれている）— 理由: 点滅の規則（`edgeIsGold`）は純粋関数でテストし、「通常の縁の色が何か」は描画の色の選択で Scene に置く規則（`COLORS` と leech の色の混ざりは Scene の描画）。QA のスクリーンショットで確かめる
+- `scenes/DemoGame.ts`（`__qaDemo` が `items`・`fieldRadius`・`powerupElapsed` を出さない）— 理由: Demo は 1 回の走りが 40 秒で、carrier の初出現（70 秒）に届かず、アイテムは出ない（spec/powerup.md に明記）。`__qa` は `world` ごと出しているので、QA は必要なら読める
