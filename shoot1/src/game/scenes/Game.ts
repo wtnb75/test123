@@ -4,8 +4,8 @@ import {
     GAME_WIDTH, GAME_HEIGHT,
     PLAYER_RADIUS, PLAYER_SPEED,
     BULLET_RADIUS, ENEMY_RADIUS,
-    MINE_RADIUS, MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER,
-    MINE_TIMEOUT_SEC, MINE_BLINK_SEC, MINE_PLACE_GRACE_SEC,
+    MINE_RADIUS, MINE_EXPLODE_RADIUS,
+    MINE_TIMEOUT_SEC, MINE_BLINK_SEC,
     MINE_INITIAL_COUNT, SCORE_MULTIPLIER,
     MINE_RIPPLE_START_RADIUS, MINE_RIPPLE_ALPHA,
     ITEM_RADIUS, BARRIER_RING_MARGIN,
@@ -15,14 +15,15 @@ import { advanceStar, backdropColorOf, ENEMY_SHAPE, PLAYER_SHAPE } from '../core
 import { bulletRotation, countdownRingRadius, isInBlastWarning, rippleState } from '../core/visuals';
 import { bulletTextureKey } from './bulletTextures';
 import {
-    circlesOverlap, getTargetsInExplosion,
+    circlesOverlap,
     clampPosition, inputToVelocity, joystickToVelocity,
-    calcScore, calcChainExplosionRadius
+    calcScore
 } from '../core/physics';
 import {
-    createFieldState, removeBulletsAt, removeEnemiesAt, stepField,
+    createFieldState, stepField,
     type BulletState, type EnemyState, type FieldEvents
 } from '../core/field';
+import { addMineAt, createMinefield, stepMinefield, type Explosion, type MineBody } from '../core/minefield';
 import { canPlaceMine, placeMine, replenishMine, createMineState, type MineState } from '../core/mine';
 import {
     addMine, advanceBarrier, advanceItemY, createBarrierState, graceAlpha, isGraceActive, isItemGone, itemSpawnX,
@@ -32,10 +33,7 @@ import {
 import { rushTouchesPlayer } from '../core/soloEnemy';
 
 // --- 型定義 ---
-type Mine = {
-    x: number;
-    y: number;
-    age: number;          // 設置からの経過秒
+type MineView = {
     gfx: Phaser.GameObjects.Arc;
     ripple: Phaser.GameObjects.Arc | null;     // placement ripple
     countdown: Phaser.GameObjects.Arc | null;  // shrinking countdown ring
@@ -86,7 +84,9 @@ export class Game extends Scene {
     private field = createFieldState();
     private enemyGfx = new Map<number, Phaser.GameObjects.Graphics>();
     private bulletGfx = new Map<number, Phaser.GameObjects.Image>();
-    private mines: Mine[] = [];
+    // mines live in core (minefield); the Scene only keeps their game objects, by mine id
+    private minefield = createMinefield();
+    private mineViews = new Map<number, MineView>();
     private items: Item[] = [];
 
     // 状態
@@ -132,7 +132,8 @@ export class Game extends Scene {
         this.field = createFieldState();
         this.enemyGfx = new Map();
         this.bulletGfx = new Map();
-        this.mines = [];
+        this.minefield = createMinefield();
+        this.mineViews = new Map();
         this.items = [];
         this.barrier = createBarrierState();
         this.mineState = createMineState(MINE_INITIAL_COUNT);
@@ -202,7 +203,7 @@ export class Game extends Scene {
                     items: this.items.map((i) => ({ kind: i.kind, x: i.x, y: i.y })),
                     enemies: this.field.enemies.map((e) => ({ kind: e.kind, x: e.x, y: e.y })),
                     bullets: this.field.bullets.length,
-                    mines: this.mines.map((m) => ({ x: m.x, y: m.y, age: m.age })),
+                    mines: this.minefield.mines.map((m) => ({ x: m.x, y: m.y, age: m.age })),
                     hud: { mine: this.mineText.text, barrierShown: this.barrierText.visible, ringShown: this.barrierRing.visible, playerAlpha: this.playerGfx.alpha }
                 })
             });
@@ -317,50 +318,49 @@ export class Game extends Scene {
     private tryPlaceMine() {
         if (!canPlaceMine(this.mineState)) return;
 
-        // 既存の地雷と重なる位置には設置しない
-        for (const m of this.mines) {
-            if (circlesOverlap(this.px, this.py, MINE_RADIUS, m.x, m.y, MINE_RADIUS)) return;
-        }
+        // a mine is not placed where it would overlap one already there
+        const mine = addMineAt(this.minefield, this.px, this.py);
+        if (!mine) return;
 
         const gfx = this.add.circle(this.px, this.py, MINE_RADIUS, 0xffdd00).setDepth(5);
         const ripple = this.add.circle(this.px, this.py, MINE_RIPPLE_START_RADIUS)
             .setStrokeStyle(2, 0xffdd00, MINE_RIPPLE_ALPHA).setDepth(MINE_RING_DEPTH);
-        this.mines.push({ x: this.px, y: this.py, age: 0, gfx, ripple, countdown: null, warning: null });
+        this.mineViews.set(mine.id, { gfx, ripple, countdown: null, warning: null });
         this.mineState = placeMine(this.mineState);
     }
 
-    private destroyMineRings(mine: Mine) {
-        mine.ripple?.destroy();
-        mine.countdown?.destroy();
-        mine.warning?.destroy();
-        mine.ripple = null;
-        mine.countdown = null;
-        mine.warning = null;
+    private destroyMineRings(view: MineView) {
+        view.ripple?.destroy();
+        view.countdown?.destroy();
+        view.warning?.destroy();
+        view.ripple = null;
+        view.countdown = null;
+        view.warning = null;
     }
 
-    private updateMineRings(mine: Mine) {
+    private updateMineRings(mine: MineBody, view: MineView) {
         const ripple = rippleState(mine.age);
-        if (mine.ripple && ripple) {
-            mine.ripple.setRadius(ripple.radius);
-            mine.ripple.setStrokeStyle(2, 0xffdd00, ripple.alpha);
-        } else if (mine.ripple) {
-            mine.ripple.destroy();
-            mine.ripple = null;
+        if (view.ripple && ripple) {
+            view.ripple.setRadius(ripple.radius);
+            view.ripple.setStrokeStyle(2, 0xffdd00, ripple.alpha);
+        } else if (view.ripple) {
+            view.ripple.destroy();
+            view.ripple = null;
         }
 
         const countdownRadius = countdownRingRadius(mine.age);
         if (countdownRadius !== null) {
-            mine.countdown ??= this.add.circle(mine.x, mine.y, countdownRadius)
+            view.countdown ??= this.add.circle(mine.x, mine.y, countdownRadius)
                 .setStrokeStyle(2, 0xffee99, 0.7).setDepth(MINE_RING_DEPTH);
-            mine.countdown.setRadius(countdownRadius);
+            view.countdown.setRadius(countdownRadius);
         }
 
         const inBlast = isInBlastWarning(mine.x, mine.y, this.px, this.py);
         if (inBlast) {
-            mine.warning ??= this.add.circle(mine.x, mine.y, MINE_EXPLODE_RADIUS)
+            view.warning ??= this.add.circle(mine.x, mine.y, MINE_EXPLODE_RADIUS)
                 .setStrokeStyle(3, 0xff3333, 0.85).setDepth(MINE_RING_DEPTH + 0.1);
         }
-        mine.warning?.setVisible(inBlast);
+        view.warning?.setVisible(inBlast);
     }
 
     /** Draws a newly spawned enemy: a diamond (formation, rusher) or a dot-in-circle (stopper). Hit areas stay circles. */
@@ -407,74 +407,55 @@ export class Game extends Scene {
         for (const b of this.field.bullets) this.bulletGfx.get(b.id)?.setPosition(b.x, b.y);
     }
 
-    private triggerExplosion(mine: Mine, visited: Set<Mine>, chainCount = 0): boolean {
-        if (visited.has(mine)) return false;
-        visited.add(mine);
-
-        const radius = calcChainExplosionRadius(MINE_EXPLODE_RADIUS, MINE_CHAIN_RADIUS_MULTIPLIER, chainCount);
-
-        // 地雷を即座にリストから除去
-        mine.gfx.destroy();
-        this.destroyMineRings(mine);
-        const mineIdx = this.mines.indexOf(mine);
-        if (mineIdx !== -1) this.mines.splice(mineIdx, 1);
-        this.mineState = replenishMine(this.mineState);
-
-        // 連鎖対象の地雷を先に収集（リスト変更前）
-        const chainMines: Mine[] = [];
-        for (const other of this.mines) {
-            if (!visited.has(other)) {
-                const dx = mine.x - other.x;
-                const dy = mine.y - other.y;
-                if (dx * dx + dy * dy <= radius * radius) {
-                    chainMines.push(other);
-                }
+    /** Draws what the mine core reports, in its order: the mines are gone, their stock comes back, the swept enemies and bullets go. */
+    private applyExplosions(explosions: readonly Explosion[]) {
+        for (const ex of explosions) {
+            const view = this.mineViews.get(ex.mineId);
+            if (view) {
+                view.gfx.destroy();
+                this.destroyMineRings(view);
+                this.mineViews.delete(ex.mineId);
             }
-        }
+            this.mineState = replenishMine(this.mineState);
 
-        // 巻き込み: 敵機
-        const enemyPositions = this.field.enemies.map(e => ({ x: e.x, y: e.y }));
-        const hitEnemies = getTargetsInExplosion(mine.x, mine.y, radius, enemyPositions);
-        // each removed enemy may drop an item, rolled in the enemy list's order (docs/spec/power-ups.md)
-        for (const idx of hitEnemies) this.maybeDropItem(enemyPositions[idx].x, enemyPositions[idx].y);
-        this.destroyEnemyGfx(removeEnemiesAt(this.field, hitEnemies));
+            // each removed enemy may drop an item, rolled in the enemy list's order (docs/spec/power-ups.md)
+            for (const enemy of ex.removedEnemies) this.maybeDropItem(enemy.x, enemy.y);
+            this.destroyEnemyGfx(ex.removedEnemies.map((e) => e.id));
+            this.destroyBulletGfx(ex.removedBulletIds);
 
-        // 巻き込み: 弾
-        const bulletPositions = this.field.bullets.map(b => ({ x: b.x, y: b.y }));
-        const hitBullets = getTargetsInExplosion(mine.x, mine.y, radius, bulletPositions);
-        this.destroyBulletGfx(removeBulletsAt(this.field, hitBullets));
-
-        // 自機への爆風判定
-        const playerHitByBlast = circlesOverlap(mine.x, mine.y, radius, this.px, this.py, PLAYER_RADIUS);
-
-        // 爆発ビジュアル（連鎖回数で色・シェイク強度を変化）
-        const EXPLOSION_COLORS = [0xff8800, 0xff4400, 0xff0000, 0x9900ff];
-        const color = EXPLOSION_COLORS[Math.min(chainCount, EXPLOSION_COLORS.length - 1)];
-        const delayMs = chainCount * 100;
-        const shakeIntensity = 0.008 + chainCount * 0.004;
-        const shakeDuration = 250 + chainCount * 100;
-        this.time.delayedCall(delayMs, () => {
-            const circle = this.add.circle(mine.x, mine.y, radius, color, 0.5).setDepth(6);
-            this.tweens.add({
-                targets: circle,
-                alpha: 0,
-                scaleX: 1.3,
-                scaleY: 1.3,
-                duration: 400,
-                onComplete: () => circle.destroy()
+            // explosion visual (colour and shake grow with the chain count)
+            const EXPLOSION_COLORS = [0xff8800, 0xff4400, 0xff0000, 0x9900ff];
+            const color = EXPLOSION_COLORS[Math.min(ex.chainCount, EXPLOSION_COLORS.length - 1)];
+            const delayMs = ex.chainCount * 100;
+            const shakeIntensity = 0.008 + ex.chainCount * 0.004;
+            const shakeDuration = 250 + ex.chainCount * 100;
+            this.time.delayedCall(delayMs, () => {
+                const circle = this.add.circle(ex.x, ex.y, ex.radius, color, 0.5).setDepth(6);
+                this.tweens.add({
+                    targets: circle,
+                    alpha: 0,
+                    scaleX: 1.3,
+                    scaleY: 1.3,
+                    duration: 400,
+                    onComplete: () => circle.destroy()
+                });
+                this.cameras.main.shake(shakeDuration, shakeIntensity);
             });
-            this.cameras.main.shake(shakeDuration, shakeIntensity);
-        });
-
-        // 連鎖爆発（再帰）
-        let chainPlayerHit = false;
-        for (const cm of chainMines) {
-            if (this.triggerExplosion(cm, visited, chainCount + 1)) {
-                chainPlayerHit = true;
-            }
         }
+    }
 
-        return playerHitByBlast || chainPlayerHit;
+    /** Blinks the last seconds and updates the rings of the mines still on the field. */
+    private updateMineViews() {
+        for (const mine of this.minefield.mines) {
+            const view = this.mineViews.get(mine.id);
+            if (!view) continue;
+            const remaining = MINE_TIMEOUT_SEC - mine.age;
+            if (remaining <= MINE_BLINK_SEC) {
+                const freq = 2 + (1 - remaining / MINE_BLINK_SEC) * 8;
+                view.gfx.setVisible(Math.sin(mine.age * freq * Math.PI) > 0);
+            }
+            this.updateMineRings(mine, view);
+        }
     }
 
     /** A game-over cause happened: true when the game ends; false when the barrier (or its grace window) took it. */
@@ -641,60 +622,19 @@ export class Game extends Scene {
         this.syncField(stepped.events);
         if (stepped.aborted) return;
 
-        // --- 地雷更新 ---
-        const minesToExplode: Mine[] = [];
-        // a copy: a touched mine explodes inside the loop (and chains), and the player may survive it behind a barrier
-        for (const mine of [...this.mines]) {
-            if (!this.mines.includes(mine)) continue;
-            mine.age += dt;
-
-            // タイムアウト爆発
-            if (mine.age >= MINE_TIMEOUT_SEC) {
-                minesToExplode.push(mine);
-                continue;
-            }
-
-            // 点滅（残り MINE_BLINK_SEC 秒）
-            const remaining = MINE_TIMEOUT_SEC - mine.age;
-            if (remaining <= MINE_BLINK_SEC) {
-                const freq = 2 + (1 - remaining / MINE_BLINK_SEC) * 8;
-                mine.gfx.setVisible(Math.sin(mine.age * freq * Math.PI) > 0);
-            }
-
-            this.updateMineRings(mine);
-
-            // 敵機との判定
-            for (const enemy of this.field.enemies) {
-                if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) {
-                    minesToExplode.push(mine);
-                    break;
-                }
-            }
-
-            // 自機との判定（設置直後は無効）
+        // --- 地雷更新（core）: ages, who is due, touch and chained explosions. The Scene draws what it reports ---
+        const mineStep = stepMinefield(this.minefield, this.field, { dt, playerX: this.px, playerY: this.py }, {
             // (touching a mine does nothing while the barrier's grace window runs)
-            if (mine.age > MINE_PLACE_GRACE_SEC && !isGraceActive(this.barrier)) {
-                if (circlesOverlap(mine.x, mine.y, MINE_RADIUS, this.px, this.py, PLAYER_RADIUS)) {
-                    this.triggerExplosion(mine, new Set(), 0);
-                    if (this.fail('地雷 !')) return;
-                }
+            playerTouchActive: () => !isGraceActive(this.barrier),
+            onTouchBurst: (explosions) => {
+                this.applyExplosions(explosions);
+                return this.fail('地雷 !');
             }
-        }
-        // まとめて爆発（triggerExplosion が内部でリストから除去するため filter 不要）
-        const visited = new Set<Mine>();
-        let playerHitByBlast = false;
-        for (const mine of minesToExplode) {
-            // a mine that already went off (a touched one or its chain) must not explode twice
-            if (!this.mines.includes(mine)) continue;
-            if (!visited.has(mine)) {
-                if (this.triggerExplosion(mine, visited, 0)) {
-                    playerHitByBlast = true;
-                }
-            }
-        }
-        if (playerHitByBlast) {
-            if (this.fail('爆風 !')) return;
-        }
+        });
+        if (mineStep.aborted) return;
+        this.applyExplosions(mineStep.explosions);
+        this.updateMineViews();
+        if (mineStep.playerHit && this.fail('爆風 !')) return;
 
         // --- 弾と自機の当たり判定 ---
         for (const b of this.field.bullets) {
