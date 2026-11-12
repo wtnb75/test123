@@ -14,6 +14,8 @@ import { generateWaypoints } from '../logic/waypoints';
 import { createCircle, getRadius, isOffScreen, isWarning, type CircleObstacle } from '../logic/circle';
 import { isTouchingEdge } from '../logic/collision';
 import { advanceSpawnTimer } from '../logic/spawn';
+import { createPrng } from '../logic/prng';
+import { patternSeed, pickPatternIndex, placeCircleCenter } from '../logic/placement';
 import {
     createCharacterState,
     requestJump,
@@ -36,6 +38,7 @@ export class Game extends Scene {
     private circles: LiveCircle[] = [];
     private nextCircleId = 0;
     private msSinceLastSpawn = 0;
+    private circleRng!: () => number;
     private spawnIntervalMs = 1800;
     private growthSpeedPxPerSec = 40;
     private routeGraphics!: GameObjects.Graphics;
@@ -55,6 +58,8 @@ export class Game extends Scene {
         this.nextCircleId = 0;
         this.msSinceLastSpawn = 0;
         this.finished = false;
+        // One circle pattern per attempt, picked at random; the circle positions then follow its seeded stream.
+        this.circleRng = createPrng(patternSeed(this.stage, pickPatternIndex(Math.random)));
     }
 
     create() {
@@ -129,12 +134,12 @@ export class Game extends Scene {
     }
 
     private spawnCircle() {
-        const obstacle = createCircle(
-            this.nextCircleId++,
-            Math.random,
-            { width: GAME_WIDTH, height: GAME_HEIGHT },
-            this.time.now
-        );
+        const aheadPointAt = (ms: number) => this.path.getPoint(Math.min(1, this.character.t + ms * this.speedPerMs));
+        const center = placeCircleCenter(this.circleRng, this.stage, aheadPointAt, {
+            width: GAME_WIDTH,
+            height: GAME_HEIGHT
+        });
+        const obstacle = createCircle(this.nextCircleId++, center, this.time.now);
         const graphics = this.add.graphics();
         this.circles.push({ obstacle, graphics });
     }

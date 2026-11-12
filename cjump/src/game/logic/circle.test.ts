@@ -4,11 +4,8 @@ import { createCircle, getRadius, isOffScreen, isWarning } from './circle';
 const bounds = { width: 960, height: 600 };
 
 describe('createCircle', () => {
-    it('places the circle using the given rng, scaled to the screen bounds', () => {
-        const values = [0.25, 0.75];
-        let i = 0;
-        const rng = () => values[i++];
-        expect(createCircle(1, rng, bounds, 1000)).toEqual({ id: 1, x: 240, y: 450, spawnedAtMs: 1000 });
+    it('places the circle at the given center and records the spawn time', () => {
+        expect(createCircle(1, { x: 240, y: 450 }, 1000)).toEqual({ id: 1, x: 240, y: 450, spawnedAtMs: 1000 });
     });
 });
 

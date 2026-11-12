@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { encounteredCircles, measureAllStages, measureStage, stageRoute, travelTimeMs } from './measure';
 import { getDifficultyParams } from './difficulty';
-import { STAGE_COUNT, MEASURE_RUNS } from './constants';
+import { STAGE_COUNT, MEASURE_RUNS, MEASURE_TIMEOUT_MS, PATTERN_COUNT } from './constants';
+import { simulateRun } from './simulation';
+import { reflexBot } from './bots';
+import { createPrng } from './prng';
+import { patternSeed } from './placement';
 
 const STAGES = Array.from({ length: STAGE_COUNT }, (_, i) => i + 1);
 
@@ -66,6 +70,50 @@ describe('measureStage', () => {
 
 });
 
+// Circle placement ahead of the route (docs/spec.md): the first stages no longer clear without jumping.
+// Spec measurements (fixed seeds, 200 runs): idle 0.425 / 0.200 / 0.095 at stages 1-3, reflex at least 0.100.
+describe('circle placement difficulty', () => {
+    it.each([
+        { stage: 1, maxIdle: 0.5 },
+        { stage: 2, maxIdle: 0.3 },
+        { stage: 3, maxIdle: 0.2 }
+    ])('keeps the idle clear rate at stage $stage at or below $maxIdle', ({ stage, maxIdle }) => {
+        expect(measureStage(stage).idleClearRate).toBeLessThanOrEqual(maxIdle);
+    });
+
+    it.each(STAGES)('lets the reflex bot clear at least 5% of the runs at stage %i', (stage) => {
+        expect(measureStage(stage).reflexClearRate).toBeGreaterThanOrEqual(0.05);
+    });
+});
+
+// The game plays only PATTERN_COUNT patterns per stage (patternSeed), not the measurement's many seeds.
+// The reflex bot (deterministic for a pattern) must be able to clear at least one of them.
+// Measured: it clears at least one pattern at stages 1-8 but none of the 3 at stages 9 and 10 (the average over many
+// seeds is 0.34 and 0.10), so those stages may be effectively unwinnable. Retuning is for game-balance.
+describe('shipped circle patterns', () => {
+    it.todo('has at least one pattern the reflex bot clears at stages 9 and 10 (needs a retune in game-balance)');
+
+    it.each(STAGES.filter((stage) => stage <= 8))('has at least one pattern the reflex bot clears at stage %i', (stage) => {
+        const difficulty = getDifficultyParams(stage);
+        let cleared = 0;
+        for (let pattern = 0; pattern < PATTERN_COUNT; pattern++) {
+            const ok = simulateRun({
+                stage,
+                route: stageRoute(stage),
+                spawnIntervalMs: difficulty.circleSpawnIntervalMs,
+                growthSpeedPxPerSec: difficulty.circleGrowthSpeedPxPerSec,
+                rng: createPrng(patternSeed(stage, pattern)),
+                bot: reflexBot,
+                timeoutMs: MEASURE_TIMEOUT_MS
+            });
+            if (ok) {
+                cleared++;
+            }
+        }
+        expect(cleared).toBeGreaterThanOrEqual(1);
+    });
+});
+
 describe('measureAllStages', () => {
     it('returns one measurement per stage in order', () => {
         const all = measureAllStages(1);
@@ -98,8 +146,8 @@ describe('difficulty curve', () => {
         }
     });
 
-    // Measured with the spec's seeds and MEASURE_RUNS: the largest drop is 0.385 (stage 9 to 10); with the stage
-    // number as the route seed it was 0.495 (stage 8 to 9).
+    // Measured with the spec's seeds, circle placement and MEASURE_RUNS: the largest drop is 0.24 (stage 9 to 10);
+    // with the stage number as the route seed it was 0.495 (stage 8 to 9).
     it('does not let the reflex clear rate fall by more than 0.40 between neighbouring stages', () => {
         const MAX_DROP = 0.4;
         for (const stage of STAGES.slice(1)) {

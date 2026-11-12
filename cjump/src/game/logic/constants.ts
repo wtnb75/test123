@@ -23,3 +23,13 @@ export const ROUTE_TIME_TOLERANCE_S = 0.1;
 // Divisions of the spline arc-length table. Equals Phaser's Curve arcLengthDivisions default; keep it so
 // measured positions match the Game scene.
 export const SPLINE_ARC_DIVISIONS = 100;
+
+// Circle placement (docs/spec.md, "円の位置の決め方").
+export const PATTERN_COUNT = 3;
+export const PATTERN_SEED_STRIDE = 100;
+export const FORWARD_RATIO_START = 0.6;
+export const FORWARD_RATIO_END = 0.8;
+export const FORWARD_MIN_MS = 1000;
+export const FORWARD_MAX_MS = 3000;
+export const OFFSET_MIN_PX = 40;
+export const OFFSET_MAX_PX = 240;
