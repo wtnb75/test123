@@ -3,6 +3,10 @@ import { MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES } from '../logic/alloca
 import { buildResultHtml } from '../logic/resultHtml';
 import { budgetFromUnits, parseBudget, unitsFromBudget } from '../logic/budget';
 import { decideCalc, type CalcMode } from '../logic/liveCalc';
+import { buildProposalHtml, buildRemovedHtml, parseOddsTexts, proposeSubset } from '../logic/subset';
+
+// Rows dropped by "apply the proposal": their original positions (ascending) and odds texts.
+type RemovedRows = { positions: number[]; texts: string[] };
 
 type UiRefs = {
     root: HTMLDivElement;
@@ -15,6 +19,7 @@ type UiRefs = {
     error: HTMLDivElement;
     staleNote: HTMLDivElement;
     result: HTMLDivElement;
+    subset: HTMLDivElement;
 };
 
 export class Game extends Scene {
@@ -22,6 +27,9 @@ export class Game extends Scene {
     private ui?: UiRefs;
     // true while a result is on screen (a failed auto calculation keeps it and shows a notice)
     private hasResult = false;
+    // odds of the result on screen (the proposal is computed from these)
+    private shownOdds: number[] = [];
+    private removed: RemovedRows | null = null;
 
     constructor() {
         super('Game');
@@ -45,7 +53,8 @@ export class Game extends Scene {
             calculateBtn: root.querySelector('[data-role="calculate"]') as HTMLButtonElement,
             error: root.querySelector('[data-role="error"]') as HTMLDivElement,
             staleNote: root.querySelector('[data-role="stale-note"]') as HTMLDivElement,
-            result: root.querySelector('[data-role="result"]') as HTMLDivElement
+            result: root.querySelector('[data-role="result"]') as HTMLDivElement,
+            subset: root.querySelector('[data-role="subset"]') as HTMLDivElement
         };
 
         this.bindUiEvents();
@@ -77,6 +86,7 @@ export class Game extends Scene {
             <div class="dutchcalc-error" data-role="error"></div>
             <div class="dutchcalc-stale" data-role="stale-note" hidden>入力が無効です。下は直前の有効な入力の結果です</div>
             <div class="dutchcalc-result" data-role="result"></div>
+            <div class="dutchcalc-subset" data-role="subset"></div>
           </div>
         </div>`;
     }
@@ -90,8 +100,18 @@ export class Game extends Scene {
             if (this.oddsValues.length >= MAX_CANDIDATES) {
                 return;
             }
+            this.clearSubsetOnEdit();
             this.oddsValues.push('');
             this.renderCandidates();
+        });
+
+        this.ui.subset.addEventListener('click', (event) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('.dutchcalc-subset-apply')) {
+                this.applySubset();
+            } else if (target.closest('.dutchcalc-subset-undo')) {
+                this.undoSubset();
+            }
         });
 
         this.ui.calculateBtn.addEventListener('click', () => {
@@ -163,6 +183,7 @@ export class Game extends Scene {
             input.value = value;
             input.dataset.role = 'odds-input';
             input.addEventListener('input', () => {
+                this.clearSubsetOnEdit();
                 this.oddsValues[index] = input.value;
                 this.runCalculation('auto');
             });
@@ -182,6 +203,7 @@ export class Game extends Scene {
                 if (this.oddsValues.length <= MIN_CANDIDATES) {
                     return;
                 }
+                this.clearSubsetOnEdit();
                 this.oddsValues.splice(index, 1);
                 this.renderCandidates();
                 this.runCalculation('auto');
@@ -205,6 +227,7 @@ export class Game extends Scene {
             if (this.oddsValues.length >= MAX_CANDIDATES) {
                 return;
             }
+            this.clearSubsetOnEdit();
             this.oddsValues.push('');
             this.renderCandidates();
         }
@@ -237,6 +260,8 @@ export class Game extends Scene {
             this.ui.staleNote.hidden = true;
             this.ui.result.innerHTML = buildResultHtml(outcome.result, outcome.unitPrice, outcome.remainder);
             this.hasResult = true;
+            this.shownOdds = outcome.result.candidates.map((candidate) => candidate.odds);
+            this.renderSubset();
             return;
         }
 
@@ -244,8 +269,69 @@ export class Game extends Scene {
         if (mode === 'button') {
             this.ui.result.innerHTML = '';
             this.hasResult = false;
+            this.removed = null;
         }
         this.ui.staleNote.hidden = !this.hasResult;
+        this.renderSubset();
+    }
+
+    // A row edit drops the record of removed rows and empties the proposal line at once.
+    private clearSubsetOnEdit(): void {
+        this.removed = null;
+        if (this.ui) {
+            this.ui.subset.innerHTML = '';
+        }
+    }
+
+    // The proposal line sits under the result; it is hidden without a result or while the notice shows.
+    private renderSubset(): void {
+        if (!this.ui) {
+            return;
+        }
+        if (!this.hasResult || !this.ui.staleNote.hidden) {
+            this.ui.subset.innerHTML = '';
+            return;
+        }
+        this.ui.subset.innerHTML = this.removed
+            ? buildRemovedHtml(this.removed.texts)
+            : buildProposalHtml(proposeSubset(this.shownOdds));
+    }
+
+    // Recomputes the proposal from the odds fields as they are now, then drops those rows.
+    private applySubset(): void {
+        const odds = parseOddsTexts(this.oddsValues);
+        if (odds === null) {
+            return;
+        }
+        const proposal = proposeSubset(odds);
+        if (proposal.kind !== 'propose') {
+            return;
+        }
+        const positions = proposal.removeIndexes;
+        this.removed = { positions, texts: positions.map((position) => this.oddsValues[position]) };
+        for (const position of [...positions].reverse()) {
+            this.oddsValues.splice(position, 1);
+        }
+        this.renderCandidates();
+        this.runCalculation('auto');
+        // Needed when the calculation was incomplete (it leaves the screen alone): the spec still shows
+        // the "removed" line right after an apply.
+        this.renderSubset();
+    }
+
+    // Puts the removed rows back at their original positions (ascending, so each index is final).
+    private undoSubset(): void {
+        if (!this.removed || !this.ui) {
+            return;
+        }
+        const { positions, texts } = this.removed;
+        positions.forEach((position, i) => {
+            this.oddsValues.splice(position, 0, texts[i]);
+        });
+        this.removed = null;
+        this.ui.subset.innerHTML = '';
+        this.renderCandidates();
+        this.runCalculation('auto');
     }
 
     private onResize(): void {

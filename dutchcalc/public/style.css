@@ -139,6 +139,25 @@ canvas {
     font-size: 0.9em;
 }
 
+.dutchcalc-subset {
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.dutchcalc-subset:empty {
+    display: none;
+}
+
+.dutchcalc-subset-text {
+    margin: 0 0 8px;
+}
+
+.dutchcalc-subset .dutchcalc-btn {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 14px;
+}
+
 @media (max-width: 480px) {
     .dutchcalc-root {
         padding: 8px;
