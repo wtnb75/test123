@@ -2,6 +2,7 @@ import { Scene, type GameObjects } from 'phaser';
 import { P } from '../params';
 import { START_KEYS, wasPressed } from '../logic/input';
 import { DemoRunClock } from '../logic/demoRun';
+import { FIRST_STAGE, stageAfter } from '../logic/stage';
 import { DEMO_WINDOW, TITLE_LAYOUT as L } from '../logic/titleLayout';
 import type { Demo } from './Demo';
 import { SceneInput } from './SceneInput';
@@ -66,7 +67,7 @@ export class Title extends Scene {
         // Presses (a key, a tap anywhere) are latched by SceneInput, so even a very short one counts.
         if (wasPressed(this.controls!.read(), START_KEYS) && this.clock.requestStart()) {
             this.scene.stop('Demo');
-            this.scene.start('Game');
+            this.scene.start('Game', { stage: stageAfter('start', FIRST_STAGE) });
             return;
         }
 

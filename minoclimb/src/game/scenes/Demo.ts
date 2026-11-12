@@ -29,7 +29,7 @@ export class Demo extends Game {
     }
 
     protected override viewOptions(): BoardViewOptions {
-        return { hints: false };
+        return { hints: false, stage: null };
     }
 
     protected override setupControls(): void {

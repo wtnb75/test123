@@ -3,9 +3,13 @@
 import { P } from '../params';
 import { RETRY_KEYS, type RawInput } from './input';
 
-export type ResultAction = 'retry' | 'title';
+/** 'retry' is the same stage again; 'next' (after a clear only) is the next stage. */
+export type ResultAction = 'retry' | 'next' | 'title';
 
 export const TITLE_KEYS: readonly string[] = ['KeyT'];
+/** After a clear: R plays the same stage again, Space goes on to the next one. */
+const AGAIN_KEY = 'KeyR';
+const NEXT_KEY = 'Space';
 
 /** The "back to Title" button: left and top edges belong to it, right and bottom edges do not. */
 export const RESULT_TITLE_RECT = {
@@ -27,11 +31,18 @@ export const lockoutOver = (elapsedSeconds: number): boolean => elapsedSeconds >
  * counts (and nothing is carried over: the caller reads, and so consumes, the presses every frame).
  * A press that began on the button is the button's (never a retry). When both a "back to Title" and a retry
  * press come in one frame, "back to Title" wins.
+ * After a clear (`cleared`, docs/spec/stages.md) Space and a tap outside the button mean "next stage" and R
+ * means "the same stage again" (R wins when they come together); after a loss all of them are a retry.
  */
-export function resultAction(raw: RawInput, accepting: boolean): ResultAction | null {
+export function resultAction(raw: RawInput, accepting: boolean, cleared = false): ResultAction | null {
     if (!accepting) return null;
     if (TITLE_KEYS.some((code) => raw.pressedKeys.has(code))) return 'title';
     if (raw.pressPoints.some((p) => onTitleButton(p.x, p.y))) return 'title';
+    if (cleared) {
+        if (raw.pressedKeys.has(AGAIN_KEY)) return 'retry';
+        if (raw.pressedKeys.has(NEXT_KEY) || raw.pressPoints.length > 0) return 'next';
+        return null;
+    }
     if (RETRY_KEYS.some((code) => raw.pressedKeys.has(code))) return 'retry';
     if (raw.pressPoints.length > 0) return 'retry';
     return null;

@@ -5,6 +5,7 @@ import type { StickView } from '../logic/input';
 import type { Round, RoundEvent } from '../logic/round';
 import { type Cell } from '../logic/pieces';
 import { dropFrameView, frameView, telegraphView } from '../logic/telegraph';
+import { fitFontSize, hudText } from '../logic/stage';
 
 const COLORS = [0x00d0d0, 0xf0d000, 0xa000d0, 0x00c040, 0xd02020, 0x2040e0, 0xf08000];
 const BACKGROUND = 0x10131c;
@@ -36,6 +37,8 @@ interface Flash {
 export interface BoardViewOptions {
     /** The operation hints of the first seconds (not shown behind the Title). */
     hints: boolean;
+    /** The stage shown in the HUD line; `null` (the demo behind the Title) shows the height only. */
+    stage?: number | null;
 }
 
 /** Draws the field, the climber, the minos, the labels, the hints, the HUD and the touch stick. */
@@ -48,13 +51,16 @@ export class BoardView {
     private playElapsed = 0;
 
     private readonly hintsEnabled: boolean;
+    private readonly stage: number | null;
 
     constructor(scene: Scene, options: BoardViewOptions = { hints: true }) {
         this.hintsEnabled = options.hints;
         // The static layer never changes, so it is drawn once, below everything else.
         this.drawBackground(scene.add.graphics());
         this.board = scene.add.graphics();
+        this.stage = options.stage ?? null;
         this.hud = scene.add.text(6, 4, '', HUD_FONT);
+        this.fitHud();
         scene.add.text(WIDTH - 6, P.GOAL_ROW * P.CELL - 4, 'GOAL', { ...LABEL_FONT, color: '#ffe040' })
             .setOrigin(1, 1).setAlpha(0.9);
         scene.add.text(WIDTH / 2, P.TOP_OUT_ROW * P.CELL - 4, 'ここまで積むと負け', LABEL_FONT)
@@ -93,7 +99,7 @@ export class BoardView {
         const p = round.player;
         g.fillStyle(PLAYER, 1).fillRect(p.x * C, p.y * C, P.PLAYER_W * C, P.PLAYER_H * C);
 
-        this.hud.setText(`高さ ${round.height} / ${P.ROWS - P.GOAL_ROW}`);
+        this.hud.setText(hudText(this.stage, round.height, P.ROWS - P.GOAL_ROW));
         this.updateHints(dt, active);
         this.drawStick(stick);
     }
@@ -101,6 +107,19 @@ export class BoardView {
     /** Drops the lights that are playing (the Title's curtain starts to close over the demo). */
     clearEffects(): void {
         this.flashes.length = 0;
+    }
+
+    /** A stage number so large that the HUD line would pass the canvas width shrinks the line to fit (docs/spec/stages.md). */
+    private fitHud(): void {
+        if (this.stage === null) return;
+        const goal = P.ROWS - P.GOAL_ROW;
+        this.hud.setText(hudText(this.stage, goal, goal));
+        const base = parseInt(HUD_FONT.fontSize, 10);
+        const size = fitFontSize((s) => {
+            this.hud.setFontSize(s);
+            return this.hud.width;
+        }, WIDTH - 12, base, 8);
+        this.hud.setFontSize(size);
     }
 
     private updateFlashes(round: Round, dt: number, active: boolean): void {
