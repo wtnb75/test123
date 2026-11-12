@@ -58,6 +58,11 @@ export const SCORE_BLOCK = 100;
 export const BUMPER_SCORE = 10;
 export const CLEAR_PAUSE = 1.0; // s
 export const RESULT_DELAY = 0.8; // s
+// Special blocks and the multiball (docs/spec/multiball.md)
+export const MULTI_BALL_MAX = 3; // balls on the table at once
+export const MULTI_SIDE_VX = 120; // px/s: sideways speed of an added ball when the breaking ball has no vx
+export const SPECIAL_COLOR = 0x4df0ff;
+export const SPECIAL_STAR_R = 6; // outer radius of the star mark (px)
 export const STALL_SPEED = 15; // px/s
 export const STALL_TIME = 5; // s
 

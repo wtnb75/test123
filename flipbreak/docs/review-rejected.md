@@ -19,4 +19,12 @@
 - `src/game/scenes/effects.ts`（`POOL_SIZE` 16）: 「+100」が足りなくなる — 理由: 玉は 1 つで、0.5 秒に 16 個のブロックを崩すことは起きない
 - `src/game/scenes/Game.ts`（回転の案内の間は `render` が走らない）: 溜めの棒が 1 フレーム残るかもしれない — 理由: 案内が全面を覆い、解けた次のフレームで直る
 - `src/game/scenes/Game.ts`（溜めの棒の表示の状態が `chargeBar.visible` に依存）: 将来 1 つだけ隠すと食い違う — 理由: 今は 1 か所でしか切り替えていない（将来の注意点）
+- `src/game/logic/session.ts`（`stalls` の Map）: 台から消えた玉の項目が、玉を落とす・面の始まりまで残る — 理由: 1 面あたり数個で、`loseBall` と `startStage` で空になる。実害なし
+- `src/game/logic/physics.ts`（`World.ball` + `extras`）: `balls[]` 1 本にしたほうが単純 — 理由: 既存のテストと呼び出しの形を保つための構造で、玉の追加と同じ 1 つの目的に収めるため。大きな構造変更は別の変更にする
+- `src/game/logic/physics.ts`（`specialBalls` / `specialBlocks`）: モジュール内の作業用配列 — 理由: `stepWorld` の呼び出しごとに空にし、再入しない。割り当てを避けるための意図的なもの
+- `src/game/logic/physics.ts`（`settleBalls` の走査）: 玉の一覧を何度も走査する — 理由: 玉は最大 3 個で、負荷は小さい
+- `src/game/logic/trail.ts`（`TrailSet` のスロット）: 玉の数が `slots` を超えると落ちる — 理由: 玉は `MULTI_BALL_MAX` 個までで、`slots` の既定値と同じ。到達しない
+- `src/game/scenes/effects.ts`（`drawTrail`）: 面クリアの間、消える玉の軌跡が残る — 理由: 面クリアの間は玉も止まって見える（軌跡の項と同じ）
+- `src/game/scenes/Game.ts`（`render`）: 玉の表示物の `setVisible` を毎フレーム呼ぶ — 理由: 3 個だけで、影響が小さい
+- `src/game/logic/physics.ts`（`settleBalls`）: 上限 3 個のとき、同じ刻みに抜ける玉があっても玉を足さない — 理由: `docs/spec/multiball.md` の「足す → 取り除く」の順の取り決めどおり（合意の範囲）。順を変えるのは仕様の変更（spec の指摘として、PR の「未対応の指摘」に載せる）
 - 1 フレームより短いタップは取りこぼしてよい（入力は毎フレームの状態で読む）— 理由: 人の指では起きない長さで、仕様の実装裁量に書いて許容した

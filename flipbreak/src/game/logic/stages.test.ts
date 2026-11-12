@@ -46,7 +46,7 @@ describe('stages', () => {
 
     it('reads stage 1 as 3 full rows, the top-left block at column 0, row 0', () => {
         const blocks = loadBlocks(1);
-        expect(blocks[0]).toEqual({ col: 0, row: 0, alive: true });
+        expect(blocks[0]).toEqual({ col: 0, row: 0, alive: true, special: true });
         expect(blocks[blocks.length - 1]).toEqual({ col: 7, row: 2, alive: true });
     });
 

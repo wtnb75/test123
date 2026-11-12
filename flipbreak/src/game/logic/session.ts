@@ -12,7 +12,20 @@ import {
     STALL_SPEED,
     STALL_TIME,
 } from '../params';
-import { ballSpeed, isReady, launchSpeed, makeBall, makeFlippers, stepWorld, type StepSink, type World } from './physics';
+import {
+    ballAt,
+    ballCount,
+    ballSpeed,
+    isReady,
+    launchSpeed,
+    makeBall,
+    makeFlippers,
+    removeBall,
+    stepWorld,
+    type Ball,
+    type StepSink,
+    type World,
+} from './physics';
 import { loadBlocks, loadBumpers, stageCleared } from './stages';
 
 export type Phase = 'playing' | 'stageClear' | 'ending';
@@ -63,7 +76,8 @@ export class GameSession {
     private charging = false;
     private phaseTimer = 0;
     private acc = 0;
-    private stall = 0;
+    /** Seconds each ball has sat still (docs/spec/multiball.md "詰まりの救済"); a ball not in the map counts 0. */
+    private readonly stalls = new Map<Ball, number>();
     private readonly events: FrameEvents = { launched: false, result: null, brokenBlocks: [], hitBumpers: [], ballsLost: 0 };
     private readonly sink: StepSink = {
         block: (i) => void this.events.brokenBlocks.push(i),
@@ -76,9 +90,9 @@ export class GameSession {
         this.startStage(1);
     }
 
-    /** The ball sits in the lane. */
+    /** The only ball on the table sits in the lane, ready to be launched. */
     get ready(): boolean {
-        return isReady(this.world.ball);
+        return this.world.extras.length === 0 && isReady(this.world.ball);
     }
 
     /** The centre message ("STAGE n CLEAR" / "ALL CLEAR"), or null when there is none. */
@@ -162,13 +176,14 @@ export class GameSession {
         this.lives -= 1;
         this.events.ballsLost += 1;
         this.acc = 0;
-        this.stall = 0;
+        this.stalls.clear();
         this.cancelCharge();
         if (this.lives <= 0) {
             this.enterPhase('ending', RESULT_DELAY);
             return;
         }
         this.world.ball = makeBall();
+        this.world.extras = [];
     }
 
     private enterPhase(phase: Phase, seconds: number): void {
@@ -178,15 +193,30 @@ export class GameSession {
         this.cancelCharge();
     }
 
-    /** Rescue a ball that sat still on the table: back to the lane, nothing lost. */
+    /**
+     * Rescue the balls that sat still on the table, each counted on its own: with other balls in play the still ball
+     * is taken away; the only ball goes back to the lane. Nothing is lost either way.
+     */
     private updateStall(input: FrameInput, dt: number): void {
-        const ball = this.world.ball;
-        const still = !this.ready && !input.left && !input.right && ballSpeed(ball) < STALL_SPEED;
-        this.stall = still ? this.stall + dt : 0;
-        if (this.stall < STALL_TIME) return;
-        this.stall = 0;
-        this.world.ball = makeBall();
-        this.cancelCharge();
+        const pressed = input.left || input.right;
+        for (let i = 0; i < ballCount(this.world); ) {
+            const ball = ballAt(this.world, i);
+            const still = !isReady(ball) && !pressed && ballSpeed(ball) < STALL_SPEED;
+            const t = still ? (this.stalls.get(ball) ?? 0) + dt : 0;
+            if (t < STALL_TIME) {
+                this.stalls.set(ball, t);
+                i += 1;
+                continue;
+            }
+            this.stalls.delete(ball);
+            if (ballCount(this.world) > 1) {
+                removeBall(this.world, i);
+                continue;
+            }
+            this.world.ball = makeBall();
+            this.cancelCharge();
+            i += 1;
+        }
     }
 
     private startStage(stage: number): void {
@@ -194,11 +224,12 @@ export class GameSession {
         this.phase = 'playing';
         this.phaseTimer = 0;
         this.acc = 0;
-        this.stall = 0;
+        this.stalls.clear();
         this.cancelCharge();
         this.blocksVersion += 1;
         this.world = {
             ball: makeBall(),
+            extras: [],
             flippers: makeFlippers(),
             bumpers: loadBumpers(stage),
             blocks: loadBlocks(stage),

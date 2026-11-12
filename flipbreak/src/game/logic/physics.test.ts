@@ -40,7 +40,7 @@ const ball = (x: number, y: number, vx = 0, vy = 0): Ball => ({ x, y, vx, vy });
 const deg = (d: number) => (d * Math.PI) / 180;
 
 /** A table with no blocks or bumpers, the flippers down, and the given ball. */
-const emptyWorld = (b: Ball): World => ({ ball: b, flippers: makeFlippers(), bumpers: [], blocks: [] });
+const emptyWorld = (b: Ball): World => ({ ball: b, extras: [], flippers: makeFlippers(), bumpers: [], blocks: [] });
 
 describe('launchSpeed', () => {
     it('maps a charge of 0 / 0.5 / 1 to LAUNCH_MIN / the middle / LAUNCH_MAX', () => {
@@ -375,7 +375,7 @@ describe('blockRect / collideBlock', () => {
         const b = ball(40, 77 + 6, 0, 100); // overlapping the bottom face, already moving down and away
         expect(collideBlock(b, block)).toBe(true);
         expect(b.vy).toBe(100);
-        const w: World = { ball: ball(40, 83, 0, 100), flippers: makeFlippers(), bumpers: [], blocks: [{ col: 0, row: 0, alive: true }] };
+        const w: World = { ball: ball(40, 83, 0, 100), extras: [], flippers: makeFlippers(), bumpers: [], blocks: [{ col: 0, row: 0, alive: true }] };
         const ev = stepWorld(w, false, false, PHYSICS_DT);
         expect(ev.blocks).toBe(1);
         expect(w.blocks[0].alive).toBe(false);
@@ -432,21 +432,21 @@ describe('stepWorld', () => {
     });
 
     it('breaks both blocks a ball overlaps in one step and counts 2', () => {
-        const w: World = { ball: ball(57, 69), flippers: makeFlippers(), bumpers: [], blocks: loadBlocks(1) };
+        const w: World = { ball: ball(57, 69), extras: [], flippers: makeFlippers(), bumpers: [], blocks: loadBlocks(1) };
         const ev = stepWorld(w, false, false, PHYSICS_DT);
         expect(ev.blocks).toBe(2);
         expect(w.blocks.filter((b) => !b.alive)).toHaveLength(2);
     });
 
     it('counts a bumper hit once per step', () => {
-        const w: World = { ball: ball(95, 280), flippers: makeFlippers(), bumpers: loadBumpers(1), blocks: [] };
+        const w: World = { ball: ball(95, 280), extras: [], flippers: makeFlippers(), bumpers: loadBumpers(1), blocks: [] };
         const ev = stepWorld(w, false, false, PHYSICS_DT);
         expect(ev.bumpers).toBe(1);
         expect(ev.blocks).toBe(0);
     });
 
     it('tells the sink which blocks were hit (by index), without changing the result', () => {
-        const make = (): World => ({ ball: ball(57, 69), flippers: makeFlippers(), bumpers: [], blocks: loadBlocks(1) });
+        const make = (): World => ({ ball: ball(57, 69), extras: [], flippers: makeFlippers(), bumpers: [], blocks: loadBlocks(1) });
         const withSink = make();
         const without = make();
         const blocks: number[] = [];
@@ -459,7 +459,7 @@ describe('stepWorld', () => {
     });
 
     it('tells the sink which bumper was hit (by index), without changing the result', () => {
-        const make = (): World => ({ ball: ball(95, 280), flippers: makeFlippers(), bumpers: loadBumpers(1), blocks: [] });
+        const make = (): World => ({ ball: ball(95, 280), extras: [], flippers: makeFlippers(), bumpers: loadBumpers(1), blocks: [] });
         const withSink = make();
         const without = make();
         const bumpers: number[] = [];
@@ -509,7 +509,7 @@ describe('stepWorld', () => {
         const f = makeFlippers();
         for (let i = 0; i < 6; i++) stepFlipper(f[0], true, PHYSICS_DT);
         const [tx, ty] = flipperTip(f[0]);
-        const w: World = { ball: ball(tx - 10, ty - 14, 0, 0), flippers: f, bumpers: [], blocks: [] };
+        const w: World = { ball: ball(tx - 10, ty - 14, 0, 0), extras: [], flippers: f, bumpers: [], blocks: [] };
         for (let i = 0; i < 4; i++) {
             stepWorld(w, true, false, PHYSICS_DT);
             expect(ballSpeed(w.ball)).toBeLessThanOrEqual(MAX_SPEED + 1e-9);
