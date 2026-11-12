@@ -29,12 +29,14 @@ import {
     LAUNCH_MAX,
     LAUNCH_MIN,
     MAX_SPEED,
+    MULTI_BALL_MAX,
+    MULTI_SIDE_VX,
     READY_MAX_VY,
     READY_Y_MARGIN,
     W,
     WALL_E,
 } from '../params';
-import type { Block, Bumper } from './stages';
+import { stageCleared, type Block, type Bumper } from './stages';
 
 export interface Ball {
     x: number;
@@ -65,7 +67,10 @@ export interface Rect {
 export type Seg = readonly [number, number, number, number];
 
 export interface World {
+    /** The first ball (the one launched from the lane); the rest of the balls on the table are in `extras`. */
     ball: Ball;
+    /** Balls added by special blocks (docs/spec/multiball.md), in the order they appeared. */
+    extras: Ball[];
     flippers: [Flipper, Flipper];
     bumpers: Bumper[];
     blocks: Block[];
@@ -76,7 +81,7 @@ export interface StepEvents {
     blocks: number;
     /** Bumper hits in this step. */
     bumpers: number;
-    /** The ball fell out of the table. */
+    /** No ball is left on the table (the last one fell out). A ball falling while others remain is just removed. */
     drained: boolean;
 }
 
@@ -298,16 +303,72 @@ function capSpeed(ball: Ball): void {
     }
 }
 
+/** Number of balls on the table. */
+export function ballCount(w: World): number {
+    return 1 + w.extras.length;
+}
+
+/** The i-th ball: the first ball, then the added ones in the order they appeared. */
+export function ballAt(w: World, i: number): Ball {
+    return i === 0 ? w.ball : w.extras[i - 1];
+}
+
+/** Take the i-th ball off the table (the caller keeps at least one ball there). */
+export function removeBall(w: World, i: number): void {
+    if (i === 0) w.ball = w.extras.shift() as Ball;
+    else w.extras.splice(i - 1, 1);
+}
+
+// Special blocks broken in the current step (the ball that broke each, and the block), emptied at its start.
+const specialBalls: Ball[] = [];
+const specialBlocks: Block[] = [];
+
+/** Add the ball a broken special block gives: at the block's cell centre, with the breaking ball's x speed reversed. */
+function spawnBall(w: World, hitter: Ball, b: Block): void {
+    let vx = -hitter.vx;
+    const cx = BLOCK_X0 + b.col * BLOCK_W + BLOCK_W / 2;
+    if (Math.abs(hitter.vx) < 1e-6) vx = cx < FIELD_W / 2 ? MULTI_SIDE_VX : -MULTI_SIDE_VX;
+    w.extras.push({ x: cx, y: BLOCK_Y0 + b.row * BLOCK_H + BLOCK_H / 2, vx, vy: hitter.vy });
+}
+
+/** After a step: add the balls special blocks give, take away balls that fell out or parked in the lane. */
+function settleBalls(w: World, ev: StepEvents): void {
+    if (specialBlocks.length > 0 && !stageCleared(w.blocks)) {
+        for (let i = 0; i < specialBlocks.length && ballCount(w) < MULTI_BALL_MAX; i++) {
+            spawnBall(w, specialBalls[i], specialBlocks[i]);
+        }
+    }
+    let alive = 0;
+    for (let i = 0; i < ballCount(w); i++) if (!isDrained(ballAt(w, i))) alive += 1;
+    if (alive === 0) {
+        ev.drained = true;
+        return;
+    }
+    // From the back, so the indices still to visit stay valid.
+    for (let i = ballCount(w) - 1; i >= 0; i--) if (isDrained(ballAt(w, i))) removeBall(w, i);
+    // A ball resting in the lane while others are in play is taken away (the first ball stays if all rest there).
+    for (let i = ballCount(w) - 1; i >= 0 && ballCount(w) > 1; i--) if (isReady(ballAt(w, i))) removeBall(w, i);
+}
+
 /**
- * One fixed physics step: flippers swing, gravity moves the ball, then walls, flippers, bumpers and blocks
- * push and reflect it (in that order).
+ * One fixed physics step: flippers swing once, then each ball moves under gravity and walls, flippers, bumpers
+ * and blocks push and reflect it (in that order). Balls do not touch each other. Afterwards balls are added,
+ * removed and the lane is checked (docs/spec/multiball.md).
  */
 export function stepWorld(w: World, left: boolean, right: boolean, dt: number, sink?: StepSink): StepEvents {
     const ev: StepEvents = { blocks: 0, bumpers: 0, drained: false };
     stepFlipper(w.flippers[0], left, dt);
     stepFlipper(w.flippers[1], right, dt);
+    specialBalls.length = 0;
+    specialBlocks.length = 0;
+    const n = ballCount(w);
+    for (let i = 0; i < n; i++) stepBall(w, ballAt(w, i), dt, ev, sink);
+    settleBalls(w, ev);
+    return ev;
+}
 
-    const ball = w.ball;
+/** One ball's share of a physics step (gravity, then walls, flippers, bumpers and blocks). */
+function stepBall(w: World, ball: Ball, dt: number, ev: StepEvents, sink?: StepSink): void {
     ball.vy += GRAVITY * dt;
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
@@ -341,10 +402,12 @@ export function stepWorld(w: World, left: boolean, right: boolean, dt: number, s
             b.alive = false;
             ev.blocks += 1;
             sink?.block(i);
+            if (b.special) {
+                specialBalls.push(ball);
+                specialBlocks.push(b);
+            }
         }
     }
     // A flipper's surface speed can push the ball past the cap on impact.
     capSpeed(ball);
-    ev.drained = isDrained(ball);
-    return ev;
 }

@@ -1,4 +1,5 @@
-// The five hand-made stages (docs/spec.md "面"). '#' is a block, '.' is empty; 8 columns per row.
+// The five hand-made stages (docs/spec.md "面"). '#' is a block, '*' a special block (docs/spec/multiball.md),
+// '.' is empty; 8 columns per row.
 import { BLOCK_COLS } from '../params';
 
 export interface StageDef {
@@ -10,6 +11,8 @@ export interface Block {
     col: number;
     row: number;
     alive: boolean;
+    /** Breaking it adds a ball (docs/spec/multiball.md). */
+    special?: boolean;
 }
 
 export interface Bumper {
@@ -19,14 +22,14 @@ export interface Bumper {
 
 export const STAGES: readonly StageDef[] = [
     {
-        rows: ['########', '########', '########'],
+        rows: ['*######*', '########', '########'],
         bumpers: [
             [95, 300],
             [235, 300],
         ],
     },
     {
-        rows: ['#.#.#.#.', '.#.#.#.#', '#.#.#.#.', '.#.#.#.#'],
+        rows: ['*.#.#.#.', '.#.#.#.*', '#.#.#.#.', '.#.#.#.#'],
         bumpers: [
             [165, 250],
             [85, 340],
@@ -34,7 +37,7 @@ export const STAGES: readonly StageDef[] = [
         ],
     },
     {
-        rows: ['########', '#......#', '#.####.#', '#......#', '########'],
+        rows: ['*######*', '#......#', '#.####.#', '#......#', '########'],
         bumpers: [
             [165, 290],
             [80, 380],
@@ -42,7 +45,7 @@ export const STAGES: readonly StageDef[] = [
         ],
     },
     {
-        rows: ['...##...', '..####..', '.######.', '########'],
+        rows: ['...*#...', '..###*..', '.######.', '########'],
         bumpers: [
             [80, 300],
             [250, 300],
@@ -50,7 +53,7 @@ export const STAGES: readonly StageDef[] = [
         ],
     },
     {
-        rows: ['########', '##.##.##', '########', '.##..##.', '########'],
+        rows: ['*######*', '##.##.##', '########', '.##..##.', '########'],
         bumpers: [
             [165, 250],
             [70, 330],
@@ -66,6 +69,7 @@ export function loadBlocks(stage: number): Block[] {
     STAGES[stage - 1].rows.forEach((row, r) => {
         for (let c = 0; c < BLOCK_COLS; c++) {
             if (row[c] === '#') blocks.push({ col: c, row: r, alive: true });
+            else if (row[c] === '*') blocks.push({ col: c, row: r, alive: true, special: true });
         }
     });
     return blocks;

@@ -23,9 +23,9 @@ import {
     W,
 } from '../params';
 import { ghostBall, scoreBumpScale } from '../logic/hud';
-import { blockRect, type Ball } from '../logic/physics';
+import { blockRect, type World } from '../logic/physics';
 import { STAGES, type Block, type Bumper } from '../logic/stages';
-import { TrailBuffer, trailAlpha } from '../logic/trail';
+import { TrailSet, trailAlpha } from '../logic/trail';
 import { DEPTH, UI_FONT } from './ui';
 
 /** How many white squares / "+100" texts can play at once (a frame breaks a handful of blocks at most). */
@@ -43,7 +43,7 @@ export class GameEffects {
     private readonly bumpers: GameObjects.Container[] = [];
     private readonly overlay: GameObjects.Rectangle;
     private readonly trailGfx: GameObjects.Graphics;
-    private readonly trail = new TrailBuffer();
+    private readonly trails = new TrailSet();
     private trailDirty = false;
     private nextFlash = 0;
     private nextPop = 0;
@@ -176,9 +176,9 @@ export class GameEffects {
         return this.bumpT >= 0 ? scoreBumpScale(this.bumpT) : 1;
     }
 
-    /** Record the ball for the trail (call once per frame while playing). */
-    recordTrail(ball: Ball, speed: number): void {
-        this.trail.push(ball.x, ball.y, speed);
+    /** Record every ball for its trail (call once per frame while playing). */
+    recordTrail(world: World): void {
+        this.trails.record(world);
         this.trailDirty = true;
     }
 
@@ -188,9 +188,11 @@ export class GameEffects {
         this.trailDirty = false;
         const g = this.trailGfx;
         g.clear();
-        for (let i = 0; i < this.trail.size; i++) {
-            g.fillStyle(0xffffff, trailAlpha(i));
-            g.fillCircle(this.trail.x(i), this.trail.y(i), BALL_R * 0.8);
+        for (const trail of this.trails.buffers) {
+            for (let i = 0; i < trail.size; i++) {
+                g.fillStyle(0xffffff, trailAlpha(i));
+                g.fillCircle(trail.x(i), trail.y(i), BALL_R * 0.8);
+            }
         }
     }
 }

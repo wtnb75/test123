@@ -22,16 +22,22 @@ import {
     LANE_FLOOR_Y,
     LANE_X,
     LIVES,
+    MULTI_BALL_MAX,
+    SPECIAL_COLOR,
+    SPECIAL_STAR_R,
     W,
 } from '../params';
 import { InputRouter, type PointerState } from '../logic/input';
 import { ballText, chargeColor, scoreText, stageText } from '../logic/hud';
-import { ballSpeed, blockRect, flipperTip, WALLS } from '../logic/physics';
+import { ballAt, ballCount, blockRect, flipperTip, WALLS } from '../logic/physics';
 import { GameSession } from '../logic/session';
 import { GameEffects } from './effects';
 import { addLabel, BG_COLOR, DEPTH, fadeInScene, RotateGuard, SceneExit, UI_FONT } from './ui';
 
 const WALL_COLOR = 0x5566aa;
+/** The dark colour of the star on a special block, and the inner radius of its points relative to the outer. */
+const STAR_COLOR = 0x0b3a52;
+const STAR_INNER_RATIO = 0.45;
 const FLIPPER_COLOR = 0xffd84d;
 /** Block colour per row (the rows of a stage cycle through these). */
 const ROW_COLORS = [0xff5d5d, 0xffa24d, 0xffe14d, 0x7be26b, 0x4dc6ff, 0xa78bff];
@@ -56,7 +62,8 @@ export class Game extends Scene {
 
     private blocksGfx!: GameObjects.Graphics;
     private flippersGfx!: GameObjects.Graphics;
-    private ballShape!: GameObjects.Arc;
+    /** One circle per ball that can be on the table (made once, shown for the balls there are). */
+    private readonly ballShapes: GameObjects.Arc[] = [];
     private chargeBar!: GameObjects.Rectangle;
     private chargeMark!: GameObjects.Rectangle;
     private scoreLabel!: GameObjects.Text;
@@ -102,10 +109,11 @@ export class Game extends Scene {
                     ready: this.session.ready,
                     charge: this.session.charge,
                     ball: { ...this.session.world.ball },
+                    balls: ballCount(this.session.world),
                     blocksLeft: this.session.world.blocks.filter((b) => b.alive).length,
-                    // Drops the ball out of the table (loses one life on the next frame).
+                    // Drops every ball out of the table (loses one life on the next frame).
                     dropBall: () => {
-                        this.session.world.ball.y = H + 100;
+                        for (let i = 0; i < ballCount(this.session.world); i++) ballAt(this.session.world, i).y = H + 100;
                     },
                     // Breaks every block but the first `keep` (reaches a stage clear without minutes of play).
                     breakBlocks: (keep: number) => {
@@ -143,7 +151,7 @@ export class Game extends Scene {
         if (ev.ballsLost > 0) this.effects.ballLost();
         if (s.score > this.lastScore) this.effects.scoreGained();
         this.lastScore = s.score;
-        if (s.phase === 'playing') this.effects.recordTrail(s.world.ball, ballSpeed(s.world.ball));
+        if (s.phase === 'playing') this.effects.recordTrail(s.world);
     }
 
     /** Walls (drawn once) and the layers redrawn only when they change. */
@@ -153,7 +161,10 @@ export class Game extends Scene {
         for (const [ax, ay, bx, by] of WALLS) walls.lineBetween(ax, ay, bx, by);
         this.blocksGfx = this.add.graphics().setDepth(DEPTH.blocks);
         this.flippersGfx = this.add.graphics().setDepth(DEPTH.flippers);
-        this.ballShape = this.add.circle(0, 0, BALL_R, 0xffffff).setDepth(DEPTH.ball);
+        this.ballShapes.length = 0;
+        for (let i = 0; i < MULTI_BALL_MAX; i++) {
+            this.ballShapes.push(this.add.circle(0, 0, BALL_R, 0xffffff).setDepth(DEPTH.ball).setVisible(i === 0));
+        }
         // The plunger bar sits behind the ball, centred in the lane; a line marks the charge that reaches the table.
         this.chargeBar = this.add
             .rectangle(LANE_BALL_X, LANE_FLOOR_Y, CHARGE_BAR_W, 0, chargeColor(0))
@@ -238,7 +249,15 @@ export class Game extends Scene {
             this.drawnBlocksVersion = s.blocksVersion;
             this.drawBlocks();
         }
-        this.ballShape.setPosition(world.ball.x, world.ball.y);
+        const balls = ballCount(world);
+        for (let i = 0; i < this.ballShapes.length; i++) {
+            const shape = this.ballShapes[i];
+            shape.setVisible(i < balls);
+            if (i < balls) {
+                const ball = ballAt(world, i);
+                shape.setPosition(ball.x, ball.y);
+            }
+        }
         this.effects.drawTrail();
 
         const g = this.flippersGfx;
@@ -296,9 +315,27 @@ export class Game extends Scene {
         for (const block of this.session.world.blocks) {
             if (!block.alive) continue;
             const r = blockRect(block);
-            b.fillStyle(ROW_COLORS[block.row % ROW_COLORS.length], 1);
+            b.fillStyle(block.special ? SPECIAL_COLOR : ROW_COLORS[block.row % ROW_COLORS.length], 1);
             b.fillRect(r.x, r.y, r.w, r.h);
+            if (block.special) this.drawStar(r.x + r.w / 2, r.y + r.h / 2);
         }
+    }
+
+    /** The "★" mark of a special block: a five-pointed star of outer radius SPECIAL_STAR_R, in a dark colour. */
+    private drawStar(cx: number, cy: number) {
+        const g = this.blocksGfx;
+        g.fillStyle(STAR_COLOR, 1);
+        g.beginPath();
+        for (let k = 0; k < 10; k++) {
+            const r = k % 2 === 0 ? SPECIAL_STAR_R : SPECIAL_STAR_R * STAR_INNER_RATIO;
+            const a = -Math.PI / 2 + (k * Math.PI) / 5;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (k === 0) g.moveTo(x, y);
+            else g.lineTo(x, y);
+        }
+        g.closePath();
+        g.fillPath();
     }
 
     /** setText only when the text changed (a Text re-renders its texture on every call). */
