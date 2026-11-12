@@ -17,6 +17,7 @@ import {
     type Difficulty,
     type QueueState
 } from '../logic/primtris';
+import { applyDrop, comboLabel, createScoreTally, totalScore, type ScoreTally } from '../logic/scoring';
 import { remainingSeconds, stepWait, waitMs } from '../logic/timer';
 import { BoxesView, type BoxesViewStyle } from './boxesView';
 
@@ -48,6 +49,10 @@ const GAME_OVER_SLOW_MOTION_DELAY_MS = 560;
 const WAIT_BAR_WIDTH = 200;
 const WAIT_BAR_HEIGHT = 12;
 const WAIT_BAR_TOP = 108;
+/** COMBO label: right margin (x = width - 24 = 516, docs/spec.md `comboRight`), top in logical px, and its size (`comboFontPx`). */
+const COMBO_MARGIN_RIGHT = 24;
+const COMBO_TOP = 24;
+const COMBO_FONT_PX = 26;
 
 interface GameInitData {
     digitCount?: number;
@@ -57,7 +62,6 @@ export class Game extends Scene
 {
     private boxes = createEmptyBoxes();
     private boxesView!: BoxesView;
-    private collateralClears = 0;
     private currentValueText!: GameObjects.Text;
     private currentX = 0;
     private currentY = 0;
@@ -74,7 +78,8 @@ export class Game extends Scene
     private logText!: GameObjects.Text;
     private nextText!: GameObjects.Text;
     private queue!: QueueState;
-    private score = 0;
+    private tally: ScoreTally = createScoreTally();
+    private comboText!: GameObjects.Text;
     private scoreText!: GameObjects.Text;
     private activeBoxes: BoxKey[] = [...BOX_ORDER];
     /** Numbers dropped so far (manual, time-out and game-over drops alike); sets the next wait. */
@@ -110,8 +115,18 @@ export class Game extends Scene
         const { width, height } = this.cameras.main;
 
         if (import.meta.env.DEV) {
-            // QA only: which Scene is running and with how many digits.
-            (window as unknown as { __qa?: unknown }).__qa = { scene: 'Game', digitCount: this.difficulty.digitCount };
+            // QA only (read-only state): which Scene is running, with how many digits, the READY number and the score tally.
+            (window as unknown as { __qa?: unknown }).__qa = {
+                scene: 'Game',
+                digitCount: this.difficulty.digitCount,
+                boxes: [...this.activeBoxes],
+                read: () => ({
+                    number: this.queue.current,
+                    x: this.currentX,
+                    ready: !this.isEntering && !this.isResolving && !this.isGameOver,
+                    tally: { ...this.tally }
+                })
+            };
         }
 
         this.cameras.main.setBackgroundColor('#1b263b');
@@ -127,7 +142,7 @@ export class Game extends Scene
     private resetRuntimeState (width: number, height: number)
     {
         this.boxes = createEmptyBoxes();
-        this.collateralClears = 0;
+        this.tally = createScoreTally();
         this.keyboardStep = width / this.activeBoxes.length;
         this.dropZoneTop = height - BOX_REGION_HEIGHT - 72;
         this.currentX = this.getColumnCenter(this.getDefaultColumnIndex());
@@ -137,7 +152,6 @@ export class Game extends Scene
         this.isGameOver = false;
         this.isResolving = false;
         this.logLines = [];
-        this.score = 0;
         this.placed = 0;
         this.waitLeftMs = 0;
         this.waitTotalMs = 0;
@@ -186,6 +200,13 @@ export class Game extends Scene
             fontSize: '28px',
             fontStyle: 'bold'
         });
+
+        this.comboText = this.add.text(width - COMBO_MARGIN_RIGHT, COMBO_TOP, '', {
+            color: '#ffd166',
+            fontFamily: 'sans-serif',
+            fontSize: `${COMBO_FONT_PX}px`,
+            fontStyle: 'bold'
+        }).setOrigin(1, 0);
 
         this.currentValueTopText = this.add.text(24, 72, 'CURRENT: 00', {
             color: '#ffd166',
@@ -346,9 +367,8 @@ export class Game extends Scene
         this.playFactorizationEffect(box, result.isCorrect, factorExpression);
 
         this.boxes = result.boxes;
-        this.score += result.scoreDelta;
+        this.tally = applyDrop(this.tally, result.isCorrect, result.clearedDigits.length);
         this.placed += 1;
-        this.collateralClears += result.clearedDigits.length;
 
         const eventLabel = timedOut ? 'TIMEOUT' : (result.isCorrect ? 'HIT' : 'MISS');
         const collateral = result.clearedDigits.length > 0 ? ` collateral: [${result.clearedDigits.join(',')}]` : '';
@@ -361,8 +381,10 @@ export class Game extends Scene
 
             this.playGameOverSlowMotion(() => {
                 this.scene.start('Result', {
-                    score: this.score,
-                    collateralClears: this.collateralClears,
+                    score: totalScore(this.tally),
+                    placed: this.tally.placed,
+                    collateral: this.tally.collateral,
+                    streakBonus: this.tally.streakBonus,
                     digitCount: this.difficulty.digitCount,
                     finalExpression
                 });
@@ -495,7 +517,8 @@ export class Game extends Scene
 
     private refreshUi ()
     {
-        this.scoreText.setText(`SCORE ${this.score}`);
+        this.scoreText.setText(`SCORE ${totalScore(this.tally)}`);
+        this.comboText.setText(comboLabel(this.tally.streak));
         this.currentValueTopText.setText(`CURRENT: ${this.queue.current}`);
         this.nextText.setText(`NEXT: [ ${this.queue.next[0]} ] [ ${this.queue.next[1]} ]`);
         this.syncCurrentValueDisplay();
