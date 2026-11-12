@@ -7,9 +7,13 @@ import {
     FONT_HUD_VALUE,
     FONT_NOTICE,
     FONT_POP,
+    GEM_INSET,
+    GEM_SHINE_ALPHA,
     HINT_DELAY_MS,
     HINT_HALF_MS,
     HINT_SCALE,
+    MARK_OUTLINE,
+    MARK_THICKNESS,
     PANEL_PAD,
     PANEL_RADIUS,
     POP_MS,
@@ -26,6 +30,7 @@ import { cellAt, initialInput, isBoardKey, pressKey, swipe, swipeFrom, tapStone,
 import { boardRect, cellCenter, hudLayout, type HudLayout, type Rect } from '../logic/layout';
 import { Round, type NextState, type Step } from '../logic/round';
 import { centerOf, clampPopup, hudBest, movesWarning, popupLines, popupScale } from '../logic/score';
+import { gemShape, markSpec, shapeOutline, shinePlacement, type Mark, type Pt } from '../logic/shape';
 import { gemKey } from '../logic/special';
 import {
     applyScreenSize,
@@ -203,8 +208,9 @@ export class Game extends Scene {
     // ---- building --------------------------------------------------------------------------------------
 
     /**
-     * One texture per (colour, kind): a circle with a highlight, plus the mark of a special stone (a bar for a
-     * line, a ring for a bomb), and one colour wheel for the colour stone. Made once and kept for the whole page.
+     * One texture per (colour, kind): the colour's silhouette (circle, square, triangle, diamond, hexagon or star;
+     * docs/spec.md "石の形") with a highlight, plus the mark of a special stone (a bar for a line, a ring for a
+     * bomb) inside it, and one colour wheel for the colour stone. Made once and kept for the whole page.
      */
     private makeTextures() {
         const make = (key: string, draw: (g: GameObjects.Graphics) => void) => {
@@ -216,20 +222,18 @@ export class Game extends Scene {
         };
         const mid = CELL / 2;
         COLOR.gems.forEach((color, i) => {
+            const shape = gemShape(i);
             for (const kind of COLOURED_KINDS) {
                 make(gemKey(i, kind), (g) => {
-                    g.fillStyle(color, 1).fillCircle(mid, mid, mid - STYLE.gemInset);
-                    g.fillStyle(0xffffff, STYLE.gemShineAlpha).fillCircle(
-                        mid - STYLE.gemShineOffset,
-                        mid - STYLE.gemShineOffset,
-                        STYLE.gemShineRadius,
-                    );
-                    this.drawMark(g, kind);
+                    const shine = shinePlacement(shape);
+                    this.fillOutline(g, color, shapeOutline(shape));
+                    g.fillStyle(0xffffff, GEM_SHINE_ALPHA).fillCircle(shine.x, shine.y, shine.r);
+                    this.drawMark(g, markSpec(shape, kind));
                 });
             }
         });
         make(gemKey(RAINBOW, 'rainbow'), (g) => {
-            const radius = mid - STYLE.gemInset;
+            const radius = mid - GEM_INSET;
             const slice = (Math.PI * 2) / COLOR.gems.length;
             COLOR.gems.forEach((color, i) => {
                 const from = -Math.PI / 2 + i * slice;
@@ -239,19 +243,21 @@ export class Game extends Scene {
         });
     }
 
-    /** The white mark (with a dark outline, so it reads on every colour) of a line or bomb stone. */
-    private drawMark(g: GameObjects.Graphics, kind: Kind) {
-        const mid = CELL / 2;
-        const { markLength: len, markThickness: thick, markOutline: out } = STYLE;
-        const bar = (w: number, h: number, color: number, grow: number) =>
-            g.fillStyle(color, 1).fillRect(mid - w / 2 - grow, mid - h / 2 - grow, w + 2 * grow, h + 2 * grow);
-        if (kind === 'lineRow' || kind === 'lineCol') {
-            const [w, h] = kind === 'lineRow' ? [len, thick] : [thick, len];
-            bar(w, h, COLOR.markOutline, out);
-            bar(w, h, COLOR.mark, 0);
-        } else if (kind === 'bomb') {
-            g.lineStyle(thick + 2 * out, COLOR.markOutline, 1).strokeCircle(mid, mid, STYLE.markRingRadius);
-            g.lineStyle(thick, COLOR.mark, 1).strokeCircle(mid, mid, STYLE.markRingRadius);
+    /** Fills a silhouette as one path (separate triangles leave faint seams where their edges meet). */
+    private fillOutline(g: GameObjects.Graphics, color: number, outline: readonly Pt[]) {
+        g.fillStyle(color, 1).fillPoints(outline as Pt[], true);
+    }
+
+    /** The white mark (with a dark outline, so it reads on every colour) of a line or bomb stone; null for none. */
+    private drawMark(g: GameObjects.Graphics, mark: Mark | null) {
+        if (mark === null) return;
+        if (mark.type === 'bar') {
+            const out = MARK_OUTLINE;
+            g.fillStyle(COLOR.markOutline, 1).fillRect(mark.x - out, mark.y - out, mark.w + 2 * out, mark.h + 2 * out);
+            g.fillStyle(COLOR.mark, 1).fillRect(mark.x, mark.y, mark.w, mark.h);
+        } else {
+            g.lineStyle(MARK_THICKNESS + 2 * MARK_OUTLINE, COLOR.markOutline, 1).strokeCircle(mark.x, mark.y, mark.r);
+            g.lineStyle(MARK_THICKNESS, COLOR.mark, 1).strokeCircle(mark.x, mark.y, mark.r);
         }
     }
 
