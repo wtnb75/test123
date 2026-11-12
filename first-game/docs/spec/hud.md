@@ -48,7 +48,7 @@ HUD の文言は、「いまの入力の種類」で 2 通りになる（フロ�
 | 「STAGE」の入力が範囲外・数値でない | `Stage must be 1-<StageMax>.`（状態は変えない） |
 | 移動した。新しく開いたマスがない（開示済みのマス・フラグの上の通過） | `You move.` |
 | 移動して、`k` 個（`k ≥ 1`。ゼロの連鎖開示の分を含む）のマスが新しく開いた | `You open <k> cell.`（`k = 1`）/ `You open <k> cells.`（`k ≥ 2`） |
-| 移動がゴール（下り階段 ▼）に着いた | `You descend the stairs.`（その後 `ClearDelay` で次のフロア。開いたマスの数は言わない） |
+| 移動がゴール（下り階段 ▼）に着いた | `You descend the stairs.`（その後、暗転して次のフロア。開いたマスの数は言わない） |
 | 移動が、扉のマスから扉の向きへの 1 マスだった（通路が始まる） | `You walk down the corridor.` |
 | 通路を歩き終えて、もう一方の部屋の扉に出た | `You enter a room.` |
 | 盤面の外へ移動しようとした | `There is a wall there.` |

@@ -34,6 +34,35 @@ describe('StageFlow', () => {
     expect(flow.playing).toBe(false);
   });
 
+  it('keeps input locked after the next floor was started behind the cover, until the fade-in begins', () => {
+    const flow = new StageFlow();
+    flow.reachGoal();
+    flow.reset();
+    flow.keepClearing();
+    expect(flow.phase).toBe('clearing');
+    expect(flow.playing).toBe(false);
+    expect(flow.endClearing()).toBe(true);
+    expect(flow.playing).toBe(true);
+  });
+
+  it('keepClearing only locks a flow that is in play, so it cannot overwrite another phase', () => {
+    const flow = new StageFlow();
+    flow.die();
+    expect(flow.keepClearing()).toBe(false);
+    expect(flow.phase).toBe('dying');
+    flow.reset();
+    expect(flow.keepClearing()).toBe(true);
+    expect(flow.phase).toBe('clearing');
+  });
+
+  it('endClearing does nothing outside the clearing phase', () => {
+    const flow = new StageFlow();
+    expect(flow.endClearing()).toBe(false);
+    flow.die();
+    expect(flow.endClearing()).toBe(false);
+    expect(flow.phase).toBe('dying');
+  });
+
   it('does not die on an already cleared stage', () => {
     const flow = new StageFlow();
     flow.reachGoal();
@@ -61,7 +90,7 @@ describe('StageFlow', () => {
     expect(flow.showRestart()).toBe(false);
   });
 
-  it('a STAGE jump during ClearDelay allows a new goal later', () => {
+  it('a STAGE jump while the screen is covered (clearing) allows a new goal later', () => {
     const flow = new StageFlow();
     flow.reachGoal();
     flow.reset();

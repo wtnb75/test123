@@ -43,6 +43,7 @@ import {
 import type { LogicalAnalysis } from '../core/solver';
 import type { Position, Stage } from '../core/types';
 import { REFERENCE_CELL } from '../core/title';
+import { FADE_COLOR, FADE_DEPTH, FADE_LABEL_SIZE, FloorFade, fadeLabel } from '../core/floorFade';
 import { BoardView } from './boardView';
 import { PressTracker, StageFlow, gameOverKeyAction } from '../core/flow';
 import {
@@ -124,7 +125,6 @@ const SCROLL_THRESHOLD = 8;
 const INPUT_LOCK_MS = 100;
 const START_STAGE_KEY = 'minefield-rogue-start-stage';
 const DEATH_DELAY_MS = 600;
-const CLEAR_DELAY_MS = 250;
 /** The corridor's "#" marks sit above the board layers and under the player's highlight (depth 5). */
 const CORRIDOR_MARK_DEPTH = 3;
 /** Exit arrows: how many at most (a room's entry, two exits and two loop doors), and the gap below the HUD band (spec `ExitArrowTopGap`). */
@@ -280,6 +280,10 @@ export class Game extends Scene
     private mapElapsed: number | null = null;
     /** True for the update of the frame the map was shown in: that frame's delta is not counted. */
     private mapSkipDelta = false;
+    /** The black cover and its label while the next floor is entered (docs/spec/floor-fade.md). */
+    private fade = new FloorFade();
+    private fadeCover?: Phaser.GameObjects.Rectangle;
+    private fadeText?: Phaser.GameObjects.Text;
     private mapPlace?: MapView;
     /** `''`: the map has to be drawn again; otherwise what it was last drawn with is in `mapStamp`. */
     private mapKey = '';
@@ -358,6 +362,16 @@ export class Game extends Scene
         this.mapSkipDelta = false;
         this.mapPlace = undefined;
         this.mapKey = '';
+        // The cover is in front of everything else and never takes input. A reused instance starts with no fade.
+        this.fade = new FloorFade();
+        this.fadeCover = this.add.rectangle(0, 0, this.scale.width, this.scale.height, FADE_COLOR)
+            .setOrigin(0, 0).setScrollFactor(0).setDepth(FADE_DEPTH).setVisible(false);
+        this.fadeText = this.add.text(this.scale.width / 2, this.scale.height / 2, '', {
+            fontFamily: 'monospace',
+            fontSize: FADE_LABEL_SIZE,
+            fontStyle: 'bold',
+            color: '#ffffff'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(FADE_DEPTH + 1).setVisible(false);
 
         // Phaser reuses this instance on scene.start: a new game starts with FLAG off and no input lock.
         this.flagMode = false;
@@ -401,6 +415,9 @@ export class Game extends Scene
             this.mapDotGraphics = undefined;
             this.mapTexts = [];
             this.mapElapsed = null;
+            this.fade.cancel();
+            this.fadeCover = undefined;
+            this.fadeText = undefined;
             this.stageSelectBg = undefined;
             this.stageSelectLabel = undefined;
             this.stageSelectHitArea = undefined;
@@ -419,8 +436,12 @@ export class Game extends Scene
         });
     }
 
-    private startStage (stageNo: number): void
+    /** `fromFade`: the next floor is generated behind the cover; every other start (jump, retry, first) drops the fade. */
+    private startStage (stageNo: number, fromFade = false): void
     {
+        if (!fromFade) {
+            this.cancelFade();
+        }
         this.hideMap();
         this.flow.reset();
         this.presses.clear();
@@ -624,6 +645,7 @@ export class Game extends Scene
     private onResize (gameSize: Phaser.Structs.Size): void
     {
         this.camera.setSize(gameSize.width, gameSize.height);
+        this.layoutFade();
         if (this.refreshBoardFit()) {
             this.relayoutBoard();
         }
@@ -1016,6 +1038,7 @@ export class Game extends Scene
             const cellNow = (): number => this.cell;
             const areaNow = (): BoardArea => this.area;
             const originNow = (): Position => this.roomOriginPx(this.floorState.roomIndex);
+            const fadeStageNow = (): string => this.fade.stage;
             const graveNow = (): { charWidth: number; layout: ReturnType<typeof gravePanelLayout>; rowWidth: number; rowLength: number } | null => {
                 const info = this.graveInfo;
                 const first = this.gravePanel?.rows[0];
@@ -1033,6 +1056,7 @@ export class Game extends Scene
                 get phase () { return flow.phase; },
                 get mapAlpha () { return mapElapsedNow() === null ? 0 : mapAlpha(mapElapsedNow() as number); },
                 get flagMode () { return flagModeNow(); },
+                get fadeStage () { return fadeStageNow(); },
                 message,
                 get cell () { return cellNow(); },
                 get origin () { return originNow(); },
@@ -1643,7 +1667,7 @@ export class Game extends Scene
             this.flow.reachGoal();
             this.discardPointerState();
             this.refreshHud(resultMessage('goal', undefined, 0, this.inputKind()));
-            this.time.delayedCall(CLEAR_DELAY_MS, () => this.startStage(this.stageData.stageNo + 1));
+            this.beginFade(this.stageData.stageNo);
             return;
         }
 
@@ -1861,11 +1885,58 @@ export class Game extends Scene
     update (_time: number, delta: number): void
     {
         this.advanceMapClock(delta);
+        this.advanceFade(delta);
         this.advanceRun();
         this.advanceTravel();
         this.advanceWalk(delta);
         // After the walk, so the map shows the cell and the room of this frame.
         this.drawMap();
+    }
+
+    /** The stairs were reached: the screen goes dark, then the next floor is generated and entered (docs/spec/floor-fade.md). */
+    private beginFade (floorNo: number): void
+    {
+        this.fade.start(floorNo);
+        this.fadeText?.setText(fadeLabel(floorNo));
+        this.paintFade(0);
+    }
+
+    /** Drops the cover and what it was waiting for (a jump, a retry, a new floor from elsewhere). */
+    private cancelFade (): void
+    {
+        this.fade.cancel();
+        this.paintFade(null);
+    }
+
+    private paintFade (alpha: number | null): void
+    {
+        const visible = alpha !== null;
+        this.fadeCover?.setVisible(visible).setAlpha(alpha ?? 0);
+        this.fadeText?.setVisible(visible).setAlpha(alpha ?? 0);
+    }
+
+    /** Places the cover and its label again for the current screen size (the time is not touched). */
+    private layoutFade (): void
+    {
+        this.fadeCover?.setSize(this.scale.width, this.scale.height);
+        this.fadeText?.setPosition(this.scale.width / 2, this.scale.height / 2);
+    }
+
+    private advanceFade (delta: number): void
+    {
+        if (!this.fade.active) {
+            return;
+        }
+        const frame = this.fade.advance(delta);
+        if (frame.generate) {
+            // The cover has been drawn fully dark for a frame; input stays locked until the fade-in begins.
+            this.startStage(this.fade.nextFloor, true);
+            this.flow.keepClearing();
+        }
+        if (frame.resume) {
+            this.flow.endClearing();
+        }
+        this.paintFade(frame.alpha);
     }
 
     private advanceWalk (delta: number): void
