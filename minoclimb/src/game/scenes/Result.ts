@@ -1,6 +1,9 @@
 import { GameObjects, Scene } from 'phaser';
 import type { LoseReason } from '../logic/round';
 import { lockoutOver, resultAction, RESULT_TITLE_RECT } from '../logic/resultInput';
+import {
+    clearHeading, fitFontSize, FIRST_STAGE, HEADING_MAX_SIZE, HEADING_MAX_WIDTH, resultPrompt, stageAfter,
+} from '../logic/stage';
 import { HEIGHT, P, WIDTH } from '../params';
 import { SceneInput } from './SceneInput';
 
@@ -8,6 +11,8 @@ export interface ResultData {
     status: 'cleared' | 'lost';
     reason: LoseReason | null;
     maxHeight: number;
+    /** The stage that was just played (docs/spec/stages.md). */
+    stage: number;
 }
 
 const REASON_TEXT: Record<LoseReason, string> = {
@@ -24,7 +29,7 @@ const TITLE_BUTTON_RADIUS = 12;
  * and the way back to the Title.
  */
 export class Result extends Scene {
-    private outcome: ResultData = { status: 'lost', reason: null, maxHeight: 0 };
+    private outcome: ResultData = { status: 'lost', reason: null, maxHeight: 0, stage: FIRST_STAGE };
     private elapsed = 0;
     private controls!: SceneInput;
     private retryHint!: GameObjects.Text;
@@ -48,9 +53,16 @@ export class Result extends Scene {
         const style = { fontFamily: 'sans-serif', color: '#ffffff', align: 'center' };
         const cleared = this.outcome.status === 'cleared';
 
-        this.add.text(WIDTH / 2, HEIGHT / 3, cleared ? 'クリア！' : 'ゲームオーバー', {
-            ...style, fontSize: '40px',
+        const heading = this.add.text(WIDTH / 2, HEIGHT / 3, cleared ? clearHeading(this.outcome.stage) : 'ゲームオーバー', {
+            ...style, fontSize: `${HEADING_MAX_SIZE}px`,
         }).setOrigin(0.5);
+        if (cleared) {
+            // "ステージ n クリア！" at 40 px is wider than the canvas: shrink it to fit (docs/spec/stages.md).
+            heading.setFontSize(fitFontSize((size) => {
+                heading.setFontSize(size);
+                return heading.width;
+            }, HEADING_MAX_WIDTH));
+        }
         if (!cleared) {
             const reason = this.outcome.reason ? REASON_TEXT[this.outcome.reason] : '';
             const goal = P.ROWS - P.GOAL_ROW;
@@ -58,14 +70,15 @@ export class Result extends Scene {
                 ...style, fontSize: '22px', lineSpacing: 8,
             }).setOrigin(0.5, 0);
         }
-        this.retryHint = this.add.text(WIDTH / 2, (HEIGHT * 2) / 3, 'タップ / R / スペースでリトライ', {
+        this.retryHint = this.add.text(WIDTH / 2, (HEIGHT * 2) / 3, resultPrompt(cleared), {
             ...style, fontSize: '20px',
         }).setOrigin(0.5).setVisible(false);
         this.titleButton = this.createTitleButton(style).setVisible(false);
 
         if (import.meta.env.DEV) {
             (window as unknown as { __qa?: unknown }).__qa = {
-                scene: 'Result', status: this.outcome.status, reason: this.outcome.reason, maxHeight: this.outcome.maxHeight,
+                scene: 'Result', status: this.outcome.status, reason: this.outcome.reason,
+                maxHeight: this.outcome.maxHeight, stage: this.outcome.stage,
             };
         }
     }
@@ -74,14 +87,15 @@ export class Result extends Scene {
         this.elapsed += deltaMs / 1000;
         // Presses are always consumed, so one made during the lockout can't fire an action afterwards.
         const accepting = lockoutOver(this.elapsed);
-        const action = resultAction(this.controls.read(), accepting);
+        const action = resultAction(this.controls.read(), accepting, this.outcome.status === 'cleared');
         if (!accepting) return;
         this.retryHint.setVisible(true);
         this.titleButton.setVisible(true);
         if (action === null || this.leaving) return;
         this.leaving = true;
-        if (action === 'retry') {
-            this.scene.start('Game');
+        if (action === 'retry' || action === 'next') {
+            const stage = stageAfter(action === 'next' ? 'next' : 'again', this.outcome.stage);
+            this.scene.start('Game', { stage });
         } else {
             // Game runs on behind the Result: stop it so nothing of the finished run outlives the Title.
             this.scene.stop('Game');

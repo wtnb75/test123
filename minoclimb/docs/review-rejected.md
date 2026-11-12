@@ -45,3 +45,9 @@
 - `docs/spec.md` (the 「タイトルへ」ボタンが横向き 667 × 310 で 44 px・11 px に届かない): AGENTS.md 4.6 の基準を満たさない — 理由: 拡張の合意で承認済みの例外として、理由つきで spec に書いた（論理サイズ 360 × 720 の固定。Title の START と同じ扱い。横向きは主な対象ではない）。直すなら配置の再合意が要る。
 - `src/game/scenes/SceneInput.ts` (押しの位置の上限 `MAX_LATCHED_PRESSES` が共有クラスにある): Scene ごとに直すべき — 理由: Game が結果画面の間は読まないことによる増加を止める最小の手当てで、読む Scene では実質効かない。Game だけを直すと入力の読み方が Scene ごとに分かれる。
 - `src/game/scenes/Result.ts` (`setVisible(true)` を毎フレーム呼ぶ): 1 回だけにすべき — 理由: 既存のヒントと同じ書き方で、プロパティの書き込みが 2 回増えるだけで測れない。
+- `src/game/logic/stage.ts` (`fitFontSize` が 1 サイズずつ再描画する): 幅は大きさに比例するので 1 回の測定で決められる — 理由: Result の生成時に 1 回だけで、HUD は 18 px で最初に収まり再描画は 1 回。測れない差で、整数サイズの探索のほうが読みやすい。
+- `src/game/scenes/BoardView.ts` (`fitHud` は 1000 以上でしか効かない): 削るか、ステージの上限を決める — 理由: spec（stages.md）が「1000 以上でも幅を超えない」と決めた安全弁で、最初のサイズで収まる限り費用は無い。
+- `src/game/scenes/Result.ts` (`ResultAction` と `StageStart` の対応が手書き): 語彙を 1 つにする — 理由: `stageAfter` は spec の用語（Title の START・次のステージ・同じステージ・タイトルへ）の純粋関数で、テストで固定してある。分岐は 2 つだけ。
+- `src/game/logic/resultInput.ts` (`AGAIN_KEY` / `NEXT_KEY` が `RETRY_KEYS` と重複): `RETRY_KEYS` から導く — 理由: クリアでは R と Space の役が違い、Enter は入れないと spec が決めている。リトライの集合から導くと役の違いが隠れる。
+- `src/game/scenes/Game.ts` (`init(data)` が `stage` を検証しない): 整数・1 以上を確かめる — 理由: 呼ぶのは内部の Scene（Title・Result）だけ。検証すると呼び出し側のバグを隠す。
+- `src/game/logic/stage.test.ts` (Round の回帰テストと、実フォントでの幅が無い): 足す — 理由: `Round` は `stage` を受け取らないので、回帰の対象になる入力が無い。実フォントの幅（340 px・348 px）は Scene の描画で、QA のスクリーンショットで確かめる。

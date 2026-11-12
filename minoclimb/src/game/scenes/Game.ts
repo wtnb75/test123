@@ -3,6 +3,7 @@ import { P } from '../params';
 import { InputArbiter, type StickView } from '../logic/input';
 import type { MoveInput } from '../logic/player';
 import { Round } from '../logic/round';
+import { FIRST_STAGE } from '../logic/stage';
 import { BoardView, type BoardViewOptions } from './BoardView';
 import type { ResultData } from './Result';
 import { SceneInput } from './SceneInput';
@@ -38,8 +39,16 @@ export class Game extends Scene {
     /** Milliseconds since the round ended. */
     private sinceEnd = 0;
 
+    /** The stage being played (docs/spec/stages.md): only shown, no rule depends on it. */
+    protected stage = FIRST_STAGE;
+
     constructor(key = 'Game') {
         super(key);
+    }
+
+    /** The Title and the Result start a Game with `{ stage }`; the demo gets no data. */
+    init(data?: { stage?: number }): void {
+        this.stage = data?.stage ?? FIRST_STAGE;
     }
 
     create(): void {
@@ -80,6 +89,7 @@ export class Game extends Scene {
             // the Title writes its own global so it never hides the Title's or the game's.
             (window as unknown as Record<string, unknown>)[this.isDemo ? '__qaDemo' : '__qa'] = {
                 scene: this.sys.settings.key,
+                stage: this.isDemo ? null : this.stage,
                 phase: this.phase,
                 status: this.round.status,
                 flow: this.round.flow.kind,
@@ -92,7 +102,7 @@ export class Game extends Scene {
 
     /** What the Scene shows: the hints are for the player, not for the demo. */
     protected viewOptions(): BoardViewOptions {
-        return { hints: true };
+        return { hints: true, stage: this.stage };
     }
 
     /** Listens to the player. Keys and fingers held right now stay ignored until released. */
@@ -122,6 +132,7 @@ export class Game extends Scene {
             status: this.round.status === 'cleared' ? 'cleared' : 'lost',
             reason: this.round.loseReason,
             maxHeight: this.round.maxHeight,
+            stage: this.stage,
         };
         this.scene.launch('Result', data);
         if (data.status === 'lost') {
