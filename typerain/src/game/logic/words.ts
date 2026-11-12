@@ -8,24 +8,35 @@ export type Rng = () => number;
 export const WORDS: readonly string[] = [
     // 3 letters
     ...['cat', 'dog', 'sun', 'sky', 'red', 'box', 'cup', 'map', 'key', 'bus', 'egg', 'fox', 'hat', 'ice', 'jam'],
-    ...['leg', 'owl', 'pen', 'zoo', 'bee'],
+    ...['leg', 'owl', 'pen', 'zoo', 'bee', 'ant', 'arm', 'eye', 'end', 'gum', 'ink', 'net', 'nut', 'oil', 'oak'],
+    ...['tea', 'toy', 'van', 'vet', 'yak', 'yes', 'zip', 'run', 'wet', 'fan'],
     // 4 letters
     ...['tree', 'bird', 'fish', 'moon', 'star', 'wind', 'snow', 'book', 'door', 'cake', 'milk', 'ship', 'road'],
     ...['lamp', 'song', 'farm', 'hill', 'jump', 'kite', 'nest'],
+    ...['able', 'ugly', 'gift', 'goat', 'idea', 'iron', 'neck', 'open', 'oval', 'tail'],
+    ...['team', 'vase', 'yarn', 'yard', 'zero', 'zone', 'walk', 'warm', 'rain', 'deep'],
     // 5 letters
     ...['apple', 'bread', 'chair', 'cloud', 'dance', 'earth', 'flame', 'grape', 'house', 'juice', 'lemon'],
     ...['mouse', 'night', 'ocean', 'piano', 'queen', 'river', 'storm', 'tiger', 'water'],
+    ...['angry', 'eagle', 'giant', 'green', 'image', 'nurse', 'olive', 'paper', 'quiet', 'ready'],
+    ...['robot', 'train', 'uncle', 'voice', 'young', 'zebra', 'world', 'happy', 'light', 'plant'],
     // 6 letters
     ...['animal', 'basket', 'camera', 'dinner', 'engine', 'forest', 'garden', 'hammer', 'island', 'jungle'],
     ...['kitten', 'ladder', 'magnet', 'orange', 'pencil', 'rabbit', 'silver', 'turtle', 'window', 'yellow'],
+    ...['autumn', 'flower', 'guitar', 'insect', 'monkey', 'nature', 'office', 'planet', 'rocket', 'travel'],
+    ...['valley', 'winter', 'zipper', 'yogurt', 'listen', 'dragon', 'finger', 'gentle', 'tunnel', 'urgent'],
     // 7 letters
     ...['balloon', 'chicken', 'diamond', 'factory', 'giraffe', 'holiday', 'kitchen', 'monster', 'penguin'],
     ...['rainbow', 'station', 'teacher', 'village', 'weather', 'musical', 'journey', 'library', 'mystery'],
-    ...['pumpkin', 'whistle'],
+    ...['pumpkin', 'whistle', 'airport', 'captain', 'dolphin', 'evening', 'freedom', 'gallery', 'imagine'],
+    ...['lantern', 'natural', 'octopus', 'perfect', 'quarter', 'railway', 'tonight', 'unusual', 'visitor'],
+    ...['weekend', 'younger', 'kingdom', 'general'],
     // 8 letters
     ...['airplane', 'birthday', 'computer', 'elephant', 'football', 'hospital', 'mountain', 'notebook'],
     ...['painting', 'question', 'sandwich', 'treasure', 'umbrella', 'vacation', 'wardrobe', 'bathroom'],
-    ...['building', 'children', 'daughter', 'envelope'],
+    ...['building', 'children', 'daughter', 'envelope', 'alphabet', 'calendar', 'dinosaur', 'exercise'],
+    ...['favorite', 'gardener', 'internet', 'language', 'magazine', 'mushroom', 'pancakes', 'reporter'],
+    ...['teaspoon', 'yourself', 'vineyard', 'triangle', 'wireless', 'elevator', 'northern', 'opposite'],
 ];
 
 const pick = <T>(items: readonly T[], rng: Rng): T => items[Math.min(items.length - 1, Math.floor(rng() * items.length))];

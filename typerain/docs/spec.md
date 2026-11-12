@@ -168,7 +168,7 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 
 ### 単語
 
-- 語彙は下の「単語リスト」（120 語。英小文字だけ。3〜8 文字が各 20 語）。同時に出す数の上限は `MAX_ON_SCREEN`
+- 語彙は下の「単語リスト」（240 語。英小文字だけ。3〜8 文字が各 40 語）。同時に出す数の上限は `MAX_ON_SCREEN`
 - 出す間隔: 経過時間 t（秒。`playing` で進み、案内の間は進まない）から `max(SPAWN_MIN_SEC, SPAWN_START_SEC − SPAWN_DECAY_PER_SEC × t)` 秒。最初の単語は、プレイが始まってから `FIRST_SPAWN_SEC` 秒後に出す。盤面の一掃のあとは、「床に着く」の「一掃のあとの出現」の待ち（`WIPE_PAUSE_SEC`）が、ここの出す間隔より先に効く。出す時刻になっても、次のどれかを満たすあいだは出さず、満たさなくなった最初のフレームで出す（そのとき間隔のタイマーを 0 に戻す）: 画面の単語が `MAX_ON_SCREEN` 個、または、直前に出した単語がまだ `FIELD_TOP` + `WORD_H` + `SPAWN_GAP` より上にある（単語どうしが縦に重ならないため）
 - 出す単語の選び方: 文字数 n を、`WORD_MIN_LEN` から `maxLen(t)` までの整数から一様に選ぶ。`maxLen(t)` = `min(WORD_MAX_LEN, WORD_MAX_LEN_START + floor(t / WORD_LEN_UP_SEC))`。次に、文字数が n で、画面に出ていない単語のうち、先頭の文字が画面の他の単語の先頭の文字と重ならないものから一様に選ぶ。そのような単語が無ければ、重なってもよいので、文字数が n で画面に出ていない単語から選ぶ。それも無ければ、画面に出ていない全語から選ぶ
 - 横の位置: 単語の左端 x を、`MARGIN` から `SCREEN_WIDTH − MARGIN − 単語の幅` までの一様な乱数で決める（単語の幅は等幅フォントの 1 文字の幅 `CHAR_W` × 文字数。実際の幅を測って使ってよい）。範囲が 0 以下なら `MARGIN`
@@ -249,16 +249,16 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 
 ## 単語リスト
 
-固定のリスト（120 語。重複なし。英小文字）。
+固定のリスト（240 語。重複なし。英小文字。3〜8 文字が各 40 語）。身近で、つづりが素直な語だけ（名詞が中心で、動詞・形容詞も含む。つづりが紛らわしい語は入れない。別の綴りがある語は、よく使う方の綴りを採る〔`favorite`・`yogurt` など〕）。先頭の文字は x 以外のすべて（a〜w・y・z）にあり、どの文字数でも先頭の文字が 22 種類以上ある（「先頭の文字が重ならない候補」が、画面に 6 語あっても各文字数で十分に残る）。先頭の文字ごとの語数は、b が 11・s が 10 で、u が 5・y が 9・z が 6・q が 4・v が 9（x は自然な語が少ないので 0）。
 
 | 文字数 | 単語 |
 |---|---|
-| 3 | cat, dog, sun, sky, red, box, cup, map, key, bus, egg, fox, hat, ice, jam, leg, owl, pen, zoo, bee |
-| 4 | tree, bird, fish, moon, star, wind, snow, book, door, cake, milk, ship, road, lamp, song, farm, hill, jump, kite, nest |
-| 5 | apple, bread, chair, cloud, dance, earth, flame, grape, house, juice, lemon, mouse, night, ocean, piano, queen, river, storm, tiger, water |
-| 6 | animal, basket, camera, dinner, engine, forest, garden, hammer, island, jungle, kitten, ladder, magnet, orange, pencil, rabbit, silver, turtle, window, yellow |
-| 7 | balloon, chicken, diamond, factory, giraffe, holiday, kitchen, monster, penguin, rainbow, station, teacher, village, weather, musical, journey, library, mystery, pumpkin, whistle |
-| 8 | airplane, birthday, computer, elephant, football, hospital, mountain, notebook, painting, question, sandwich, treasure, umbrella, vacation, wardrobe, bathroom, building, children, daughter, envelope |
+| 3 | cat, dog, sun, sky, red, box, cup, map, key, bus, egg, fox, hat, ice, jam, leg, owl, pen, zoo, bee, ant, arm, eye, end, gum, ink, net, nut, oil, oak, tea, toy, van, vet, yak, yes, zip, run, wet, fan |
+| 4 | tree, bird, fish, moon, star, wind, snow, book, door, cake, milk, ship, road, lamp, song, farm, hill, jump, kite, nest, able, ugly, gift, goat, idea, iron, neck, open, oval, tail, team, vase, yarn, yard, zero, zone, walk, warm, rain, deep |
+| 5 | apple, bread, chair, cloud, dance, earth, flame, grape, house, juice, lemon, mouse, night, ocean, piano, queen, river, storm, tiger, water, angry, eagle, giant, green, image, nurse, olive, paper, quiet, ready, robot, train, uncle, voice, young, zebra, world, happy, light, plant |
+| 6 | animal, basket, camera, dinner, engine, forest, garden, hammer, island, jungle, kitten, ladder, magnet, orange, pencil, rabbit, silver, turtle, window, yellow, autumn, flower, guitar, insect, monkey, nature, office, planet, rocket, travel, valley, winter, zipper, yogurt, listen, dragon, finger, gentle, tunnel, urgent |
+| 7 | balloon, chicken, diamond, factory, giraffe, holiday, kitchen, monster, penguin, rainbow, station, teacher, village, weather, musical, journey, library, mystery, pumpkin, whistle, airport, captain, dolphin, evening, freedom, gallery, imagine, lantern, natural, octopus, perfect, quarter, railway, tonight, unusual, visitor, weekend, younger, kingdom, general |
+| 8 | airplane, birthday, computer, elephant, football, hospital, mountain, notebook, painting, question, sandwich, treasure, umbrella, vacation, wardrobe, bathroom, building, children, daughter, envelope, alphabet, calendar, dinosaur, exercise, favorite, gardener, internet, language, magazine, mushroom, pancakes, reporter, teaspoon, yourself, vineyard, triangle, wireless, elevator, northern, opposite |
 
 ## MVP範囲（初版で作る範囲）
 
@@ -303,6 +303,8 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 - スコア: 3 文字・コンボ 0 → 30、8 文字・コンボ 0 → 80、5 文字・コンボ 5（倍率 1.5）→ 75、4 文字・コンボ 20 → 120、4 文字・コンボ 25（上限の 3 のまま）→ 120。コンボは打ち切ったあとに 1 増え、ミス・床に着くで 0
 - 時間による変化: 落下の速さ — t = 0 で 0.084、t = 100 で 0.224、t = 140 以降で 0.28（超えない）。出す間隔 — t = 0 で 2.4、t = 40 で 1.6、t = 80 以降で 0.8（下回らない）。最大の文字数 — t = 0 と 19.9 で 4、t = 20 で 5、t = 80 以降で 8
 - 単語の選び方: 画面にある単語は選ばれない。先頭の文字が重ならない候補があるときはそれから選ぶ（`rng` の端の値で候補の先頭・末尾）。そのような候補が無いとき、同じ文字数の他の単語から選ぶ。全語が選ばれうる。文字数が `[3, maxLen]` から一様に選ばれる
+- 単語リスト（`WORDS`）: 240 語で重複なし。すべて `[a-z]+`。3〜8 文字がちょうど各 40 語。どの文字数でも、先頭の文字が 22 種類以上ある（測定: 3 文字 23・4 文字 22・5 文字 24・6 文字 24・7 文字 24・8 文字 22。実測の最小値は 22）。先頭の文字の語数: u・y・z がそれぞれ 5 以上（測定: 5・9・6）、b は 11 以下・s は 10 以下（いまの値から増やさない）。元の 120 語（変更前のリストの語）はすべて残っている（テストの中に旧 120 語を定数として持ち、`WORDS` がすべて含むことを確かめる）。先頭の文字の種類は、性質としては 22 以上（実測の最小値）で、テストで確かめる下限は 20。画面に 6 語（`MAX_ON_SCREEN`）あって先頭の文字が全部違っていても、各文字数で「先頭の文字が重ならない候補」が残る（`pickWord` が最初の段階で選べる。文字数 3〜8 のそれぞれで、先頭の文字が異なる 6 語を画面に置いて確かめる）
+- 回帰（語彙の拡張前後）: 既存の純ロジックのテストは、`WORDS` の語数・中身に依存するもの（語数 120・各文字数 20 語を前提にしたもの）を除いて、変更なしで通る。`pickWord` の選び方の順（画面にある語を除く → 先頭の文字が重ならない語 → 同じ文字数の他の語 → 画面に無い全語）と、文字数の一様な選択（`[3, maxLen]`）は変わらない。語彙の拡張前後で、得点・ライフ・コンボ・出現・落下の値は変わらない
 - 出す条件: 画面に `MAX_ON_SCREEN` 個あるとき出ない。直前の単語が `FIELD_TOP` + `WORD_H` + `SPAWN_GAP`（= 78）ちょうどまで下がっていれば出る（77.9 では出ない）。出せなかった間のタイマーは進み続け、条件を満たした最初のフレームで出す
 - ロックオンと判定: ロックオン無しで先頭の文字を打つと、その文字で始まる一番下の単語にロックオンする（同じ文字で始まる 2 語があれば y が大きい方）。同じ文字で始まる単語が無ければミスでロックオンしない。ロックオン中に次の文字を打つと進み、違う文字はミス（打ち終えた文字数は変わらない）。他の単語の先頭の文字を打ってもロックオンは移らない。打ち切ると消えてロックオンが外れる
 - 床に着く: 下端が `FLOOR_Y` ちょうどで着く（1 px 手前では着かない）。ライフが 1 減ってコンボが 0 になり、ロックオン中の単語ならロックオンが外れる。同じフレームに 2 語が床に着いてライフが 1 のとき、ライフは 0 で止まり（負にならない）、`ending` へ移り、2 語目は無視される
@@ -320,7 +322,7 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 
 - 盤面の一掃（手計算）: ライフ 3 で単語 A が床に着き、画面に B・C（ロックオン中は B）があるとき、ライフ 2・コンボ 0・B と C は消えて `words` が空・ロックオン無し・スコア不変・`wiped` は [B, C]・`landed` は [A]。ライフ 1 で床に着いたら、ライフ 0 で `ending`・B と C は残り・`wiped` は空。ライフ 3 で 2 語が同時に着くとライフ 1・一掃は 1 回（`wiped` に残りの単語がすべて入り、重複しない）。ライフ 2 で 2 語が同時に着くとライフ 0・`ending`・一掃しない。そのフレームに出たばかりの単語（p = 0）も一掃される。床に着いた単語が無いフレームでは一掃しない
 - 一掃のあとの出現: 一掃のフレームから `WIPE_PAUSE_SEC`（1.2 秒）の間は、出す間隔（0.8〜2.4 秒）が過ぎていても出ない（残り時間のカウントダウン。`wait` の変化に影響されない）。`dt` = 0.1 の step を繰り返して、一掃の 11 step 後（1.1 秒）には出ず、12 step 後（1.2 秒ちょうど。浮動小数の誤差で 1 step ずれる場合は、テストの側で誤差を見込んだ値にしてよい）に出る。一掃のフレームに出た単語は `spawned` と `wiped` の両方に入る。そのあとの次の単語は通常の出す間隔（その時の t）で出る。ミス・打ち切りでは一掃しない。一掃のあと、打ち切った単語の得点・コンボの計算は今までと同じ
-- 回帰（一掃の追加前後）: 一掃が起きない遊び（床に着かない・最後のライフを失う床着だけ）の `Round` の出力（出現する単語・位置・得点・ライフ・コンボ）は、同じ乱数列で同じ。既存の純ロジックのテストは、一掃の対象になる床着（ライフが残る床着のあとに単語が残る前提のもの）を除いて変更なしで通る（除いたものは、新しい規則の値に合わせて直す）。床に着いた単語の既存の演出・ライフの減り方・`ending` は変わらない
+- 回帰（一掃の追加前後）: 一掃が起きない遊び（床に着かない・最後のライフを失う床着だけ）の `Round` の出力（出現する単語・位置・得点・ライフ・コンボ）は、同じ乱数列で同じ（この比較は、語彙の拡張前の `WORDS` を使った場合のもの。拡張のあとは、出現する語の中身が変わる）。既存の純ロジックのテストは、一掃の対象になる床着（ライフが残る床着のあとに単語が残る前提のもの）を除いて変更なしで通る（除いたものは、新しい規則の値に合わせて直す）。床に着いた単語の既存の演出・ライフの減り方・`ending` は変わらない
 - 演出の寿命（QA）: 一掃で消える単語の演出は `effects`（`__qa`）に数え、`WIPE_FADE_MS` + 1 フレーム後に 0。一掃の直後に `lockBand` は false。`ending` に入る床着では一掃の演出は出ない（`effects` に一掃の分が増えない）。Result への切り替えと「もう一度」の最初のフレームで `effects` は 0
 
 ## 完了条件
@@ -342,6 +344,8 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 - この改訂で変えないもの（回帰条件）: 論理サイズ・H の決め方・配置・文字の大きさ・`WORD_H`・落ちる距離・床の判定・ルール・得点・出現・落下の速さ・演出の長さと効果は変わらない（純ロジックの既存のテストが、変更なしでそのまま通る）。入力の遅れ・毎フレームの処理（描画の倍率は表示が変わったときだけ決め直し、毎フレームは作らない）も変わらない。描画の負荷: 390 × 844・DPR 3 のプレイ中のフレームレートが、この改訂の前の 90% 以上（QA で同じ条件の `fps` の中央値を比べる）
 - 盤面の一掃（スクリーンショットと連続撮影で確認）: ライフが残る床着で、画面の他の単語が灰色に縮んで消え、ロックオンの帯も消える。床に着いた単語は今までどおり赤く点滅する。一掃のあと約 1.2 秒は新しい単語が出ない。最後のライフを失う床着では一掃せず、盤面の単語が残ったまま Result へ移る。375 × 550・390 × 844・1280 × 720 で、演出が画面に収まる
 - 一掃の追加で変えないもの（回帰条件）: 操作・入力の読み方、ロックオン・ミスの規則、得点式・コンボ・`LIVES`、出現の間隔・文字数・落下の速さ・`MAX_ON_SCREEN`・`FIRST_SPAWN_SEC`、床に着いた単語の既存の演出（揺れ・点滅・床の線の光・♥ の縮み）、`ending`・`RESULT_DELAY`・Result・自己ベスト、画面の大きさ・配置・文字の大きさは変わらない。意図した変化は、生存時間が延びること（bot、50 seed、高さ 528、ミス率 2% / 8% の中央値: 2.5 打鍵/秒 64 → 82 秒、4.5 打鍵/秒 88 → 110 秒、6 打鍵/秒 107 → 149 秒、ミス率 8% で 7.5 打鍵/秒 216 → 395 秒。しきい値ではなく目安で、人の体感は `game-playtest` で確かめる）
+- 語彙の拡張（120 → 240 語）で変えないもの（回帰条件）: 操作・入力の読み方、ロックオン・ミスの規則、得点式・コンボ・`LIVES`、出現の間隔・`MAX_ON_SCREEN`・`FIRST_SPAWN_SEC`・文字数の上限（`maxLen(t)`）・落下の速さ・盤面の一掃（`WIPE_PAUSE_SEC` を含む）、文字数の選び方（`WORD_MIN_LEN` から `maxLen(t)` までの一様）、単語の選び方の順（画面にある語を除く → 先頭の文字が重ならない語を優先 → 同じ文字数の他の語 → 画面に無い全語）、画面・配置・文字の大きさ・Result・自己ベストは変わらない。純ロジックの既存のテストは、`WORDS` の語数・中身に依存するもの（語数の 120、各文字数 20 語を前提にしたもの）を除いて、変更なしで通る（除いたものは、新しいリストの値に合わせて直す）。各文字数の語数は同じ（各 40 語）で、文字数ごとの出やすさは変わらない
+- 語彙の拡張で、遊びの難しさが変わっていないこと（bot で確かめる。固定の dt・seed 付きの乱数で `Round` を動かし、一番下の単語から打つ単純な bot、50 seed、上限 600 秒、高さ 528、ミス率 2% と 8%、2.5・4.5・6 打鍵/秒）: 旧リストを seed 組 A・B（各 50 個）で、新リストを組 A で測り、6 条件（ミス率 2 水準 × 打鍵速度 3 水準）ごとに、旧(A)・旧(B)・新(A) の中央値を並べる。「新(A) と 旧(A) の差」が「旧(A) と 旧(B) の差（seed によるばらつき）」より明らかに大きい条件があれば、数値は変えずに止めて報告する（判断はユーザー）。表は `game-test` が測って PR の説明に載せる（しきい値は、測るまで決めない）
 - README に、ゲームの目的・ルール・操作方法が書かれている（床に着くとライフが減り、画面の他の単語が消えることを含む）
 
 ## 実装裁量
@@ -354,3 +358,4 @@ TYPE RAIN（`typerain`）。Title には `TYPE RAIN` と出す。
 - 描画の倍率 k を実現する手段（カメラのズーム・ゲームの大きさの持ち方・Scene が論理サイズを読む方法）、文字の解像度の指定（Phaser の `setResolution` など）、表示の拡大縮小・別のモニターへの移動で変わる devicePixelRatio を拾う手段（`resize`・`matchMedia` など）、`TEXT_PAD_BOTTOM` を足す方法（テキストの `padding`）と、中心基準の文字の位置の直し方。論理座標・見える位置を変えなければ、どれでもよい
 - 案内が出ている間のカメラの揺れ（止めても、再生し続けてもよい）
 - モジュールの分け方・ファイル名、Scene 間のデータの渡し方
+- ソースでの `WORDS` の書き方（1 行に並べる語数など）。語の並び順は「単語リスト」の表のとおりにする（既存のテストが、文字数ごとの先頭・末尾の語を固定している）
