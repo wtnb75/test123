@@ -191,7 +191,7 @@ export class Game extends Scene {
                     found: r.found.size,
                     total: r.stage.diffs.length,
                     foundIdx: [...r.found],
-                    diffs: r.stage.diffs.map((d) => ({ x: d.x, y: d.y, r: d.r })),
+                    diffs: r.stage.diffs.map((d) => ({ x: d.x, y: d.y, r: d.r, kind: d.kind })),
                     hintUsed: r.hintUsed,
                     kind: this.layout.kind,
                     panels: this.layout.panels,
