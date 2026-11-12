@@ -3,7 +3,7 @@ import type { Point } from './layout';
 import { Rng, between, shuffle } from './random';
 
 export type ShapeKind = 'circle' | 'rect' | 'triangle' | 'star' | 'cross' | 'hexagon';
-export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'added' | 'shape';
+export type DiffKind = 'color' | 'move' | 'size' | 'missing' | 'added' | 'shape' | 'tone';
 
 export interface Shape {
     kind: ShapeKind;
@@ -44,8 +44,32 @@ export interface Stage {
 }
 
 export const SHAPE_KIND_ORDER: readonly ShapeKind[] = ['circle', 'rect', 'triangle', 'star', 'cross', 'hexagon'];
-const DIFF_KINDS: DiffKind[] = ['color', 'move', 'size', 'missing', 'added', 'shape'];
+const BASE_DIFF_KINDS: readonly DiffKind[] = ['color', 'move', 'size', 'missing', 'added', 'shape'];
 const ANGLE_TRIES = 16;
+const LIGHT_EPS = 1e-9;
+
+/** The difference kinds a candidate can get at a stage (`si` = stage - 1): the tone kind joins from `toneFromStage` on. */
+export const diffKindsAt = (si: number): readonly DiffKind[] =>
+    si + 1 >= PARAMS.toneFromStage ? [...BASE_DIFF_KINDS, 'tone'] : BASE_DIFF_KINDS;
+
+/** A colour difference: the hue moves by `hueDelta` degrees and the lightness by `lightDelta`, each in its own direction (-1 / +1). */
+export const shiftColor = (
+    src: Pick<Shape, 'hue' | 'light'>,
+    hueDelta: number,
+    lightDelta: number,
+    hueSign: number,
+    lightSign: number,
+): { hue: number; light: number } => ({
+    hue: (src.hue + hueDelta * hueSign + 360) % 360,
+    light: src.light + lightDelta * lightSign,
+});
+
+/** `light` moved by `delta` in the direction `sign` (-1 down, +1 up); the opposite direction when that leaves [min, max]. */
+export const shiftLight = (light: number, delta: number, sign: number, min: number, max: number): number => {
+    const moved = light + sign * delta;
+    if (moved >= min - LIGHT_EPS && moved <= max + LIGHT_EPS) return moved;
+    return light - sign * delta;
+};
 
 export const clampStage = (stage: number): number => Math.min(Math.max(Math.round(stage), 1), PARAMS.stageCount);
 
@@ -108,11 +132,18 @@ const moveTarget = (src: Shape, dist: number, rng: Rng): Point => {
 };
 
 const propose = (si: number, index: number, src: Shape, rng: Rng): Proposal => {
-    const kind = DIFF_KINDS[Math.floor(rng() * DIFF_KINDS.length)];
+    const kinds = diffKindsAt(si);
+    const kind = kinds[Math.floor(rng() * kinds.length)];
     const margin = PARAMS.hitMargin;
     if (kind === 'color') {
-        const hue = (src.hue + PARAMS.hueShift[si] * sign(rng) + 360) % 360;
-        return { dst: { ...src, hue }, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
+        // the hue and the lightness move together (independent signs); the lightness of a shape (0.4-0.6) never leaves its range
+        const hueSign = sign(rng);
+        const { hue, light } = shiftColor(src, PARAMS.hueShift[si], PARAMS.colorLightShift, hueSign, sign(rng));
+        return { dst: { ...src, hue, light }, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
+    }
+    if (kind === 'tone') {
+        const light = shiftLight(src.light, PARAMS.toneDelta[si], sign(rng), PARAMS.toneLightMin, PARAMS.toneLightMax);
+        return { dst: { ...src, light }, diff: { kind, index, x: src.x, y: src.y, r: src.size + margin } };
     }
     if (kind === 'move') {
         const dist = PARAMS.moveDist[si];

@@ -30,6 +30,15 @@ export const PARAMS = {
     diffCounts: [3, 4, 5, 6, 7],
     timeLimits: [60, 55, 50, 45, 40],
     hueShift: [120, 80, 55, 40, 30],
+    // A colour difference also shifts the lightness by this much (every stage; see docs/spec/tone-diff.md).
+    colorLightShift: 0.12,
+    // Tone (lightness-only) difference: it appears from `toneFromStage` on; `toneDelta` is indexed by stage - 1 (0 = not used);
+    // the shifted lightness must stay in [toneLightMin, toneLightMax] (the other direction is taken otherwise).
+    // `toneDelta` must stay <= 0.3 so that one direction always fits for a lightness in `shapeLight`.
+    toneFromStage: 3,
+    toneDelta: [0, 0, 0.22, 0.18, 0.15],
+    toneLightMin: 0.2,
+    toneLightMax: 0.8,
     moveDist: [60, 44, 32, 24, 18],
     scaleDelta: [0.6, 0.45, 0.35, 0.28, 0.22],
     missPenalty: 5,

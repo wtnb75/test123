@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { PARAMS } from '../params';
-import { clampStage, generateStage } from './generate';
+import { clampStage, diffKindsAt, generateStage, shiftColor, shiftLight } from './generate';
 import type { Diff, Shape, Stage } from './generate';
 import { mulberry32 } from './random';
 
@@ -34,7 +34,7 @@ const expectedCircle = (stage: number, l: Shape, r: Shape | null, kind: Diff['ki
         return { x: (l.x + r.x) / 2, y: (l.y + r.y) / 2, r: l.size + margin + PARAMS.moveDist[stage - 1] / 2 };
     }
     if (kind === 'size' && r) return { x: l.x, y: l.y, r: Math.max(l.size, r.size) + margin };
-    // colour, missing, added and shape (form change) all use the shape's own centre and size + hitMargin
+    // colour, tone, missing, added and shape (form change) all use the shape's own centre and size + hitMargin
     return { x: l.x, y: l.y, r: l.size + margin };
 };
 
@@ -78,6 +78,11 @@ describe('parameter tables', () => {
             const share = (k: number) => PARAMS.diffCounts[k] / PARAMS.shapeCounts[k];
             expect(share(i)).toBeLessThan(share(i - 1));
         }
+        // spec/tone-diff.md: the tone shift also shrinks from stage 3 to 5, and stays within what always fits the lightness range
+        expect(PARAMS.toneFromStage).toBe(3);
+        expect(PARAMS.toneDelta).toEqual([0, 0, 0.22, 0.18, 0.15]);
+        for (let i = 3; i < PARAMS.stageCount; i++) expect(PARAMS.toneDelta[i]).toBeLessThan(PARAMS.toneDelta[i - 1]);
+        for (const d of PARAMS.toneDelta) expect(d).toBeLessThanOrEqual(0.3);
         expect(PARAMS.diffCounts[0] / PARAMS.shapeCounts[0]).toBeCloseTo(0.25, 5);
         expect(PARAMS.diffCounts[4] / PARAMS.shapeCounts[4]).toBeCloseTo(7 / 36, 5);
     });
@@ -209,7 +214,11 @@ describe('generateStage: differences', () => {
     });
 
     it('changes exactly the shapes named by the differences, by exactly the stage amount, and nothing else', () => {
-        const seen = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0, grown: 0, shrunk: 0, huePlus: 0, hueMinus: 0, hueWrapped: 0, forcedShrink: 0 };
+        const seen = {
+            color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0, tone: 0, grown: 0, shrunk: 0, huePlus: 0, hueMinus: 0, hueWrapped: 0, forcedShrink: 0,
+            toneUp: 0, toneDown: 0, toneEdgeOnly: 0,
+        };
+        const colorSigns = new Set<string>();
         const quadrants = new Set<string>();
         const swaps = new Map<number, Set<string>>(STAGES.map((st) => [st, new Set<string>()]));
         eachStage((s, stage, seed) => {
@@ -248,12 +257,28 @@ describe('generateStage: differences', () => {
                 const rr = r as Shape;
                 const same = (k: keyof Shape) => rr[k] === l[k];
                 if (d.kind === 'color') {
-                    if (!(same('x') && same('y') && same('size') && same('kind'))) expect.fail(`color diff moved shape: ${tag}`);
+                    if (!(same('x') && same('y') && same('size') && same('kind') && same('sat'))) expect.fail(`color diff changed more than hue and lightness: ${tag}`);
                     if (Math.abs(hueDistance(rr.hue, l.hue) - PARAMS.hueShift[si]) > 1e-9) expect.fail(`hue shift wrong: ${tag}`);
+                    // spec/tone-diff.md: the lightness moves by colorLightShift too (and stays inside the shape range 0.4-0.6 +- 0.12)
+                    if (Math.abs(Math.abs(rr.light - l.light) - PARAMS.colorLightShift) > 1e-9) expect.fail(`colour lightness shift wrong: ${tag}`);
+                    if (rr.light < 0.28 - 1e-9 || rr.light > 0.72 + 1e-9) expect.fail(`colour lightness out of range: ${tag}`);
                     const signed = ((rr.hue - l.hue + 540) % 360) - 180;
                     if (signed > 0) seen.huePlus++;
                     else seen.hueMinus++;
+                    colorSigns.add(`${signed > 0 ? '+' : '-'}${rr.light > l.light ? '+' : '-'}`);
                     if (l.hue + signed >= 360 || l.hue + signed < 0) seen.hueWrapped++;
+                } else if (d.kind === 'tone') {
+                    if (stage < PARAMS.toneFromStage) expect.fail(`tone diff before stage ${PARAMS.toneFromStage}: ${tag}`);
+                    if (!(same('x') && same('y') && same('size') && same('kind') && same('hue') && same('sat'))) expect.fail(`tone diff changed more than lightness: ${tag}`);
+                    if (Math.abs(Math.abs(rr.light - l.light) - PARAMS.toneDelta[si]) > 1e-9) expect.fail(`tone shift wrong: ${tag}`);
+                    if (rr.light < PARAMS.toneLightMin - 1e-9 || rr.light > PARAMS.toneLightMax + 1e-9) expect.fail(`tone lightness out of range: ${tag}`);
+                    if (rr.light > l.light) seen.toneUp++;
+                    else seen.toneDown++;
+                    // shapes near an end of 0.4-0.6 can only move one way (the other would leave [0.2, 0.8]); whether the
+                    // asked direction was turned around is pinned by the shiftLight tests, not visible in the output here
+                    const delta = PARAMS.toneDelta[si];
+                    if (l.light - delta < PARAMS.toneLightMin - 1e-9 && rr.light > l.light) seen.toneEdgeOnly++;
+                    if (l.light + delta > PARAMS.toneLightMax + 1e-9 && rr.light < l.light) seen.toneEdgeOnly++;
                 } else if (d.kind === 'move') {
                     if (!(same('hue') && same('size') && same('kind'))) expect.fail(`move diff changed look: ${tag}`);
                     if (Math.abs(Math.hypot(rr.x - l.x, rr.y - l.y) - PARAMS.moveDist[si]) > 1e-9) expect.fail(`move distance wrong: ${tag}`);
@@ -287,6 +312,8 @@ describe('generateStage: differences', () => {
         // guard against vacuous runs: every kind and both size directions occurred
         for (const [k, v] of Object.entries(seen)) expect(v, k).toBeGreaterThan(0);
         expect(quadrants.size).toBeGreaterThanOrEqual(4);
+        // spec/tone-diff.md: the hue sign and the lightness sign of a colour difference are independent, so all four pairs occur
+        expect([...colorSigns].sort()).toEqual(['++', '+-', '-+', '--']);
         // spec: a form change goes to a kind of that stage other than the original, and every such pair occurs
         // (stage 1: 6 pairs, 2: 12, 3: 20, 4 and 5: 30)
         const expectedCounts = [6, 12, 20, 30, 30];
@@ -297,9 +324,9 @@ describe('generateStage: differences', () => {
     });
 });
 
-describe('generateStage: shares of the six difference kinds', () => {
-    it('shows all six kinds, each between 8% and 25% of the chosen differences (300 sets x 5 stages)', () => {
-        const counts: Record<string, number> = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0 };
+describe('generateStage: shares of the difference kinds', () => {
+    it('shows all seven kinds, each between 8% and 25% of the chosen differences (300 sets x 5 stages)', () => {
+        const counts: Record<string, number> = { color: 0, move: 0, size: 0, missing: 0, added: 0, shape: 0, tone: 0 };
         let total = 0;
         for (let seed = 1; seed <= 300; seed++) {
             for (const stage of STAGES) {
@@ -314,7 +341,23 @@ describe('generateStage: shares of the six difference kinds', () => {
             const share = n / total;
             if (n === 0 || share < 0.08 || share > 0.25) expect.fail(`${kind} share ${(share * 100).toFixed(1)}%`);
         }
-        expect(Object.keys(counts)).toHaveLength(6);
+        expect(Object.keys(counts)).toHaveLength(7);
+    });
+
+    it('gives the tone kind 8-25% of the differences at each of stages 3-5 and none at stages 1-2 (300 sets)', () => {
+        for (const stage of STAGES) {
+            let tone = 0;
+            let total = 0;
+            for (let seed = 1; seed <= 300; seed++) {
+                for (const d of generateStage(stage, mulberry32(seed)).diffs) {
+                    total++;
+                    if (d.kind === 'tone') tone++;
+                }
+            }
+            const share = tone / total;
+            if (stage < PARAMS.toneFromStage) expect(tone, `stage ${stage}`).toBe(0);
+            else if (share < 0.08 || share > 0.25) expect.fail(`stage ${stage} tone share ${(share * 100).toFixed(1)}%`);
+        }
     });
 
     it('at stage 1, swaps each shape kind to either of the other two about half of the time (1500 sets)', () => {
@@ -377,12 +420,90 @@ describe('generateStage: shares of the six difference kinds', () => {
         expect(bothDirections).toBeGreaterThan(0); // a picture can have a missing and an added shape at once
     });
 
-    it('lets every stage produce every kind (spec: any kind can appear at every stage)', () => {
+    it('lets every stage produce every kind it has (six kinds at stages 1-2, plus tone at stages 3-5)', () => {
         for (const stage of STAGES) {
             const kinds = new Set<string>();
             for (let seed = 1; seed <= 300; seed++) for (const d of generateStage(stage, mulberry32(seed)).diffs) kinds.add(d.kind);
-            expect([...kinds].sort(), `stage ${stage}`).toEqual(['added', 'color', 'missing', 'move', 'shape', 'size']);
+            const six = ['added', 'color', 'missing', 'move', 'shape', 'size'];
+            expect([...kinds].sort(), `stage ${stage}`).toEqual(stage >= 3 ? [...six, 'tone'] : six);
         }
+    });
+});
+
+describe('shiftLight (spec/tone-diff.md, hand-worked values)', () => {
+    const MIN = 0.2;
+    const MAX = 0.8;
+
+    it('moves the lightness by delta in the asked direction when the result stays in range', () => {
+        expect(shiftLight(0.5, 0.22, 1, MIN, MAX)).toBeCloseTo(0.72, 12);
+        expect(shiftLight(0.5, 0.22, -1, MIN, MAX)).toBeCloseTo(0.28, 12);
+        expect(shiftLight(0.4, 0.15, -1, MIN, MAX)).toBeCloseTo(0.25, 12);
+    });
+
+    it('turns around when the asked direction would leave the range', () => {
+        expect(shiftLight(0.41, 0.22, -1, MIN, MAX)).toBeCloseTo(0.63, 12); // 0.41 - 0.22 = 0.19 < 0.2
+        expect(shiftLight(0.59, 0.22, 1, MIN, MAX)).toBeCloseTo(0.37, 12); // 0.59 + 0.22 = 0.81 > 0.8
+    });
+
+    it('accepts a result exactly on the range edge, despite floating point error', () => {
+        expect(0.42 - 0.22).toBeLessThan(0.2); // 0.19999999999999998: the epsilon is what keeps this one in range
+        expect(shiftLight(0.42, 0.22, -1, MIN, MAX)).toBeCloseTo(0.2, 12);
+        expect(shiftLight(0.58, 0.22, 1, MIN, MAX)).toBeCloseTo(0.8, 12);
+    });
+
+    it('turns around just past the edge (outside the 1e-9 tolerance)', () => {
+        expect(shiftLight(0.42 - 1e-6, 0.22, -1, MIN, MAX)).toBeCloseTo(0.64 - 1e-6, 12);
+        expect(shiftLight(0.58 + 1e-6, 0.22, 1, MIN, MAX)).toBeCloseTo(0.36 + 1e-6, 12);
+    });
+
+    it('has a tone delta exactly from the first tone stage on, and a direction that always fits the parameter ranges', () => {
+        PARAMS.toneDelta.forEach((d, si) => {
+            if ((d > 0) !== (si + 1 >= PARAMS.toneFromStage)) expect.fail(`toneDelta[${si}] = ${d} vs toneFromStage ${PARAMS.toneFromStage}`);
+        });
+        // down fits for light >= min + d and up for light <= max - d: they cover every lightness when d <= (max - min) / 2
+        const reach = (PARAMS.toneLightMax - PARAMS.toneLightMin) / 2;
+        for (const d of PARAMS.toneDelta) expect(d).toBeLessThanOrEqual(reach + 1e-9);
+    });
+
+    it('always keeps some direction in range for every lightness of a shape and every tone delta', () => {
+        for (let light = PARAMS.shapeLight.min; light <= PARAMS.shapeLight.max + 1e-9; light += 0.005) {
+            for (const delta of PARAMS.toneDelta.filter((d) => d > 0)) {
+                for (const sign of [-1, 1]) {
+                    const out = shiftLight(light, delta, sign, PARAMS.toneLightMin, PARAMS.toneLightMax);
+                    if (out < MIN - 1e-9 || out > MAX + 1e-9 || Math.abs(Math.abs(out - light) - delta) > 1e-9) {
+                        expect.fail(`light ${light} delta ${delta} sign ${sign} -> ${out}`);
+                    }
+                }
+            }
+        }
+    });
+});
+
+describe('shiftColor (spec/tone-diff.md, hand-worked values)', () => {
+    it('moves the lightness by 0.12 in the asked direction and leaves it inside 0.28-0.72 for shapes of 0.4-0.6', () => {
+        expect(shiftColor({ hue: 100, light: 0.5 }, 55, 0.12, 1, 1).light).toBeCloseTo(0.62, 12);
+        expect(shiftColor({ hue: 100, light: 0.5 }, 55, 0.12, 1, -1).light).toBeCloseTo(0.38, 12);
+        expect(shiftColor({ hue: 100, light: 0.4 }, 55, 0.12, 1, -1).light).toBeCloseTo(0.28, 12);
+        expect(shiftColor({ hue: 100, light: 0.4 }, 55, 0.12, 1, 1).light).toBeCloseTo(0.52, 12);
+        expect(shiftColor({ hue: 100, light: 0.6 }, 55, 0.12, 1, -1).light).toBeCloseTo(0.48, 12);
+        expect(shiftColor({ hue: 100, light: 0.6 }, 55, 0.12, 1, 1).light).toBeCloseTo(0.72, 12);
+    });
+
+    it('moves the hue independently of the lightness sign, wrapping around 0 and 360', () => {
+        expect(shiftColor({ hue: 100, light: 0.5 }, 55, 0.12, 1, -1).hue).toBe(155);
+        expect(shiftColor({ hue: 100, light: 0.5 }, 55, 0.12, -1, 1).hue).toBe(45);
+        expect(shiftColor({ hue: 20, light: 0.5 }, 30, 0.12, -1, 1).hue).toBe(350);
+        expect(shiftColor({ hue: 350, light: 0.5 }, 30, 0.12, 1, 1).hue).toBe(20);
+    });
+});
+
+describe('diffKindsAt', () => {
+    it('has the six original kinds at stages 1-2 and adds tone from stage 3', () => {
+        const six = ['color', 'move', 'size', 'missing', 'added', 'shape'];
+        expect(diffKindsAt(0)).toEqual(six);
+        expect(diffKindsAt(1)).toEqual(six);
+        expect(diffKindsAt(2)).toEqual([...six, 'tone']);
+        expect(diffKindsAt(4)).toEqual([...six, 'tone']);
     });
 });
 
