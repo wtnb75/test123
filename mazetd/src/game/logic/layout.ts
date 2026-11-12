@@ -49,6 +49,13 @@ export function pointToCell(x: number, y: number): CellPos | null {
     };
 }
 
+/** Top of an enemy's HP bar: above its body, but never above the board (the frame above it would hide the bar at S). */
+export const HP_BAR_GAP = 8;
+export const HP_BAR_BOARD_MARGIN = 2;
+export function hpBarTop(centerY: number, radius: number): number {
+    return Math.max(centerY - radius - HP_BAR_GAP, BOARD_RECT.y + HP_BAR_BOARD_MARGIN);
+}
+
 export function cellCenterX(col: number): number {
     return BOARD_RECT.x + col * CELL + CELL / 2;
 }

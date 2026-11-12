@@ -13,7 +13,7 @@ export class Result extends Scene {
     create(data: ResultData) {
         const cx = CANVAS_W / 2;
         const cy = CANVAS_H / 2;
-        const score = computeScore(data.kills, data.lives, data.cleared);
+        const score = computeScore(data.kills, data.lives, data.cleared, data.bossKills);
 
         this.cameras.main.setBackgroundColor(BG_COLOR);
         this.cameras.main.fadeIn(FADE_TIME * 1000, 0, 0, 0);

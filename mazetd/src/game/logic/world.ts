@@ -1,9 +1,9 @@
 import {
+    BOSS_LIFE_COST,
     CELL,
     COINS_START,
     DT_MAX,
     ENEMY_SPEED,
-    KILL_REWARD,
     LIVES_START,
     SELL_RATE,
     SHOT_FLASH,
@@ -43,7 +43,7 @@ import {
 } from './board';
 import { cellCenterX, cellCenterY, type Tool } from './layout';
 import { createFlightRoute, type FlightRoute, routePoint } from './flight';
-import { enemyCount, enemyHp, type EnemyKind, enemyKind, kindSpeedRate } from './wave';
+import { enemyHp, type EnemyKind, enemyKind, isBossWave, killReward, kindSpeedRate, waveSpawnTotal } from './wave';
 
 export type Phase = 'build' | 'wave' | 'cleared' | 'gameover';
 
@@ -91,6 +91,9 @@ export interface SlowTower {
 export interface FrameEvents {
     killX: number[];
     killY: number[];
+    /** Coins each kill paid, parallel to killX/killY (the boss pays more). */
+    killReward: number[];
+    /** Enemies that reached G this frame (the boss counts once, however many lives it costs). */
     leaks: number;
 }
 
@@ -99,7 +102,10 @@ export interface GameState {
     wave: number;
     lives: number;
     coins: number;
+    /** Every kill, bosses included. */
     kills: number;
+    /** Kills that were the boss (a subset of `kills`). */
+    bossKills: number;
     tool: Tool;
     /** Failure message shown instead of the phase text; null means the normal text. */
     message: string | null;
@@ -137,6 +143,7 @@ export function createGame(terrain?: readonly Terrain[]): GameState {
         lives: LIVES_START,
         coins: COINS_START,
         kills: 0,
+        bossKills: 0,
         tool: 'wall',
         message: null,
         board,
@@ -150,7 +157,7 @@ export function createGame(terrain?: readonly Terrain[]): GameState {
         spawnClock: 0,
         spawned: 0,
         nextEnemyId: 0,
-        events: { killX: [], killY: [], leaks: 0 }
+        events: { killX: [], killY: [], killReward: [], leaks: 0 }
     };
     refreshPath(state);
     return state;
@@ -168,7 +175,10 @@ export const MSG_BUILD_HINT = 'マスをタップして建物を置こう（置�
 export function phaseText(state: GameState): string {
     if (state.phase !== 'build') return `ウェーブ ${state.wave}`;
     const empty = state.board.cells.every((c) => c === 'empty');
-    return empty ? MSG_BUILD_HINT : `ウェーブ ${state.wave} の準備（開始を押す）`;
+    if (empty) return MSG_BUILD_HINT;
+    return isBossWave(state.wave)
+        ? `ウェーブ ${state.wave} の準備（ボスが来る・開始を押す）`
+        : `ウェーブ ${state.wave} の準備（開始を押す）`;
 }
 
 export function messageText(state: GameState): string {
@@ -332,7 +342,7 @@ function moveEnemies(state: GameState, dt: number, skipFrom: number): void {
             const terrainRate = flying ? 1 : speedFactor(state, e.traveled);
             e.traveled += ENEMY_SPEED * kindSpeedRate(e.kind) * terrainRate * (e.slowed ? SLOW_RATE : 1) * dt;
             if (e.traveled >= (flying ? state.route.len : goalAt)) {
-                state.lives = Math.max(0, state.lives - 1);
+                state.lives = Math.max(0, state.lives - (e.kind === 'boss' ? BOSS_LIFE_COST : 1));
                 state.events.leaks++;
                 continue;
             }
@@ -414,10 +424,13 @@ function removeDead(state: GameState): void {
     let w = 0;
     for (const e of enemies) {
         if (e.hp <= 0) {
+            const reward = killReward(e.kind);
             state.kills++;
+            if (e.kind === 'boss') state.bossKills++;
             state.events.killX.push(e.x);
             state.events.killY.push(e.y);
-            state.coins += KILL_REWARD;
+            state.events.killReward.push(reward);
+            state.coins += reward;
             continue;
         }
         enemies[w++] = e;
@@ -435,10 +448,11 @@ export function update(state: GameState, rawDt: number): Phase {
     // Events describe only this frame, even when nothing runs.
     state.events.killX.length = 0;
     state.events.killY.length = 0;
+    state.events.killReward.length = 0;
     state.events.leaks = 0;
     if (state.phase !== 'wave') return state.phase;
     const dt = Math.min(rawDt, DT_MAX);
-    const total = enemyCount(state.wave);
+    const total = waveSpawnTotal(state.wave);
     state.spawnClock += dt;
     const before = state.enemies.length;
     spawnDue(state, total);

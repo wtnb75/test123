@@ -74,6 +74,19 @@ export const FLYER_HP_RATE = 1;
 /** Distance from the centre to each corner of the flyer's diamond; drawing only. */
 export const FLYER_RADIUS = 14;
 
+// Boss (spec/boss.md): one walker after the wave's normal enemies, in the waves listed here.
+export const BOSS_WAVES: readonly number[] = [5, 10];
+/** Boss max HP is the wave's base HP times this (an integer). */
+export const BOSS_HP_RATE = 6;
+export const BOSS_SPEED_RATE = 0.5;
+/** Lives lost when the boss reaches G. */
+export const BOSS_LIFE_COST = 3;
+/** Coins and score for killing the boss (instead of KILL_REWARD and SCORE_PER_KILL). */
+export const BOSS_REWARD = 20;
+export const BOSS_SCORE = 50;
+/** Drawing radius only; range and splash checks use the boss's centre. */
+export const BOSS_RADIUS = 24;
+
 export const TURRET_RANGE = 112;
 export const TURRET_DAMAGE = 1;
 export const TURRET_INTERVAL = 0.5;

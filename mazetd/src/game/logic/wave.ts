@@ -1,4 +1,10 @@
 import {
+    BOSS_HP_RATE,
+    BOSS_RADIUS,
+    BOSS_REWARD,
+    BOSS_SCORE,
+    BOSS_SPEED_RATE,
+    BOSS_WAVES,
     ENEMY_COUNT_BASE,
     ENEMY_COUNT_STEP,
     ENEMY_HP_BASE,
@@ -15,6 +21,7 @@ import {
     FLYER_RADIUS,
     FLYER_SLOT,
     FLYER_SPEED_RATE,
+    KILL_REWARD,
     KIND_CYCLE,
     SCORE_PER_KILL,
     SCORE_PER_LIFE,
@@ -25,10 +32,20 @@ import {
     TANK_SPEED_RATE
 } from './config';
 
-export type EnemyKind = 'normal' | 'fast' | 'tank' | 'flyer';
+export type EnemyKind = 'normal' | 'fast' | 'tank' | 'flyer' | 'boss';
 
+/** The number of regular enemies in the wave (the boss, if any, comes after them). */
 export function enemyCount(wave: number): number {
     return ENEMY_COUNT_BASE + ENEMY_COUNT_STEP * (wave - 1);
+}
+
+export function isBossWave(wave: number): boolean {
+    return BOSS_WAVES.includes(wave);
+}
+
+/** Everything that spawns in the wave: the regular enemies plus the boss in a boss wave. */
+export function waveSpawnTotal(wave: number): number {
+    return enemyCount(wave) + (isBossWave(wave) ? 1 : 0);
 }
 
 /** The wave's base HP: a normal enemy's max HP; the other kinds scale it (see `enemyHp`). */
@@ -38,6 +55,8 @@ export function baseEnemyHp(wave: number): number {
 
 /** The kind of the enemy spawned i-th (0-based) in the given wave; no randomness. */
 export function enemyKind(wave: number, index: number): EnemyKind {
+    // The boss is the one after the regular enemies, outside the index rules below.
+    if (isBossWave(wave) && index === enemyCount(wave)) return 'boss';
     // The flyer slot is a normal one modulo KIND_CYCLE, so it never competes with the fast and tank slots.
     if (wave >= FLYER_FROM_WAVE && index % FLYER_CYCLE === FLYER_SLOT) return 'flyer';
     const slot = index % KIND_CYCLE;
@@ -56,6 +75,7 @@ export function enemyHp(wave: number, kind: EnemyKind = 'normal'): number {
     if (kind === 'fast') return scaledHpCeil(base, FAST_HP_RATE);
     if (kind === 'flyer') return scaledHpCeil(base, FLYER_HP_RATE);
     if (kind === 'tank') return base * TANK_HP_RATE;
+    if (kind === 'boss') return base * BOSS_HP_RATE;
     return base;
 }
 
@@ -64,6 +84,7 @@ export function kindSpeedRate(kind: EnemyKind = 'normal'): number {
     if (kind === 'fast') return FAST_SPEED_RATE;
     if (kind === 'tank') return TANK_SPEED_RATE;
     if (kind === 'flyer') return FLYER_SPEED_RATE;
+    if (kind === 'boss') return BOSS_SPEED_RATE;
     return 1;
 }
 
@@ -72,9 +93,16 @@ export function kindRadius(kind: EnemyKind = 'normal'): number {
     if (kind === 'fast') return FAST_RADIUS;
     if (kind === 'tank') return TANK_RADIUS;
     if (kind === 'flyer') return FLYER_RADIUS;
+    if (kind === 'boss') return BOSS_RADIUS;
     return ENEMY_RADIUS;
 }
 
-export function computeScore(kills: number, lives: number, cleared: boolean): number {
-    return kills * SCORE_PER_KILL + (cleared ? lives * SCORE_PER_LIFE : 0);
+/** Coins for killing an enemy of `kind`. */
+export function killReward(kind: EnemyKind = 'normal'): number {
+    return kind === 'boss' ? BOSS_REWARD : KILL_REWARD;
+}
+
+/** `kills` counts every kill including bosses; each of the `bossKills` scores BOSS_SCORE instead of SCORE_PER_KILL. */
+export function computeScore(kills: number, lives: number, cleared: boolean, bossKills = 0): number {
+    return (kills - bossKills) * SCORE_PER_KILL + bossKills * BOSS_SCORE + (cleared ? lives * SCORE_PER_LIFE : 0);
 }

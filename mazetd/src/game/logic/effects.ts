@@ -31,6 +31,8 @@ export class Countdown {
 export interface Popup {
     x: number;
     y: number;
+    /** Coins shown in the "+N" text. */
+    reward: number;
     age: number;
     active: boolean;
 }
@@ -44,10 +46,10 @@ export class PopupPool {
     readonly items: Popup[];
 
     constructor(size: number, private readonly lifetime: number) {
-        this.items = Array.from({ length: size }, () => ({ x: 0, y: 0, age: 0, active: false }));
+        this.items = Array.from({ length: size }, () => ({ x: 0, y: 0, reward: 0, age: 0, active: false }));
     }
 
-    spawn(x: number, y: number): Popup {
+    spawn(x: number, y: number, reward = 0): Popup {
         let slot = this.items.find((p) => !p.active);
         if (!slot) {
             slot = this.items[0];
@@ -55,6 +57,7 @@ export class PopupPool {
         }
         slot.x = x;
         slot.y = y;
+        slot.reward = reward;
         slot.age = 0;
         slot.active = true;
         return slot;
