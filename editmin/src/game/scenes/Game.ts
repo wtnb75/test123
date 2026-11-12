@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { canPlaceMine, canSetStart, forbiddenZone, toBoardText, type Grid } from '../logic/board';
 import {
     evaluateDifficulty,
+    getNeighbors,
     type BoardCell,
     type BoardState,
     type DifficultyEvaluation
@@ -45,11 +46,21 @@ import {
     type BoardSnapshot,
     type History
 } from '../logic/history';
+import { beginStroke, paintModeAt, strokeLine, strokeStatus, strokeStatusText, visitCell, type Stroke } from '../logic/paint';
 
 /** Whether the key event comes from a text field (the W and H inputs), where the shortcuts must not act. */
 const isTypingInInput = (event: KeyboardEvent): boolean => {
     const target = event.target as HTMLElement | null;
     return target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+};
+
+/** The drag edit in progress (docs/spec.md "ドラッグ編集"): the paint so far, the working mines, the board before it. */
+type ActiveStroke = {
+    paint: Stroke;
+    mines: boolean[];
+    before: BoardSnapshot;
+    /** The cell the pointer was last over; the next line starts here. */
+    last: number;
 };
 
 type UiRefs = {
@@ -91,6 +102,10 @@ export class Game extends Scene {
     private play: PlayState | null = null;
     /** The undo / redo history of docs/spec/undo-history.md. Never saved; empty after a restart. */
     private history: History = emptyHistory();
+    /** The drag edit in progress; null otherwise. */
+    private stroke: ActiveStroke | null = null;
+    /** True from a stroke's press until the next press: the `click` that press ends with must not toggle again. */
+    private suppressClick = false;
     private ui?: UiRefs;
 
     constructor() {
@@ -102,6 +117,8 @@ export class Game extends Scene {
         // A restart starts editing again, with no play and no start cell.
         this.play = null;
         this.history = emptyHistory();
+        this.stroke = null;
+        this.suppressClick = false;
         this.startIndex = null;
         this.startMode = false;
         this.cameras.main.setBackgroundColor(0xf4f1e8);
@@ -188,7 +205,7 @@ export class Game extends Scene {
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />元に戻す: Ctrl（⌘）+Z、やり直す: Ctrl（⌘）+Shift+Z / Ctrl+Y<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />左ボタンを押したままなぞると、通ったマスにまとめて置く／消せます（最初に押したマスに爆弾が無ければ置く、あれば消す）<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />元に戻す: Ctrl（⌘）+Z、やり直す: Ctrl（⌘）+Shift+Z / Ctrl+Y<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
           </div>
         </div>`;
     }
@@ -242,9 +259,12 @@ export class Game extends Scene {
         this.ui.playToggleBtn.addEventListener('click', () => this.togglePlay());
         // A right click on the board opens no menu while the play is on (a right click on a cell flags it).
         this.ui.boardGrid.addEventListener('contextmenu', this.onBoardContextMenu);
+        this.ui.boardGrid.addEventListener('pointerdown', this.onBoardPointerDown);
     }
 
     private removeInputListeners(): void {
+        this.removeStrokeListeners();
+        this.ui?.boardGrid.removeEventListener('pointerdown', this.onBoardPointerDown);
         window.removeEventListener('keydown', this.onZoomKey);
         window.removeEventListener('keydown', this.onDisplayKey);
         window.removeEventListener('keydown', this.onHistoryKey);
@@ -254,13 +274,117 @@ export class Game extends Scene {
     }
 
     private readonly onBoardContextMenu = (event: MouseEvent): void => {
-        if (this.play !== null) {
+        // No menu during the play, nor in the middle of a drag edit (the menu would swallow the left button's release).
+        if (this.play !== null || this.stroke !== null) {
             event.preventDefault();
         }
     };
 
+    /** The cell index of a board button (or of something inside one); null for anything else. */
+    private cellIndexOf(target: EventTarget | null): number | null {
+        const button = (target as Element | null)?.closest?.('.editmin-cell') as HTMLElement | null | undefined;
+        return button?.dataset.index === undefined ? null : Number(button.dataset.index);
+    }
+
+    /** A left mouse press on a cell starts a drag edit (edit mode only); every press ends the previous click suppression. */
+    private readonly onBoardPointerDown = (event: PointerEvent): void => {
+        if (this.stroke !== null) {
+            return; // a press while a stroke runs does nothing
+        }
+        this.suppressClick = false;
+        const index = this.cellIndexOf(event.target);
+        // Ctrl + press is a right click on macOS, so it never starts a stroke.
+        if (event.pointerType !== 'mouse' || event.button !== 0 || event.ctrlKey || this.play !== null || this.startMode || index === null) {
+            return;
+        }
+        event.preventDefault();
+        this.suppressClick = true;
+        const mines = this.cells.map((c) => c.hasMine);
+        this.stroke = { paint: beginStroke(paintModeAt(mines, index)), mines, before: this.snapshot(), last: index };
+        window.addEventListener('pointermove', this.onStrokeMove);
+        window.addEventListener('pointerup', this.onStrokeEnd);
+        window.addEventListener('pointercancel', this.onStrokeEnd);
+        window.addEventListener('mousedown', this.onStrokeMouseDown);
+        this.passCells([index]);
+    };
+
+    /** Another button pressed while the left one is held does nothing (a middle press must not start the browser's auto-scroll). */
+    private readonly onStrokeMouseDown = (event: MouseEvent): void => {
+        if (event.button !== 0) {
+            event.preventDefault();
+        }
+    };
+
+    private readonly onStrokeMove = (event: PointerEvent): void => {
+        const stroke = this.stroke;
+        if (stroke === null) {
+            return;
+        }
+        if ((event.buttons & 1) === 0) {
+            this.endStroke(); // the release was missed
+            return;
+        }
+        const index = this.cellIndexOf(document.elementFromPoint(event.clientX, event.clientY));
+        if (index === null || index === stroke.last) {
+            return;
+        }
+        const line = strokeLine(stroke.last, index, this.widthCells);
+        stroke.last = index;
+        this.passCells(line);
+    };
+
+    private readonly onStrokeEnd = (): void => this.endStroke();
+
+    private removeStrokeListeners(): void {
+        window.removeEventListener('pointermove', this.onStrokeMove);
+        window.removeEventListener('pointerup', this.onStrokeEnd);
+        window.removeEventListener('pointercancel', this.onStrokeEnd);
+        window.removeEventListener('mousedown', this.onStrokeMouseDown);
+    }
+
+    /**
+     * Applies the stroke's mode to the cells and redraws the changed cells and their neighbours (the numbers) in
+     * place: no button is rebuilt, no analysis yet.
+     */
+    private passCells(indices: number[]): void {
+        const stroke = this.stroke;
+        if (stroke === null) {
+            return;
+        }
+        const touched = new Set<number>();
+        for (const index of indices) {
+            const result = visitCell(stroke.paint, stroke.mines, index, canPlaceMine(this.grid(), this.startIndex, index));
+            stroke.paint = result.stroke;
+            stroke.mines = result.mines;
+            if (result.outcome === 'changed') {
+                this.cells[index].hasMine = result.mines[index];
+                touched.add(index);
+                getNeighbors(index, this.widthCells, this.heightCells).forEach((n) => touched.add(n));
+            }
+        }
+        if (touched.size > 0) {
+            this.applyCellViews(touched);
+        }
+    }
+
+    /** Ends the drag edit: one history move, the status line, and one redraw with the analysis. */
+    private endStroke(): void {
+        const stroke = this.stroke;
+        if (stroke === null) {
+            return;
+        }
+        this.stroke = null;
+        this.removeStrokeListeners();
+        const text = strokeStatusText(strokeStatus(stroke.paint));
+        if (text !== null) {
+            this.setStatus(text);
+        }
+        this.commitMove(stroke.before, this.snapshot());
+        this.renderAll();
+    }
+
     private readonly onHistoryKey = (event: KeyboardEvent): void => {
-        const action = historyKeyAction(event, isTypingInInput(event), this.play !== null);
+        const action = historyKeyAction(event, isTypingInInput(event), this.play !== null || this.stroke !== null);
         if (action !== null) {
             event.preventDefault();
             this.stepHistory(action);
@@ -434,7 +558,7 @@ export class Game extends Scene {
     }
 
     /** Sets each cell's text and classes from the mode (or the play) and the cell state. No button is created here. */
-    private applyCellViews(): void {
+    private applyCellViews(only?: ReadonlySet<number>): void {
         if (!this.ui) {
             return;
         }
@@ -443,6 +567,9 @@ export class Game extends Scene {
         const grid = this.grid();
         const buttons = this.ui.boardGrid.querySelectorAll<HTMLButtonElement>('.editmin-cell');
         buttons.forEach((button, i) => {
+            if (only !== undefined && !only.has(i)) {
+                return; // a drag edit redraws just the cells it touched
+            }
             const cell = this.cells[i];
             const isStart = this.startIndex === i;
             button.className = 'editmin-cell';
@@ -547,6 +674,11 @@ export class Game extends Scene {
     }
 
     private onCellClick(index: number, event: MouseEvent): void {
+        // The mouse press of a drag edit already painted; its own click must not toggle again (a keyboard click, detail 0, does).
+        if (this.suppressClick && event.detail !== 0) {
+            this.suppressClick = false;
+            return;
+        }
         if (this.play !== null) {
             // A keyboard "click" (Space or Enter on a focused cell) has detail 0: the play opens cells by mouse only.
             if (event.detail !== 0) {
@@ -647,6 +779,7 @@ export class Game extends Scene {
         for (let i = 0; i < this.cells.length; i += 1) {
             const cellBtn = document.createElement('button');
             cellBtn.className = 'editmin-cell';
+            cellBtn.dataset.index = String(i);
             cellBtn.addEventListener('click', (event) => this.onCellClick(i, event));
             cellBtn.addEventListener('contextmenu', () => this.toggleFlagAt(i));
             grid.appendChild(cellBtn);

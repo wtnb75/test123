@@ -53,6 +53,8 @@ canvas {
     padding: 10px;
     width: max-content;
     height: max-content;
+    /* A drag over the cells paints them; it must not select text. */
+    user-select: none;
 }
 
 .editmin-cell {

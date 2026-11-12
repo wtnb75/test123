@@ -21,4 +21,8 @@
 - `src/game/scenes/Game.ts`（状態表示と `updateAnalysis`）: 「評価エラー」が取り消し・「反映」の状態表示を上書きしうる — 理由: 制約を満たす盤面では評価エラーに到達しない。トグルと同じ既存の順序。
 - `src/game/scenes/Game.ts`（`snapshot` / `applySnapshot`）: 盤面のコピーが多く、地雷を 2 つの表現で持つ — 理由: 2500 マスで測定できる差は無く、マスのボタンの描き直しのほうが重い。履歴の 100 手 × 2500 は小さい。
 - `src/game/scenes/Game.ts`（履歴ボタン）: タップの的が 44 px 未満 — 理由: 既存のサイドバーのボタンと同じ見た目。backlog の `look-mobile` で扱う。
+- `src/game/scenes/Game.ts`（ドラッグ編集の `onBoardPointerDown`）: 離したあとの `suppressClick` が次の押下まで残る。ストローク中の別ポインター（`pointerId`・`pointerType`）を見ていない。ストローク中の左ボタンの押下は無視する — 理由: 本物のクリックは必ず盤面の押下を先に受けて解除される。別ポインターの混在と、離し損ねの直後の押下は、ごくまれで害が小さい（`pointermove` の `buttons` で終わる）。
+- `src/game/logic/paint.ts`（`visitCell` の配列コピー、`strokeStatus` と `strokeStatusText` が別、`N` = 0 かつ `M` = 0 の保護、`onCellClick` を `paint.ts` に通さない）: 理由: 純粋関数は引数を変えない契約（spec）で、50 × 50 でも測れる差が無い。区分（純粋）と文言（Scene の選択）は spec が分けている。`N` = 0 かつ `M` = 0 は到達しない。1 マスのクリックの経路は変えない約束。
+- `src/game/scenes/Game.ts`（ストローク中のキーボード: 押している間の Enter・Space でサイドバーのボタン、ウィンドウの `blur`）: 理由: 左ボタンを押したままキーを押す同時操作で、ごくまれ。離し損ねは `pointermove` の `buttons` で終わる。
+- `src/game/scenes/Game.ts`（`onStrokeMouseDown` が効かない可能性、`applyCellViews(only)` が全ボタンを走査する）: 理由: 前者は未確認の推測で、効かなくても中ボタンの自動スクロールが出るだけ（QA で確かめる）。後者は 2500 マスの走査で、測れる差が無い。
 - `src/game/scenes/Game.ts`（`onCellClick` の結線）: `canSetStart` / `canPlaceMine` の呼び出しが単体テストされない — 理由: Scene は spec でブラウザの確認（QA）の対象。QA で開始マスの拒否・禁止マスへの拒否の文言を確かめる。
