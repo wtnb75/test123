@@ -185,6 +185,11 @@ export class Crumble {
         }
     }
 
+    /** A rise moved the whole field up one row (docs/spec/rising.md): the blinking cell goes with it. */
+    followRise(): void {
+        if (this.target !== null) this.target.r -= 1;
+    }
+
     /** Follows the blinking cell through cleared rows (ascending): it moves down, or the warning restarts if its row went. */
     followClears(cleared: readonly number[]): void {
         const target = this.target;
