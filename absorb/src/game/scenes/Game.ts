@@ -10,9 +10,9 @@ import {
 import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BUTTON_INSET, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
     DEBRIS_COUNT, ENDING_DURATION,
-    ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, FIELD_RADIUS, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
+    ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
-    LEECH_PARTICLE_RADIUS, LEECH_TETHER_ALPHA, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
+    LEECH_PARTICLE_RADIUS, LEECH_TETHER_ALPHA, POWERUP_COLOR, POWERUP_ITEM_RADIUS, POWERUP_PICKUP_RING_WIDTH, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
 import { createPause } from '../logic/pause';
 import {
@@ -21,6 +21,7 @@ import {
 } from '../logic/startFx';
 import { SplitEffects, childFlashesWhite, splitRingProgress, splitRingRadius } from '../logic/splitFx';
 import { DropFlashes } from '../logic/carrierFx';
+import { PickupEffects, edgeIsGold, pickupRingProgress, pickupRingRadius } from '../logic/powerup';
 import { DrainParticles, StockFlash, fieldTint, hasTether, leechDrainRate, particleCoord, tetherWidth } from '../logic/leech';
 import {
     DebrisEffects, debrisColor, debrisPieceX, debrisPieceY, debrisProgress, debrisRadius
@@ -56,6 +57,8 @@ const COLORS = {
     gaugeBack: 0x263238,
     gaugeFill: 0x4dd0e1,
     explosion: 0xffcc80,
+    /** The carrier's reward item, the boosted field's edge and the pickup ring. */
+    powerup: POWERUP_COLOR,
     childOutline: 0xffffff,
     leechEye: 0x1a0f4d,
     /** The stock particles along a leech's tether: lighter than the leech body. */
@@ -165,6 +168,7 @@ export class Game extends Scene {
     private readonly releaseFx = new ReleaseEffects();
     private readonly splitFx = new SplitEffects();
     private readonly dropFlashes = new DropFlashes();
+    private readonly pickupFx = new PickupEffects();
     /** The stock gauge's red cue after a leech drains stock, and whether the gauge was last drawn red. */
     private readonly stockFlash = new StockFlash();
     private shownStockRed = false;
@@ -249,6 +253,7 @@ export class Game extends Scene {
         this.releaseFx.clear();
         this.splitFx.clear();
         this.dropFlashes.clear();
+        this.pickupFx.clear();
         this.stockFlash.clear();
         this.drainParticles.clear();
         this.shownStockRed = false;
@@ -428,7 +433,8 @@ export class Game extends Scene {
         this.input_.dragX = 0;
         this.input_.dragY = 0;
         this.trackBoss(dt);
-        this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing');
+        this.absorbFx.update(dt, this.world.absorbed, this.world.phase === 'playing', this.world.fieldRadius);
+        this.pickupFx.update(dt, this.world.pickups.length, this.world.phase === 'playing');
         this.debrisFx.update(dt, this.world.defeated);
         this.releaseFx.update(dt, this.world.releases);
         this.splitFx.update(dt, this.world.splits);
@@ -568,6 +574,7 @@ export class Game extends Scene {
         g.fillStyle(COLORS.releaseBullet, 1);
         for (const b of w.releaseBullets) g.fillCircle(b.x, b.y, RELEASE_RADIUS);
         this.drawReleaseRings();
+        this.drawItems();
         this.drawStartRings();
 
         this.drawPlayer();
@@ -661,6 +668,17 @@ export class Game extends Scene {
             const p = releaseRingProgress(r.age);
             g.lineStyle(releaseRingWidth(r.count), COLORS.releaseBullet, fadeAlpha(p));
             g.strokeCircle(r.x, r.y, releaseRingRadius(r.count, p));
+        }
+    }
+
+    /** The carriers' reward items (gold diamonds): over the release rings, under the player. Two triangles, so no allocation. */
+    private drawItems() {
+        const g = this.gfx;
+        g.fillStyle(COLORS.powerup, 1);
+        const r = POWERUP_ITEM_RADIUS;
+        for (const item of this.world.items) {
+            g.fillTriangle(item.x, item.y - r, item.x + r, item.y, item.x - r, item.y);
+            g.fillTriangle(item.x, item.y + r, item.x + r, item.y, item.x - r, item.y);
         }
     }
 
@@ -810,14 +828,21 @@ export class Game extends Scene {
             const fx = this.absorbFx;
             // Leeches drawing on the stock pull the field's colour toward theirs.
             const color = lerpColor(COLORS.field, COLORS.leech, fieldTint(w.drainRate));
+            // While boosted the edge is gold (blinking at the end) and the leeches' tint only reaches the fill.
+            const edgeColor = w.powerupElapsed === null ? color : (edgeIsGold(w.powerupElapsed) ? COLORS.powerup : COLORS.field);
             this.drawFieldCircle(
-                p.x, p.y, FIELD_RADIUS, FIELD_FILL_REST_ALPHA + FIELD_FILL_STOCK_ALPHA * (w.stock / STOCK_MAX),
-                edgeWidth(fx.pulseAge), edgeAlpha(fx.pulseAge), color
+                p.x, p.y, w.fieldRadius, FIELD_FILL_REST_ALPHA + FIELD_FILL_STOCK_ALPHA * (w.stock / STOCK_MAX),
+                edgeWidth(fx.pulseAge), edgeAlpha(fx.pulseAge), color, edgeColor
             );
             const ring = absorbRingProgress(fx.ringAge);
             if (ring >= 0) {
                 g.lineStyle(ABSORB_RING_WIDTH, COLORS.field, fadeAlpha(ring));
-                g.strokeCircle(p.x, p.y, absorbRingRadius(ring));
+                g.strokeCircle(p.x, p.y, absorbRingRadius(ring, fx.ringBase));
+            }
+            const pickup = pickupRingProgress(this.pickupFx.ringAge);
+            if (pickup >= 0) {
+                g.lineStyle(POWERUP_PICKUP_RING_WIDTH, COLORS.powerup, fadeAlpha(pickup));
+                g.strokeCircle(p.x, p.y, pickupRingRadius(pickup));
             }
             this.drawSucks();
         }
@@ -831,12 +856,12 @@ export class Game extends Scene {
     /** The absorb field: a translucent disc with its outline, the same look while readying and playing. */
     private drawFieldCircle(
         x: number, y: number, radius: number, fillAlpha: number, edgeWidthPx: number, edgeAlphaValue: number,
-        color: number = COLORS.field
+        color: number = COLORS.field, edgeColor: number = color
     ) {
         const g = this.gfx;
         g.fillStyle(color, fillAlpha);
         g.fillCircle(x, y, radius);
-        g.lineStyle(edgeWidthPx, color, edgeAlphaValue);
+        g.lineStyle(edgeWidthPx, edgeColor, edgeAlphaValue);
         g.strokeCircle(x, y, radius);
     }
 

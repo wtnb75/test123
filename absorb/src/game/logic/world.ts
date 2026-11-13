@@ -19,6 +19,7 @@ import {
     type Rng
 } from './geometry';
 import { volleyAngles } from './patterns';
+import { advanceBoost, boostFieldRadius, itemDropPoint, stepItem, type PowerupItem } from './powerup';
 import type { ScreenSize } from './screen';
 import { releaseScore } from './scoring';
 
@@ -106,7 +107,6 @@ export interface ReleaseBullet {
     removed: boolean;
 }
 
-const FIELD_RADIUS_SQ = FIELD_RADIUS * FIELD_RADIUS;
 const isRemoved = (item: { removed: boolean }): boolean => item.removed;
 
 function killScore(e: Enemy): number {
@@ -168,6 +168,15 @@ export class World {
     drainCarry = 0;
     /** Seconds left on the "BOSS" announcement. */
     bossAnnounce = 0;
+    /** Reward items falling from killed carriers (docs/spec/powerup.md). */
+    readonly items: PowerupItem[] = [];
+    /** Seconds since an item was taken while the boost lasts (0 on the frame it was taken); null when there is no boost. */
+    powerupElapsed: number | null = null;
+    /**
+     * The absorb radius of the latest playing frame, decided at the start of that frame (an item taken in it widens the
+     * field from the next frame). Frozen while ending.
+     */
+    fieldRadius = FIELD_RADIUS;
     /**
      * Where the field swallowed enemy bullets during the latest step, one entry per bullet (for the
      * absorb effect). Consolation stock from being rammed adds nothing here.
@@ -189,6 +198,10 @@ export class World {
     private readonly dropsThisStep: Enemy[] = [];
     /** Carriers that dropped an enemy during the latest step (for the drop flash). */
     private readonly droppersThisStep: Enemy[] = [];
+    /** Where the field swallowed reward items during the latest step (for the pickup ring). */
+    private readonly pickupsThisStep: Point[] = [];
+    /** Items for carriers release bullets killed this step; like carrier drops they join once the step's collisions are done. */
+    private readonly itemDropsThisStep: PowerupItem[] = [];
     /** Stock the leeches took during the latest step (for the stock gauge's red cue). */
     private drainedThisStep = 0;
     /** Total drain rate (stock per second) of all leeches and the stock just before the drain, during the latest step. */
@@ -205,6 +218,14 @@ export class World {
 
     get absorbed(): readonly Point[] {
         return this.absorbedPoints;
+    }
+
+    /**
+     * Reward items the field took during the latest step, one entry per item. Only a playing step takes any; if the
+     * run ends in that same step the entry stays, and the scene (which checks the phase) draws no ring for it.
+     */
+    get pickups(): readonly Point[] {
+        return this.pickupsThisStep;
     }
 
     /**
@@ -280,6 +301,8 @@ export class World {
         this.splitsThisStep.length = 0;
         this.dropsThisStep.length = 0;
         this.droppersThisStep.length = 0;
+        this.pickupsThisStep.length = 0;
+        this.itemDropsThisStep.length = 0;
         this.drainedThisStep = 0;
         this.drainRateThisStep = 0;
         this.stockBeforeDrain = 0;
@@ -310,12 +333,16 @@ export class World {
 
     private stepPlaying(dt: number, input: Input): void {
         this.ctx.elapsed = this.elapsed;
+        // The boost clock runs at the start of the frame, so the radius is fixed for the whole frame.
+        this.powerupElapsed = advanceBoost(this.powerupElapsed, dt);
+        this.fieldRadius = boostFieldRadius(this.powerupElapsed);
         this.movePlayer(dt, input);
         if (this.player.invulnerable > 0) this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
         if (input.release) this.release();
         this.spawn(dt);
         this.updateEnemies(dt, true);
         this.updateEnemyBullets(dt, true);
+        this.updateItems(dt, true);
         this.drainStock(dt);
         this.updateReleaseBullets(dt, true);
         this.checkContact();
@@ -326,6 +353,7 @@ export class World {
         }
         this.spawnSplitterChildren();
         for (const d of this.dropsThisStep) this.enemies.push(d);
+        for (const item of this.itemDropsThisStep) this.items.push(item);
         this.removeGone();
         this.elapsed += dt;
     }
@@ -333,6 +361,7 @@ export class World {
     private stepEnding(dt: number): void {
         this.updateEnemies(dt, false);
         this.updateEnemyBullets(dt, false);
+        this.updateItems(dt, false);
         this.updateReleaseBullets(dt, false);
         this.removeGone();
         if (this.phaseTime >= ENDING_DURATION) {
@@ -547,10 +576,11 @@ export class World {
 
     private updateEnemyBullets(dt: number, canAbsorb: boolean): void {
         const p = this.player;
+        const fieldRadiusSq = this.fieldRadius * this.fieldRadius;
         for (const b of this.enemyBullets) {
             b.x += b.vx * dt;
             b.y += b.vy * dt;
-            if (canAbsorb && distanceSq(b.x, b.y, p.x, p.y) <= FIELD_RADIUS_SQ) {
+            if (canAbsorb && distanceSq(b.x, b.y, p.x, p.y) <= fieldRadiusSq) {
                 b.removed = true;
                 this.absorbedPoints.push({ x: b.x, y: b.y });
                 this.absorb();
@@ -559,6 +589,23 @@ export class World {
             }
         }
         removeWhere(this.enemyBullets, isRemoved);
+    }
+
+    /**
+     * Moves the reward items down; while playing, the field takes any item within the absorb radius and (re)starts
+     * the boost from 0. Items fully below the screen are dropped.
+     */
+    private updateItems(dt: number, canTake: boolean): void {
+        for (const item of this.items) {
+            const fate = stepItem(item, dt, this.player, this.fieldRadius, canTake, this.screen.height);
+            if (fate === 'falling') continue;
+            item.removed = true;
+            if (fate === 'taken') {
+                this.pickupsThisStep.push({ x: item.x, y: item.y });
+                this.powerupElapsed = 0;
+            }
+        }
+        removeWhere(this.items, isRemoved);
     }
 
     /** Adds one bullet to the stock, auto-releasing the moment it reaches the cap. */
@@ -635,6 +682,7 @@ export class World {
             if (e.hp <= 0) {
                 if (e.kind !== 'boss') this.defeatedEnemies.push({ x: e.x, y: e.y, kind: reportedKind(e.kind), heading: b.heading });
                 if (e.kind === 'splitter') this.splitsThisStep.push({ x: e.x, y: e.y, heading: b.heading });
+                if (e.kind === 'carrier') this.itemDropsThisStep.push({ ...itemDropPoint(e, this.screen.width), removed: false });
                 this.destroy(e);
                 this.recordKill(b.group, e);
             }

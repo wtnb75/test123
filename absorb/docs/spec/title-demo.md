@@ -67,6 +67,7 @@
   - `world.phase` が `over` になっても `GameOver` を始めない。最後の画面のまま、次の作り直しまで止まる。
 - **走りの作り直し**: 走りは `DEMO_RUN_SECONDS` 秒。`Title` が、共有パッケージ `title-demo` の `TitleDemoRunner`（`rounds` 1、`waitMs` = `DEMO_RUN_SECONDS / 2`、`fadeMs` = `DEMO_FADE`）で時計を数え、`fade-out` で黒い幕を閉じ始め、`fade-in` イベント（画面が黒の瞬間）で `Demo` を作り直し（`stop` して `launch`。新しい `World`・演出・乱数）、幕が上がる。1 つ目の走りは `Title` の開始から（`Demo` の起動と同時）。
 - `World` の乱数は `Math.random`（`Game` と同じ）。`TitleDemoRunner` の時計は、`Title` の `update` の経過時間（delta）で数える。ボット自体は乱数を使わない。
+- carrier の戦利品（[carrier の戦利品](powerup.md)）: ボットはアイテムを追わず、敵弾の数え方に使う半径は強化の有無にかかわらず `FIELD_RADIUS`（90px）のまま。`Demo` の `World` が戦利品の強化に入った場合の描画は `Game` と同じ。
 
 ### 走りの作り直し（TitleDemoRunner の対応）
 
