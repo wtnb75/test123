@@ -118,4 +118,11 @@
 - `core/floorLabel.ts`（`depthLabel` に負数・NaN のガードが無い）— 理由: 不正な保存値は `parseHighScore` が 0 にする（spec「保存の失敗とハイスコア」）。呼び出し側が検証済みの値だけを渡す
 - `docs/spec.md`（旧ラベル `Stage N` が、記録を更新するまでトップページに残る）— 理由: spec に意図した挙動として明記し、合意済み（保存の `label` は読まない）
 - `core/hudText.ts`（dev の `Stage must be 1-100.` と `You jump to B12F.` の表記が混ざる）— 理由: dev 専用の入力（STAGE ボタン・`?stage=`）の名前は変えないと合意済み
-- `core/gravePanel.ts`（7 桁のフロアで石の行の幅が成り立つか）— 理由: `B<n>F` は旧表記 `Stage <n>` より短く、最長行はスコアの行のまま（幅の計算は変わらない）
+- `core/gravePanel.ts`（7 桁のフロアで石の行の幅が成り立つか）— 理由: `B<n>F` は旧表記 `Stage <n>` より短く、最長行はスコアの行のまま（幅の計算は変わらない）- `core/floorFade.ts`（生成が長いと、生成の次のフレームの delta（頭打ち 100 ms）が保持に数えられ、保持が最大 100 ms 短くなる）— 理由: spec の時間の表が「生成の次の update から数える（delta は 100 ms で頭打ち）」と決めていて、「フレームの区切りで 100 ms 程度のずれは許す」と明記している。変えるなら spec の改訂が要る
+- `scenes/Game.ts`（`generateFloor` が例外を投げると、Scene が半端な状態で明転に入る）— 理由: 移行前の `delayedCall` の経路にもあった。生成は上限つきで失敗を返さず、投げるのは到達しない見込み（spec「フロアの生成」）
+- `scenes/Game.ts`（明転の途中で `beginFade` が呼ばれると、覆いが 0 に戻る）— 理由: 到達しない。▼ は入口の扉のマスから 5 マス以上離れていて、明転（250 ms）の間に着けない
+- `scenes/Game.ts`（覆いの後始末が `create`・`shutdown`・`startStage` の 3 か所にある）— 理由: どれも無害な防御で、Scene の再利用でも覆いが残らない。1 か所にまとめる利益より、変更の範囲が広がる
+- `scenes/Game.ts`（`paintFade` が毎フレーム同じ値を設定する）— 理由: 2 つのオブジェクトの設定だけで、測れる負荷ではない
+- `scenes/Game.ts`（暗転の間に STAGE をキャンセルすると暗転が続く）— 理由: キャンセルは何も変えない（spec「操作仕様」）。`promptAndStartStage` はキャンセルで `startStage` を呼ばない
+- `scenes/Game.ts`（`keepClearing()` の戻り値を使っていない）— 理由: `startStage` は必ず `play` に戻してから返すので失敗しない。戻り値はテストと将来の呼び出し側のため
+- `core/floorFade.ts`（`FADE_LABEL_SIZE` が画面の大きさで変わらない）— 理由: spec が 48 px の固定と決めている（`B101F` でも幅 320 px に収まる）。4 つの画面の大きさは QA で確かめる

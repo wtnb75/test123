@@ -25,7 +25,8 @@ export const restartKeyAction = (code: string, repeat: boolean): RestartAction =
 };
 
 /**
- * `play` -> (goal) `clearing` -> next stage starts -> `play`; `play` -> (death) `dying` -> (after DeathDelay)
+ * `play` -> (goal) `clearing` (black cover: fade-out, the next floor is generated, label held; docs/spec/floor-fade.md)
+ * -> (fade-in begins) `play`; `play` -> (death) `dying` -> (after DeathDelay)
  * `gameover` (the revealed bombs) -> input -> `grave` (the gravestone screen); `gameover` / `grave` -> RETRY /
  * STAGE jump -> `play`; `gameover` (R, T) / `grave` -> NEW GAME / TITLE -> `restarting` until the Scene is
  * created again (`Game.create` calls `reset`; `Title` never looks at this flow). `restarting` is the moment between
@@ -52,13 +53,36 @@ export class StageFlow {
     return this.phase === 'grave';
   }
 
-  /** The goal was reached. True only the first time: the caller then schedules the one next-stage start. */
+  /** The goal was reached. True only the first time: the caller then starts the one black-cover fade that leads to the next stage. */
   reachGoal (): boolean
   {
     if (this.phase !== 'play') {
       return false;
     }
     this.phase = 'clearing';
+    return true;
+  }
+
+  /**
+   * The next floor was started behind the black cover (`reset` put the flow back to `play`): input stays locked
+   * until the fade-in begins (docs/spec/floor-fade.md).
+   */
+  keepClearing (): boolean
+  {
+    if (this.phase !== 'play') {
+      return false;
+    }
+    this.phase = 'clearing';
+    return true;
+  }
+
+  /** The fade-in began: input is accepted again. True only from `clearing`. */
+  endClearing (): boolean
+  {
+    if (this.phase !== 'clearing') {
+      return false;
+    }
+    this.phase = 'play';
     return true;
   }
 
