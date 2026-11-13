@@ -16,5 +16,10 @@
 - `src/game/scenes/Game.ts`（`loadLevel` / `saveLevel` / `handleLossLevelChoice` に生の `localStorage` を渡している。保存先が塞がれていると勝ちの処理で例外になりうる）: ベスト以外の保存も `browserStorage()` に揃えるべき — 理由: レベルの保存（`calcRushLevel`）は今までの挙動で、ベストの保存形式の移行とは別の変更（1 変更 1 目的）。spec にも「レベルの保存の扱いは今までどおり」と書いた。直すなら spec の改訂から
 - `src/game/logic.ts`（`saveBest` が `{score, label}` を手で組み立てる。共有パッケージに書き込みの関数が無い）: 共有に `serializeBest` を足すべき — 理由: 共有パッケージの変更は使うすべてのゲームのテストに及ぶ（範囲外）。形は `parseBest` と同じ 2 項目で、単体テストが書かれた JSON を固定している
 - `src/game/logic.ts`（保存された `label` が長い・変なとき、そのまま結果画面に出る）: 検証か切り詰めが要る — 理由: 手で書き換えた値だけの話で、プレイでは `Lv.<数>` しか書かれない。以前も、保存された `level` の値は検証せずに表示していた
-- `src/game/scenes/Game.ts`（`renderTable` の履歴の列）: 3 桁の最短値・4 桁の現在値で、履歴と最短値が画面の右端（480）を越える — 理由: 列の位置は既存の作りのまま。今回の拡張は寸法の変更で、この列の幅の扱いは別の変更で決める（記録のみ）
 - `src/game/scenes/Game.ts`（中心 x = 240 の直書き: ステータス行・得点行・表のパネル、文字サイズ 22 / 25 px）: `RESULT_BUTTON_X` だけを定数にして、他は直書きのまま — 理由: 240 は画面全体の中心として既存の Game の全体に使われている。中心 x を 1 か所にまとめるのは Game 全体の整理で、1 変更 1 目的に合わない。別の変更で決める（記録のみ）
+- `src/game/layout.ts`（`valuePairScale` の倍率に下限が無い）: 極端な値で文字が読めないほど縮む — 理由: spec（result-fit）で「f に下限は設けない。極端な選択のときだけ許容」と合意済み。下限や省略表示にするなら spec の改訂から（PR 本文の「未対応の指摘」に記録）
+- `src/game/layout.ts`（`tableMetrics` が定数の配列をそのまま返す）: 呼び出し側が書き換えると共有の定数が壊れる — 理由: 既存の `BUTTON_CENTERS_X` も同じ作りで、書き換える呼び出しは無い
+- `src/game/scenes/Game.ts`（値の組がちょうど列いっぱいのとき、行の背景の右端 476 に接する）: 右の余白が無い — 理由: spec が列の右端を 476 と決めている。ちょうど上限のときだけ
+- `src/game/scenes/Game.ts`（縮めた文字が `setScale` でぼやける）: `fontSize` を変えて描き直すべき — 理由: 実装裁量（フォントの大きさか倍率か）。縮めるのは極端な値のときだけ
+- `src/game/scenes/Game.ts`（`setScale` + `setX` の配置が自動テストされない）: 配置の計算を純関数にしてテストすべき — 理由: Scene の glue は QA のスクリーンショットで確かめると spec に書いてある。式は 1 行
+- `src/game/layout.ts`（`valuePairScale` が NaN の幅を守らない）: `!(total > 0)` にすべき — 理由: Phaser のテキストの幅は描画用 canvas の測定値で NaN にならない。起こり得ない入力
