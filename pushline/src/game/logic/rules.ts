@@ -1,13 +1,13 @@
 // The rules of one run: state, moves, line clears, undo and the outcome of a tap.
 import { PARAMS } from '../params';
 import { topUpFixed } from './fixed';
-import { colFull, DIR_LIST, DIRS, emptyGrid, inBounds, rowFull, widenGrid } from './grid';
+import { chainEnd, colFull, DIR_LIST, DIRS, emptyGrid, inBounds, rowFull, widenGrid } from './grid';
 import { findPath } from './path';
 import { minClearMoves } from './solve';
 import { generateBlocks } from './spawn';
 import {
     EMPTY, FIXED, MOVABLE,
-    type Deps, type Dir, type LineRef, type MoveResult, type Snapshot, type State, type TapOutcome,
+    type Deps, type Dir, type LineRef, type MoveResult, type Pt, type Snapshot, type State, type TapOutcome,
 } from './types';
 
 /** Initial board: character at the bottom centre, fixed blocks topped up, one generation. */
@@ -56,17 +56,17 @@ export function move(state: State, dir: Dir, deps: Deps): MoveResult {
     const ny = state.py + d.y;
     if (!inBounds(grid, nx, ny) || grid[ny][nx] === FIXED) return res;
 
-    const pushing = grid[ny][nx] === MOVABLE;
-    const bx = nx + d.x;
-    const by = ny + d.y;
-    if (pushing && (!inBounds(grid, bx, by) || grid[by][bx] !== EMPTY)) return res;
+    // a run of movable blocks is pushed as a whole; only the cell after the run gains a block (docs/spec/chain-push.md)
+    let dest: Pt | null = null;
+    if (grid[ny][nx] === MOVABLE) {
+        dest = chainEnd(grid, nx, ny, d);
+        if (!dest) return res;
+    }
 
     const before = snapshot(state);
-    let dest: { x: number; y: number } | null = null;
-    if (pushing) {
-        grid[by][bx] = MOVABLE;
+    if (dest) {
+        grid[dest.y][dest.x] = MOVABLE;
         grid[ny][nx] = EMPTY;
-        dest = { x: bx, y: by };
         res.pushed = true;
     }
     state.px = nx;
@@ -86,7 +86,7 @@ export function move(state: State, dir: Dir, deps: Deps): MoveResult {
 }
 
 /** Clears the completed row/column through `dest`, then refills: fixed top-up, then new movable blocks. */
-function clearLines(state: State, dest: { x: number; y: number }, res: MoveResult, deps: Deps): void {
+function clearLines(state: State, dest: Pt, res: MoveResult, deps: Deps): void {
     const { grid } = state;
     if (rowFull(grid, dest.y)) res.clearedRows.push(dest.y);
     if (colFull(grid, dest.x)) res.clearedCols.push(dest.x);
@@ -152,11 +152,7 @@ export function tapOutcome(state: State, x: number, y: number): TapOutcome {
     }
     if (cell === MOVABLE) {
         const dir = DIR_LIST.find((d) => state.px + DIRS[d].x === x && state.py + DIRS[d].y === y);
-        if (dir) {
-            const bx = x + DIRS[dir].x;
-            const by = y + DIRS[dir].y;
-            if (inBounds(state.grid, bx, by) && state.grid[by][bx] === EMPTY) return { kind: 'push', dir };
-        }
+        if (dir && chainEnd(state.grid, x, y, DIRS[dir])) return { kind: 'push', dir };
     }
     return { kind: 'fail' };
 }

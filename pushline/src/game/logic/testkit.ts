@@ -95,7 +95,7 @@ const STEPS: [Dir, number, number][] = [['up', 0, -1], ['down', 0, 1], ['left', 
  * steps. When more than `cap` states are visited it returns null, or throws when `strict` is set.
  * Written separately from the game's own search on purpose.
  */
-export function oracleSolve(rows: string[], limit: number, cap = 200000, strict = false): Dir[] | null {
+export function oracleSolve(rows: string[], limit: number, cap = 200000, strict = false, chain = true): Dir[] | null {
     const h = rows.length;
     const w = rows[0].length;
     let level: { flat: string; path: Dir[] }[] = [{ flat: rows.join(''), path: [] }];
@@ -115,8 +115,13 @@ export function oracleSolve(rows: string[], limit: number, cap = 200000, strict 
                 const cells = [...flat];
                 cells[py * w + px] = '.';
                 if (target === 'o') {
-                    const bx = nx + dx;
-                    const by = ny + dy;
+                    // a run of 'o' going on in the push direction moves as a whole (docs/spec/chain-push.md)
+                    let bx = nx + dx;
+                    let by = ny + dy;
+                    while (chain && bx >= 0 && by >= 0 && bx < w && by < h && cells[by * w + bx] === 'o') {
+                        bx += dx;
+                        by += dy;
+                    }
                     if (bx < 0 || by < 0 || bx >= w || by >= h || cells[by * w + bx] !== '.') continue;
                     cells[by * w + bx] = 'o';
                     const rowDone = [...Array(w).keys()].every((x) => cells[by * w + x] !== '.');
@@ -143,6 +148,10 @@ export function oracleSolve(rows: string[], limit: number, cap = 200000, strict 
 /** Number of steps of the shortest clear, or null (see `oracleSolve`). */
 export const oracleMin = (rows: string[], limit: number, cap = 200000, strict = false): number | null =>
     oracleSolve(rows, limit, cap, strict)?.length ?? null;
+
+/** `oracleMin` under the old rule (one block at a time, no chains): for comparing with the chain rule. */
+export const oracleMinOneBlock = (rows: string[], limit: number, cap = 200000): number | null =>
+    oracleSolve(rows, limit, cap, false, false)?.length ?? null;
 
 /** `oracleMin` for a state. */
 export const oracleMinOf = (s: State, limit: number, cap?: number, strict?: boolean): number | null =>
