@@ -16,4 +16,12 @@
 - `src/game/logic/color.ts`: テストでしか使われない関数（`luminance` など）が本番のソースにある — 理由: 使われないのでビルドで除かれる。仕様の「4.5:1 を確かめる」ための純関数として残す
 - `src/game/scenes/Game.ts` の `renderOverlay`: 帯の位置は `scale.gameSize.height`、濃さは `sim.height` と、画面の高さの出どころが 2 つある — 理由: Game の間は論理サイズが変わらない（`create` で決めて固定）ので、常に同じ値
 - `src/game/logic/effects.test.ts` の「開始・ゴールの足場は点滅しない」が、ガードの有無で結果が変わらない — 理由: 指摘が誤り。テストは年齢 2.65 の足場の `kind` だけを変えて使うので、ガードを外すと 0.15 になって落ちる
+- `src/game/logic/best.ts` の `runRecord`: 0 m の下限が `clear` より先に効き、`meters` が無い・0 の `clear` は保存されない — 理由: Game は `clear` のとき必ず 200 を渡す（到達不能）。仕様は「高さ 0 m は記録しない」で、判定は高さに対して行う
+- `src/game/logic/best.ts` の `runRecord`: 整数・`GOAL_METERS` で頭打ちを前提にしていて、ここで丸めない — 理由: 丸めは Game 側の表示用の高さ（`displayMeters`）の責務で、Result はその値だけを受け取る（仕様「Result へ渡すもの」）。到達しない呼び出し元への防御は足さない
+- `src/game/scenes/Result.ts` / `Title.ts` の記録の呼び出し回数（1 回だけ・毎回 `load`・Game が呼ばない）にテストが無い、「1 回だけ書く」テストが落ちえない — 理由: Scene のグルーは仕様が QA・目視に任せている（`scenes/**` はカバレッジの対象外）。ロジック側は `recordRun` の書き込みと `titleBestText` の読み直しで押さえてある
+- `src/game/scenes/Result.ts`: `recordRun` が `create` の途中にあり、`data.meters ?? 0` を 2 回書いている。記録と表示行を分けるべき — 理由: Result は `RESIZE` で作り直さない（仕様）ので 1 回だけ。仮定の将来の変更への備えで、見た目のための分割はしない
+- `src/game/logic/layout.test.ts` の自己ベストの行の配置テストが、9・10・11・28 を直書きしている — 理由: 正確な値（344 / 595 / 336 / 272）は別に固定している。文字の高さの概算で、フォント変更時は仕様の改訂と一緒に直す
+- `src/game/scenes/ui.ts` の `COLOR.newBest` にコントラストのテストが無い — 理由: 背景 `#1b2540` との比はおよそ 7.5:1。テストで確かめるには Phaser を読み込む `ui.ts` を import するか色を二重に書く必要がある。色は実装裁量
+- `src/game/logic/best.ts`: ほかのゲームと同じ形の `recordRun` / `titleBestText` を共有パッケージに寄せるべき — 理由: ゲームをまたぐリファクタリングで、この変更の目的（stepup の記録）の外。バックログ向き
+- `src/game/scenes/Title.ts`: import の並び順、静的なラベルの途中での記録の読み込み — 理由: 見た目だけの指摘で、仕様どおり（Title に入るたびに読む）
 - `src/game/logic/physics.test.ts` の「上昇中は通り抜ける」: `vy >= 0` の条件を確かめていない — 理由: 上昇中は前の足が上面以上にあれば新しい足は上面に届かないので、`vy >= 0` が無くても結果が変わらない（等価変異。変異チェックで確認済み）

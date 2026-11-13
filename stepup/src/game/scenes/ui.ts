@@ -1,3 +1,4 @@
+import { BestStore } from 'best-store';
 import { Scale, type GameObjects, type Input, type Scene } from 'phaser';
 import { BUTTON_H, BUTTON_W, FONT_BUTTON, PRIMARY_BUTTON, SECONDARY_BUTTON } from '../params';
 import { ButtonPress, buttonLook } from '../logic/buttons';
@@ -12,6 +13,9 @@ import {
 
 export const UI_FONT = 'sans-serif';
 
+/** The best height record (key `stepup.best`, docs/spec.md "自己ベスト（記録）"). */
+export const bestStore = new BestStore('stepup');
+
 export const BG_COLOR = 0x1b2540;
 /** The same background as a CSS colour string (for `setBackgroundColor`). */
 export const BG_CSS = '#1b2540';
@@ -21,6 +25,7 @@ export const COLOR = {
     muted: '#8899aa',
     accent: '#ffe066',
     goalText: '#66ff99',
+    newBest: '#ff9f43',
     player: 0xffe066,
     ground: 0x445577,
     built: 0x66d9ef,

@@ -1,5 +1,8 @@
 import {
+    BEST_TITLE_GAP,
+    BUTTON_H,
     GOAL_METERS,
+    RESULT_BEST_Y,
     RESULT_BUTTON1_FROM_BOTTOM,
     RESULT_BUTTON2_FROM_BOTTOM,
     RESULT_HEIGHT_Y,
@@ -24,6 +27,7 @@ export function titleLayout(height: number) {
         stageY: TITLE_STAGE_Y,
         helpY: (line: number) => TITLE_HELP_Y + TITLE_HELP_STEP * line,
         buttonY: height - TITLE_BUTTON_FROM_BOTTOM,
+        bestY: height - TITLE_BUTTON_FROM_BOTTOM - BUTTON_H / 2 - BEST_TITLE_GAP,
     };
 }
 
@@ -34,6 +38,7 @@ export function resultLayout(height: number) {
         titleY: RESULT_TITLE_Y,
         reasonY: RESULT_REASON_Y,
         heightY: RESULT_HEIGHT_Y,
+        bestY: RESULT_BEST_Y,
         retryY: height - RESULT_BUTTON1_FROM_BOTTOM,
         titleButtonY: height - RESULT_BUTTON2_FROM_BOTTOM,
     };

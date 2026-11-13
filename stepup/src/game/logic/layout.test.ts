@@ -19,6 +19,31 @@ describe('titleLayout (centre y; H = 528 example from the spec)', () => {
     });
 });
 
+describe('best row layout (docs/spec.md Title / Result)', () => {
+    it('puts the Title best row 26 px above START top: 344 / 595 / 336 for H = 528 / 779 / 520', () => {
+        expect(titleLayout(528).bestY).toBe(344);
+        expect(titleLayout(779).bestY).toBe(595);
+        expect(titleLayout(520).bestY).toBe(336);
+    });
+
+    it('keeps the Title best row (16 px text, ±10) clear of the last help line and START, also at H = 520', () => {
+        for (const h of [520, 528, 779]) {
+            const l = titleLayout(h);
+            expect(l.bestY - 10).toBeGreaterThan(l.helpY(4) + 9);
+            expect(l.bestY + 10).toBeLessThan(l.buttonY - 28);
+        }
+    });
+
+    it('puts the Result best row at 272 and 60 px or more above the retry button top (H = 520, 528, 779)', () => {
+        for (const h of [520, 528, 779]) {
+            const l = resultLayout(h);
+            expect(l.bestY).toBe(272);
+            expect(l.retryY - 28 - (l.bestY + 11)).toBeGreaterThanOrEqual(60);
+            expect(l.bestY - 11).toBeGreaterThan(l.heightY + 11);
+        }
+    });
+});
+
 describe('resultLayout (H = 528 example from the spec)', () => {
     it('places the texts and the two buttons', () => {
         const l = resultLayout(528);
