@@ -1,8 +1,9 @@
 import { Scene } from 'phaser';
 import { FONT_RESULT, FONT_RESULT_TITLE } from '../params';
+import { recordRun } from '../logic/best';
 import { resultInputOpen, resultLayout, resultTexts } from '../logic/layout';
 import type { Outcome } from '../logic/sim';
-import { addButton, addLabel, BG_CSS, type ButtonHandle, COLOR, onKeyDown, RotateGuard, SceneExit } from './ui';
+import { addButton, addLabel, BG_CSS, bestStore, type ButtonHandle, COLOR, onKeyDown, RotateGuard, SceneExit } from './ui';
 
 export interface ResultData {
     outcome: Outcome;
@@ -31,6 +32,9 @@ export class Result extends Scene {
         addLabel(this, cx, layout.titleY, texts.title, FONT_RESULT_TITLE, outcome === 'clear' ? COLOR.goalText : COLOR.accent);
         addLabel(this, cx, layout.reasonY, texts.reason, FONT_RESULT);
         addLabel(this, cx, layout.heightY, texts.height, FONT_RESULT);
+        // Recorded once, when Result starts (not on resize / notice changes: those do not rebuild this Scene).
+        const bestRow = recordRun(bestStore, outcome, data.meters ?? 0);
+        if (bestRow) addLabel(this, cx, layout.bestY, bestRow.text, FONT_RESULT, bestRow.isNew ? COLOR.newBest : COLOR.sub);
 
         const buttons: ButtonHandle[] = [];
         this.guard = new RotateGuard(this, () => buttons.forEach((b) => b.reset()));

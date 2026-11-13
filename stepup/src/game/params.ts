@@ -138,3 +138,9 @@ export const RESULT_STAGE_Y = 100;
 export const RESULT_TITLE_Y = 146;
 export const RESULT_REASON_Y = 196;
 export const RESULT_HEIGHT_Y = 232;
+/** Heights below this (0 m) are not recorded. */
+export const BEST_MIN_METERS = 1;
+/** Title: distance from the START top edge up to the best row center. */
+export const BEST_TITLE_GAP = 26;
+/** Result: center y (from the top) of the best row (`NEW BEST!` / `自己ベスト …`). */
+export const RESULT_BEST_Y = 272;

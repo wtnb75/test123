@@ -1,7 +1,9 @@
 import { Scale, Scene } from 'phaser';
 import { FONT_HELP, FONT_SUB, FONT_TITLE } from '../params';
+import { titleBestText } from '../logic/best';
 import { HELP_LINES, titleLayout } from '../logic/layout';
 import {
+    bestStore,
     addButton,
     addLabel,
     type ButtonHandle,
@@ -31,6 +33,8 @@ export class Title extends Scene {
         addLabel(this, cx, layout.subY, 'STEPUP', FONT_SUB, COLOR.sub);
         addLabel(this, cx, layout.stageY, 'ステージ 1', FONT_SUB, COLOR.accent);
         HELP_LINES.forEach((line, i) => addLabel(this, cx, layout.helpY(i), line, FONT_HELP, COLOR.sub));
+        const bestText = titleBestText(bestStore);
+        if (bestText) addLabel(this, cx, layout.bestY, bestText, FONT_SUB);
         // The notice first: it reports to the button below when it appears or goes away.
         const buttons: ButtonHandle[] = [];
         this.guard = new RotateGuard(this, () => buttons.forEach((b) => b.reset()));
