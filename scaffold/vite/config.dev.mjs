@@ -1,7 +1,10 @@
 // Shared Vite dev config for every game. Games re-export this from
 // their own vite/config.dev.mjs and may extend it (see kogodrop).
+import { safeArea } from './safe-area.mjs';
+
 export default {
     base: './',
+    plugins: [safeArea()],
     build: {
         rollupOptions: {
             output: {

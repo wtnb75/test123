@@ -5,6 +5,7 @@
 //  - default (`npm run build`): Phaser is bundled and dist/ runs on its own.
 //  - SHARED_VENDOR=1 (`task build`): Phaser is left out and loaded through an import map from
 //    <site>/vendor/, one copy for every game; the result goes to dist-shared/ so dist/ stays standalone.
+import { safeArea } from './safe-area.mjs';
 import { phaserVendorFile, resolvePhaser, VENDOR_URL_PREFIX } from './vendor.mjs';
 
 const sharedVendor = process.env.SHARED_VENDOR === '1';
@@ -84,6 +85,7 @@ export default {
     },
     plugins: [
         phasermsg(),
+        safeArea(),
         ...(sharedVendor ? [sharedPhaser()] : [])
     ]
 };

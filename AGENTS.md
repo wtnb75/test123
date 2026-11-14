@@ -117,6 +117,7 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 	- 共有ビルド（`task build`、CI）: Phaser を含めず `dist-shared/` に出力し、ゲームは import map で `../vendor/phaser-<version>.esm.min.js` を読む。`task build` が全ゲームの Phaser を `output/vendor/` に 1 つだけ置く（バージョンが違えば別名で並ぶ）。GitHub Pages に載るのはこちら
 - 共有ビルドの成果物は `dist-shared/` 単体では動かない。確認するときは `task build` で `output/` を作り、サブパス（例 `/<repo>/`）で静的配信して開く。1ゲームだけ確認するなら `scripts/qa/up.sh <game-dir> <port> --shared`（そのゲームを `SHARED_VENDOR=1` でビルドし、`output/` と同じ並びでサブパス配信する。9節）
 - ビルド設定や `index.html` を触ったときは、単体ビルドと共有ビルドの両方で起動を確認する（Phaser 以外のバンドル方法を変えると、片方だけ壊れることがある）
+- セーフエリア（iOS のホーム画面 Web アプリで、半透明のステータスバーが画面の上端に重なる問題）は、`scaffold/vite/safe-area.mjs` の Vite プラグインが全ゲームに注入する（`viewport-fit=cover` と、`#app` の `env(safe-area-inset-*)` の padding・`100dvh`）。ゲームごとの `index.html` / `style.css` には書かない（`task scaffold:update-base-template` で上書きされる）。`#app` / `#game-container` を作り直すゲームは、この padding を消さない。確認は `scripts/qa/safe-area.mjs`
 - 実行時に Node.js サーバー専用機能へ依存しない
 - 画像・音声などのアセットパスはビルド後の解決を壊さない
 
