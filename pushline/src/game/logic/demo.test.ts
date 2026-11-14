@@ -353,3 +353,14 @@ describe('Demo run', () => {
         expect(moves).toBeGreaterThan(10);
     });
 });
+
+describe('Demo with chain pushes', () => {
+    it('plays the chain push of the solver plan and the clear ends the plan (one move, one line)', () => {
+        // pushing `oo` right completes column 3 in one move (docs/spec/chain-push.md, example 3)
+        const demo = demoOn(['...o.', '...o.', '@oo..', '...o.', '...x.', '...o.']);
+        const move = demo.tick(500);
+        expect(cleared(move)).toBe(true);
+        expect(demo.lines).toBe(1);
+        expect(demo.phase).toBe('waiting');
+    });
+});

@@ -1,5 +1,5 @@
 import { PARAMS } from '../params';
-import { EMPTY, type Cell, type Dir, type Grid, type Pt, type Rng } from './types';
+import { EMPTY, MOVABLE, type Cell, type Dir, type Grid, type Pt, type Rng } from './types';
 
 export const DIRS: Record<Dir, Pt> = {
     up: { x: 0, y: -1 },
@@ -26,6 +26,21 @@ export function widenGrid(grid: Grid, cols: number): void {
 
 export const inBounds = (grid: Grid, x: number, y: number): boolean =>
     y >= 0 && y < grid.length && x >= 0 && x < grid[0].length;
+
+/**
+ * Pushing a chain (docs/spec/chain-push.md): `(x, y)` is the first movable block of a run going in
+ * direction `d`. Returns the empty in-bounds cell right after the run (where the head block lands), or
+ * null when the run is blocked (a fixed block or the board edge follows it, so nothing can be pushed).
+ */
+export function chainEnd(grid: Grid, x: number, y: number, d: Pt): Pt | null {
+    let ex = x;
+    let ey = y;
+    while (inBounds(grid, ex, ey) && grid[ey][ex] === MOVABLE) {
+        ex += d.x;
+        ey += d.y;
+    }
+    return inBounds(grid, ex, ey) && grid[ey][ex] === EMPTY ? { x: ex, y: ey } : null;
+}
 
 export const pick = <T>(items: T[], rng: Rng): T => items[Math.floor(rng() * items.length)];
 

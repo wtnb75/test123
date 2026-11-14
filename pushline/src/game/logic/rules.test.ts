@@ -81,15 +81,29 @@ describe('move: pushing', () => {
         expect(render(s)[4]).toBe('..@..');
     });
 
-    it('cannot push a block above another block (two in a column)', () => {
+    it('pushes two blocks in a column up together when the cell above them is empty (chain)', () => {
         const s = board(['.....', '.....', '.....', '..o..', '..o..', '..@..']);
+        expect(move(s, 'up', depsOf(1)).moved).toBe(true);
+        expect(render(s).slice(2, 5).join('/')).toBe('..o../..o../..@..');
+    });
+
+    it('cannot push a column of blocks that reaches the top edge', () => {
+        const s = board(['..o..', '..o..', '..o..', '..o..', '..o..', '..@..']);
         expect(move(s, 'up', depsOf(1)).moved).toBe(false);
     });
 
-    it('cannot push a block into another movable block', () => {
+    it('pushes a movable block together with the movable block behind it (chain)', () => {
         const s = board(['.....', '.....', '.....', '.....', '.....', '.@oo.']);
+        expect(move(s, 'right', depsOf(1)).moved).toBe(true);
+        expect(render(s)[5]).toBe('..@oo');
+        expect(s.moves).toBe(19);
+        expect(s.history).toHaveLength(1);
+    });
+
+    it('cannot push a chain whose last block meets the edge of the board', () => {
+        const s = board(['.....', '.....', '.....', '.....', '.....', '.@ooo']);
         expect(move(s, 'right', depsOf(1)).moved).toBe(false);
-        expect(render(s)[5]).toBe('.@oo.');
+        expect(render(s)[5]).toBe('.@ooo');
         expect(s.moves).toBe(20);
         expect(s.history).toHaveLength(0);
     });
@@ -104,10 +118,11 @@ describe('move: pushing', () => {
         expect(move(s, 'right', depsOf(1)).moved).toBe(false);
     });
 
-    it('never pushes two blocks at once', () => {
+    it('pushes both blocks of a chain by one cell and costs one move', () => {
         const s = board(['.....', '.....', '.....', '.....', '.....', '@oo..']);
         move(s, 'right', depsOf(1));
-        expect(render(s)[5]).toBe('@oo..');
+        expect(render(s)[5]).toBe('.@oo.');
+        expect(s.moves).toBe(19);
     });
 });
 
@@ -423,8 +438,13 @@ function reference(rows: string[], dir: Dir) {
     if (at(nx, ny) === undefined || at(nx, ny) === 'x') return { moved: false };
     let dest: [number, number] | null = null;
     if (at(nx, ny) === 'o') {
-        const bx = nx + DIRS[dir].x;
-        const by = ny + DIRS[dir].y;
+        // the run of 'o' going on in the push direction moves as a whole: only its far end gains a block
+        let bx = nx + DIRS[dir].x;
+        let by = ny + DIRS[dir].y;
+        while (at(bx, by) === 'o') {
+            bx += DIRS[dir].x;
+            by += DIRS[dir].y;
+        }
         if (at(bx, by) !== '.') return { moved: false };
         g[by][bx] = 'o';
         g[ny][nx] = '.';
