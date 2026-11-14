@@ -10,6 +10,47 @@ export const BUTTON_WIDTH = 72;
 export const BUTTON_HEIGHT = 44;
 export const BUTTON_CENTERS_X = [40, 120, 200, 280, 360];
 
+/** Result screen (`result-fit`): narrower buttons packed to the left so the value column gets 168 px. */
+export const RESULT_TABLE_BUTTON_WIDTH = 56;
+export const RESULT_TABLE_BUTTON_CENTERS_X = [32, 92, 152, 212, 272];
+/** Gap between the last button and the value column. */
+const VALUE_COLUMN_GAP = 8;
+/** Right end of the value column on the result screen. */
+export const RESULT_VALUE_COLUMN_RIGHT = 476;
+/** Gap between the history value and the correct value. */
+export const VALUE_PAIR_GAP = 6;
+
+export type TableMode = 'play' | 'result';
+
+export type TableMetrics = {
+    buttonWidth: number;
+    buttonCenters: number[];
+    /** Left edge of the value column. */
+    valueX: number;
+    /** Right edge of the value column; the same in both modes (only the result screen draws the correct values). */
+    valueRight: number;
+};
+
+/** Button widths and centres plus the value column of the table, for the play screen or the result screen. */
+export function tableMetrics(mode: TableMode): TableMetrics {
+    const buttonWidth = mode === 'result' ? RESULT_TABLE_BUTTON_WIDTH : BUTTON_WIDTH;
+    const buttonCenters = mode === 'result' ? RESULT_TABLE_BUTTON_CENTERS_X : BUTTON_CENTERS_X;
+    const valueX = buttonCenters[buttonCenters.length - 1] + buttonWidth / 2 + VALUE_COLUMN_GAP;
+    return { buttonWidth, buttonCenters, valueX, valueRight: RESULT_VALUE_COLUMN_RIGHT };
+}
+
+/**
+ * Scale (<= 1) that fits the history value and the correct value, side by side with the pair gap,
+ * into the result column. 1 when they already fit.
+ */
+export function valuePairScale(historyWidth: number, correctWidth: number): number {
+    const total = historyWidth + correctWidth;
+    if (total <= 0) return 1;
+    const result = tableMetrics('result');
+    const columnWidth = result.valueRight - result.valueX;
+    return Math.min(1, (columnWidth - VALUE_PAIR_GAP) / total);
+}
+
 /** Top line: level (left), target/start/current (centre), remaining time (right). */
 export const TOP_TEXT_SIZE = 26;
 export const TOP_TEXT_Y = 14;

@@ -22,9 +22,9 @@ import {
 } from '../logic';
 import { C, FONT } from '../palette';
 import {
-    BUTTON_CENTERS_X, BUTTON_HEIGHT, BUTTON_WIDTH, HEADER_TEXT_X, HEADER_TEXT_Y, LEVEL_TEXT_X, RESULT_BUTTON_HEIGHT,
+    BUTTON_HEIGHT, HEADER_TEXT_X, HEADER_TEXT_Y, LEVEL_TEXT_X, RESULT_BUTTON_HEIGHT,
     RESULT_BUTTON_WIDTH, RESULT_BUTTON_X, RESULT_BUTTON_Y, ROW_HEIGHT, rowCenterY, scoreY, statusY, TABLE_TOP,
-    TIMER_TEXT_RIGHT_X, TOP_TEXT_SIZE, TOP_TEXT_Y,
+    TIMER_TEXT_RIGHT_X, TOP_TEXT_SIZE, TOP_TEXT_Y, tableMetrics, VALUE_PAIR_GAP, valuePairScale,
 } from '../layout';
 
 /** 'leaving' is set once the player has chosen to go back to `Title`, so no later input reaches this Scene. */
@@ -268,11 +268,11 @@ export class Game extends Scene {
         this.clearTable();
         // Portrait layout: keep each row single-line for readability.
         const showShortest = this.mode === 'result';
-        const btnCenters = BUTTON_CENTERS_X;
-        const btnW = BUTTON_WIDTH;
+        const metrics = tableMetrics(showShortest ? 'result' : 'play');
+        const btnCenters = metrics.buttonCenters;
+        const btnW = metrics.buttonWidth;
         const btnH = BUTTON_HEIGHT;
-        const buttonsRightEdge = btnCenters[btnCenters.length - 1] + (btnW / 2);
-        const historyX = buttonsRightEdge + 8;
+        const historyX = metrics.valueX;
 
         const panelH = this.slots.length * ROW_HEIGHT;
         this.tableObjects.push(this.add.rectangle(240, TABLE_TOP + panelH / 2, 476, panelH, C.PANEL));
@@ -325,13 +325,16 @@ export class Game extends Scene {
             }).setOrigin(0, 0.5);
             this.tableObjects.push(historyText);
             if (showShortest) {
-                this.tableObjects.push(
-                    this.add.text(historyX + historyText.width + 6, y, `${shortestValue}`, {
-                        fontFamily: FONT,
-                        fontSize: '30px',
-                        color: '#16a34a',
-                    }).setOrigin(0, 0.5),
-                );
+                const shortestText = this.add.text(0, y, `${shortestValue}`, {
+                    fontFamily: FONT,
+                    fontSize: '30px',
+                    color: '#16a34a',
+                }).setOrigin(0, 0.5);
+                // Shrink both values by the same factor only when the pair is wider than the column.
+                const scale = valuePairScale(historyText.width, shortestText.width);
+                historyText.setScale(scale);
+                shortestText.setScale(scale).setX(historyX + historyText.width * scale + VALUE_PAIR_GAP);
+                this.tableObjects.push(shortestText);
             }
         });
     }
