@@ -40,6 +40,9 @@ importers:
 
   absorb:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       pause:
         specifier: workspace:*
         version: link:../shared/pause
@@ -80,6 +83,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -117,6 +123,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -185,6 +194,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -284,6 +296,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -321,6 +336,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -355,6 +373,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -386,6 +407,9 @@ importers:
 
   kogodrop:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -420,6 +444,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -482,6 +509,9 @@ importers:
 
   minoclimb:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -513,6 +543,9 @@ importers:
 
   moleroam:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -578,6 +611,9 @@ importers:
 
   primtris:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -615,6 +651,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -764,6 +803,9 @@ importers:
 
   spotdiff:
     dependencies:
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -801,6 +843,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -835,6 +880,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1
@@ -869,6 +917,9 @@ importers:
       best-store:
         specifier: workspace:*
         version: link:../shared/best-store
+      game-list-link:
+        specifier: workspace:*
+        version: link:../shared/game-list-link
       phaser:
         specifier: 'catalog:'
         version: 4.2.1

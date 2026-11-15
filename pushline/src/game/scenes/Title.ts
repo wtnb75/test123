@@ -5,6 +5,7 @@ import type { Layout } from '../logic/layout';
 import { isStartKey, TitleGate } from '../logic/titleGate';
 import { BoardView, qaRows } from './boardView';
 import { addLabel, applyLayout, COLORS, createButton, DEPTH, watchOrientation, type ButtonView } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 /**
  * The title screen: the name, the Start button and a demo (solver-guided auto-play) on a board at the
@@ -25,6 +26,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         this.gate = new TitleGate();
         this.layout = applyLayout(this);
         this.cameras.main.setBackgroundColor(COLORS.bg);

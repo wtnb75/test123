@@ -15,6 +15,7 @@ import {
 } from './ui';
 import { typingInput } from './typingInput';
 import { logicalSize, RenderScaleSync } from './render';
+import { showGameListLink } from 'game-list-link';
 
 const HELP_LINES = ['降ってくる英単語を打って消す', '床に着くとライフが 1 減る（3 つで終了）', '打ち間違えるとコンボが切れる'];
 
@@ -31,6 +32,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         // Scene instances are reused: drop the previous run's (destroyed) button before the notice reports to it.
         this.button = null;
         new RenderScaleSync(this);

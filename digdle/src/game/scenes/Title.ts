@@ -18,6 +18,7 @@ import {
     BACKGROUND_COLOR, BUTTON_STROKE, createButton, createHomeIcon, createText, detectLocale, translate, type Locale,
     type TextKey
 } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 const MODES: readonly TitleMode[] = ['normal', 'hard', 'daily'];
 const MODE_STROKE: Record<TitleMode, number> = { normal: 0x38bdf8, hard: 0xf59e0b, daily: 0x34d399 };
@@ -85,6 +86,7 @@ export class Title extends Scene {
     }
 
     create(): void {
+        showGameListLink(this);
         this.cameras.main.setBackgroundColor(BACKGROUND_COLOR);
         this.locale = detectLocale();
 

@@ -11,6 +11,7 @@ import {
     tapClear,
     type ClearState,
 } from '../logic/weakWords';
+import { showGameListLink } from 'game-list-link';
 
 const LANGS: { key: Lang; label: string }[] = [
     { key: 'kogo', label: '古語' },
@@ -63,6 +64,7 @@ export class Title extends Scene {
     constructor() { super('Title'); }
 
     create() {
+        showGameListLink(this);
         this.clearState = { phase: 'idle' };
         this.clearRevertTimer = undefined;
         const { width, height } = this.cameras.main;

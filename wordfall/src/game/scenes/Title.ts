@@ -21,6 +21,7 @@ import {
     screenSizeChanged,
     UI_FONT,
 } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 const HELP_LINES = [
     '落ちてくる文字をタップしてひろう',
@@ -45,6 +46,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         const { width, height } = applyScreenSize(this);
         const cx = width / 2;
         addLabel(this, cx, NAME_Y, '文字集め', FONT_TITLE);

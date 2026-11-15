@@ -2,6 +2,7 @@ import { Scene, type GameObjects } from 'phaser';
 import { BEST_FONT_SIZE, BUTTON_H, HELP_FONT_SIZE, START_PULSE_PERIOD, START_PULSE_SCALE, TITLE_FONT_SIZE, W } from '../params';
 import { formatBest } from '../logic/best';
 import { addButton, addLabel, bestStore, fadeInScene, onKeyPress, RotateGuard, SceneExit } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 // Region layout of the Title (logical px): name on top, best below it, START in the lower third, help under it.
 const NAME_Y = 140;
@@ -19,6 +20,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         const cx = W / 2;
         addLabel(this, cx, NAME_Y, 'フリップブレイク', TITLE_FONT_SIZE);
         addLabel(this, cx, BEST_Y, formatBest(bestStore.load()), BEST_FONT_SIZE, '#ffe680');

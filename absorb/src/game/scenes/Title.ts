@@ -6,6 +6,7 @@ import {
 import { DEMO_RUN_GAME, DEMO_RUN_OPTIONS } from '../logic/demoRun';
 import { computeScreenSize } from '../logic/screen';
 import { computeTitleLayout } from '../logic/titleLayout';
+import { showGameListLink } from 'game-list-link';
 
 const FONT = 'monospace';
 const START_FILL = 0x3b82f6;
@@ -34,6 +35,7 @@ export class Title extends Scene {
     }
 
     create(): void {
+        showGameListLink(this);
         const size = computeScreenSize(window.innerWidth, window.innerHeight);
         if (this.scale.width !== size.width || this.scale.height !== size.height) {
             this.scale.setGameSize(size.width, size.height);

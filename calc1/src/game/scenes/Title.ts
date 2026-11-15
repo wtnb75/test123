@@ -12,6 +12,7 @@ import {
     type DemoDetail,
     type DemoState
 } from '../titleDemo';
+import { showGameListLink } from 'game-list-link';
 
 const CENTER_X = 240;
 const HEADER_LINE_GAP = 24;
@@ -45,6 +46,7 @@ export class Title extends Scene {
     }
 
     create(): void {
+        showGameListLink(this);
         this.cameras.main.setBackgroundColor(C.BG);
         this.rows = [];
 
