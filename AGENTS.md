@@ -199,6 +199,7 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 
 - ユーザーが別のマシンやスマートフォンで dev サーバーの動作を見たいときは、`scripts/qa/share.sh <game-dir> [port]` で Cloudflare Quick Tunnel を張る（`cloudflared` が必要。アカウント・設定は不要で、実行のたびにランダムな `https://*.trycloudflare.com` の URL が払い出される）
 - dev サーバーに認証は無い。URL を知っていれば誰でも開けるため、エージェントが自動で公開せず、ユーザーが望んだときだけ実行して URL を渡す。確認が終わったら `scripts/qa/down.sh <game-dir> [port]` でトンネルと dev サーバーを止める
+- ユーザーが自分の端末で、いまのチェックアウトを変えずに、リモートのブランチ（PR）のゲームを共有したいときは `task share:branch [BRANCH=<branch>]`（一時的なワークツリーで `share.sh` を実行する。対話式で、Ctrl-C まで動き続けるので、エージェントは実行せず、ユーザーに案内する）
 - `.trycloudflare.com` の Host を許可するのは、`share.sh` が起動した dev サーバー（環境変数 `SHARE_TUNNEL=1`。`scaffold/vite/config.dev.mjs` の `server.allowedHosts`）だけ。普通の `npm run dev` で起動済みのサーバーには許可が入っていないので、`share.sh` は止めて再実行するよう案内して終了する。他のトンネルサービスを使う場合は、そのドメインを許可に足す必要がある
 
 ## 10. 開発ワークフロー（Claude Code スキル）
@@ -219,22 +220,31 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
 | 実装 | `game-impl` | 承認済みの spec.md に対して Phaser.js コードを実装（4節） |
 | テスト | `game-test` | Vitest 単体テストをカバレッジ90%以上で追加（4.5節） |
 | 品質ゲート | `game-check` | lint/test/coverage/build を通す（6節） |
-| コードレビュー | `game-codereview` | `/code-review` 相当のレビュー → 指摘の採否をユーザーが決める → 修正、を指摘が出なくなるまで（最大3周）ループする |
+| コードレビュー | `game-codereview` | `/code-review` 相当のレビュー → 指摘の採否をユーザーが決める → 修正、を指摘が出なくなるまで（最大3周。規模 S の改訂は軽いレベルで最大2周）ループする |
 | ビジュアルQA | `game-qa` | Docker + Playwright で実ブラウザの描画・操作感を確認（9節） |
 | 見た目・UI調整 | `game-polish` | エフェクト、入力へのフィードバック、動線・操作の分かりやすさを改善する。spec→impl→test→check→codereview→qa をループする（ゲームバランスに関わる数値は扱わない） |
 | バランス調整 | `game-balance` | 実際に遊んで、仕様通りでも面白くない点を調整する。気に入るまで spec→impl→test→check→codereview→qa→polish をループする |
 | 公開 | `game-publish` | 初回は `Taskfile.yml` の `LAB_GAMES`（labs）に登録（トップページ `GAMES` は希望時のみ）し、その変更だけにスコープを絞ったPRを作成する |
-| 拡張候補 | `game-backlog` | 公開済みゲームの拡張アイデアを、spec の分析・自動プレイの数字・ユーザーの思いつきから出し、`docs/backlog.md` に狙い・コアループへの効き方・種別・規模・根拠つきのカードとして並べる。順番はユーザーが決める（上が次の候補）。docs だけのブランチ・PR で更新する |
-| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` の上から順に出し（無ければ先に `game-backlog`）、見送った候補は `game-spec` が同じファイルにカードとして記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す |
-| 拡張（自動） | `game-autopilot` | 先行する PR・作業ブランチが触れているゲームを除き、残った `next=complete` のゲームからランダムに 1 つ選んで、その backlog の先頭カードを `game-extend` と同じく対話で詳細化し、最後の 1 回の承認（拡張の内容＋オートパイロット合意）のあとは、spec の承認・codereview の採否・polish/balance の選択・push と PR 作成を聞かずに、PR を開くところまで進める。仕様の穴や合意からの逸脱、ゲートの失敗では止まる。マージはしない |
-| テストプレイ・マージ | `game-playtest` | 開いている PR を選び、dev サーバをトンネルで公開（9.1節）してユーザーが遊ぶ。OK なら CI を確認して squash マージ、注文があれば同じ PR のブランチに反映して繰り返す |
+| 拡張候補 | `game-backlog` | 公開済みゲームの拡張アイデアを、spec の分析・自動プレイの数字・ユーザーの思いつきから出し、`docs/backlog.md` に狙い・コアループへの効き方・種別・規模・根拠つきのカードとして並べる。順番はユーザーが決める（上が次の候補）。docs だけのブランチ・PR で更新する（複数のゲームをまとめて 1 つの PR にしてよい）。backlog の PR が開いている間、`game-autopilot` はそのゲームを候補から外すので、早めにマージする |
+| 拡張 | `game-extend` | 公開済みゲームに足す要素を1件選び、目的・コアループへの効き方・変えないもの・spec の置き場所を対話で固める（ファイルは作らない）。候補は `docs/backlog.md` の上から順に出し（無ければ先に `game-backlog`）、見送った候補は `game-spec` が同じファイルにカードとして記録する。合意後は `game-spec` の公開後改訂から spec→…→publish をもう一度通す。`MODE=pin`（詰めるだけ）では、作らずに、合意の内容をカードに `状態: 着手可` と `合意` として書き、backlog の PR にする（あとで `game-autopilot` が対話なしで作る） |
+| 拡張（自動） | `game-autopilot` | 先行する PR・作業ブランチが触れているゲームを除き、残った `next=complete` のゲームからランダムに 1 つ選ぶ。`状態: 着手可` のカードがあればそれを優先し、対話なしで（前提が古くないかだけ確かめて）進める。無ければ backlog の先頭カードを `game-extend` と同じく対話で詳細化する。最後の 1 回の承認（拡張の内容＋オートパイロット合意）のあとは、spec の承認・codereview の採否・polish/balance の選択・push と PR 作成を聞かずに、PR を開くところまで進める。仕様の穴や合意からの逸脱、ゲートの失敗では止まる。マージはしない。合意は `<game-dir>/.autopilot.md`（git 管理外）に書き、各段階はこのファイルの有無で autopilot かどうかを判断する（会話の圧縮で消えない）。gameplay の変更は、自動プレイの数字を PR 本文に載せる。`N=<件数>` で着手可のカードを続けて流せる |
+| テストプレイ・マージ | `game-playtest` | 開いている PR を選び、dev サーバをトンネルで公開（9.1節）してユーザーが遊ぶ。OK なら CI を確認して squash マージ、注文があれば同じ PR のブランチに反映して繰り返す。PR 本文に残った「未対応の指摘」などは、残すものをマージ前に backlog のカードにする。マージ後は、開いている次の PR へ続けられる |
 | Title・デモ | `game-title` | 公開済みゲームに Title（名前・START・操作）とデモ（背景でボットが遊ぶ・縮小盤面の再生）を足す。方式の選択（簡略描画 / 本物のゲームを背景で動かす / デモ無し）、最低画面の配置表、ボット、変えないものを対話で固める（ファイルは作らない）。常に presentation-only。合意後は `game-spec` の公開後改訂から spec→…→publish を通す。部品と型は `shared/title-demo/README.md` |
 
 - 迷ったら `game-next` を実行するだけでよい。現在どのゲームのどの段階が未完了
   かを自動判定し（`task game:detect` / `task game:next`）、該当スキルへ自動で
   進む。全段階が完了した（公開済みの）ゲームでは、`game-extend`（backlog の
-  先頭から拡張）、`game-title`（Title・デモが無いとき）、`game-backlog`
-  （アイデア出し・並べ替え）、`game-balance`（再調整）を案内する
+  先頭から拡張）、`game-autopilot`（PR を開くまで止まらずに進める）、
+  `game-playtest`（開いている PR を遊んでマージ）、`game-title`（Title・デモが
+  無いとき）、`game-backlog`（アイデア出し・並べ替え）、`game-balance`
+  （再調整）を案内する
+- 時間のあるとき（対話）とトークンのあるとき（実行）を分けられる。時間のある
+  ときに `game-backlog` で候補を並べ、`game-extend MODE=pin` でカードを
+  `着手可` にして、backlog の PR をマージしておく（`PACKAGE=all` で、全ゲームの
+  先頭のカードを順番に詰める。作業中の PR があるゲーム・着手可のカードが
+  すでにあるゲームは飛ばす）。トークンのあるときに
+  `game-autopilot`（`N=<件数>`）で着手可のカードを PR にし、あとで
+  `game-playtest` で遊んでマージする
 - 段階の間では止まらない。各スキルは完了時に `game-next` へ戻り、ユーザーの
   承認・判断が要る箇所（spec の承認、codereview の採否、polish/balance の
   選択、publish の確認など）か、段階が失敗して `done` にならなかったときだけ
@@ -255,7 +265,7 @@ Claude Code を使う場合、2〜9節のゲーム開発フローは `.claude/sk
   その段階をスキップ扱いにする。次に `game-spec` で改訂したときにキーが
   追加され、以降はその段階も通る
 - 各スキルは段階を完了する前に `game-review STAGE=<段階>` でレビューする。
-  全段階のレビュー観点は `game-review` に集約されており、「次の段階が推測
+  全段階のレビュー観点は `game-review` に集約されており（チェックリストは段階ごとのファイル `stages/<段階>.md`。その段階の分だけ読む）、「次の段階が推測
   なしに着手できるか」を基準にする
 	- spec / impl / test は成果物を次段階が直接使うため、会話の文脈を持たない
 	  サブエージェントがレビューする（spec は「この spec（spec.md とリンク先）

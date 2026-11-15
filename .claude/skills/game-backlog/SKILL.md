@@ -14,6 +14,11 @@ and pruned. It never touches the spec, code or `status_*` keys.
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:dashboard` and ask the
   user to pick one of the games with `next=complete`.
+- Several games at once are fine (`PACKAGE=a,b,c`, or "all" / 「全部」 for
+  every `next=complete` game — a grooming session): do steps 1–4 per game,
+  ask the ranking questions of all games in as few messages as it takes,
+  and write them in **one** branch and PR (step 5). `task backlogs` (the
+  number of cards per game) shows which games are running thin.
 - Requires `status_publish: done` — ideas for an unshipped game belong in
   `game-idea` / its MVP scope, not a backlog.
 
@@ -57,6 +62,14 @@ the user as a `game-balance` finding.
 - メモ: 見送った経緯・依存・注意点（なければ省く）
 ```
 
+A card that `game-extend MODE=pin` has pinned down carries two more fields
+at its end, `状態: 着手可（日付、基準 <sha>）` and `合意:` (see `game-extend`
+"Pin only"). `game-autopilot` builds such a card without the dialogue, and
+takes it before the top card. This skill does not write those fields. Keep
+them as they are when reordering; when an edit here changes what the card
+adds (or its evidence went stale), remove both fields and tell the user the
+card needs pinning again. In the ranking table, mark these cards 着手可.
+
 Keep the file's short header (what the file is, that it isn't spec, the
 S/M/L meaning). Cards written earlier in the one-line style are converted
 to this format the first time this skill touches the file.
@@ -75,12 +88,24 @@ to this format the first time this skill touches the file.
    it strengthens the core loop's decision and by size. Ask once: accept
    the order, reorder, drop or add. The user's order is final.
 5. **Write** on a docs-only branch from `origin/main`:
-   `docs/<game-dir>-backlog` (next free `-2`, `-3`, ...). Change only
-   `docs/backlog.md`. Run `game-review STAGE=backlog PACKAGE=<game-dir>`,
+   `docs/<game-dir>-backlog` for one game, `docs/backlog-<slug>` for several
+   (next free `-2`, `-3`, ...). Change only `docs/backlog.md` files. Run
+   `game-review STAGE=backlog PACKAGE=<game-dir>` (per game),
    then commit and — after the user confirms — push and open a docs-only
    PR (no behavior/build/test impact).
-6. **Hand off.** Offer `game-extend PACKAGE=<game-dir>` with the top card
-   as its first candidate. Don't start it unasked.
+6. **Get it merged soon.** While this PR is open, `game-autopilot` holds
+   every game it touches out of its candidates (the order on `origin/main`
+   is not the agreed one yet), and a feature PR that removes a card can
+   conflict with it. Say so, and recommend merging now. If the user tells
+   you to merge: `gh pr checks <n>` green, then
+   `gh pr merge <n> --squash --delete-branch`. Don't merge unasked.
+7. **Hand off.** Offer the next step, without starting it unasked:
+   `game-extend PACKAGE=<game-dir> MODE=pin` to pin down cards now for a
+   later `game-autopilot` run (when the user has time to talk but not to
+   build; `game-extend MODE=pin PACKAGE=all` goes through the top card of
+   every game in turn — after this PR is merged, since the sweep leaves out
+   games with an open backlog PR), `game-extend` to build the top card now,
+   or `game-autopilot`.
 
 Dropped cards leave the file; say why in the PR body, not in the backlog.
 
@@ -108,7 +133,10 @@ A throwaway harness, never committed:
 
 - `game-extend` reads the backlog top-down and pins down one card; the
   card's 狙い / 効き方 / 種別 / 規模 are its starting point, not a decision
-  already made.
+  already made. With `MODE=pin` it writes the agreement back into the card
+  (状態: 着手可) on a backlog branch like this skill's.
+- `game-autopilot` takes a 着手可 card first, and holds a game out while a
+  backlog PR for it is open.
 - `game-spec` removes the adopted card on the feature branch and adds the
   candidates `game-extend` left for later — in this card format.
 - `game-next` offers this skill for a published game with nothing pending.

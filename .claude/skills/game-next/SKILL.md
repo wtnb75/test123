@@ -1,6 +1,6 @@
 ---
 name: game-next
-description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend (from the backlog), game-backlog (new ideas, ranking) or another game-balance pass.
+description: The entry point for this monorepo's game workflow — run it with no arguments to auto-detect the game currently being worked on and continue with its next incomplete stage (idea/init/proto/spec/impl/test/check/codereview/qa/polish/balance/publish); for a published game with nothing pending, it offers game-extend (from the backlog; MODE=pin to agree now and build later), game-autopilot (build a card to an open PR without stops), game-playtest (play and merge an open PR), game-title, game-backlog (new ideas, ranking) or another game-balance pass.
 ---
 
 # game-next
@@ -103,7 +103,9 @@ Stop, and tell the user where things stand, when:
 - **The stage skill is waiting for the user** — it asked a question or
   needs approval (playtest feedback in `game-proto`, spec draft, codereview triage, polish/balance choices,
   publish confirmation, a spec gap from `game-impl`, an optional feel
-  check the user wants to do). For a presentation-only revision, the
+  check the user wants to do). In autopilot (`<game-dir>/.autopilot.md`
+  exists — `game-autopilot` "Autopilot rules") most of these are not asked;
+  the file, not your memory of the conversation, says whether it is on. For a presentation-only revision, the
   polish, balance and publish questions come as one combined question in
   `game-polish`. End the turn there. Once the user answers,
   that skill finishes its stage and its completion step re-enters this
@@ -127,10 +129,14 @@ game's workflow has nothing pending, and offer the ways to continue:
   game, starting from the top card of `docs/backlog.md` (name it). It
   agrees the scope in conversation, then hands off to `game-spec`, which
   opens a new branch and restarts the chain from `impl`.
+  With `MODE=pin` it stops after the agreement and writes it into the card
+  (状態: 着手可) — for when the user has time to talk now and wants the
+  build to run later.
 - **`game-autopilot`** — the same as `game-extend`, but after the user's
   one combined approval the chain runs without further stops, up to an open
-  PR. Offer it when the user wants to spend their time on the conversation
-  only.
+  PR. A 着手可 card needs no dialogue at all, and `N=<count>` runs several
+  of them in a row. Offer it when the user wants to spend their time on the
+  conversation only, or has tokens to spend and cards already pinned.
 - **`game-playtest`** — for an open game PR: publish its dev server, wait for
   the user's verdict, squash-merge on OK or reflect change requests on the
   same PR. Offer it when `gh pr list` shows a game PR waiting.

@@ -79,6 +79,11 @@ the change from the spec revision and the diff, and re-shoot accordingly:
 | **A local change to rules or content**: generation, judging, scoring, a new kind of element, a tuning number | The states where the change shows (its own screens, bursts for effects), plus **one representative shot per Scene on both viewports** (`scripts/qa/smoke.mjs` covers title and first tap), plus only the 完了条件 regression items the change could reach (e.g. the result screen when scoring changed) |
 | **Wording only** (README, spec text, comments) | `scripts/qa/smoke.mjs` only |
 
+In autopilot (`<game-dir>/.autopilot.md` exists), shoot the states where the
+change shows at all four sizes of AGENTS.md 4.6 (375 × 550, 667 × 310,
+390 × 844, 1280 × 720) and keep the files: `game-polish` checks these
+instead of starting the containers a second time.
+
 Write the class and the reason in the QA report in one line ("local change:
 only the difference generator; rendering, input, layout untouched"), so the
 user can overrule it. When in doubt, take the larger class. The shared build

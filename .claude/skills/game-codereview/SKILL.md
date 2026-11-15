@@ -57,10 +57,25 @@ is gone, and keep the file short (merge near-duplicates).
 
 Repeat rounds of review → triage → fix. **At most 3 rounds.**
 
+### Level by size
+
+The review costs the same whether the change is 30 lines or 1000, unless
+the level is matched to it:
+
+| The change | Round 1 | Rounds |
+|---|---|---|
+| A new game's first pass; a revision of size M or L; anything touching Scene start/stop, input handling or shared parts | `high` | at most 3 |
+| A revision of size **S** (the backlog card's 規模, or — without a card — one module or one Scene's local change, no new state or listener) | `medium` | at most 2 |
+
+Later rounds are `medium` and look only at the previous round's fix diff,
+as below. Say which row was used in the report. When in doubt, the first
+row.
+
 ### 1. Review
 
 Invoke the `code-review` skill (the same thing as `/code-review`), aimed at
-the scope above: `high` for round 1, `medium` for later rounds, which only
+the scope above: the level from "Level by size" for round 1 (`high`, or
+`medium` for a size-S revision), `medium` for later rounds, which only
 look at the previous round's fix diff. Don't pass `--fix` or `--comment` —
 nothing gets changed or posted before the user has triaged — and say so in
 the arguments in words: "READ-ONLY: report findings, do NOT edit any
@@ -142,8 +157,8 @@ with the reasons, say the loop ends here and that the user can ask for any
 item to be reconsidered, and go on to completion. Round 1 is always asked.
 A round with even one accept, spec or spec (clarify) is asked as usual.
 
-**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
-the conversation): don't ask in any round. Apply your recommendations —
+**Autopilot** (`<game-dir>/.autopilot.md` exists — see `game-autopilot`
+"Autopilot rules"): don't ask in any round. Apply your recommendations —
 accept → fix, reject → drop. A **spec** finding is not applied (it goes
 beyond the agreement): list it for the PR body under 「未対応の指摘」. A
 **spec (clarify)** finding is applied as a wording-only spec change.
@@ -171,8 +186,9 @@ with a failing gate.
 
 - A round whose findings are all rejected (or `no findings`) ends the loop
   (from round 2 on without asking, see "Triage").
-- After round 3, list anything still open for the user with your
-  recommendation instead of starting round 4.
+- After the last allowed round (3, or 2 for a size-S revision), list
+  anything still open for the user with your recommendation instead of
+  starting another.
 
 ## Review (before completion)
 

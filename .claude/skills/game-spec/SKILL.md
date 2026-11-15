@@ -21,47 +21,10 @@ spec change must be made here first, with implementation/tests following.
 非MVP範囲 / 技術要件（Phaser/Vite/ESLint/Vitest） / テスト観点 / 完了条件 /
 実装裁量
 
-Pull concept/core-loop/target-player/scope from the `game-idea` conversation
-if this is a first write.
-
-### First write after `game-proto`
-
-For a new game, `docs/spec.md` already has a body: the spec-lite and its
-`## プレイテストで固まったこと` section (see `game-proto`). Build the full
-spec from it, not from scratch:
-
-- The パラメータ表 values and rules the playtests settled are the initial
-  values — keep them, don't re-derive or re-tune them. Add the numbers the
-  spec-lite didn't have (anything else with gameplay weight).
-- Fill the missing required items (ターゲットプレイヤー, 画面・Scene構成,
-  ルール, MVP/非MVP範囲, 技術要件, テスト観点, 完了条件, 実装裁量). 画面・Scene
-  構成 describes the screens as the playtests ended up, not the prototype's
-  single-Scene shortcut: add what a real game needs (title/result flow) as
-  agreed with the user.
-- Fold the playtest notes into the proper sections (rules into ルール,
-  "why this number" into the table's meaning column, "must stay" items into
-  完了条件), then remove the `> spec-lite:` banner and the
-  `## プレイテストで固まったこと` and `## 見送ったこと` sections (the latter
-  becomes backlog cards, below). The spec describes the current
-  game, not how it got there.
-- Technical requirements name which game rules are pure logic (hit tests,
-  scoring, spawn rules, win/lose conditions) by their role, the way any
-  spec does. Don't refer to `src/proto/` or its files — the spec has to
-  stand on its own for a reader who never sees the prototype;
-  `game-impl` reads the prototype for the details.
-
-#### Backlog from the first write
-
-Whatever did not make the MVP is not lost: write
-`<game-dir>/docs/backlog.md` in the same first write (header and card format
-from `game-backlog`). Cards come from 非MVP範囲, the spec-lite's cut items,
-ideas the `game-idea` conversation trimmed, and anything dropped in
-`game-proto` playtests (with why in メモ). Rank them by how directly they
-strengthen the core loop, or leave them in the order found when the user
-hasn't ranked. A card needs a concrete problem (狙い); a bare "more
-content" line isn't one. Show the backlog with the spec draft for approval.
-It is not part of the spec, and `game-publish` ships it in the first PR.
-Items dropped later by `game-impl` / `game-polish` are added the same way.
+**First write of a new game** (`status_spec` was `pending`; the file holds
+the spec-lite from `game-proto`): read `first-write.md` next to this file
+first — how to build the full spec from the spec-lite, and the backlog that
+is written with it. A revision doesn't need that file.
 
 For a revision (e.g. coming out of
 `game-balance`), only change the sections that actually changed and note
@@ -79,7 +42,7 @@ not written here is lost.
 
 `game-extend` hands over one agreed extension of a published game: what
 is added and why, what must not change, where it goes (a split file or
-the body — see "Spec layout" below), and a branch slug. When writing it:
+the body — see "Spec layout" below), and a branch name. When writing it:
 
 - Put it where `game-extend` decided. For a split file, also add its line
   to `## 拡張` in `docs/spec.md`.
@@ -209,27 +172,12 @@ to**. Anything that reads, hands over or reviews "the spec" (`game-impl`,
   実装裁量. The rules above for パラメータ表, 実装裁量 and 画面・Scene構成
   apply to split files too.
 - Moving existing text out of `docs/spec.md` into split files is a
-  docs-only change with no behavior change, run as its own cycle — see
-  "Splitting an existing spec" below. `game-extend` offers this when
+  docs-only change with no behavior change, run as its own cycle — read
+  `split.md` next to this file when doing one ("Splitting an existing
+  spec": its own `docs/<game-dir>-split-spec` branch, text moved verbatim,
+  no downstream reset, a docs-only PR). `game-extend` offers this when
   `docs/spec.md` is over 400 lines. Accumulated 演出・UI sections are the
   usual first candidates (e.g. one `docs/spec/effects.md` holding them all).
-
-### Splitting an existing spec
-
-Run this as a `game-spec` revision, on its own branch:
-
-- Branch from `main`: `docs/<game-dir>-split-spec` (next free `-2`, `-3`,
-  ... if taken).
-- Move only descriptions of self-contained elements (modes, stage sets,
-  systems, Scenes) into `docs/spec/<slug>.md`. The AGENTS.md 2.4 required
-  items for the base game stay in `docs/spec.md`. Move text verbatim —
-  don't rewrite it.
-- Because behavior doesn't change, this is the one revision that does
-  **not** run the downstream reset below. Instead, run
-  `game-review STAGE=spec` to confirm nothing was lost or duplicated and
-  every link resolves, then commit and open a docs-only PR (confirm with
-  the user before pushing/opening it).
-- Once it merges, restart `game-extend`.
 
 ## Progress frontmatter
 
@@ -268,8 +216,10 @@ before the downstream reset below overwrites it:
   elsewhere, and `origin/main` is the up-to-date base). Pick
   `<type>` from context if it's obvious (a bug found in `game-qa`/
   `game-check` → `fix`; a `game-balance` tuning pass → `balance`; a new
-  mechanic/stage/feature request, including anything coming from
-  `game-extend` → `feat`, using the slug `game-extend` proposed), but
+  mechanic/stage/feature request → `feat`; anything coming from
+  `game-extend` or a 着手可 card → the branch name agreed there, `feat/…`
+  or, for a restructuring with no player-visible change, `refactor/…` —
+  that agreement is the confirmation), but otherwise
   confirm it with the user
   rather than assuming — don't hardcode a fixed list, this varies by game.
   If that branch name already exists, don't reuse or overwrite it silently
@@ -280,7 +230,7 @@ before the downstream reset below overwrites it:
 
 ### Any revision resets downstream stages — this skill's job, not the caller's
 
-(Except a verbatim split — see "Splitting an existing spec" above, and a
+(Except a verbatim split — see `split.md`, and a
 clarification-only revision — see below.)
 
 A revision to an already-`done` spec means everything downstream is now
@@ -347,9 +297,10 @@ Also check the process yourself, for a revision:
    above, then show the user the draft together with the review result
    (blockers fixed, questions answered, remaining should/nit) and get
    explicit approval — this is a design document other steps depend on,
-   not a formality. **Autopilot** (an 「オートパイロット合意」 block from
-   `game-autopilot` is in the conversation): skip the approval stop — the
-   agreement is the approval. Check the draft says what was agreed, and
+   not a formality. **Autopilot** (`<game-dir>/.autopilot.md` exists — see
+   `game-autopilot` "Autopilot rules"): skip the approval stop — the
+   agreement is the approval. Check the draft against 「拡張の内容」 in that
+   file (read it again rather than relying on memory of the conversation), and
    report the spec diff and review result at the end; a question the
    agreement doesn't answer stops the chain and is asked as usual.
 2. Once approved and the file is written:
@@ -357,4 +308,4 @@ Also check the process yourself, for a revision:
 3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
    dispatches `game-impl` and keeps going until a stage needs the user
    (see `game-next` "Continuous mode"). Not for a verbatim split
-   ("Splitting an existing spec") — that cycle ends at its docs-only PR.
+   (`split.md`) — that cycle ends at its docs-only PR.

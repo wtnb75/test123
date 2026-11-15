@@ -49,11 +49,28 @@ For a presentation-only revision whose polish confirmation already asked
 about the feel (`game-polish` "Presentation-only revisions"), that answer
 is the sign-off: mark this stage done without asking again.
 
-**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
-the conversation): no tuning and no question. The initial numbers from the
-agreement stay; mark this stage done and note in the hand-off that the
-numbers have not been tried by hand (the PR body says so; the playtest is
-where the user judges them).
+**Autopilot** (`<game-dir>/.autopilot.md` exists — see `game-autopilot`
+"Autopilot rules"): no tuning and no question. The initial numbers from the
+agreement stay. What this stage still does, for a **gameplay** change only,
+is measure them once so the PR does not go out blind:
+
+- Run automated play as `game-backlog` "Automated play" describes (a
+  throwaway harness on the pure logic, seeded runs, 40–60 seeds per
+  condition, medians) in the conditions where the new element is in play.
+- Put the numbers next to the before-numbers where they exist: the card's
+  根拠, the comparison `game-extend` step 5 made (測ったこと in the
+  agreement), or a condition of the same harness in which the new element
+  is off (e.g. the stage before it appears). Don't build a second checkout
+  of `origin/main` for a before-run.
+- Hand the table and its conditions to `game-publish` for the PR body, with
+  what a simple bot can't tell. Don't change a number because of it. If a
+  number contradicts the agreement's 変えないもの (an "unchanged" median
+  moved), that is a stop: write it under 「止まった理由」 and ask.
+
+A presentation-only change, or a game with no pure logic a bot can drive,
+has nothing to measure: say so in the hand-off. Then mark this stage done
+and note that the numbers have not been tried by hand (the PR body says so;
+the playtest is where the user judges them).
 
 ## When to stop looping
 
