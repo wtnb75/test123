@@ -3,9 +3,16 @@ import { showGameListLink } from './gameListLink';
 
 function fakeLink() {
     const attrs = new Map<string, string>([['data-visible', 'false']]);
+    const listeners = new Map<string, Array<(e: { stopPropagation(): void }) => void>>();
     return {
         attrs,
-        el: { setAttribute: (k: string, v: string) => void attrs.set(k, v) },
+        listeners,
+        el: {
+            setAttribute: (k: string, v: string) => void attrs.set(k, v),
+            addEventListener: (type: string, fn: (e: { stopPropagation(): void }) => void) => {
+                listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+            },
+        },
     };
 }
 
@@ -70,6 +77,28 @@ describe('showGameListLink', () => {
         const scene = fakeScene();
         showGameListLink(scene.scene, fakeDoc(fakeLink().el).doc);
         expect(scene.registered()).toBe(1);
+    });
+
+    it('stops press events at the link so a game object under it does not also receive them', () => {
+        const link = fakeLink();
+        showGameListLink(fakeScene().scene, fakeDoc(link.el).doc);
+        for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend', 'pointerdown', 'pointerup']) {
+            let stopped = 0;
+            const handlers = link.listeners.get(type) ?? [];
+            expect(handlers, type).toHaveLength(1);
+            handlers[0]({ stopPropagation: () => (stopped += 1) });
+            expect(stopped, type).toBe(1);
+        }
+    });
+
+    it('adds the press guards once however often it is called (a rebuilt Title calls it again)', () => {
+        const link = fakeLink();
+        const scene = fakeScene();
+        const { doc } = fakeDoc(link.el);
+        showGameListLink(scene.scene, doc);
+        scene.shutdown();
+        showGameListLink(scene.scene, doc);
+        expect(link.listeners.get('touchstart')).toHaveLength(1);
     });
 
     it('does nothing and does not throw when the page has no link (dev server)', () => {

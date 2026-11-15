@@ -15,8 +15,8 @@ Title Scene の `create()` で 1 回呼ぶ。`package.json` に `"game-list-link
 import { showGameListLink } from 'game-list-link';
 
 create() {
-    // ...build the Title...
     showGameListLink(this);
+    // ...build the Title...
 }
 ```
 
@@ -33,4 +33,5 @@ create() {
 
 ## 位置と大きさ
 
-画面の左上（セーフエリアの内側）に重ねて表示する（`position: fixed`。レイアウトには入らないので Phaser の RESIZE は起きない）。見た目は高さ 24px・幅 100px 程度の小さな帯（文字 12px）で、見えない `::after` でタップ領域を高さ 44px にしている（Title の名前など、上端に近い文字に重ならないようにするため）。Title の主な文字・ボタンは、この左上の領域（幅 100px × 高さ 44px）に置かない（AGENTS.md 4.6）。タップ領域の下に Title のボタンを置くとタップを奪うので、置かない。
+画面の左上（セーフエリアの内側）に重ねて表示する（`position: fixed`。レイアウトには入らないので Phaser の RESIZE は起きない）。見た目は高さ 24px・幅 100px 程度の小さな帯（文字 12px）で、見えない `::after` でタップ領域を高さ 44px にしている（Title の名前など、上端に近い文字に重ならないようにするため）。Title の主な文字・ボタンは、この左上の領域（幅 100px × 高さ 44px）に置かない（AGENTS.md 4.6）。リンクを押したときの `mousedown` / `touchstart` / `pointerdown` などは、リンクで止める（`stopPropagation`。Phaser は `window` で押下を受けるので、止めないと下にあるゲームオブジェクトにも届く）。それでも、タップ領域の下に Title のボタンを置くとそのボタンは押せなくなるので、置かない。
+単体ビルド（`dist/`）を直下（`/`）で配信すると、`../` は自分自身を開く。リンクの遷移は、公開と同じ並び（`up.sh --shared`・`task build` の `output/`）で確かめる。
