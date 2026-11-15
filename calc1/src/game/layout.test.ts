@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
     BUTTON_CENTERS_X, BUTTON_HEIGHT, BUTTON_WIDTH, canvasHeight, HEADER_TEXT_X, HEADER_TEXT_Y, LEVEL_TEXT_X,
     rowCenterY, RESULT_BUTTON_HEIGHT, RESULT_BUTTON_WIDTH, RESULT_BUTTON_X, RESULT_BUTTON_Y, scoreY, statusY,
-    TABLE_TOP, TIMER_TEXT_RIGHT_X, TOP_TEXT_SIZE, TOP_TEXT_Y, ROW_HEIGHT, CANVAS_WIDTH,
+    TABLE_TOP, TIMER_TEXT_RIGHT_X, TOP_TEXT_SIZE, TOP_TEXT_Y, ROW_HEIGHT, CANVAS_WIDTH, tableMetrics, valuePairScale,
 } from './layout';
+import { OPERATION_POOL } from './logic';
 
 // The spec's numbers, written out (not taken from the constants under test).
 const SPEC_CANVAS_MIN_HEIGHT = 960;
@@ -92,5 +93,95 @@ describe('row and bottom-anchored positions', () => {
     it('on the tallest phone (390 × 844) the bottom line still sits inside the canvas', () => {
         const h = canvasHeight(390, 844);
         expect(scoreY(h)).toBeLessThan(h);
+    });
+});
+
+describe('tableMetrics (result-fit)', () => {
+    it('the play table keeps 72-wide buttons at x = 40..360 and the value column from x = 404', () => {
+        const m = tableMetrics('play');
+        expect(m.buttonWidth).toBe(72);
+        expect(m.buttonCenters).toEqual([40, 120, 200, 280, 360]);
+        expect(m.valueX).toBe(404);
+    });
+
+    it('the result table uses 64-wide buttons at x = 36, 104, 172, 240, 308 and a value column from x = 348', () => {
+        const m = tableMetrics('result');
+        expect(m.buttonWidth).toBe(64);
+        expect(m.buttonCenters).toEqual([36, 104, 172, 240, 308]);
+        expect(m.valueX).toBe(348);
+        expect(m.valueRight).toBe(476);
+    });
+
+    it('result buttons keep a 4 px gap, start at the left edge 4 and end at 340', () => {
+        const m = tableMetrics('result');
+        const edges = m.buttonCenters.map((c) => [c - m.buttonWidth / 2, c + m.buttonWidth / 2]);
+        expect(edges[0][0]).toBe(4);
+        expect(edges[4][1]).toBe(340);
+        for (let i = 1; i < edges.length; i++) {
+            expect(edges[i][0] - edges[i - 1][1]).toBe(4);
+        }
+    });
+
+    it('every operation label has at most 3 characters, so it fits the 64 px result button at 25 px', () => {
+        // Spec (result-fit): the widest label is "+10" (3 chars, about 42 px); a 4-character label would not fit.
+        for (const op of OPERATION_POOL) {
+            if (op.label.length > 3) expect.fail(`label too long for the result button: ${op.label}`);
+        }
+        expect(Math.max(...OPERATION_POOL.map((op) => op.label.length))).toBe(3);
+    });
+
+    it('the result value column is 128 px wide (476 − 348)', () => {
+        const m = tableMetrics('result');
+        expect(m.valueRight - m.valueX).toBe(128);
+    });
+});
+
+describe('valuePairScale (result-fit)', () => {
+    it('does not shrink a 3-digit history (47) with a 3-digit correct value (50): 97 ≤ 122', () => {
+        expect(valuePairScale(47, 50)).toBe(1);
+    });
+
+    it('does not shrink when the pair is exactly 122 wide', () => {
+        expect(valuePairScale(70, 52)).toBe(1);
+    });
+
+    it('shrinks a hair when the pair is 122.1 wide (below 1, close to 1)', () => {
+        const f = valuePairScale(70, 52.1);
+        expect(f).toBeLessThan(1);
+        expect(f).toBeGreaterThan(0.99);
+    });
+
+    it('shrinks a 5-digit history (78) with a 4-digit correct value (67) to about 0.841', () => {
+        const f = valuePairScale(78, 67);
+        expect(f).toBeCloseTo(122 / 145, 4);
+        expect(f).toBeCloseTo(0.841, 3);
+    });
+
+    it('shrinks a negative 7-character history (102.7) with a 4-digit correct value (66.7) to about 0.720', () => {
+        const f = valuePairScale(102.7, 66.7);
+        expect(f).toBeCloseTo(122 / 169.4, 4);
+        expect(f).toBeCloseTo(0.72, 3);
+    });
+
+    it('after shrinking, history + 6 + correct is exactly the 128 px column', () => {
+        const f = valuePairScale(102.7, 66.7);
+        expect((102.7 + 66.7) * f + 6).toBeCloseTo(128, 6);
+    });
+
+    it('puts the correct value at 348 + scaled history + 6 and ends it at the column right edge 476 (78 / 67)', () => {
+        // Hand-worked (spec): f = 122 / 145 ≈ 0.841; left edge ≈ 419.6; right edge ≈ 476.
+        const m = tableMetrics('result');
+        const f = valuePairScale(78, 67);
+        const left = m.valueX + 78 * f + 6;
+        expect(left).toBeCloseTo(419.6, 1);
+        expect(left + 67 * f).toBeCloseTo(476, 6);
+    });
+
+    it('returns 1 when both widths are 0', () => {
+        expect(valuePairScale(0, 0)).toBe(1);
+    });
+
+    it('has no lower bound: a very wide pair shrinks well below 0.7', () => {
+        expect(valuePairScale(400, 200)).toBeCloseTo(122 / 600, 6);
     });
 });
