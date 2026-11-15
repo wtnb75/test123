@@ -25,6 +25,9 @@ Before summarizing the agreed extension to the user:
 - `MODE=pin`: is the agreement going into the card (状態 / 合意, every
   line filled, written for a reader without this conversation) rather
   than to `game-spec`, with no feature branch and no `status_*` change?
+  In a pin sweep (`PACKAGE=all`): was the queue shown once with the games
+  left out and why (work in flight / open backlog PR / already has a 着手可
+  card), and is each approved card committed before the next game starts?
 - Is it classified presentation-only or gameplay?
 - Were candidates offered from `docs/backlog.md` top-down (if it exists), and
   are the ones left for later listed in the summary for `game-spec` to record?

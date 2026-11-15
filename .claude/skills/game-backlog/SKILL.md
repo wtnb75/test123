@@ -102,7 +102,10 @@ to this format the first time this skill touches the file.
 7. **Hand off.** Offer the next step, without starting it unasked:
    `game-extend PACKAGE=<game-dir> MODE=pin` to pin down cards now for a
    later `game-autopilot` run (when the user has time to talk but not to
-   build), `game-extend` to build the top card now, or `game-autopilot`.
+   build; `game-extend MODE=pin PACKAGE=all` goes through the top card of
+   every game in turn — after this PR is merged, since the sweep leaves out
+   games with an open backlog PR), `game-extend` to build the top card now,
+   or `game-autopilot`.
 
 Dropped cards leave the file; say why in the PR body, not in the backlog.
 

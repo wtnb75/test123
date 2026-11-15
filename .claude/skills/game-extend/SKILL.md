@@ -22,6 +22,9 @@ later `game-autopilot` run.
   (`task game:detect` doesn't return completed games).
 - `MODE=pin` (optional): agree now, build later — see "Pin only". Also
   when the user says so in words (「詰めるだけ」「着手可にしておいて」).
+  With `PACKAGE=all` (「全部のゲーム」, or no `PACKAGE` in a grooming
+  session) it goes through the top card of every game in turn — see
+  "Pin sweep".
 - Requires `status_publish: done`
   (`task game:status PACKAGE=<game-dir> STAGE=publish`):
   - `done` → proceed.
@@ -182,15 +185,66 @@ After the approval of step 10, instead of the hand-off above:
 2. The card keeps its place in the order unless the user moves it. A pinned
    card is taken before the top card by `game-autopilot`, so pinning is how
    the user says "this one next".
-3. Write it on a docs-only branch and open the PR exactly as `game-backlog`
+3. Write it on a docs-only branch and open the PR as `game-backlog`
    step 5 does (`docs/<game-dir>-backlog`, or one `docs/backlog-<slug>`
    branch for several games; only `docs/backlog.md` files change;
    `game-review STAGE=backlog`). Several cards pinned in one session — of
-   one game or of several — go in **one** PR: ask for the next card before
-   committing, not after.
+   one game or of several — go in **one** PR: write each card to the file
+   and commit it on that branch as soon as it is approved (a local commit,
+   so a long session cannot lose it), and push and open the PR once, when
+   the user has no more cards.
 4. Recommend merging that PR right away (it is docs-only, and
    `game-autopilot` holds a game out while a backlog PR for it is open),
    then offer `game-autopilot` (don't start it unasked).
 
 A 着手可 card whose game changes later is checked by `game-autopilot`
 against its `基準`; it is not this skill's job to keep it fresh.
+
+What step 2 offers in this mode: only the cards that are not 着手可 yet
+(say which ones already are). An idea the user brings that is not in the
+backlog becomes a new card first (the `game-backlog` card format, 出どころ:
+ユーザー, placed where the user says), and is then pinned like any other.
+
+### Pin sweep (`PACKAGE=all`): the top card of every game, in turn
+
+The grooming session: the user sits down once and leaves a 着手可 card in
+as many games as they have time for, so that a later
+`game-autopilot N=<count>` has something to run in each.
+
+1. **Build the queue.** `git fetch --prune origin`; the games with
+   `next=complete` (`task game:dashboard`) that have a non-empty
+   `docs/backlog.md` on `origin/main`. Leave out, and list with the reason:
+   - games with work in flight (found as `game-autopilot` "Choosing the game
+     and card" steps 1–2 do: open PRs, other worktrees, remote branches) —
+     the open PR may change the spec the agreement would rest on;
+   - games held by an open backlog PR — recommend merging it first, then
+     they join the queue;
+   - games that already have a 着手可 card (one waiting card per game is
+     enough: `game-autopilot` takes one card per game per run).
+
+   The card of each game is its **top card**.
+2. **Show the queue once**, as a table (ゲーム / カード / 種別 / 規模), in
+   dashboard order unless the user names another. The user may drop games,
+   reorder, or name a different card for a game. Don't ask anything else
+   here.
+3. **One game at a time**, steps 1–10 for its card, as in "Pin only" —
+   same questions, nothing shortened because more games follow. Read that
+   game's spec when its turn comes, not all specs up front. Announce each
+   turn in one line (`3/14 mazetd: <カード>`).
+   - The user can say 「飛ばす」 at any point of a game's turn: leave that
+     card as it is (not pinned, nothing written) and go to the next game.
+   - A card whose premise is stale, or that turns out to need a decision
+     the user wants to sleep on, is skipped the same way; put what was
+     learned into the card's メモ so the next session starts from it.
+   - Size L: cut the first one-PR step out as its own card and pin that;
+     the rest stays as the remaining card.
+4. **After each approval**, write that card and commit it (one local commit
+   per card on the one `docs/backlog-pin-<YYYYMMDD>` branch, from
+   `origin/main`), then go on to the next game without asking whether to
+   continue. The user ends the sweep by saying so (「ここまで」); a sweep
+   need not finish the queue.
+5. **At the end** (queue done or the user stopped): run
+   `game-review STAGE=backlog` for the games touched, push, open the one
+   docs-only PR, and report: the cards pinned (game / card / branch name),
+   the games skipped and why, the games not reached. Recommend merging the
+   PR now, and offer `game-autopilot N=<number pinned>`.
