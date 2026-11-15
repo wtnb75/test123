@@ -90,6 +90,12 @@ Ask one question at a time. Recommend an answer for each.
    pure logic for ~40 seeds and prints survival and the key counts. Put the
    measured numbers into the summary. "This skill touches no files" means
    no deliverable files.
+   The new Title calls `showGameListLink(this)` in `create()` (a link back
+   to the game list, shown on the Title only; see
+   `shared/game-list-link/README.md`) and keeps the top-left area (about
+   44px tall, inside the safe area) free in the layout table. A Title that
+   is rebuilt (rotation, restart) still shows it, because `create()` runs
+   again.
 5. **Decide what must not change.** The game's rules, scoring, difficulty,
    controls and their feel; the existing transitions (Game → Result →
    Game); the time the player gets once START is pressed, however long they
