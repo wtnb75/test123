@@ -42,6 +42,12 @@ export const PARAMS = {
     comboWeightCluster: 1,
     comboWeightLine: 1,
     comboWeightSurround: 1,
+    // moving holes (docs/spec/moving-holes.md): holes open at any time, and every `holeShiftIntervalMs` some close
+    // (never one with a pop) and as many other positions open; a changing hole takes `holeTransitionMs` to change
+    openHoleCount: 36,
+    holeShiftIntervalMs: 8000,
+    holeShiftCount: 4,
+    holeTransitionMs: 600,
     telegraphMs: 800,
     popLifetimeMs: 3000,
     hitRadius: 70,

@@ -2,12 +2,13 @@ import { GameObjects, Input, Scene, Types } from 'phaser';
 import { PARAMS } from '../params';
 import { arrowFor, arrowPulse, type View } from '../logic/arrow';
 import { holeCenter, startScroll, type Pt } from '../logic/board';
+import { blockedHoles, initHoles, nextShiftAt, stepHoles, type HoleShift, type HoleState } from '../logic/holes';
 import { LANDSCAPE, type Layout } from '../logic/layout';
 import { YELLOW_ARROW_COLOR, arrowStyle, changeLabel, judgeStrike, popState, showsArrow } from '../logic/pop';
 import { displaySeconds, isLowTime, remainingMs, timePulseScale } from '../logic/run';
 import { PointerTracker } from '../logic/pointers';
 import { combineScrollIn, edgeDelta, keyDelta } from '../logic/scroll';
-import { firstSpawnAt, rollDecoys, stepSpawn } from '../logic/spawn';
+import { firstSpawnAt, isSpawnDue, rollDecoys, stepSpawn } from '../logic/spawn';
 import { PopView } from './PopView';
 import { resolveStrike } from '../logic/streak';
 import { createCatVeil, playCatHit, playMiss, playMoleHit, playStreakAnnounce } from './fx';
@@ -20,6 +21,8 @@ const CLOCK_TEXT_COLOR = '#40c4ff';
 /** The "+50" of a golden mole (docs/spec/golden-mole.md): gold, to tell it from a mole's yellow "+N". */
 const GOLDEN_TEXT_COLOR = '#ffc400';
 const ARROW_OUTLINE_COLOR = 0xffffff;
+const HOLE_COLOR = 0x3e2723;
+const NO_HOLES: readonly number[] = [];
 
 type Phase = 'playing' | 'ending';
 
@@ -34,6 +37,11 @@ export class Game extends Scene {
     /** Time the clocks have added this run (docs/spec/items.md); there is no cap. */
     private bonusMs = 0;
     protected live: PopView[] = [];
+    /** Which positions have a hole (docs/spec/moving-holes.md). */
+    protected holes: HoleState = { open: [], lockedUntil: new Map(), shifts: 0 };
+    /** The random source of the hole shifts, apart from the one the spawns use, so the spawns never change. */
+    protected holeRand: () => number = Math.random;
+    private holeShapes: GameObjects.Ellipse[] = [];
     private arrows: GameObjects.Triangle[] = [];
     private scoreText!: GameObjects.Text;
     private timeText!: GameObjects.Text;
@@ -69,6 +77,7 @@ export class Game extends Scene {
         this.bonusMs = 0;
         this.live = [];
         this.arrows = [];
+        this.holes = initHoles(this.holeRand, this.layout);
         this.pointers.clear();
         this.mouse = null;
         this.scoreShown = -1;
@@ -100,6 +109,9 @@ export class Game extends Scene {
                     layout: { viewW: this.layout.viewW, viewH: this.layout.viewH, cols: this.layout.cols, rows: this.layout.rows },
                     camera: { w: cam.width, h: cam.height },
                     scroll: { x: cam.scrollX, y: cam.scrollY },
+                    openHoles: this.holes.open.flatMap((o, i) => (o ? [i] : [])),
+                    holeShifts: this.holes.shifts,
+                    openingHoles: [...this.holes.lockedUntil].filter(([, until]) => until > this.elapsedMs).map(([h]) => h),
                     arrowsShown: this.arrows.filter((a) => a.visible).length,
                     pops: this.live.map((v) => ({
                         hole: v.pop.hole,
@@ -153,6 +165,7 @@ export class Game extends Scene {
         }
         this.scrollStep(delta);
         this.updatePops();
+        this.shiftHoles();
         this.spawnStep();
         this.updateArrows();
         this.updateHud();
@@ -164,10 +177,38 @@ export class Game extends Scene {
         const g = this.add.graphics();
         g.fillStyle(0x3a8f3f, 1);
         g.fillRect(0, 0, this.layout.boardW, this.layout.boardH);
-        g.fillStyle(0x3e2723, 1);
+        // One ellipse per position, so a hole can shrink or grow on its own; a closed position shows grass only.
+        this.holeShapes = [];
         for (let i = 0; i < this.layout.cols * this.layout.rows; i++) {
             const c = holeCenter(i, this.layout);
-            g.fillEllipse(c.x, c.y + 20, 150, 60);
+            const open = this.holes.open[i];
+            this.holeShapes.push(this.add.ellipse(c.x, c.y + 20, 150, 60, HOLE_COLOR).setScale(open ? 1 : 0).setVisible(open));
+        }
+    }
+
+    /** The shift is due: close and open holes, and show it as a shrink and a grow of `holeTransitionMs`. */
+    private shiftHoles() {
+        if (this.elapsedMs < nextShiftAt(this.holes)) return;
+        const shift = stepHoles(this.holes, this.elapsedMs, this.live.map((v) => v.pop.hole), this.holeRand);
+        if (shift) this.animateShift(shift);
+    }
+
+    private animateShift(shift: HoleShift) {
+        for (const i of shift.closed) {
+            const shape = this.holeShapes[i];
+            this.tweens.killTweensOf(shape);
+            this.tweens.add({
+                targets: shape,
+                scale: 0,
+                duration: PARAMS.holeTransitionMs,
+                onComplete: () => shape.setVisible(false),
+            });
+        }
+        for (const i of shift.opened) {
+            const shape = this.holeShapes[i];
+            this.tweens.killTweensOf(shape);
+            shape.setScale(0).setVisible(true);
+            this.tweens.add({ targets: shape, scale: 1, duration: PARAMS.holeTransitionMs });
         }
     }
 
@@ -317,7 +358,9 @@ export class Game extends Scene {
     /** At most one spawn check per update, however large the frame step. */
     private spawnStep() {
         const used = this.live.map((v) => v.pop.hole);
-        const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random, this.layout);
+        // Closed and still-opening holes take no pop; they are only worked out when a check is due
+        const blocked = isSpawnDue(this.elapsedMs, this.nextSpawn) ? blockedHoles(this.holes, this.elapsedMs) : NO_HOLES;
+        const { plan, scheduledAt } = stepSpawn(this.elapsedMs, this.nextSpawn, used, Math.random, this.layout, blocked);
         for (const p of rollDecoys(plan, Math.random)) {
             this.live.push(new PopView(this, { ...p, spawnedAt: this.elapsedMs }, this.layout));
         }

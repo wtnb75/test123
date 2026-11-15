@@ -60,3 +60,9 @@
 - `src/game/logic/spawn.ts` pickComboPattern: 重みがすべて 0 のとき常に囲むになる — 理由: 重みは仕様の初期値 1・1・1 の調整用の定数で、全部 0 にする設定は想定しない
 - `src/game/logic/spawn.ts` lineCandidates: 毎回 192 本の候補を作る — 理由: コンボは 1 ラウンドに数回で実害がない。仕様が同じ分布の別の方法を許しているが、保守性のほうが重要
 - `src/game/logic/spawn.ts` surroundPlan: ネコの数が `comboSize` − 1 で、直線の 3 と別の定数に結びつく — 理由: 仕様に「ネコは `comboSize` − 1 個」と明記されている
+- `src/game/scenes/Game.ts` holeRand: 本番では `Math.random` が出現と同じ生成器で、乱数源の分離が名ばかり — 理由: `Math.random` は種を決められず、固定された乱数列は存在しない。仕様の要件は「別の注入できる乱数源」で、テストと自動プレイは別の seeded 源を渡して分離を確かめている
+- `src/game/scenes/Game.ts` shiftHoles / spawnStep: 判定が呼び出し側と中で二重（`nextShiftAt`、`isSpawnDue`）— 理由: 毎フレームの配列生成を避けるための意図的な前置きで、ゲートを変えるなら両方を見る小さな関数
+- `src/game/scenes/Game.ts` shiftHoles: 叩かれた・引っ込み中の Pop の穴がふさがる候補になり、見た目が重なる — 理由: 仕様が「叩かれて消えた Pop の穴はふさがる候補」と明記。しぼむ 600ms の間の短い重なりで、害がない
+- `src/game/logic/holes.ts` lockedUntil: 古いエントリが残り、状態が 1 つの時刻と一覧で足りる — 理由: 時刻の比較で正しく働き、位置数が上限。間隔を詰めても結果は変わらない
+- `src/game/scenes/Game.ts` drawBoard: 48 個の Ellipse が常にある — 理由: 静的な 48 個の Shape の負荷は小さく、実機 QA で確認する。ふさがる穴だけを別にするのは別の変更
+- `src/game/scenes/Game.ts`: 更新の順序と `ending` 後に切り替えない規則の単体テストがない — 理由: Scene の接着部分。ブラウザ QA（`__qa` の `holeShifts`）で確認する
