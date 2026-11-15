@@ -26,6 +26,7 @@ vars:
   - match3
   - stepup
   - flipbreak
+  - moleroll
   #- nonoedit
   #- editmin
   #- dutchcalc

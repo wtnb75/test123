@@ -1,4 +1,5 @@
 packages:
+- 'moleroll'
 - 'flipbreak'
 - 'stepup'
 - 'match3'
