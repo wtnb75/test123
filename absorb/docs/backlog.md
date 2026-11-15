@@ -62,7 +62,7 @@
 - 種別: presentation-only
 - 規模: S
 - 出どころ: spec 分析
-- メモ: 日替わりの固定シード（全員が同じ展開を遊べる。規模 S）と組み合わせると、比べる相手ができる 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+- メモ: 日替わりの固定シード（全員が同じ展開を遊べる。規模 S）と組み合わせると、比べる相手ができる。保存は `shared/best-store` を使う（`browserStorage` と `BestStore`。ベスト記録をキー `<game-dir>.best`・値 `{score, label}` で持つと、トップページのカードに `label` が出る）。
 
 ### ストックが多いほど遅くなる（`heavy-stock`）
 

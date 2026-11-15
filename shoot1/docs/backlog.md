@@ -44,7 +44,7 @@
 - 種別: presentation-only（保存を足す）
 - 規模: S
 - 出どころ: spec 分析
-- メモ: 保存の読み書きは、ブロック・容量超過で失敗しても、ゲームが止まらないようにする（他のゲームの実装を参照）。`kill-score` が入ると、スコアの意味が変わるので、保存キーの扱いを決める。 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+- メモ: 保存の読み書きは、ブロック・容量超過で失敗しても、ゲームが止まらないようにする（他のゲームの実装を参照）。`kill-score` が入ると、スコアの意味が変わるので、保存キーの扱いを決める。 保存は `shared/best-store` を使う（`browserStorage` と `BestStore`。ベスト記録をキー `<game-dir>.best`・値 `{score, label}` で持つと、トップページのカードに `label` が出る）。
 
 ### 硬い敵を足す（地雷 1 発では倒れない）（`tough-enemy`）
 
@@ -94,4 +94,14 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+
+### 日本語のまま残っているコメントを英語にそろえる（`comments-english`）
+
+- 狙い: ソースコードのコメントは英語と決めているが、`scenes/Game.ts`（約 28 行）・`core/formation.ts`（約 19 行）・`core/physics.ts`（約 10 行）に日本語のコメントが残り、同じファイルの中で 2 つの言語が混ざっている。根拠: 2026-11-15 の全体レビュー（コメント行の検索）、`docs/review-rejected.md`（「元からの日本語のコメントが残る。既存のコメントの書き換えは別件」として見送り）
+- 何を足すか: 残っている日本語のコメントを英語に書き直す。コードは変えない。
+- コアループへの効き方: 広げない — 読みやすさだけ。
+- 種別: presentation-only（コメントだけ。挙動は変えない）
+- 規模: S
+- 出どころ: コードレビュー
+- メモ: `formations`・`spiral-bullets` などで同じファイルを触る PR に混ぜない（1 変更 1 目的）。`main.ts`・`scenes/Game.ts` は改行が CRLF なので、ルート `docs/backlog.md` の `line-endings` を先に済ませると差分が小さい。

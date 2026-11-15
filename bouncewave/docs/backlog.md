@@ -58,11 +58,12 @@
 ### 一時停止（`pause`）
 
 - 狙い: スマホで遊んでいる途中に中断できない。根拠: `spec`「非MVP範囲」（一時停止ボタン）
-- 何を足すか: HUD の一時停止ボタンと Esc / P キー。画面が隠れたときも自動で止める。
+- 何を足すか: HUD の一時停止ボタンと Esc / P キー（手動の停止だけ）。
 - コアループへの効き方: 広げる — 中断しても続きから遊べる。遊びの中身は変わらない。
 - 種別: gameplay
 - 規模: S
 - 出どころ: spec 分析
+- メモ: 自動の停止（画面が隠れた・フォーカスが外れた）は `pause-resume` のカード。同じ `PauseState` に載せるので、`pause-resume` の後にする。
 
 ### 耐久力のあるボスを出す（`boss-body`）
 
@@ -142,4 +143,4 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。

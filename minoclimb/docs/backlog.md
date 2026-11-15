@@ -53,7 +53,7 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザーの会話（スコア無しの方針を決めたとき）
-- メモ: 着地 AI の積み方に結果が左右されるため、タイムではなく高さにする。スコア無し（クリアか否か）の方針との整合は `game-extend` で決める。 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+- メモ: 着地 AI の積み方に結果が左右されるため、タイムではなく高さにする。スコア無し（クリアか否か）の方針との整合は `game-extend` で決める。 保存は `shared/best-store` を使う（`browserStorage` と `BestStore`。ベスト記録をキー `<game-dir>.best`・値 `{score, label}` で持つと、トップページのカードに `label` が出る）。
 
 ### 一時停止を足す（`pause`）
 
@@ -63,7 +63,7 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: spec 分析
-- メモ: 画面全体が 1 枚のパッド（タップでジャンプ）なので、一時停止のボタンの位置と誤操作を避ける配置が必要。再開時の入力（押しっぱなしの無効）の扱い。
+- メモ: 画面全体が 1 枚のパッド（タップでジャンプ）なので、一時停止のボタンの位置と誤操作を避ける配置が必要。再開時の入力（押しっぱなしの無効）の扱い。 自動の停止（画面が隠れた・フォーカスが外れた）は `pause-resume` のカード。同じ `PauseState` に載せるので、`pause-resume` の後にする。
 
 ### 難易度を選べるようにする（`difficulty-select`）
 
@@ -93,4 +93,4 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。落下・予兆（`telegraph`）などの時間を持つ要素が、Scene の時計と別に進んでいないかを確かめる。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。落下・予兆（`telegraph`）などの時間を持つ要素が、Scene の時計と別に進んでいないかを確かめる。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。

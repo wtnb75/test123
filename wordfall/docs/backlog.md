@@ -34,7 +34,7 @@
 - 種別: presentation-only
 - 規模: M
 - 出どころ: spec 分析
-- メモ: 保存の形は、リポジトリ全体の backlog の `best-store` の約束（`<game-dir>.<名前>` のキー）に合わせる。保存が使えない環境では、そのセッションの間だけメモリに持つ（`shared/best-store` の自己ベストと同じ方針）。ランキングは含めない（非MVP範囲）。
+- メモ: 保存の形は、`shared/best-store` の README の約束（`<game-dir>.<名前>` のキー）に合わせる。保存が使えない環境では、そのセッションの間だけメモリに持つ（`shared/best-store` の自己ベストと同じ方針）。ランキングは含めない（非MVP範囲）。
 
 ### 一時停止（`pause`）
 
@@ -44,7 +44,7 @@
 - 種別: presentation-only
 - 規模: S
 - 出どころ: spec 分析
-- メモ: タブを切り替えたときの動き（Phaser が止めるか）は spec に書かれておらず、未確認。先に実機で確かめる。
+- メモ: タブを切り替えたときの動き（Phaser が止めるか）は spec に書かれておらず、未確認。先に実機で確かめる。 自動の停止（画面が隠れた・フォーカスが外れた）は `pause-resume` のカード。同じ `PauseState` に載せるので、`pause-resume` の後にする。
 
 ### 意味から綴るモード（`spell-from-meaning`）
 
@@ -74,4 +74,4 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。

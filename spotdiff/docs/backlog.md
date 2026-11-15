@@ -74,7 +74,7 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。`BLUR` で止めたあと、ページは見えているので、`show()` のロック開始のタイミング（`VISIBLE` に頼らない）を spec で決める。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。`BLUR` で止めたあと、ページは見えているので、`show()` のロック開始のタイミング（`VISIBLE` に頼らない）を spec で決める。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
 
 ### 彩度だけが変わる差分（`saturation-diff`）
 
@@ -95,3 +95,13 @@
 - 規模: S
 - 出どころ: `tone-diff` で見送り
 - メモ: 測定用のスクリプトだけで、ゲームのコードは変えない見込み。結果が悪ければ、`tone-diff` の変化量の再調整（gameplay）を別のカードにする。
+
+### スマホ縦の HUD の文字を 14 px 以上にする（`hud-readable`）
+
+- 狙い: iPhone SE の縦（375 × 550）で、HUD の文字（残り時間・ステージ・見つけた数）が実寸 14 px を下回る。主な情報は 14 px 以上、という基準（AGENTS.md 4.6）に届かない。根拠: `docs/review-rejected.md`（HINT の拡張のとき、HUD は「キャンバス上で 32 px 以上」の既存の規定のままとして見送った）、AGENTS.md 4.6（この基準は見送りの後に明文化された）
+- 何を足すか: 縦の狭い画面で、HUD の文字が実寸 14 px 以上になるようにする（文字を大きくする・行を分ける・項目を短くする、のどれか。方式は `game-extend` で決める）。
+- コアループへの効き方: 広げない — 残り時間が読めるようにするだけ（ルール・数値は変えない）。
+- 種別: presentation-only
+- 規模: S
+- 出どころ: コードレビュー
+- メモ: パネルの大きさ（盤面の占有）を削らずに収まるかを、`scripts/qa/look.mjs` の 375 × 550 で先に確かめる。収まらなければ、理由を spec に書いて例外のままにする。
