@@ -39,6 +39,9 @@ package-lock.json
 # design docs
 **/superpowers/plans/*.md
 
+# game-autopilot agreement (per game, never committed)
+**/.autopilot.md
+
 /.codegraph
 /.pnpm-store
 .gstack/

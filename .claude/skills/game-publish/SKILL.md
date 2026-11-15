@@ -62,8 +62,8 @@ extension), not the original add.
    `LAB_GAMES` to `GAMES`); never as part of a first publish unless
    the user says so in that same question.
 5. **Backlog (first publish)**: confirm `<game-dir>/docs/backlog.md` exists
-   and holds the items that missed the MVP (see `game-spec` "Backlog from the
-   first write"). Missing → write it now in the `game-backlog` card format
+   and holds the items that missed the MVP (see `game-spec`'s
+   `first-write.md`, "Backlog from the first write"). Missing → write it now in the `game-backlog` card format
    from 非MVP範囲 and the cut items; it is part of this PR.
 6. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
    `GAMES` / `LAB_GAMES` line is already in place — leave `Taskfile.yml` alone.
@@ -90,11 +90,15 @@ presentation-only revision) — pushing and PR
 creation are both visible, and this skill has no standing authorization to
 do them silently.
 
-**Autopilot** (an 「オートパイロット合意」 block from `game-autopilot` is in
-the conversation): the agreement covers the commit, push and `gh pr create`;
+**Autopilot** (`<game-dir>/.autopilot.md` exists — see `game-autopilot`
+"Autopilot rules"): the agreement covers the commit, push and `gh pr create`;
 don't ask. The PR body states that it was made in autopilot, that polish and
-balance were skipped (numbers untried by hand), and lists 「未対応の指摘」
-from `game-codereview`. It still scopes to the one agreed change.
+balance were skipped (numbers untried by hand), gives the automated-play
+numbers from `game-balance` with their conditions (or says why there are
+none), and lists 「未対応の指摘」 from `game-codereview` and anything QA could
+not confirm by eye. It still scopes to the one agreed change. The agreement
+file itself is git-ignored and is never part of the commit;
+`game-autopilot` removes it once the PR is open.
 
 **Existing PR** (`game-playtest` is reflecting change requests on a PR that
 is already open): commit and push to the same branch; don't run

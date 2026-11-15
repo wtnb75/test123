@@ -17,8 +17,10 @@ whenever this skill ends or pauses for long.
 
 - `PR=<number>` (optional). If not given: `gh pr list --state open --json
   number,title,headRefName,statusCheckRollup` and show those whose branch
-  looks like `<type>/<game-dir>[-slug]` (`feat`/`fix`/`balance`). Ask the
-  user which one. Derive `<game-dir>` from the changed files
+  looks like `<type>/<game-dir>[-slug]` (`feat`/`fix`/`balance`/`refactor`),
+  oldest first, with CI state. Ask the user which one (several PRs waiting
+  is normal after `game-autopilot` runs: they are played one after another,
+  see step 5). Derive `<game-dir>` from the changed files
   (`gh pr diff <n> --name-only`); a PR touching several games, or none, is
   not for this skill — say so.
 - Needs `cloudflared` (see `scripts/qa/share.sh`). If missing, say so and
@@ -40,20 +42,38 @@ whenever this skill ends or pauses for long.
    is the URL. Give the user: the URL; one line on what the PR changes; a
    short checklist of what to try (the new element; the 「変えないもの」 from
    the spec/PR body, so regressions get noticed; small-screen layout if the
-   UI changed). Then end the turn and wait.
+   UI changed). From an autopilot PR's body, also list what it left open —
+   「未対応の指摘」, the numbers untried by hand (with the automated-play
+   numbers if it has them), anything QA could not confirm — as things to
+   look at, and say that any of them can be kept as a backlog card (step 5).
+   Then end the turn and wait.
+
+   If the user would rather serve it from their own terminal, without this
+   session's checkout: `task share:branch BRANCH=<branch>` does the same
+   from a temporary worktree (it is interactive and runs until Ctrl-C, so
+   it is theirs to run, not yours).
 4. **Verdict.** Act on the user's words:
    - **OK** ("OK", "マージして", "いいよ") → step 5. A vague "いい感じ" is
      not a merge instruction: ask once.
    - **Change requests** → step 6.
    - **Not wanted** → stop the tunnel, leave the PR open, and say what is
      left. Closing the PR needs its own instruction.
-5. **Merge.** Re-run the checks from step 2 (CI green, mergeable). Then
+5. **Merge.** First, the things the PR left open (step 3): once the PR is
+   merged its body is no longer read, so whatever the user wants kept is
+   added now as cards to `<game-dir>/docs/backlog.md` (the `game-backlog`
+   card format, 出どころ: テストプレイ / コードレビュー) in one docs-only
+   commit on the PR branch, and pushed. If the user named none, add
+   nothing and list them in the merge report instead — don't ask a second
+   time. Then re-run the checks from step 2 (CI green — wait for it again
+   after that push — and mergeable), and
    `gh pr merge <n> --squash --delete-branch`. If it reports only a local
    checkout/branch cleanup problem (common in worktrees), confirm with
    `gh pr view <n> --json state` that it is `MERGED` and carry on. Stop the
    tunnel (`scripts/qa/down.sh <game-dir> [port]`) and report the merged PR.
-   Offer the next step in one line: `game-autopilot` (next backlog card) or
-   `game-next`.
+   Then the next step, in one line: if other game PRs are still open, name
+   the next one (oldest first) and offer to go straight on to it — on a yes,
+   start again at step 1 with that PR, without re-listing. If none is left,
+   offer `game-autopilot` (next backlog card) or `game-next`.
 6. **Reflect the requests on the same PR.** Don't open a new branch or PR.
    - Write the requests as a short numbered list and classify each:
      look-only, numbers, or rules/behavior. Anything not obviously one
@@ -65,8 +85,13 @@ whenever this skill ends or pauses for long.
      agreement for their content, so the **Autopilot** rules of
      `game-autopilot` apply to this loop (the spec approval, codereview
      triage and publish confirmation are not asked again; a gap in the
-     requests still stops and asks). Numbers the user asks to change are
-     changed as asked; no other tuning.
+     requests still stops and asks). Turn them on the way `game-autopilot`
+     does: write `<game-dir>/.autopilot.md` (its "Record and hand off"
+     format) with the numbered requests as 「拡張の内容」, the PR's branch,
+     and 承認: テストプレイの注文; remove it after the push
+     (`git clean -fX -- <game-dir>/.autopilot.md`). Numbers the user asks to
+     change are changed as asked; no other tuning, and no automated-play
+     run unless they ask for one.
    - `game-publish` here means: commit, push to the existing branch, and
      update the PR title/body if the content changed (`gh api -X PATCH
      repos/<owner>/<repo>/pulls/<n> -F body=@<file>`; `gh pr edit` fails
@@ -81,7 +106,10 @@ Every exit (merged, not wanted, blocked) stops the tunnel and the dev server
 ## Checklist (before reporting a merge)
 
 - The PR merged was the one the user played, at the head commit they played
-  (no push after the last verdict that they haven't seen).
+  (no push after the last verdict that they haven't seen — except the
+  docs-only backlog commit of step 5).
+- What the PR body left open is either a backlog card now or named in the
+  merge report.
 - CI was green and the PR mergeable at the moment of the merge.
 - The tunnel and the dev server are stopped.
 - The user's change requests are all either done, or listed as left for a
