@@ -108,10 +108,10 @@
 
 ### 依存の更新と脆弱性の確認を、定期的に回す（`deps-audit`）
 
-- 狙い: 依存の更新（`.github/workflows/update-deps.yml`）は手動の実行（`workflow_dispatch`）だけで、定期の実行が無い。CI（`main.yml`・`branch.yml`）に、既知の脆弱性の確認（`pnpm audit`）も無い。配布物は静的サイトで、実行時の依存は Phaser だけだが、ビルド・テスト・QA の道具（Vite・Vitest・ESLint・Playwright）は多く、古いまま気づかないおそれがある。根拠: 2026-11-15 の全体レビュー（`.github/workflows/`）
+- 狙い: 依存の更新（`.github/workflows/update-deps.yml`）は手動の実行（`workflow_dispatch`）だけで、定期の実行が無い。CI（`main.yml`・`branch.yml`）に、既知の脆弱性の確認（`pnpm audit`）も無い。配布物は静的サイトで、実行時の依存は Phaser だけだが、ビルド・テスト・QA の道具（Vite・Vitest・ESLint・Playwright）は多く、古いまま気づかないおそれがある。GitHub の Dependabot の警告は有効で、2026-11-15 の push の時点で、既定のブランチに 1 件（moderate）が出ている。根拠: 2026-11-15 の全体レビュー（`.github/workflows/`、push のときの GitHub の表示）
 - 何を足すか: `update-deps` に週 1 回程度の `schedule` を足し、CI に `pnpm audit`（本番の依存は失敗、開発の依存は警告）を足す。
 - コアループへの効き方: 広げない — 保守だけ。
 - 種別: presentation-only（CI の設定）
 - 規模: S
 - 出どころ: コードレビュー
-- メモ: 今回のレビューでは `pnpm audit` を実行していない（外部への問い合わせになるため）。最初に 1 回手で実行して、いまの件数を見てから、失敗にする水準を決める。Phaser の更新は、`bouncewave`・`moleroam`・`pushline` などの `docs/review-rejected.md` が「Phaser を上げるときは QA で確かめる」と書いた前提（入力イベントの順序・`pointer.id` が添字であること・手書きのスプライン）に当たるので、自動でマージしない。
+- メモ: 今回のレビューでは `pnpm audit` を実行していない（外部への問い合わせになるため）。まず、出ている 1 件（リポジトリの Security タブの Dependabot の警告）の中身を見て、手動の `update-deps` で消えるかを確かめる。そのうえで、失敗にする水準を決める。Phaser の更新は、`bouncewave`・`moleroam`・`pushline` などの `docs/review-rejected.md` が「Phaser を上げるときは QA で確かめる」と書いた前提（入力イベントの順序・`pointer.id` が添字であること・手書きのスプライン）に当たるので、自動でマージしない。
