@@ -43,7 +43,7 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: spec 分析・ユーザー
-- メモ: ゲーム性そのものは深まらない。小さいので、いつでも差し込める。 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+- メモ: ゲーム性そのものは深まらない。小さいので、いつでも差し込める。 保存は `shared/best-store` を使う（`browserStorage` と `BestStore`。ベスト記録をキー `<game-dir>.best`・値 `{score, label}` で持つと、トップページのカードに `label` が出る）。
 
 ### スマホ横画面の専用レイアウト（`wide-layout`）
 
@@ -93,4 +93,4 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。

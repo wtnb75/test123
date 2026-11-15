@@ -25,7 +25,7 @@
 - 種別: presentation-only（保存を足す）
 - 規模: S
 - 出どころ: spec 分析
-- メモ: 保存キーの名前と、保存の失敗の扱いは、他のゲームの実装（`first-game` のハイスコア）を参照する。「全ステージ解放」などのデバッグ用の入口は、足さない。 保存の読み書きは、ゲームごとに実装が分かれている（`bouncewave/src/game/logic/best.ts`・`pushline/src/game/logic/best.ts`・`first-game/src/game/core/highScore.ts`）。コピーを増やす前に、`shared/` への切り出しを検討する。
+- メモ: 保存キーの名前と、保存の失敗の扱いは、他のゲームの実装（`first-game` のハイスコア）を参照する。「全ステージ解放」などのデバッグ用の入口は、足さない。 保存は `shared/best-store` を使う（`browserStorage` と `BestStore`。ベスト記録をキー `<game-dir>.best`・値 `{score, label}` で持つと、トップページのカードに `label` が出る）。
 
 ### ステージ 10 の先（無限に続くモード）を足す（`endless`）
 

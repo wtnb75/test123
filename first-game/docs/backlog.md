@@ -173,4 +173,4 @@
 - 種別: gameplay
 - 規模: S
 - 出どころ: ユーザー
-- メモ: ルート `docs/backlog.md` の `shared-pause`（共通部品）の後。共通部品に載せて作る。どの要素が実時間で進むか（敵・タイマー・仕掛け）を、spec と実装で洗い出してから範囲を決める。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
+- メモ: `shared/pause` の `PauseState` を使う（absorb が先例。入れる順はルート `docs/backlog.md` の `pause-rollout`）。盤面はターン制なので、まず実時間で進む要素（通路の自動の歩き・走り・フロアの暗転）を spec と実装で洗い出す。それが `HIDDEN` の `stopRun` で止まるものだけなら、足すのは `BLUR` の扱いだけになるか、このカードを外す。spec は `absorb/docs/spec/pause.md` と同じ形（`docs/spec/pause.md`）に分ける。
