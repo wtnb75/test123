@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "best-store": "workspace:*",
+    "game-list-link": "workspace:*",
     "phaser": "catalog:",
     "terser": "catalog:"
   },

@@ -12,6 +12,7 @@ import {
     type TitleDemoState
 } from '../core/titleDemo';
 import { BoardView } from './boardView';
+import { showGameListLink } from 'game-list-link';
 
 const BACKGROUND_COLOR = 0x0a1f2f;
 const GAME_NAME = 'Minefield Rogue';
@@ -53,6 +54,7 @@ export class Title extends Scene
 
     create ()
     {
+        showGameListLink(this);
         // Phaser reuses Scene instances: everything is (re)built here, not in field initialisers.
         this.gate = new StartGate();
         this.demo = undefined;

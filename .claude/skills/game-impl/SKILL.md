@@ -102,6 +102,12 @@ treat them as limits on the delta.
   `if (import.meta.env.DEV) { … }`, with its names and strings inside that
   block only (a field or method holding them stays in the production
   bundle). `game-check` verifies it.
+- A Title Scene calls `showGameListLink(this)` (`import { showGameListLink }
+  from 'game-list-link'`) in `create()`, so the published site shows a link
+  back to the game list on the Title only. The Title's name, buttons and
+  text stay clear of the link's area (top-left, a 24px pill with a 44px tap area, inside the
+  safe area). `task newgame` already adds the dependency (`base.json`);
+  `game-check` fails a Title that does not call it.
 - Prefer what Phaser (or another library already in use) provides over
   hand-rolling the same behavior — camera shake, tweens, timers, text
   metrics. Keep only the game's own decisions (when, how much) in pure,

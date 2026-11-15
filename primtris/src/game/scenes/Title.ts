@@ -23,6 +23,7 @@ import {
     type TitleDemoState
 } from '../logic/titleDemo';
 import { BoxesView } from './boxesView';
+import { showGameListLink } from 'game-list-link';
 
 const DIGIT_OPTIONS = [2, 3, 4] as const;
 
@@ -66,6 +67,7 @@ export class Title extends Scene
 
     create ()
     {
+        showGameListLink(this);
         const { width, height } = this.cameras.main;
 
         this.clock = 0;

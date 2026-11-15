@@ -31,9 +31,10 @@
     "vitest": "catalog:"
   },
   "dependencies": {
+    "game-list-link": "workspace:*",
     "phaser": "catalog:",
-    "title-demo": "workspace:*",
-    "terser": "catalog:"
+    "terser": "catalog:",
+    "title-demo": "workspace:*"
   },
   "index": {
     "title": "モグラ巡り",

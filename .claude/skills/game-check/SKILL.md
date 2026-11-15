@@ -44,6 +44,12 @@ Inside `<game-dir>`, run in order and capture each result:
    runtime dependency, and `rg -c __qa dist/assets/*.js` must print nothing
    (the dev-only QA hook must not ship).
 
+6. `task game:check-title-link PACKAGE=<game-dir>` — must pass. A game with
+   `src/game/scenes/Title.ts` must import `showGameListLink` from
+   `game-list-link`, call it in the Title's `create()`, and depend on
+   `game-list-link` in `package.json` (`shared/game-list-link/README.md`).
+   A game without a Title.ts passes.
+
 ## On failure
 
 Do not mark this stage done. Report exactly which command failed and why,
@@ -59,8 +65,8 @@ fails rather than just noting it.
 
 ## Completion
 
-1. All five steps done — scaffold cleanup applied, and the four commands
-   pass.
+1. All six steps done — scaffold cleanup applied, and the four commands
+   and the Title link check pass.
 2. `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`
 3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
    dispatches `game-codereview` and keeps going until a stage needs the user
@@ -69,7 +75,7 @@ fails rather than just noting it.
 ## Small revisions
 
 After a one-rule or one-module revision, `check` may be marked `done` once
-all four commands pass from the top after the last change (the scaffold
+all four commands and the Title link check pass from the top after the last change (the scaffold
 cleanup only when the change touched `public/` or the build). Say in the
 report that the small-revision path was used. Anything bigger runs the
 whole skill.

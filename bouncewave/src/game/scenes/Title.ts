@@ -26,6 +26,7 @@ import {
     SceneExit,
     screenSizeChanged,
 } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 const newSeed = (): number => Math.floor(Math.random() * 0x100000000);
 
@@ -50,6 +51,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         const { width, height } = applyScreenSize(this);
         if (!this.relayout) fadeInScene(this);
         makeTextures(this);

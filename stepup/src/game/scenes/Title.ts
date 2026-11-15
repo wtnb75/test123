@@ -15,6 +15,7 @@ import {
     SceneExit,
     screenSizeChanged,
 } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 export class Title extends Scene {
     private guard!: RotateGuard;
@@ -25,6 +26,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         const { width, height } = applyScreenSize(this);
         this.cameras.main.setBackgroundColor(BG_CSS);
         const cx = width / 2;

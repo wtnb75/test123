@@ -6,6 +6,7 @@ import type { Layout } from '../logic/layout';
 import { computeTitleLayout } from '../logic/titleLayout';
 import type { DemoData } from './DemoGame';
 import { addButton, addLabel, applyLayout, fadeInScene } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 const DEPTH_VEIL = 0;
 const DEPTH_CURTAIN = 1;
@@ -34,6 +35,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         this.layout = applyLayout(this);
         const t = computeTitleLayout(this.layout);
         const cx = this.layout.viewW / 2;

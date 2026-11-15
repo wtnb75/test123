@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { bestStore } from './bestStore';
 import { titleBestText } from '../logic/best';
 import { BEST_TEXT_COLOR, GAME_WIDTH, GAME_HEIGHT, TITLE_BEST_FONT_PX, TITLE_BEST_Y } from '../logic/constants';
+import { showGameListLink } from 'game-list-link';
 
 export class Title extends Scene {
     constructor() {
@@ -9,6 +10,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         this.cameras.main.setBackgroundColor('#fff4e6');
 
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * 0.35, 'ふくわらい', {

@@ -12,6 +12,7 @@ import { titleLayoutFor } from '../logic/titleLayout';
 import { PARAMS } from '../params';
 import { MENU_HUE, PanelFrame, UI_FONT, drawBackdrop, drawPanel, strokeMark } from './draw';
 import { bindOrientation } from './orientation';
+import { showGameListLink } from 'game-list-link';
 
 const DEPTH = { backdrop: 0, panels: 1, marks: 2, ring: 3, text: 4 } as const;
 
@@ -60,6 +61,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         // The date is taken once here and handed to Game as is.
         const today = new Date();
         this.date = dateToYmd(today);

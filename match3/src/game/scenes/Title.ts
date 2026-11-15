@@ -14,6 +14,7 @@ import {
     SceneExit,
     screenSizeChanged,
 } from './ui';
+import { showGameListLink } from 'game-list-link';
 
 const HELP_LINES = [
     'となり合う石を入れかえて',
@@ -30,6 +31,7 @@ export class Title extends Scene {
     }
 
     create() {
+        showGameListLink(this);
         const { width, height } = applyScreenSize(this);
         const layout = titleLayout(height);
         const cx = width / 2;

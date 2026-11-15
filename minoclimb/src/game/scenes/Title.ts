@@ -6,6 +6,7 @@ import { FIRST_STAGE, stageAfter } from '../logic/stage';
 import { DEMO_WINDOW, TITLE_LAYOUT as L } from '../logic/titleLayout';
 import type { Demo } from './Demo';
 import { SceneInput } from './SceneInput';
+import { showGameListLink } from 'game-list-link';
 
 const DEPTH_CURTAIN = 1;
 const DEPTH_UI = 2;
@@ -30,6 +31,7 @@ export class Title extends Scene {
     }
 
     create(): void {
+        showGameListLink(this);
         // The Scene instance is reused when the Title comes back, so every per-visit field is reset here.
         this.clock = new DemoRunClock();
         this.controls = new SceneInput(this);
