@@ -14,7 +14,6 @@ vars:
   - minoclimb
   - bouncewave
   - moleroam
-    #- moleroll
   ALL_GAMES:
     # Games only: entries with a / (shared packages under shared/) are not games.
     sh: sed -n "s/^- '\([^/]*\)'\$/\1/p" pnpm-workspace.yaml
@@ -27,6 +26,7 @@ vars:
   - match3
   - stepup
   - flipbreak
+  - moleroll
   #- nonoedit
   #- editmin
   #- dutchcalc
