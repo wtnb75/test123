@@ -51,6 +51,11 @@ export const PARAMS = {
     hintHitPx: 136,
     hintMargin: 16,
     hintTextSize: 30,
+    // Portrait row texts (HUD, message, HINT, RESET; see docs/spec/effects.md "縦レイアウトの小さい画面の文字"):
+    // the base canvas size, and the smallest on-screen size (CSS px) of the HUD (main info) and of the other rows (secondary).
+    portraitRowTextSize: 36,
+    hudRealMinPx: 14,
+    rowRealMinPx: 11,
     // Zoom (see docs/spec/zoom.md): scale range, wheel step per 100 deltaY (capped at wheelDeltaMax; one "line" = wheelLinePx),
     // the largest move (CSS px) that still counts as a tap, and the pinch start gap (CSS px) under which the pinch ratio is 1.
     zoomMin: 1,
