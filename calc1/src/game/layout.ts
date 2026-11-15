@@ -10,9 +10,9 @@ export const BUTTON_WIDTH = 72;
 export const BUTTON_HEIGHT = 44;
 export const BUTTON_CENTERS_X = [40, 120, 200, 280, 360];
 
-/** Result screen (`result-fit`): narrower buttons packed to the left so the value column gets 168 px. */
-export const RESULT_TABLE_BUTTON_WIDTH = 56;
-export const RESULT_TABLE_BUTTON_CENTERS_X = [32, 92, 152, 212, 272];
+/** Result screen (`result-fit`): narrower buttons packed to the left so the value column gets 128 px. */
+export const RESULT_TABLE_BUTTON_WIDTH = 64;
+export const RESULT_TABLE_BUTTON_CENTERS_X = [36, 104, 172, 240, 308];
 /** Gap between the last button and the value column. */
 const VALUE_COLUMN_GAP = 8;
 /** Right end of the value column on the result screen. */
