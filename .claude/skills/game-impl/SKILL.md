@@ -105,7 +105,7 @@ treat them as limits on the delta.
 - A Title Scene calls `showGameListLink(this)` (`import { showGameListLink }
   from 'game-list-link'`) in `create()`, so the published site shows a link
   back to the game list on the Title only. The Title's name, buttons and
-  text stay clear of the link's area (top-left, about 44px tall, inside the
+  text stay clear of the link's area (top-left, a 24px pill with a 44px tap area, inside the
   safe area). `task newgame` already adds the dependency (`base.json`);
   `game-check` fails a Title that does not call it.
 - Prefer what Phaser (or another library already in use) provides over

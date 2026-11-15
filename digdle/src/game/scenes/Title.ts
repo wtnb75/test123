@@ -15,7 +15,7 @@ import {
 } from '../logic/titleLayout';
 import type { DigitOption, GameStartData, TitleData, TitleMode } from '../types';
 import {
-    BACKGROUND_COLOR, BUTTON_STROKE, createButton, createHomeIcon, createText, detectLocale, translate, type Locale,
+    BACKGROUND_COLOR, BUTTON_STROKE, createButton, createText, detectLocale, translate, type Locale,
     type TextKey
 } from './ui';
 import { showGameListLink } from 'game-list-link';
@@ -143,8 +143,6 @@ export class Title extends Scene {
         this.uiObjects = [];
         this.demoObjects = [];
         this.demoCells = [];
-
-        createHomeIcon(this, this.uiObjects);
 
         const { width, height } = this.scale.gameSize;
         const layout = computeTitleLayout(width, height);

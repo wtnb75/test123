@@ -17,8 +17,8 @@ export const GAME_LIST_LINK_CSS = `
     top: env(safe-area-inset-top);
     left: env(safe-area-inset-left);
     box-sizing: border-box;
-    min-height: 44px;
-    padding: 0 12px;
+    height: 24px;
+    padding: 0 10px;
     align-items: center;
     font-family: sans-serif;
     font-size: 12px;
@@ -27,6 +27,15 @@ export const GAME_LIST_LINK_CSS = `
     background: rgba(0, 0, 0, 0.5);
     text-decoration: none;
     border-bottom-right-radius: 8px;
+}
+/* The pill stays small so it clears Title text near the top edge; the tap target is still 44px tall. */
+#${GAME_LIST_LINK_ID}::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
 }
 #${GAME_LIST_LINK_ID}[data-visible="true"] {
     display: flex;

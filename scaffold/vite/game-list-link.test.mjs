@@ -35,10 +35,19 @@ test('the link is fixed and stays inside the safe area', () => {
     assert.ok(GAME_LIST_LINK_CSS.includes('env(safe-area-inset-left)'));
 });
 
-test('the tap target is at least 44px tall and the text at least 11px', () => {
-    assert.match(GAME_LIST_LINK_CSS, /min-height:\s*44px/);
+test('the text is at least 11px and the visible pill is compact (at most 28px tall)', () => {
     const size = /font-size:\s*(\d+)px/.exec(GAME_LIST_LINK_CSS);
     assert.ok(size && Number(size[1]) >= 11);
+    const pill = /#game-list-link\s*\{[^}]*\bheight:\s*(\d+)px/.exec(GAME_LIST_LINK_CSS);
+    assert.ok(pill && Number(pill[1]) <= 28);
+});
+
+test('the tap target is extended to 44px by an invisible ::after, not by a taller pill', () => {
+    const hit = /#game-list-link::after\s*\{([^}]*)\}/.exec(GAME_LIST_LINK_CSS);
+    assert.ok(hit, '::after rule');
+    assert.match(hit[1], /content:\s*['"]{2}/);
+    assert.match(hit[1], /position:\s*absolute/);
+    assert.match(hit[1], /\bheight:\s*44px/);
 });
 
 test('does not touch the page HTML itself', () => {
