@@ -21,6 +21,22 @@ import {
     type PlayInputMode,
 } from '../core/editOps';
 import { createBinaryBoard, createPlayerBoard, filledMatch, resizeBinaryBoard } from '../core/board';
+import {
+    canRedo,
+    canUndo,
+    createHistory,
+    decideHistoryKey,
+    layoutEditRow,
+    recordMove,
+    redoMove,
+    snapshotToBoard,
+    takeSnapshot,
+    undoMove,
+    type BoardSnapshot,
+    type EditRowButtonId,
+    type History,
+    type HistoryAction,
+} from '../core/history';
 import { createAnalysisWorker } from './analysisWorkerFactory';
 import { exportPBM, importPBM } from '../core/pbm';
 import { generateColHints, generateRowHints } from '../core/hints';
@@ -86,6 +102,8 @@ export class Game extends Scene {
     private get analysisPending(): boolean {
         return this.analysisRunner?.pending ?? true;
     }
+    /** Undo / redo history of the edit board (not kept across scene restarts) */
+    private history: History = createHistory();
     private message = 'Ready';
     private moveCount = 0;
     private startedAt = Date.now();
@@ -127,11 +145,20 @@ export class Game extends Scene {
         this.requestRender();
     };
     private readonly onKeyR = (): void => {
+        const before = takeSnapshot(this.solution);
         this.solution = createBinaryBoard(this.solution[0].length, this.solution.length, 0);
         this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+        this.recordMove(before);
         this.runAnalysis();
         this.message = 'Board cleared';
         this.requestRender();
+    };
+    /**
+     * Native listener (not Phaser's keydown-Z/Y): Phaser delivers key events after the browser has
+     * finished handling them, so only a native listener can still call preventDefault on Ctrl/Cmd+Z.
+     */
+    private readonly onHistoryKeyDown = (event: KeyboardEvent): void => {
+        this.handleHistoryKey(event);
     };
     private readonly onKeyT = (): void => {
         this.startPlayMode();
@@ -159,6 +186,8 @@ export class Game extends Scene {
         this.events.once('shutdown', this.onSceneShutdown, this);
         this.events.once('destroy', this.onSceneDestroy, this);
         this.bindKeyboard();
+        this.history = createHistory();
+        this.bindHistoryKeys();
         this.analysisRunner = new AnalysisRunner<AnalysisTag>({
             createWorker: createAnalysisWorker,
             onResult: (result, tag) => this.onAnalysisResult(result, tag),
@@ -182,6 +211,7 @@ export class Game extends Scene {
         this.input.off('pointerup', this.onPointerUp);
         this.scale.off('resize', this.onResize);
         this.unbindKeyboard();
+        this.unbindHistoryKeys();
         this.events.off('shutdown', this.onSceneShutdown, this);
         this.events.off('destroy', this.onSceneDestroy, this);
         if (this.renderRafId !== null && typeof window !== 'undefined') {
@@ -253,9 +283,70 @@ export class Game extends Scene {
         }
     }
 
+    private bindHistoryKeys(): void {
+        if (typeof window !== 'undefined') {
+            window.addEventListener('keydown', this.onHistoryKeyDown);
+        }
+    }
+
+    private unbindHistoryKeys(): void {
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('keydown', this.onHistoryKeyDown);
+        }
+    }
+
+    /** Records the move that turned `before` into the current board (nothing if the board is unchanged). */
+    private recordMove(before: BoardSnapshot): void {
+        this.history = recordMove(this.history, before, takeSnapshot(this.solution));
+    }
+
+    private handleHistoryKey(event: KeyboardEvent): void {
+        const target = event.target;
+        const typing = typeof HTMLElement !== 'undefined'
+            && target instanceof HTMLElement
+            && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable);
+        const decision = decideHistoryKey({
+            key: event.key,
+            ctrl: event.ctrlKey,
+            meta: event.metaKey,
+            shift: event.shiftKey,
+            alt: event.altKey,
+            // the import dialog is modal: keys must not reach the board behind it
+            typing: typing || this.importDialog !== null,
+            playing: this.mode === 'play',
+            dragging: this.drag.active,
+        });
+        if (decision.preventDefault) {
+            event.preventDefault();
+        }
+        if (decision.action !== null) {
+            this.stepHistory(decision.action);
+        }
+    }
+
+    /** Undo / redo for the edit board; does nothing in play mode, while dragging, or with an empty side. */
+    private stepHistory(action: HistoryAction): void {
+        if (this.mode !== 'edit' || this.drag.active) {
+            return;
+        }
+        const current = takeSnapshot(this.solution);
+        const step = action === 'undo' ? undoMove(this.history, current) : redoMove(this.history, current);
+        if (step === null) {
+            return;
+        }
+        this.history = step.history;
+        this.solution = snapshotToBoard(step.board);
+        this.player = createPlayerBoard(step.board.width, step.board.height, 'unknown');
+        this.runAnalysis();
+        this.message = action === 'undo' ? 'Undo' : 'Redo';
+        this.requestRender();
+    }
+
     private applySize(width: number, height: number): void {
+        const before = takeSnapshot(this.solution);
         this.solution = resizeBinaryBoard(this.solution, width, height);
         this.player = createPlayerBoard(this.solution[0].length, this.solution.length, 'unknown');
+        this.recordMove(before);
         this.mode = 'edit';
         this.runAnalysis();
         this.message = `Resized to ${this.solution[0].length} x ${this.solution.length}`;
@@ -315,7 +406,9 @@ export class Game extends Scene {
     private loadPBMText(text: string): void {
         try {
             const loaded = importPBM(text);
+            const before = takeSnapshot(this.solution);
             this.solution = loaded.puzzle.solution;
+            this.recordMove(before);
             this.player = createPlayerBoard(loaded.puzzle.width, loaded.puzzle.height, 'unknown');
             this.mode = 'edit';
             this.runAnalysis();
@@ -493,6 +586,8 @@ export class Game extends Scene {
             return;
         }
 
+        const before = this.mode === 'edit' ? takeSnapshot(this.solution) : null;
+
         // Tap/click without movement toggles just one cell.
         if (!this.drag.moved) {
             if (this.mode === 'edit') {
@@ -533,7 +628,8 @@ export class Game extends Scene {
             this.messageText = null;
         }
 
-        if (this.mode === 'edit') {
+        if (before !== null) {
+            this.recordMove(before);
             this.runAnalysis();
         } else if (this.drag.moved) {
             if (filledMatch(this.solution, this.player)) {
@@ -704,6 +800,16 @@ export class Game extends Scene {
                 active: true,
                 onClick: () => this.togglePlayInputMode(),
             });
+        } else {
+            // on a window too narrow for the first row (right edge 880), they wrap under [Resize] / [Import]
+            const wrapHistory = worldWidth < 888;
+            const undoX = wrapHistory ? 220 : 720;
+            const redoX = wrapHistory ? 304 : 804;
+            const historyY = wrapHistory ? 68 : 20;
+            desktopButtons.push(
+                { x: undoX, y: historyY, label: '[Undo]', width: 76, disabled: !canUndo(this.history), onClick: () => this.stepHistory('undo') },
+                { x: redoX, y: historyY, label: '[Redo]', width: 76, disabled: !canRedo(this.history), onClick: () => this.stepHistory('redo') },
+            );
         }
 
         if (!this.isMobileLayout) {
@@ -714,7 +820,9 @@ export class Game extends Scene {
 
         const toolbarHeight = 0;
         const tabHeight = this.isMobileLayout ? 42 : 0;
-        const panelHeight = this.isMobileLayout ? 102 : 0;
+        const editRow = layoutEditRow(worldWidth - 24 - 20);
+        // in edit mode the panel grows by a row when Undo / Redo wrap (same height on every tab, so the board does not jump when switching tabs)
+        const panelHeight = this.isMobileLayout ? 102 + (this.mode === 'edit' ? editRow.extraHeight : 0) : 0;
         const boardTop = this.isMobileLayout ? 92 : 120;
         const boardBottomPadding = this.isMobileLayout ? toolbarHeight + tabHeight + panelHeight + 12 : 12;
 
@@ -888,11 +996,13 @@ export class Game extends Scene {
                 this.drawButton({ x: panelX + 120, y: panelY + 34, label: 'Copy', width: 98, onClick: () => this.copyPBM(), disabled: !canCopy(this.analysisPending) });
             } else {
                 this.add.text(panelX + 10, panelY + 10, this.mode === 'edit' ? 'Edit tools' : 'Play tools', { ...UI_STYLE, fontSize: '13px' });
+                const editButton = (id: EditRowButtonId) => editRow.buttons.find((b) => b.id === id)!;
+                const resizeButton = this.mode === 'edit' ? editButton('resize') : { x: 0, y: 0, width: 94 };
                 this.drawButton({
-                    x: panelX + 10,
-                    y: panelY + 34,
+                    x: panelX + 10 + resizeButton.x,
+                    y: panelY + 34 + resizeButton.y,
                     label: 'Resize',
-                    width: 94,
+                    width: resizeButton.width,
                     onClick: () => {
                         const w = window.prompt('width (5-25)', String(width));
                         const h = window.prompt('height (5-25)', String(height));
@@ -924,16 +1034,35 @@ export class Game extends Scene {
                     });
                     this.add.text(panelX + 10, panelY + 82, `input: ${this.playInputMode}`, { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
                 } else {
+                    const playButton = editButton('play');
                     this.drawButton({
-                        x: panelX + 112,
-                        y: panelY + 34,
+                        x: panelX + 10 + playButton.x,
+                        y: panelY + 34 + playButton.y,
                         label: 'Play',
-                        width: 94,
+                        width: playButton.width,
                         onClick: () => {
                             this.startPlayMode();
                         },
                     });
-                    this.add.text(panelX + 10, panelY + 76, 'Analysis is updated automatically', { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
+                    const undoButton = editButton('undo');
+                    this.drawButton({
+                        x: panelX + 10 + undoButton.x,
+                        y: panelY + 34 + undoButton.y,
+                        label: 'Undo',
+                        width: undoButton.width,
+                        disabled: !canUndo(this.history),
+                        onClick: () => this.stepHistory('undo'),
+                    });
+                    const redoButton = editButton('redo');
+                    this.drawButton({
+                        x: panelX + 10 + redoButton.x,
+                        y: panelY + 34 + redoButton.y,
+                        label: 'Redo',
+                        width: redoButton.width,
+                        disabled: !canRedo(this.history),
+                        onClick: () => this.stepHistory('redo'),
+                    });
+                    this.add.text(panelX + 10, panelY + 76 + editRow.extraHeight, 'Analysis is updated automatically', { ...UI_STYLE, fontSize: '12px', color: '#a8a8a8' });
                 }
             }
 
