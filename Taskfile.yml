@@ -77,6 +77,7 @@ tasks:
   build:
     desc: build game + output
     cmds:
+    - task: game:check-title-link
     - task: build:games
     - task: build:output
   audit:
@@ -172,6 +173,10 @@ tasks:
     desc: show workflow progress for every game with status frontmatter
     cmds:
     - scripts/game-status.sh dashboard
+  game:check-title-link:
+    desc: fail when a Title Scene does not show the game list link (PACKAGE= for one game; every game by default)
+    cmds:
+    - node scripts/check-game-list-link.mjs {{ .PACKAGE }}
   game:detect:
     desc: guess which game is currently being worked on
     cmds:
