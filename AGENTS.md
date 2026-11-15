@@ -118,6 +118,7 @@ spec.md は会話の文脈を知らない実装者がそれだけで実装でき
 - 共有ビルドの成果物は `dist-shared/` 単体では動かない。確認するときは `task build` で `output/` を作り、サブパス（例 `/<repo>/`）で静的配信して開く。1ゲームだけ確認するなら `scripts/qa/up.sh <game-dir> <port> --shared`（そのゲームを `SHARED_VENDOR=1` でビルドし、`output/` と同じ並びでサブパス配信する。9節）
 - ビルド設定や `index.html` を触ったときは、単体ビルドと共有ビルドの両方で起動を確認する（Phaser 以外のバンドル方法を変えると、片方だけ壊れることがある）
 - セーフエリア（iOS のホーム画面 Web アプリで、半透明のステータスバーが画面の上端に重なる問題）は、`scaffold/vite/safe-area.mjs` の Vite プラグインが全ゲームに注入する（`viewport-fit=cover` と、`#app` の `env(safe-area-inset-*)` の padding・`100dvh`）。ゲームごとの `index.html` / `style.css` には書かない（`task scaffold:update-base-template` で上書きされる）。`#app` / `#game-container` を作り直すゲームは、この padding を消さない。確認は `scripts/qa/safe-area.mjs`
+	- ノッチのない iPhone は、ホーム画面モードでもインセットが 0 で、ページはステータスバーの下から始まる（iOS 27.2.1 の実機で確認）。iOS 27 のホーム画面 Web アプリでは、上端に固定要素が無いと WebKit が判断すると、OS がページの上端に暗いぼかしの帯（ステータスバーの下に約 35pt）を重ね、上端の HUD・ボタンが暗くぼやける（Safari のタブには出ない）。同じプラグインが、iOS のホーム画面モード（`navigator.standalone`）のときだけ、上端に高さ 11px の `position: fixed` の透明な要素（`#ios-blur-fix`。`background-clip: text` で何も描画しない）を置き、これを防ぐ。画面は狭くならない。`opacity: 0` / `visibility: hidden` / `display: none` で隠すと効かない。ゲームごとの対応は要らない。参考: https://qiita.com/na-trium-144/items/0add98a80ca2391e3f17
 - 実行時に Node.js サーバー専用機能へ依存しない
 - 画像・音声などのアセットパスはビルド後の解決を壊さない
 

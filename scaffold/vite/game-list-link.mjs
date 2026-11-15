@@ -14,7 +14,7 @@ export const GAME_LIST_LINK_CSS = `
     display: none;
     position: fixed;
     z-index: 10;
-    top: env(safe-area-inset-top);
+    top: calc(env(safe-area-inset-top) + var(--standalone-top-extra, 0px)); /* defined in safe-area.mjs */
     left: env(safe-area-inset-left);
     box-sizing: border-box;
     height: 24px;

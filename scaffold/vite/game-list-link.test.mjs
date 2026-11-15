@@ -31,7 +31,7 @@ test('the link is shown only while data-visible is true', () => {
 
 test('the link is fixed and stays inside the safe area', () => {
     assert.match(GAME_LIST_LINK_CSS, /position:\s*fixed/);
-    assert.ok(GAME_LIST_LINK_CSS.includes('env(safe-area-inset-top)'));
+    assert.ok(GAME_LIST_LINK_CSS.includes('env(safe-area-inset-top) + var(--standalone-top-extra, 0px)'));
     assert.ok(GAME_LIST_LINK_CSS.includes('env(safe-area-inset-left)'));
 });
 
