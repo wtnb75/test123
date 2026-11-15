@@ -6,16 +6,6 @@
 - 1 つのカードは 1 つの目的にする（1 変更 1 目的）。
 - 共有パッケージの置き方は AGENTS.md 2.1 節に従う（`shared/<name>`、使うすべてのゲームのテストを通す）。
 
-### 改行コードを LF にそろえる（`line-endings`）
-
-- 狙い: CRLF のファイルが 14 本ある（`scaffold/base-template/src/game/main.ts`・`scenes/Game.ts` と、そこから作った calc1・digdle・dutchcalc・editmin・nonoedit・primtris・shoot1 の `main.ts` / `scenes/Game.ts`）。`.gitattributes` が無いので、雛形から作る新しいゲームにも CRLF が入る。同じゲームの中で CRLF と LF が混ざり（nonoedit は「`Game.ts` の CRLF を保って差分を小さくする」と見送った）、エディタや置換のツールによっては、関係ない行まで差分に出る。根拠: 2026-11-15 の全体レビュー（行末の `\r` の検索）、nonoedit の `docs/review-rejected.md`
-- 何を足すか: `.gitattributes`（`* text=auto eol=lf`）を足し、14 本を LF に直す。雛形（`scaffold/base-template`）も直す。
-- コアループへの効き方: 広げない — 差分を読みやすくする。
-- 種別: presentation-only（改行だけ。挙動は変えない）
-- 規模: S
-- 出どころ: コードレビュー
-- メモ: 改行だけの 1 つの PR にする（ほかの変更と混ぜると、レビューで中身の差分が埋もれる）。開いている PR が同じファイルを触っていると衝突するので、PR が少ないときに入れる。`task scaffold:update-base-template` が雛形を上書きするとき、CRLF に戻らないかを確かめる。
-
 ### トップページの絞り込みが、壊れた URL で止まらないようにする（`index-hash-guard`）
 
 - 狙い: トップページのタグの絞り込みは、URL の `#tag=…` を `decodeURIComponent` で読む。`#tag=%E0%A4%A` のような壊れた値では例外になり、その後の処理（カードの表示の切り替え・チップのクリックの登録）が動かない。手で書き換えた URL・途中で切れたリンクで起きる。根拠: 2026-11-15 の全体レビュー（`scripts/build-index.mjs` の `fromHash`）。コードを読んだ結果で、ブラウザでは未確認
