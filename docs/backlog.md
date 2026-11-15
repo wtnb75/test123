@@ -6,15 +6,15 @@
 - 1 つのカードは 1 つの目的にする（1 変更 1 目的）。
 - 共有パッケージの置き方は AGENTS.md 2.1 節に従う（`shared/<name>`、使うすべてのゲームのテストを通す）。
 
-### 改行コードを LF にそろえる（`line-endings`）
+### calc1 の `Game.ts` の改行を LF にそろえる（`line-endings-calc1`）
 
-- 狙い: CRLF のファイルが 14 本ある（`scaffold/base-template/src/game/main.ts`・`scenes/Game.ts` と、そこから作った calc1・digdle・dutchcalc・editmin・nonoedit・primtris・shoot1 の `main.ts` / `scenes/Game.ts`）。`.gitattributes` が無いので、雛形から作る新しいゲームにも CRLF が入る。同じゲームの中で CRLF と LF が混ざり（nonoedit は「`Game.ts` の CRLF を保って差分を小さくする」と見送った）、エディタや置換のツールによっては、関係ない行まで差分に出る。根拠: 2026-11-15 の全体レビュー（行末の `\r` の検索）、nonoedit の `docs/review-rejected.md`
-- 何を足すか: `.gitattributes`（`* text=auto eol=lf`）を足し、14 本を LF に直す。雛形（`scaffold/base-template`）も直す。
+- 狙い: `.gitattributes`（`* text=auto eol=lf`）と、ほかの 13 本の LF 化は入れた（`chore/line-endings-lf`）。calc1 の `src/game/scenes/Game.ts` だけは、開いていた PR（#348 `feat/calc1-result-fit`）が同じファイルを触っていて衝突するため、CRLF のまま残した。根拠: 2026-11-15 の全体レビュー（行末の `\r` の検索）
+- 何を足すか: #348 のマージ後に、このファイルを LF に直す（`.gitattributes` があるので、次に触った時点で自然に直る。急ぐなら改行だけの 1 つの PR にする）。
 - コアループへの効き方: 広げない — 差分を読みやすくする。
 - 種別: presentation-only（改行だけ。挙動は変えない）
 - 規模: S
 - 出どころ: コードレビュー
-- メモ: 改行だけの 1 つの PR にする（ほかの変更と混ぜると、レビューで中身の差分が埋もれる）。開いている PR が同じファイルを触っていると衝突するので、PR が少ないときに入れる。`task scaffold:update-base-template` が雛形を上書きするとき、CRLF に戻らないかを確かめる。
+- メモ: `task scaffold:update-base-template` が雛形の `src/` を CRLF で上書きしても、`.gitattributes` により `git add` で LF に正規化される。
 
 ### トップページの絞り込みが、壊れた URL で止まらないようにする（`index-hash-guard`）
 
