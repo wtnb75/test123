@@ -46,6 +46,7 @@ export const HUD_Y = Math.round((FIELD_TOP - FRAME_WIDTH) / 2); // centre line o
 export const DEPTH = {
     frame: 5,
     danger: 7,
+    aim: 8,
     formation: 10,
     paddle: 20,
     enemyBall: 30,

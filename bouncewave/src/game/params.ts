@@ -56,6 +56,12 @@ export const HINT_FADE = 0.3; // s
 export const KILL_FLASH_DURATION = 0.2; // s
 export const KILL_FLASH_SCALE = 1.5;
 export const COMBO_MAX_TIER = 4; // own-ball tier cap; a kill scores SCORE_PER_ENEMY x wave x tier
+// Aim line (docs/spec/aim-line.md)
+export const AIM_MAX_BOUNCES = 4; // wall bounces the aim line follows
+export const AIM_LINE_WIDTH = 2; // px
+export const AIM_DASH = 8; // px
+export const AIM_GAP = 8; // px
+export const AIM_LINE_ALPHA = 0.55;
 export const SCORE_POP_DURATION = 0.9; // s
 export const SCORE_POP_RISE = 48; // px
 export const SCORE_POP_FONT_SIZE = 28; // logical px at tier 1
