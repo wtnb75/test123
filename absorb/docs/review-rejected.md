@@ -24,4 +24,8 @@
 - `logic/powerup.ts`（`PickupEffects` が他の演出クラスと同じ「経過時間 Infinity から始め、きっかけで 0、プレイ中だけ進める」を再実装している）— 理由: 演出クラスは 1 つ 10 行ほどの小さな時計を、それぞれ持つ作りで（`AbsorbEffects`・`DropFlashes` など）、共通化すると既存の演出の差分が広がる
 - `logic/powerup.ts`（`stepItem` の引数が 6 つで `canTake` の真偽値を取る）— 理由: 移動・取る・消すの順を 1 か所に固定するための関数で、各境界を単体テストが確かめている。引数の取り違えは同じ型の数値が並ぶ点だけで、呼び出しは `World.updateItems` の 1 か所
 - `scenes/Game.ts`（縁の色の決め方が `powerup.ts` と Scene に分かれている）— 理由: 点滅の規則（`edgeIsGold`）は純粋関数でテストし、「通常の縁の色が何か」は描画の色の選択で Scene に置く規則（`COLORS` と leech の色の混ざりは Scene の描画）。QA のスクリーンショットで確かめる
+- `logic/world.ts`（`chainBroken` が `flushGroups` でも立ち、`updateReleaseBullets` でしか下りない）— 理由: `flushGroups` は run の終わり（`over` への切り替え）の直前だけで、その後は読まれない。世界は再利用しない（リスタートで新しい `World`）
+- `logic/world.ts`（`ReleaseGroup.level` が省略可で、`releaseScore` の既定値 1 が欠落を隠す）— 理由: 既存のテストが `level` なしの group を手で作っている。最初の撃破で必ず設定され、撃破のある解放は `recordKill` を通る 1 経路だけ
+- `logic/world.ts`（`chainClock` が `elapsed` と別の時計）— 理由: `elapsed` は `ending` で止まるが、`ending` の間も撃破と窓の経過は続く（spec/chain.md）。表示が窓の経過で消えるため、`ending` でも進む時計が要る
+- `scenes/Game.ts`（`drawChain` の `shownChain` / `shownChainBoss` のキャッシュ）— 理由: `shownScore`・`shownBossHp` など既存の HUD と同じ書き方。非表示になる経路は 1 か所で、リスタートの `create` でも -1 に戻している
 - `scenes/DemoGame.ts`（`__qaDemo` が `items`・`fieldRadius`・`powerupElapsed` を出さない）— 理由: Demo は 1 回の走りが 40 秒で、carrier の初出現（70 秒）に届かず、アイテムは出ない（spec/powerup.md に明記）。`__qa` は `world` ごと出しているので、QA は必要なら読める

@@ -9,11 +9,12 @@ import {
 } from '../logic/buttonFx';
 import {
     ABSORB_RING_WIDTH, ABSORB_TRAIL_COUNT, BOSS_BAR_HEIGHT, BUTTON_INSET, BOSS_BAR_WIDTH_RATIO, BOSS_HIT_FLASH_WIDTH, BOSS_LABEL_SIZE,
-    DEBRIS_COUNT, ENDING_DURATION,
+    CHAIN_BAR_W, CHAIN_FONT, CHAIN_TEXT_TOP, CHAIN_X, DEBRIS_COUNT, ENDING_DURATION,
     ENEMY_BULLET_RADIUS, FIELD_EDGE_ALPHA, FIELD_EDGE_WIDTH, GRUNT_WARN, HUD_HEIGHT, PLAYER_RADIUS, RELEASE_RADIUS,
     HIT_RING_WIDTH, MULTIKILL_FONT_BASE, PAUSE_DIM_ALPHA, RELEASE_SHAKE_AMPLITUDE, RELEASE_SHAKE_DURATION, SPLIT_RING_WIDTH,
     LEECH_PARTICLE_RADIUS, LEECH_TETHER_ALPHA, POWERUP_COLOR, POWERUP_ITEM_RADIUS, POWERUP_PICKUP_RING_WIDTH, SPLITTER_CHILD_OUTLINE_ALPHA, SPLITTER_CHILD_OUTLINE_WIDTH, STOCK_MAX, type DefeatKind
 } from '../logic/constants';
+import { chainBarFraction, chainColor, chainLabel, chainLayout, chainVisible } from '../logic/chain';
 import { createPause } from '../logic/pause';
 import {
     StartEffects, chargeRadius, digitAlpha, digitLabel, digitScale, digitTime, goAlpha, goProgress, goScale, hudAlpha,
@@ -156,6 +157,11 @@ export class Game extends Scene {
     private centerText: GameObjects.Text;
     private buttonText: GameObjects.Text | null;
     private bossGfx: GameObjects.Graphics;
+    private chainGfx: GameObjects.Graphics;
+    private chainText: GameObjects.Text;
+    /** The chain level the text shows, and whether the boss offset was applied; -1 while hidden. */
+    private shownChain = -1;
+    private shownChainBoss = false;
     private bossLabel: GameObjects.Text;
     /** Defeat rings, drawn over the play area but under the HUD. */
     private fxGfx: GameObjects.Graphics;
@@ -241,6 +247,8 @@ export class Game extends Scene {
         this.startWorld();
         this.finished = false;
         this.shownScore = this.shownLives = this.shownStock = this.shownBossHp = -1;
+        this.shownChain = -1;
+        this.shownChainBoss = false;
         this.touchRoles.clear();
         this.releaseQueued = false;
         this.touchPressQueued = false;
@@ -333,6 +341,10 @@ export class Game extends Scene {
             fontFamily: 'monospace', fontSize: 96, color: TEXT_CSS_COLOR
         // Twice the resolution, so the digits stay sharp while they pop in at 1.6x.
         }).setOrigin(0.5).setResolution(2).setDepth(-1).setVisible(false);
+        this.chainGfx = this.add.graphics().setDepth(10);
+        this.chainText = this.add.text(CHAIN_X, CHAIN_TEXT_TOP, '', {
+            fontFamily: 'monospace', fontSize: CHAIN_FONT, color: TEXT_CSS_COLOR
+        }).setDepth(10).setVisible(false);
         this.bossGfx = this.add.graphics().setDepth(10);
         this.bossLabel = this.add.text(this.bossBarX() - 8, HUD_HEIGHT + BOSS_BAR_HEIGHT / 2, 'BOSS', {
             fontFamily: 'monospace', fontSize: BOSS_LABEL_SIZE, color: BOSS_CSS_COLOR
@@ -1024,6 +1036,35 @@ export class Game extends Scene {
         g.fillRect(x, HUD_HEIGHT, width * (boss.hp / boss.maxHp), BOSS_BAR_HEIGHT);
     }
 
+    /** "CHAIN ×n" and the window's remaining-time bar under the score; shown while the chain runs (level 2+). */
+    private drawChain() {
+        const w = this.world;
+        const g = this.chainGfx;
+        const since = w.chainSinceKill;
+        if (!chainVisible(w.chainLevel, since)) {
+            if (this.shownChain !== -1) {
+                this.shownChain = -1;
+                g.clear();
+                this.chainText.setVisible(false);
+            }
+            return;
+        }
+        const level = w.chainLevel;
+        const bossOut = w.boss !== null;
+        const color = chainColor(level);
+        const layout = chainLayout(bossOut);
+        if (level !== this.shownChain || bossOut !== this.shownChainBoss) {
+            this.shownChain = level;
+            this.shownChainBoss = bossOut;
+            this.chainText.setText(chainLabel(level)).setColor(cssColor(color)).setY(layout.textTop).setVisible(true);
+        }
+        g.clear();
+        g.fillStyle(color, 0.25);
+        g.fillRect(CHAIN_X, layout.barTop, CHAIN_BAR_W, layout.barHeight);
+        g.fillStyle(color, 1);
+        g.fillRect(CHAIN_X, layout.barTop, CHAIN_BAR_W * chainBarFraction(since), layout.barHeight);
+    }
+
     private drawHud() {
         const w = this.world;
         if (w.score !== this.shownScore) {
@@ -1045,6 +1086,7 @@ export class Game extends Scene {
         }
         this.buttonFxShown = this.buttonFx.playing;
         this.drawBossBar();
+        this.drawChain();
         this.applyHudAlpha(w.phase === 'ready' ? hudAlpha(w.phaseTime) : 1);
         const center = w.bossAnnounce > 0 ? 'BOSS' : '';
         if (this.centerText.text !== center) this.centerText.setText(center).setColor(BOSS_CSS_COLOR);
