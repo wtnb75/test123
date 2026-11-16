@@ -154,7 +154,7 @@ describe('breakdown wording', () => {
     });
 
     it('writes the bonus and total lines', () => {
-        expect(BONUS_LABEL).toBe('MULTI-KILL BONUS');
+        expect(BONUS_LABEL).toBe('BONUS');
         expect(bonusValue(2300)).toBe('+2300');
         expect(bonusValue(0)).toBe('+0');
         expect(totalLabel(10500)).toBe('SCORE 10500');

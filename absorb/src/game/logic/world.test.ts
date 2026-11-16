@@ -912,8 +912,25 @@ describe('releasing', () => {
         expect(w.openGroups).toHaveLength(2);
         untilBulletsGone(w);
         expect(w.enemies).toHaveLength(0);
-        // One kill each: 100 + 100, not (100 + 100) × 1.5.
-        expect(w.score).toBe(200);
+        // One kill each, so no multi-kill bonus ((100 + 100) × 1.5 would be 300). The second release follows the first
+        // within 5 s, though: chain level 2 doubles it (docs/spec/chain.md), so 100 + 200.
+        expect(w.score).toBe(300);
+        // Each release is counted on its own: 1 kill each (never 2 kills in one), worth 100 and 200.
+        expect(w.breakdown.grunt).toEqual({ count: 2, points: 200 });
+    });
+
+    it('does not merge the kills of two releases into one multi-kill when they settle apart (no chain: 5 s+ apart)', () => {
+        const w = playingWorld();
+        still(w, 'grunt', w.player.x - 150, 300, 1);
+        w.stock = 1;
+        w.release();
+        untilBulletsGone(w);
+        steps(w, 5.5);
+        still(w, 'grunt', w.player.x + 150, 300, 1);
+        w.stock = 1;
+        w.release();
+        untilBulletsGone(w);
+        expect(w.score).toBe(200); // 100 + 100: neither ×1.5 nor a chain
     });
 
     it('settles a release only after its last bullet is gone', () => {
@@ -1555,7 +1572,9 @@ describe('boss', () => {
             w.release();
             untilBulletsGone(w);
             expect(w.breakdown.boss).toEqual({ count: 2, points: 18750 }); // (60 + 90) × 125
-            expect(w.breakdown.boss.points).toBe(w.score);
+            // The second release's first kill comes within 5 s of the first: chain level 2, ×2 (docs/spec/chain.md).
+            expect(w.score).toBe(7500 + 11250 * 2);
+            expect(multiKillBonus(w.score, w.breakdown)).toBe(11250);
         });
 
         it('record a hit when the boss rams the player, like any other enemy', () => {

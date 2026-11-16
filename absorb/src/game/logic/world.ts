@@ -8,6 +8,7 @@ import {
     RELEASE_SPREAD, RELEASE_TURN_RATE, STOCK_MAX, type ActorKind, type DefeatKind, type EnemyKind
 } from './constants';
 import { emptyBreakdown, tallyKill, type ScoreBreakdown } from './breakdown';
+import { nextChainLevel } from './chain';
 import { getStage, pickEnemyKind } from './difficulty';
 import {
     assignHeavySlots, createCarrier, createDroppedEnemy, createEnemy, createLeech, createSplitterChildren, specOf,
@@ -57,6 +58,8 @@ export interface ReleaseGroup {
     id: number;
     pending: number;
     kills: number[];
+    /** The chain level fixed at the release's first kill (docs/spec/chain.md); unset (0) while it has no kill. */
+    level?: number;
     /** Where the release's latest kill happened, and whether that kill was the boss. */
     lastX: number;
     lastY: number;
@@ -192,6 +195,11 @@ export class World {
     /** Where the player lost a life during the latest step (for the hit effect). */
     private readonly hitsThisStep: Point[] = [];
     private nextGroupId = 1;
+    /** Chain bonus (docs/spec/chain.md): the running level (0 = none), and the clock it is timed by (public so tests can set the stage). */
+    chainLevel = 0;
+    chainClock = 0;
+    lastKillAt = -Infinity;
+    private chainBroken = false;
     /** Splitters release bullets killed this step; their children join once the step's collisions are done. */
     private readonly splitsThisStep: { x: number; y: number; heading: number }[] = [];
     /** Enemies carriers dropped this step; like split children they join once the step's collisions are done. */
@@ -290,8 +298,14 @@ export class World {
         return !e.removed && isOnScreen(e, this.screen);
     }
 
+    /** Seconds since a release bullet last killed something (Infinity before the first kill). */
+    get chainSinceKill(): number {
+        return this.chainClock - this.lastKillAt;
+    }
+
     step(dt: number, input: Input): void {
         this.phaseTime += dt;
+        this.chainClock += dt;
         this.absorbedPoints.length = 0;
         this.defeatedEnemies.length = 0;
         this.releasesThisStep.length = 0;
@@ -428,7 +442,7 @@ export class World {
         if (n <= 0) return;
         this.stock = 0;
         this.releasesThisStep.push({ x: this.player.x, y: this.player.y, count: n });
-        const group: ReleaseGroup = { id: this.nextGroupId++, pending: n, kills: [], lastX: 0, lastY: 0, lastIsBoss: false };
+        const group: ReleaseGroup = { id: this.nextGroupId++, pending: n, kills: [], level: 0, lastX: 0, lastY: 0, lastIsBoss: false };
         this.openGroups.push(group);
         const targets = this.assignTargets(n);
         for (let i = 0; i < n; i++) {
@@ -671,6 +685,11 @@ export class World {
             }
         }
         removeWhere(this.releaseBullets, isRemoved);
+        // Kills of this step come first, then the settlements: a release without kills resets the chain afterwards.
+        if (this.chainBroken) {
+            this.chainLevel = 0;
+            this.chainBroken = false;
+        }
     }
 
     /** Applies one bullet's damage to the first enemy it touches. */
@@ -693,6 +712,11 @@ export class World {
     /** Counts a kill toward its release and notes it for the multi-kill effect (one entry per release per step). */
     private recordKill(group: ReleaseGroup, e: Enemy): void {
         const points = killScore(e);
+        if (group.kills.length === 0) {
+            group.level = nextChainLevel(this.chainLevel, this.chainSinceKill);
+            this.chainLevel = group.level;
+        }
+        this.lastKillAt = this.chainClock;
         group.kills.push(points);
         tallyKill(this.tally, e.kind === 'boss' ? 'boss' : reportedKind(e.kind), points);
         group.lastX = e.x;
@@ -717,8 +741,10 @@ export class World {
 
     /** Adds a finished release's points to the score and reports it for the multi-kill effect. */
     private addGroupScore(group: ReleaseGroup): void {
-        const score = releaseScore(group.kills);
+        const score = releaseScore(group.kills, group.level);
         this.score += score;
+        // A release that killed nothing ends the chain; applied once the step's kills are counted (see updateReleaseBullets).
+        if (group.kills.length === 0) this.chainBroken = true;
         this.settlementsThisStep.push({
             id: group.id, kills: group.kills.length, score, x: group.lastX, y: group.lastY, lastIsBoss: group.lastIsBoss
         });

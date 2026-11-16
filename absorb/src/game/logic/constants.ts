@@ -129,6 +129,24 @@ export const RELEASE_LIFETIME = 2.5;
 export const RELEASE_RADIUS = 4;
 export const RELEASE_BONUS_STEP = 0.5;
 
+/** Chain bonus (docs/spec/chain.md): releases that kill something, in a row within CHAIN_WINDOW seconds, raise the multiplier. */
+export const CHAIN_WINDOW = 5;
+export const CHAIN_STEP = 1;
+/** Levels above the first that still add to the multiplier. */
+export const CHAIN_MAX_LEVEL = 4;
+export const CHAIN_MAX_BONUS = CHAIN_MAX_LEVEL * CHAIN_STEP;
+/** The chain HUD: left edge, the text band's top and font size, the bar's top and size (logical px). */
+export const CHAIN_X = 16;
+export const CHAIN_TEXT_TOP = 52;
+export const CHAIN_FONT = 22;
+export const CHAIN_BAR_TOP = 80;
+export const CHAIN_BAR_W = 110;
+export const CHAIN_BAR_H = 4;
+/** While a boss is out, the chain HUD moves down this far so it clears the "BOSS" label. */
+export const CHAIN_BOSS_OFFSET_Y = 24;
+export const CHAIN_TIER_YELLOW = 3;
+export const CHAIN_TIER_ORANGE = 5;
+
 export const ENEMY_BULLET_RADIUS = 5;
 export const THREE_WAY_SPREAD = Math.PI / 12;
 export const RADIAL_COUNT = 8;

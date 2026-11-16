@@ -51,7 +51,7 @@ export function normalizeBreakdown(data?: Partial<Record<BreakdownKind, Partial<
     return b;
 }
 
-/** The multi-kill bonus: whatever the final score holds beyond the kinds' base points. */
+/** The BONUS row: whatever the final score holds beyond the kinds' base points (the multi-kill and the chain bonus together). */
 export function multiKillBonus(score: number, breakdown: ScoreBreakdown): number {
     let base = 0;
     for (const kind of BREAKDOWN_KINDS) base += breakdown[kind].points;
@@ -82,7 +82,7 @@ export function kindRows(breakdown: ScoreBreakdown): KindRow[] {
 /** Shown in place of the kind rows when nothing was defeated. */
 export const NO_KILLS_LABEL = 'NO KILLS';
 
-export const BONUS_LABEL = 'MULTI-KILL BONUS';
+export const BONUS_LABEL = 'BONUS';
 
 export function bonusValue(bonus: number): string {
     return `+${bonus}`;
