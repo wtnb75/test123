@@ -4,6 +4,7 @@ import { holeCenter, startScroll } from './board';
 import { decideDemo, newDemoMove, type DemoSight } from './demoBot';
 import { LANDSCAPE, portraitLayout, type Layout } from './layout';
 import { applyStrike, judgeStrike, popState, type Pop } from './pop';
+import { blockedHoles, initHoles, stepHoles } from './holes';
 import { combineScrollIn } from './scroll';
 import { firstSpawnAt, rollDecoys, stepSpawn } from './spawn';
 
@@ -36,6 +37,9 @@ interface RunResult {
 /** One demo run of `demoRunSeconds`, stepping the same pure logic as the Game Scene with the bot's input. */
 function playDemo(layout: Layout, seed: number): RunResult {
     const rand = seeded(seed);
+    // the holes shift too (docs/spec/moving-holes.md), from their own random source like the Game
+    const holeRand = seeded(seed + 1000);
+    const holes = initHoles(holeRand, layout);
     let pops: Pop[] = [];
     let nextSpawn = firstSpawnAt();
     let score = 0;
@@ -74,7 +78,8 @@ function playDemo(layout: Layout, seed: number): RunResult {
         view = next;
         now += DT;
         pops = pops.filter((p) => popState(p, now) !== 'gone');
-        const { plan, scheduledAt } = stepSpawn(now, nextSpawn, pops.map((p) => p.hole), rand, layout);
+        stepHoles(holes, now, pops.map((p) => p.hole), holeRand);
+        const { plan, scheduledAt } = stepSpawn(now, nextSpawn, pops.map((p) => p.hole), rand, layout, blockedHoles(holes, now));
         for (const p of rollDecoys(plan, rand)) pops.push({ hole: p.hole, kind: p.kind, decoy: p.decoy, spawnedAt: now });
         nextSpawn = scheduledAt;
         if (pops.some((p) => p.kind === 'golden' && popState(p, now) === 'up')) result.goldenSeen = true;

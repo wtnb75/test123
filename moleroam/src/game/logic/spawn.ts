@@ -46,9 +46,13 @@ export const stepSpawn = (
     usedHoles: readonly number[],
     rand: () => number,
     layout: Layout = LANDSCAPE,
+    blocked: readonly number[] = [],
 ): { plan: SpawnPlan[]; scheduledAt: number } =>
     isSpawnDue(elapsedMs, scheduledAt)
-        ? { plan: planSpawn(usedHoles, rand, layout, rampPhase(elapsedMs).maxActive), scheduledAt: nextSpawnAt(elapsedMs) }
+        ? {
+              plan: planSpawn(usedHoles, rand, layout, rampPhase(elapsedMs).maxActive, blocked),
+              scheduledAt: nextSpawnAt(elapsedMs),
+          }
         : { plan: [], scheduledAt };
 
 /** The next check is one interval after the check that just ran (the interval of that check's phase), whether or not it spawned. */
@@ -191,7 +195,8 @@ const comboPlan = (free: readonly number[], rand: () => number, layout: Layout):
 };
 
 /**
- * What to spawn at one spawn check, given the holes in use (telegraph and up pops).
+ * What to spawn at one spawn check, given the holes in use (telegraph and up pops; they count toward the room) and
+ * the `blocked` holes (closed or still opening, docs/spec/moving-holes.md; they only leave the choice).
  * Random draws in order: combo roll (only when there is room for a combo), then for a combo the pattern draw and
  * that pattern's draws (docs/spec/combo-patterns.md). Cluster and normal spawns draw the anchor/hole, neighbour
  * holes, then per spawned pop its kind roll, a clock roll for a non-cat and a golden roll for a non-clock after it (see toKind).
@@ -201,9 +206,10 @@ export const planSpawn = (
     rand: () => number,
     layout: Layout = LANDSCAPE,
     maxActive: number = PARAMS.maxActive,
+    blocked: readonly number[] = [],
 ): SpawnPlan[] => {
     const room = maxActive - usedHoles.length;
-    const free = freeHoles(usedHoles, layout);
+    const free = freeHoles(blocked.length > 0 ? [...usedHoles, ...blocked] : usedHoles, layout);
     if (room <= 0 || free.length === 0) return [];
     const combo = room >= PARAMS.comboSize && rand() < PARAMS.comboRate;
     if (combo) return comboPlan(free, rand, layout);
