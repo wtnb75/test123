@@ -170,8 +170,25 @@ canvas {
 }
 
 .editmin-zoom-row,
-.editmin-history-row {
+.editmin-history-row,
+.editmin-tool-row {
     flex-wrap: wrap;
+}
+
+/* The shape tools' drag preview (docs/spec/shape-tools.md): a tint and an inner frame over any cell colour. Blue = place, pink = erase. */
+.editmin-board-grid .editmin-cell.preview-place {
+    box-shadow: inset 0 0 0 2px #1f6feb;
+    background-image: linear-gradient(rgba(31, 111, 235, 0.35), rgba(31, 111, 235, 0.35));
+}
+
+/* More specific than the dark mine paint (`.paint-mines .editmin-cell.mine`), so the tint shows over mines too. */
+.editmin-board-grid.editmin-board-grid .editmin-cell.mine.preview-erase {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55));
+}
+
+.editmin-board-grid .editmin-cell.preview-erase {
+    box-shadow: inset 0 0 0 2px #d6336c;
+    background-image: linear-gradient(rgba(214, 51, 108, 0.35), rgba(214, 51, 108, 0.35));
 }
 
 .editmin-zoom-label {

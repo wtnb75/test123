@@ -25,4 +25,5 @@
 - `src/game/logic/paint.ts`（`visitCell` の配列コピー、`strokeStatus` と `strokeStatusText` が別、`N` = 0 かつ `M` = 0 の保護、`onCellClick` を `paint.ts` に通さない）: 理由: 純粋関数は引数を変えない契約（spec）で、50 × 50 でも測れる差が無い。区分（純粋）と文言（Scene の選択）は spec が分けている。`N` = 0 かつ `M` = 0 は到達しない。1 マスのクリックの経路は変えない約束。
 - `src/game/scenes/Game.ts`（ストローク中のキーボード: 押している間の Enter・Space でサイドバーのボタン、ウィンドウの `blur`）: 理由: 左ボタンを押したままキーを押す同時操作で、ごくまれ。離し損ねは `pointermove` の `buttons` で終わる。
 - `src/game/scenes/Game.ts`（`onStrokeMouseDown` が効かない可能性、`applyCellViews(only)` が全ボタンを走査する）: 理由: 前者は未確認の推測で、効かなくても中ボタンの自動スクロールが出るだけ（QA で確かめる）。後者は 2500 マスの走査で、測れる差が無い。
+- `src/game/scenes/Game.ts`（ペンの `stroke` と線・矩形・枠の `shape` で、ドラッグの状態・リスナーの登録と解除・「ドラッグ中か」の判定が二重）: 理由: ペンのドラッグ編集は変えない約束（回帰条件）で、共通化はペンの経路に触れる。判定の箇所は 4 つで小さい。第 3 のドラッグ方式を足すときに `isDragging()` などにまとめる。
 - `src/game/scenes/Game.ts`（`onCellClick` の結線）: `canSetStart` / `canPlaceMine` の呼び出しが単体テストされない — 理由: Scene は spec でブラウザの確認（QA）の対象。QA で開始マスの拒否・禁止マスへの拒否の文言を確かめる。
