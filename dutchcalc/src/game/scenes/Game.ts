@@ -3,6 +3,7 @@ import { MAX_CANDIDATES, MAX_TOTAL_UNITS, MIN_CANDIDATES } from '../logic/alloca
 import { buildResultHtml } from '../logic/resultHtml';
 import { budgetFromUnits, parseBudget, unitsFromBudget } from '../logic/budget';
 import { decideCalc, type CalcMode } from '../logic/liveCalc';
+import { focusIndexAfterRemove } from '../logic/rows';
 import { buildProposalHtml, buildRemovedHtml, parseOddsTexts, proposeSubset } from '../logic/subset';
 
 // Rows dropped by "apply the proposal": their original positions (ascending) and odds texts.
@@ -24,6 +25,8 @@ type UiRefs = {
 
 export class Game extends Scene {
     private oddsValues: string[] = ['', ''];
+    // candidate row elements, in the same order as oddsValues
+    private rowEls: HTMLDivElement[] = [];
     private ui?: UiRefs;
     // true while a result is on screen (a failed auto calculation keeps it and shows a notice)
     private hasResult = false;
@@ -58,7 +61,7 @@ export class Game extends Scene {
         };
 
         this.bindUiEvents();
-        this.renderCandidates();
+        this.buildInitialRows();
         this.onResize();
         this.scale.on('resize', this.onResize, this);
     }
@@ -101,8 +104,8 @@ export class Game extends Scene {
                 return;
             }
             this.clearSubsetOnEdit();
-            this.oddsValues.push('');
-            this.renderCandidates();
+            this.insertRow(this.oddsValues.length, '');
+            this.focusOdds(this.oddsValues.length - 1);
         });
 
         this.ui.subset.addEventListener('click', (event) => {
@@ -161,78 +164,113 @@ export class Game extends Scene {
         });
     }
 
-    private renderCandidates(): void {
+    // Builds the rows for the initial values once. Later changes add or remove single rows
+    // (insertRow / removeRowAt), so the other rows keep their DOM and any half-typed value in them.
+    private buildInitialRows(): void {
         if (!this.ui) {
             return;
         }
+        this.rowEls = [];
+        for (const value of this.oddsValues) {
+            const row = this.createRow(value);
+            this.ui.candidateList.appendChild(row);
+            this.rowEls.push(row);
+        }
+        this.updateRowControls();
+    }
 
-        const list = this.ui.candidateList;
-        list.innerHTML = '';
+    // The only place a row is made. Handlers look up the row's current position when they run.
+    private createRow(value: string): HTMLDivElement {
+        const row = document.createElement('div');
+        row.className = 'dutchcalc-candidate-row';
 
-        this.oddsValues.forEach((value, index) => {
-            const row = document.createElement('div');
-            row.className = 'dutchcalc-candidate-row';
+        const label = document.createElement('label');
+        label.textContent = '倍率';
 
-            const label = document.createElement('label');
-            label.textContent = '倍率';
-
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = '0.1';
-            input.min = '1.01';
-            input.value = value;
-            input.dataset.role = 'odds-input';
-            input.addEventListener('input', () => {
-                this.clearSubsetOnEdit();
-                this.oddsValues[index] = input.value;
-                this.runCalculation('auto');
-            });
-            input.addEventListener('keydown', (event) => {
-                if (event.key !== 'Enter' || event.isComposing) {
-                    return;
-                }
-                event.preventDefault();
-                this.focusNextOdds(index);
-            });
-
-            const removeBtn = document.createElement('button');
-            removeBtn.textContent = '削除';
-            removeBtn.dataset.role = 'remove-candidate';
-            removeBtn.disabled = this.oddsValues.length <= MIN_CANDIDATES;
-            removeBtn.addEventListener('click', () => {
-                if (this.oddsValues.length <= MIN_CANDIDATES) {
-                    return;
-                }
-                this.clearSubsetOnEdit();
-                this.oddsValues.splice(index, 1);
-                this.renderCandidates();
-                this.runCalculation('auto');
-            });
-
-            row.appendChild(label);
-            row.appendChild(input);
-            row.appendChild(removeBtn);
-            list.appendChild(row);
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.1';
+        input.min = '1.01';
+        input.value = value;
+        input.dataset.role = 'odds-input';
+        input.addEventListener('input', () => {
+            this.clearSubsetOnEdit();
+            this.oddsValues[this.rowEls.indexOf(row)] = input.value;
+            this.runCalculation('auto');
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.isComposing) {
+                return;
+            }
+            event.preventDefault();
+            this.focusNextOdds(this.rowEls.indexOf(row));
         });
 
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '削除';
+        removeBtn.dataset.role = 'remove-candidate';
+        removeBtn.addEventListener('click', () => {
+            if (this.oddsValues.length <= MIN_CANDIDATES) {
+                return;
+            }
+            const index = this.rowEls.indexOf(row);
+            this.clearSubsetOnEdit();
+            this.removeRowAt(index);
+            this.runCalculation('auto');
+            this.focusOdds(focusIndexAfterRemove(index, this.rowEls.length));
+        });
+
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(removeBtn);
+        return row;
+    }
+
+    // Inserts one row at `position` (the end when it is past the last row).
+    private insertRow(position: number, value: string): void {
+        if (!this.ui) {
+            return;
+        }
+        const row = this.createRow(value);
+        this.ui.candidateList.insertBefore(row, this.rowEls[position] ?? null);
+        this.rowEls.splice(position, 0, row);
+        this.oddsValues.splice(position, 0, value);
+        this.updateRowControls();
+    }
+
+    private removeRowAt(position: number): void {
+        this.rowEls[position]?.remove();
+        this.rowEls.splice(position, 1);
+        this.oddsValues.splice(position, 1);
+        this.updateRowControls();
+    }
+
+    // Row count changed: refresh every delete button and the add button.
+    private updateRowControls(): void {
+        if (!this.ui) {
+            return;
+        }
+        const atMin = this.oddsValues.length <= MIN_CANDIDATES;
+        for (const row of this.rowEls) {
+            (row.querySelector('[data-role="remove-candidate"]') as HTMLButtonElement).disabled = atMin;
+        }
         this.ui.addBtn.disabled = this.oddsValues.length >= MAX_CANDIDATES;
+    }
+
+    private focusOdds(index: number): void {
+        this.rowEls[index]?.querySelector<HTMLInputElement>('[data-role="odds-input"]')?.focus();
     }
 
     // Enter in an odds field: move to the next row, or add a row after the last one (up to the limit).
     private focusNextOdds(index: number): void {
-        if (!this.ui) {
-            return;
-        }
         if (index === this.oddsValues.length - 1) {
             if (this.oddsValues.length >= MAX_CANDIDATES) {
                 return;
             }
             this.clearSubsetOnEdit();
-            this.oddsValues.push('');
-            this.renderCandidates();
+            this.insertRow(this.oddsValues.length, '');
         }
-        const inputs = this.ui.candidateList.querySelectorAll<HTMLInputElement>('[data-role="odds-input"]');
-        inputs[index + 1]?.focus();
+        this.focusOdds(index + 1);
     }
 
     // `auto` (every edit) leaves the screen alone while a field is blank and keeps the last result when
@@ -310,9 +348,8 @@ export class Game extends Scene {
         const positions = proposal.removeIndexes;
         this.removed = { positions, texts: positions.map((position) => this.oddsValues[position]) };
         for (const position of [...positions].reverse()) {
-            this.oddsValues.splice(position, 1);
+            this.removeRowAt(position);
         }
-        this.renderCandidates();
         this.runCalculation('auto');
         // Needed when the calculation was incomplete (it leaves the screen alone): the spec still shows
         // the "removed" line right after an apply.
@@ -326,11 +363,10 @@ export class Game extends Scene {
         }
         const { positions, texts } = this.removed;
         positions.forEach((position, i) => {
-            this.oddsValues.splice(position, 0, texts[i]);
+            this.insertRow(position, texts[i]);
         });
         this.removed = null;
         this.ui.subset.innerHTML = '';
-        this.renderCandidates();
         this.runCalculation('auto');
     }
 
