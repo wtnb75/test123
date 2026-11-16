@@ -5,6 +5,7 @@ import {
     isReviewCompact,
     recordAnswer,
     resultLayout,
+    resultReviewLabel,
     resultTexts,
     reviewRetryLabel,
     uniqueEntries,
@@ -135,6 +136,14 @@ describe('recordAnswer', () => {
         expect(ids(uniqueEntries(twice.wrongEntries))).toEqual(['a']);
     });
 
+    it('keeps the first-missed order when duplicates are removed from a mixed record', () => {
+        let rec = recordAnswer({ wrongEntries: [], correctEntries: [] }, b, false);
+        rec = recordAnswer(rec, a, false);
+        rec = recordAnswer(rec, b, false);
+        expect(ids(rec.wrongEntries)).toEqual(['b', 'a', 'b']);
+        expect(ids(uniqueEntries(rec.wrongEntries))).toEqual(['b', 'a']);
+    });
+
     it('keeps the other missed words when one of them is answered correctly', () => {
         const missed = recordAnswer(recordAnswer(empty, a, false), b, false);
         const r = recordAnswer(missed, a, true);
@@ -191,6 +200,33 @@ describe('resultTexts', () => {
             retryLabel: 'まだ間違えた語を再挑戦 (2語)',
             restartLabel: '最初から',
         });
+    });
+});
+
+describe('resultReviewLabel', () => {
+    it('labels the review button with the missed word count when words were missed', () => {
+        expect(resultReviewLabel(5, 20)).toBe('間違えた単語を復習する (5語)');
+    });
+
+    it('counts a single missed word as a missed case (boundary)', () => {
+        expect(resultReviewLabel(1, 20)).toBe('間違えた単語を復習する (1語)');
+    });
+
+    it('offers reviewing every question, with the question count, when no word is missed', () => {
+        expect(resultReviewLabel(0, 20)).toBe('全単語を復習する (20語)');
+    });
+
+    it('counts a word missed twice once, the same N as the retry button', () => {
+        const twice = recordAnswer(recordAnswer({ wrongEntries: [], correctEntries: [] }, a, false), a, false);
+        const missed = uniqueEntries(twice.wrongEntries).length;
+        expect(resultReviewLabel(missed, 2)).toBe('間違えた単語を復習する (1語)');
+        expect(resultTexts(false, missed).retryLabel).toBe('間違えた語を再挑戦 (1語)');
+    });
+
+    it('falls back to the review-all label when the only missed word was answered correctly later', () => {
+        // 2 questions: a wrong, then a correct (incorrect count is 1, missed words are 0)
+        const r = recordAnswer(recordAnswer({ wrongEntries: [], correctEntries: [] }, a, false), a, true);
+        expect(resultReviewLabel(uniqueEntries(r.wrongEntries).length, 2)).toBe('全単語を復習する (2語)');
     });
 });
 

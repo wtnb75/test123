@@ -85,6 +85,13 @@ export const resultTexts = (isRetry: boolean, missedCount: number): ResultTexts 
     restartLabel: isRetry ? '最初から' : 'もう一度',
 });
 
+// The review button counts missed words (deduplicated by id), the same N as the
+// retry button; with none missed it offers reviewing every question instead.
+export const resultReviewLabel = (missedCount: number, totalCount: number): string =>
+    missedCount > 0
+        ? `間違えた単語を復習する (${missedCount}語)`
+        : `全単語を復習する (${totalCount}語)`;
+
 export const reviewRetryLabel = (missedCount: number): string => `間違えた語を再挑戦 (${missedCount}語)`;
 
 export const isReviewCompact = (overlayHeightPx: number): boolean =>
