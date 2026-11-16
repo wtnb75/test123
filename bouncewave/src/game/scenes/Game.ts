@@ -13,6 +13,7 @@ import {
 import { shouldHideHint } from '../logic/hud';
 import { nextPaddleX } from '../logic/paddle';
 import { createRun, frameDt, stepRun, type Run } from '../logic/run';
+import { AimView } from './aimView';
 import { fadeInScene, GameFx } from './effects';
 import type { ResultData } from './Result';
 import {
@@ -47,6 +48,7 @@ export class Game extends Scene {
     private scoreText!: GameObjects.Text;
     private centerText!: GameObjects.Text;
     private fx!: GameFx;
+    private aimView!: AimView;
     private hideHint!: () => void;
     /** Seconds of play so far (stops while the rotate prompt is up), for the paddle hint. */
     private elapsed = 0;
@@ -75,6 +77,7 @@ export class Game extends Scene {
 
         this.drawFrame(height);
         this.drawDangerLine();
+        this.aimView = new AimView(this);
         this.paddle = this.add.image(this.paddleX, this.run.paddleY, TEX.paddle).setDepth(DEPTH.paddle);
         this.fx = new GameFx(this, this.paddle, HUD_Y);
         this.hideHint = this.fx.hint(height - PADDLE_BOTTOM_MARGIN / 2);
@@ -150,6 +153,7 @@ export class Game extends Scene {
         this.playEffects(dt);
         this.syncEnemies();
         this.syncBalls();
+        this.aimView.update(run, this.paddleX);
         this.updateHud();
         if (run.resultReady) {
             const data: ResultData = { score: run.score, wave: run.wave };
