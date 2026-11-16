@@ -46,8 +46,11 @@
 - `src/game/scenes/Help.ts`（`shutdown` での `input.off` が冗長）: Phaser が後始末する — 理由: `Result.ts` と同じパターンで無害。早い入力を無視するため `input.once` は使えない
 - `src/game/scenes/Help.ts`（開発ビルドの `__qa` の形が Title 用の QA スクリプトと違う）: — 理由: 開発ビルド専用で本番に含まれない。Help 用のシナリオは `scene: 'Help'` を見て読める
 - `src/game/scenes/Game.ts`（macOS の ctrl+クリックが `button 0` で届く）: 右クリック相当の操作が左のタップとして判定される — 理由: Phaser の仕様で、Mac の一部の操作だけの話。判定を壊す害は小さく、直す手段もない
-- `src/game/scenes/Game.ts`（HUD の文字が、縦の狭い画面（SE 縦）で CSS 14 px を下回る）: 主な情報の 14 px の規則に届かない — 理由: HUD の文字は既存の規定（キャンバス上で 32 px 以上）のまま、横長の 16 CSS px 規定だけ HUD を例外とすると、ユーザーが決めた（HINT の拡張の承認時）。HUD の大きさを変えるなら spec で決める
 - `src/game/logic/generate.ts`（`shiftColor` が明度の範囲を見ない）: 範囲外の明度になりうる — 理由: 図形の明度 0.4〜0.6 に 0.12 を足しても 0.28〜0.72 に収まると spec が定め、生成結果の範囲もテストで確認している。`colorLightShift` を変えるときは spec と一緒に見直す
 - `src/game/logic/generate.ts`（`diffKindsAt` が呼ぶたびに配列を作る）: 割り当て — 理由: 生成時だけで、`kindsAt` と同じ見送り済みの指摘
 - `src/game/logic/generate.ts`（差分ごとの判定円のリテラルの重複）: 5 か所で同じ式 — 理由: 判定円は spec で「色・消失・増加・形・明るさは同じ」と定めた式で、既存の作りと同じ。共通化の得が小さい
 - `src/game/logic/generate.test.ts`（`toneEdgeOnly` は反転そのものを数えない）: 生成結果からは、頼んだ向きが反転したか分からない — 理由: 反転は `shiftLight` の単体テストと変異（向きを変えない変異は検出済み）で確認している
+- `src/game/logic/phoneText.ts`（`fitHud` が実寸の下限で止まると HUD が最大幅を超えうる）: HINT・RESET に重なる恐れ — 理由: spec が実寸の下限を優先すると定め、375x550 以上では両立する（実際の幅は QA の撮影で確認）。それより小さい画面は保証の外
+- `src/game/scenes/Game.ts`（`onScaleResize` が `relayout` を呼びピンチを切る）: リサイズで操作中のピンチが止まる — 理由: 文字の大きさが閾値をまたぐときだけ。向きの変更でも同じ `relayout` が走る既存の挙動で、拡大の位置は引き継ぐ
+- `src/game/scenes/Game.ts`（セット番号の出入りにヒステリシスが無い）: 幅が境目の画面で出たり消えたりする — 理由: まれな条件で、足すのは仕様の変更になる
+- `src/game/scenes/Game.ts`（`RowSizes` と `PortraitText` の重複、`updateHud` の `setText` 3 回、`onScaleResize` の else 分岐、`sizeFor` に上限が無い）: 小さな重複・割り当て — 理由: 1 秒に 1 回程度の更新で影響が小さい。375x550 より小さい画面は保証の外

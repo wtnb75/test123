@@ -1,4 +1,4 @@
-import { Cameras, Core, GameObjects, Input, Scene } from 'phaser';
+import { Cameras, Core, GameObjects, Input, Scale, Scene } from 'phaser';
 import {
     MissEffects,
     clampPopupX,
@@ -13,6 +13,7 @@ import {
 } from '../logic/effects';
 import { inHintSquare } from '../logic/hint';
 import { Layout, panelPixels } from '../logic/layout';
+import { fitHud, portraitScale, portraitTextSizes } from '../logic/phoneText';
 import { Phase, Run } from '../logic/run';
 import { makeStageFor } from '../logic/set';
 import { hitPanelView, hudMaxWidth, inPanelRect, resetLabelX, resetVisible, viewFrame } from '../logic/zoom';
@@ -31,11 +32,21 @@ const HINT_MESSAGE = 'Tap where the pictures differ';
 const HUD_COLOR = '#ffffff';
 const HINT_OFF_COLOR = '#6b6b6b';
 
+/** Font sizes of the HUD row, plus the on-screen scale (portrait only) the HUD fit is judged with. */
+interface RowSizes {
+    hud: number;
+    hint: number;
+    message: number;
+    dropSet: boolean;
+    scale: number;
+}
+
 const DEPTH = { backdrop: 0, panels: 1, marks: 2, hint: 3, misses: 4, text: 5, popup: 6, overlay: 10 } as const;
 
 export class Game extends Scene {
     private run!: Run;
     private layout!: Layout;
+    private sizes: RowSizes = { hud: 30, hint: PARAMS.hintTextSize, message: 28, dropSet: false, scale: 1 };
     private frames: PanelFrame[] = [
         { x: 0, y: 0, scale: 1 },
         { x: 0, y: 0, scale: 1 },
@@ -140,6 +151,7 @@ export class Game extends Scene {
         this.layout = bindOrientation(this, (layout) => this.relayout(layout));
         this.relayout(this.layout);
         this.showOverlay(this.run.phase === 'paused');
+        this.scale.on(Scale.Events.RESIZE, this.onScaleResize, this);
 
         this.input.on('pointerdown', this.onPointerDown, this);
         this.input.on('pointermove', this.onPointerMove, this);
@@ -150,6 +162,7 @@ export class Game extends Scene {
         this.game.events.on(Core.Events.VISIBLE, this.onVisible, this);
         this.events.once('shutdown', () => {
             canvas.style.touchAction = touchAction;
+            this.scale.off(Scale.Events.RESIZE, this.onScaleResize, this);
             this.input.off('pointerdown', this.onPointerDown, this);
             this.input.off('pointermove', this.onPointerMove, this);
             this.input.off('pointerup', this.onPointerUp, this);
@@ -249,25 +262,51 @@ export class Game extends Scene {
         this.topCam.ignore([...rest, ...this.clipContent]);
     }
 
+    /**
+     * Font sizes of the HUD row texts. Phone layouts keep them >= 32px on the canvas; the portrait layout also keeps them readable on small
+     * screens (on-screen size, spec 演出・UI "縦レイアウトの小さい画面の文字"); landscape keeps the compact sizes.
+     */
+    private rowSizes(layout: Layout): RowSizes {
+        if (layout.kind === 'portrait') {
+            const scale = portraitScale(this.scale.displaySize.width, this.scale.displaySize.height);
+            const t = portraitTextSizes(scale);            return { hud: t.hud, hint: t.row, message: t.row, dropSet: t.dropSet, scale };
+        }
+        // the wide layout's HUD and message rows (y = 34 / 78) are only 44px apart, so they use the 32px minimum
+        if (layout.bigText) return { hud: 32, hint: 32, message: 32, dropSet: false, scale: 1 };
+        return { hud: 30, hint: PARAMS.hintTextSize, message: 28, dropSet: false, scale: 1 };
+    }
+
+    /** The display size changed (window resize, rotation): portrait row texts follow the new on-screen scale. */
+    private onScaleResize() {
+        // an orientation change resizes the canvas before the new layout is applied (`bindOrientation`): that one is relaid out there
+        const { width, height } = this.scale.gameSize;
+        if (this.layout.kind !== 'portrait' || width !== this.layout.width || height !== this.layout.height) return;
+        const next = this.rowSizes(this.layout);
+        const prev = this.sizes;
+        if (next.hud !== prev.hud || next.hint !== prev.hint || next.message !== prev.message) this.relayout(this.layout);
+        else {
+            this.sizes = next;
+            this.updateHud(true);
+        }
+    }
+
     private relayout(layout: Layout) {
         this.layout = layout;
-        // phone layout texts must stay >= 32px on the canvas (readable on a phone; spec 演出・UI); landscape keeps the compact sizes
-        const big = layout.bigText;
-        // the wide layout's HUD and message rows (y = 34 / 78) are only 44px apart, so they use the 32px minimum
-        const rowSize = layout.kind === 'wide' ? 32 : 36;
-        this.hud.setFontSize(big ? rowSize : 30).setPosition(layout.hud.x, layout.hud.y);
+        const sizes = this.rowSizes(layout);
+        this.sizes = sizes;
+        this.hud.setFontSize(sizes.hud).setPosition(layout.hud.x, layout.hud.y);
         // the HINT label sits at the right end of the HUD row, its hit square reaches past the label (transparent)
-        this.hintBtn.setFontSize(big ? rowSize : PARAMS.hintTextSize);
+        this.hintBtn.setFontSize(sizes.hint);
         this.hintCenter = { x: layout.width - PARAMS.hintMargin - this.hintBtn.width / 2, y: layout.hud.y };
         this.hintBtn.setPosition(this.hintCenter.x, this.hintCenter.y);
         // RESET mirrors HINT at the left end of the HUD row (shown only while zoomed in)
-        this.resetBtn.setFontSize(big ? rowSize : PARAMS.hintTextSize);
+        this.resetBtn.setFontSize(sizes.hint);
         // the hit square is the exact mirror of HINT's; only the (wider) label may move right to stay inside the left margin
         this.resetCenter = { x: layout.width - this.hintCenter.x, y: layout.hud.y };
         this.resetBtn.setPosition(resetLabelX(layout.width, this.hintCenter.x, this.resetBtn.width), this.resetCenter.y);
         this.zoom.cancel();
-        this.message.setFontSize(big ? rowSize : 28).setPosition(layout.message.x, layout.message.y);
-        for (const p of this.popups) p.setFontSize(big ? 36 : 30);
+        this.message.setFontSize(sizes.message).setPosition(layout.message.x, layout.message.y);
+        for (const p of this.popups) p.setFontSize(layout.bigText ? 36 : 30);
         this.pausedTitle.setPosition(layout.center.x, layout.center.y - 40);
         this.pausedHint.setPosition(layout.center.x, layout.center.y + 40);
         this.overlay.clear();
@@ -524,10 +563,21 @@ export class Game extends Scene {
         this.hudFound = found;
         this.hudTotal = total;
         this.hudSeconds = sec;
-        this.hud.setText(`${r.setNo}   ${r.stageNo}/${PARAMS.stageCount}   ${found}/${total}   TIME ${sec}`).setScale(1);
+        const body = `${r.stageNo}/${PARAMS.stageCount}   ${found}/${total}   TIME ${sec}`;
+        const full = `${r.setNo}   ${body}`;
+        this.hud.setText(full).setScale(1);
         // the HUD is centred, so it keeps clear of the HINT label on both sides; fit so that even the peak of the low-time pulse stays inside
         const maxWidth = hudMaxWidth(this.layout.width, this.hintBtn.width, this.resetBtn.width);
-        this.hudFit = this.hud.width > maxWidth ? maxWidth / this.hud.width : 1;
+        if (this.layout.kind === 'portrait') {
+            // on a small screen the HUD is large and has no set number; it never shrinks below its on-screen minimum (the set number goes first)
+            const withSetWidth = this.hud.width;
+            const withoutSetWidth = this.hud.setText(body).width;
+            const fit = fitHud(withSetWidth, withoutSetWidth, maxWidth, this.sizes.hud, this.sizes.scale, this.sizes.dropSet);
+            if (!fit.dropSet) this.hud.setText(full);
+            this.hudFit = fit.scale;
+        } else {
+            this.hudFit = this.hud.width > maxWidth ? maxWidth / this.hud.width : 1;
+        }
         this.hud.setScale(this.hudFit * this.hudPulse);
     }
 
