@@ -17,4 +17,9 @@
 - `src/game/scenes/Game.ts` モバイルの情報タブ: 行を 16 px 間隔に詰めた、`timeout: 3s` が `hardest` の行の右端で重なりうる — 理由: `unsolved` のときは `hardest` が `-` で重ならない。最小画面での収まりは QA のスクリーンショットで確かめる
 - `docs/spec/solver.md` / `Game.ts`: 行ラベルが小文字の `hardest:`（spec は `Hardest`）— 理由: 文言（英語）は実装裁量。他の行と揃えている
 - `src/game/scenes/Game.ts` パネル: 行の y 座標を手で並べている — 理由: 元からの書き方で、この変更の目的の外
+- `src/game/core/history.ts` / `Game.ts` Undo/Redo のキー: 非ラテン配列で `key` と Phaser/物理キーが食い違う、修飾キーなしの `z`/`y` と長押しの繰り返しで履歴が一気に減る — 理由: spec が「`Z`/`Y`（Shift の有無は問わない）」と決めていて、繰り返しは実装裁量に書いてある
+- `src/game/scenes/Game.ts` プレイ中の `R` が履歴に 1 手を残す — 理由: spec「操作仕様」の例外として決めた挙動（編集に戻ってから元に戻せるように）
+- `src/game/scenes/Game.ts` Undo/Redo の結線（記録の呼び出し・キーの解除・メッセージ）に自動テストが無い、モバイルの編集タブに `Undo`/`Redo` のメッセージが出ない — 理由: Scene は単体テストの対象外で、spec が QA で確かめると決めている。メッセージは文字だけを要求している
+- `src/game/scenes/Game.ts` モバイルの編集行: `find(...)!` とプレイ中の幅 94 の直書き、PC の折り返しのしきい値（888）と座標の直書き、パネルの高さが全タブで増える — 理由: lint は通り、動作に影響しない。折り返した行の収まりは QA（幅 720〜887px）で確かめる。パネルの高さはタブ切り替えで盤面が動かないための選択
+- `src/game/scenes/Game.ts` / `history.ts`: Undo/Redo で盤面を二重にコピーする — 理由: 25 × 25 で無視できる
 - `docs/spec.md`: frontmatter の段階が `pending` に戻っている — 理由: `game-spec` のリセットによる想定どおりの状態。PR を開く前に各段階が `done` に戻る
