@@ -4,13 +4,15 @@
 - `public/style.css`: 元本割れ行の色が固定値、バッジが 12px — 理由: 色は実装裁量。12px は仕様の補助文字 11px 以上を満たす
 - `resultHtml.test.ts`: CSS 文字列の正規表現テストが脆い、Scene の配線が未テスト — 理由: Scene のテストは仕様で QA の担当。CSS の確認は 480px 境界の回帰条件として意図的
 - `resultHtml.ts` 横スクロール時のバッジ: 損益列が切れうる — 理由: 範囲内の入力は収まる設計で、範囲外だけ横スクロール（仕様どおり）。符号とバッジの文字があるので色だけに頼らない
-- `Game.ts` 行を足す（Enter / 候補を追加 / 削除）と全行を作り直し、入力途中の `1.` が消える — 理由: 変更前からの方式。新しい入力途中の値は `oddsValues` に入らず、影響は一瞬の入力のやり直しだけ
 - `Game.ts` Enter の `keyCode === 229`（Safari の IME 確定）— 理由: Safari は number 欄で IME を使えないので起きない
-- `Game.ts` 削除ボタンを押したあとのフォーカス — 理由: 変更前からの挙動で、この拡張の対象外
 - `Game.ts` applySubset: 記録があるときの二重適用の防止がない — 理由: 記録があるあいだ提案の行は「外しました」の行で、適用ボタンは存在しない（spec どおり）
 - `Game.ts` 倍率欄の入力のたびに提案の行を消して描き直す — 理由: spec が行の編集で提案の行を空にすると定めている
 - `subset.ts` parseOddsTexts が検証を重複している — 理由: `allocate.ts` / `liveCalc.ts` は変えないものの一つ。どちらも `Number()` で読み、判定は一致する
 - `Game.ts` 適用後の再計算が無効になり「元に戻す」が隠れる — 理由: 適用できるのは注意書きのない（有効な）ときだけで、行を減らしても入力は無効にならない
-- `Game.ts` 適用・復元で押したボタンのフォーカスが失われる — 理由: spec の実装裁量に委任済み
+- `Game.ts` 適用・復元でフォーカスを移さない — 理由: spec が「移さない」と定めている
 - `Game.ts` 倍率が読めないとき「提案を適用」が何も起きない — 理由: spec が「何も起きない」と定めている
 - `liveCalc.ts` 負の予算・予算が投資額より小さいときの負の余り — 理由: 余りの規則（予算 − 合計投資額）は変更前から。入力途中の一時表示は仕様の実装裁量に書いてある
+- `Game.ts` 行のイベントの `rowEls.indexOf(row)` が -1 になりうる — 理由: 取り外した行は DOM から外れており、イベントは発火しない。行は `createRow` だけが作り、`rowEls` と `oddsValues` は `insertRow` / `removeRowAt` が同時に更新する
+- `Game.ts` Scene の再起動で `oddsValues` が残る・`rowEls` の後始末がない — 理由: Scene は 1 つだけで再起動しない。`oddsValues` の扱いは変更前から同じ（`buildInitialRows` は `rowEls` を作り直す）
+- `Game.ts` `updateRowControls` の `querySelector` の型変換と、追加・削除ごとの全行の更新 — 理由: マークアップは `createRow` が作る固定の形。行は最大 20 件で、費用は無視できる。復元・適用で 1 行ごとに更新しても結果は同じ
+- `Game.ts` 行の DOM の保持・フォーカスの単体テストが無い — 理由: spec が Scene の DOM は QA と手の確認の担当と定めている（`focusIndexAfterRemove` は単体テスト済み）
