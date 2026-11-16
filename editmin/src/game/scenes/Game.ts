@@ -46,7 +46,18 @@ import {
     type BoardSnapshot,
     type History
 } from '../logic/history';
-import { beginStroke, paintModeAt, strokeLine, strokeStatus, strokeStatusText, visitCell, type Stroke } from '../logic/paint';
+import { beginStroke, paintModeAt, strokeLine, strokeStatus, strokeStatusText, visitCell, type PaintMode, type Stroke } from '../logic/paint';
+import {
+    TOOLS,
+    TOOL_DEFAULT,
+    applyShape,
+    fillRegion,
+    isShapeTool,
+    previewCells,
+    shapeCells,
+    type ShapeTool,
+    type Tool
+} from '../logic/shapes';
 
 /** Whether the key event comes from a text field (the W and H inputs), where the shortcuts must not act. */
 const isTypingInInput = (event: KeyboardEvent): boolean => {
@@ -63,8 +74,21 @@ type ActiveStroke = {
     last: number;
 };
 
+/** The line / rectangle / frame drag in progress (docs/spec/shape-tools.md): nothing is applied until the release. */
+type ShapeDrag = {
+    tool: ShapeTool;
+    mode: PaintMode;
+    /** The cell pressed. */
+    start: number;
+    /** The cell the pointer was last over inside the board. */
+    end: number;
+    /** The cells the preview marks now. */
+    marked: Set<number>;
+};
+
 type UiRefs = {
     root: HTMLDivElement;
+    toolBtns: HTMLButtonElement[];
     boardGrid: HTMLDivElement;
     boardScroll: HTMLDivElement;
     widthInput: HTMLInputElement;
@@ -104,6 +128,10 @@ export class Game extends Scene {
     private history: History = emptyHistory();
     /** The drag edit in progress; null otherwise. */
     private stroke: ActiveStroke | null = null;
+    /** The editing tool (never saved: the pen again after a restart). */
+    private tool: Tool = TOOL_DEFAULT;
+    /** The line / rectangle / frame drag in progress; null otherwise. */
+    private shape: ShapeDrag | null = null;
     /** True from a stroke's press until the next press: the `click` that press ends with must not toggle again. */
     private suppressClick = false;
     private ui?: UiRefs;
@@ -118,6 +146,8 @@ export class Game extends Scene {
         this.play = null;
         this.history = emptyHistory();
         this.stroke = null;
+        this.shape = null;
+        this.tool = TOOL_DEFAULT;
         this.suppressClick = false;
         this.startIndex = null;
         this.startMode = false;
@@ -130,6 +160,7 @@ export class Game extends Scene {
         const root = el.node as HTMLDivElement;
         this.ui = {
             root,
+            toolBtns: Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tool]')),
             boardGrid: root.querySelector('[data-role="board-grid"]') as HTMLDivElement,
             boardScroll: root.querySelector('[data-role="board-scroll"]') as HTMLDivElement,
             widthInput: root.querySelector('[data-role="width"]') as HTMLInputElement,
@@ -186,6 +217,9 @@ export class Game extends Scene {
               <button data-role="redo" disabled>やり直す</button>
               <button data-role="clear-mines" disabled>全消去</button>
             </div>
+            <div class="editmin-row editmin-tool-row">
+              ${TOOLS.map(({ tool, label }) => `<button data-tool="${tool}" aria-pressed="${tool === TOOL_DEFAULT}">${label}</button>`).join('\n              ')}
+            </div>
             <div class="editmin-row">
               <button data-role="play-toggle">プレイ</button>
             </div>
@@ -205,7 +239,7 @@ export class Game extends Scene {
             <div class="editmin-metric" data-role="rank">ランク: 未評価</div>
             <div class="editmin-metric" data-role="logical">論理解法可否: 未評価</div>
             <div class="editmin-metric" data-role="evidence">根拠値: 未評価</div>
-            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />左ボタンを押したままなぞると、通ったマスにまとめて置く／消せます（最初に押したマスに爆弾が無ければ置く、あれば消す）<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />元に戻す: Ctrl（⌘）+Z、やり直す: Ctrl（⌘）+Shift+Z / Ctrl+Y<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
+            <p class="editmin-help">左クリック: 爆弾トグル / 開始マス指定モード中は開始マス設定<br />左ボタンを押したままなぞると、通ったマスにまとめて置く／消せます（最初に押したマスに爆弾が無ければ置く、あれば消す）<br />ツール: 線・矩形・枠はドラッグで範囲を決めて離すと適用（Esc で取り消し）、塗りつぶしはクリック<br />ズーム: + / − / 0（フィット）、Ctrl（⌘）+ホイール<br />表示モード: 「表示」ボタン、またはキー M（絵 → 数字 → 両方 → 絵）<br />元に戻す: Ctrl（⌘）+Z、やり直す: Ctrl（⌘）+Shift+Z / Ctrl+Y<br />プレイ: 左クリックで開く・右クリックで旗（数字と旗はマスが 20 px 以上のときに出ます）</p>
           </div>
         </div>`;
     }
@@ -240,6 +274,10 @@ export class Game extends Scene {
             this.startMode = !this.startMode;
             this.ui!.startBtn.classList.toggle('active', this.startMode);
             this.setStatus(this.startMode ? '開始マスをクリックしてください。' : '開始マス指定モードを終了しました。');
+            this.updateToolUi();
+        });
+        this.ui.toolBtns.forEach((button) => {
+            button.addEventListener('click', () => this.selectTool(button.dataset.tool as Tool));
         });
 
         this.ui.zoomOutBtn.addEventListener('click', () => this.applyZoomAction('out'));
@@ -264,6 +302,7 @@ export class Game extends Scene {
 
     private removeInputListeners(): void {
         this.removeStrokeListeners();
+        this.removeShapeListeners();
         this.ui?.boardGrid.removeEventListener('pointerdown', this.onBoardPointerDown);
         window.removeEventListener('keydown', this.onZoomKey);
         window.removeEventListener('keydown', this.onDisplayKey);
@@ -275,7 +314,7 @@ export class Game extends Scene {
 
     private readonly onBoardContextMenu = (event: MouseEvent): void => {
         // No menu during the play, nor in the middle of a drag edit (the menu would swallow the left button's release).
-        if (this.play !== null || this.stroke !== null) {
+        if (this.play !== null || this.stroke !== null || this.shape !== null) {
             event.preventDefault();
         }
     };
@@ -288,7 +327,7 @@ export class Game extends Scene {
 
     /** A left mouse press on a cell starts a drag edit (edit mode only); every press ends the previous click suppression. */
     private readonly onBoardPointerDown = (event: PointerEvent): void => {
-        if (this.stroke !== null) {
+        if (this.stroke !== null || this.shape !== null) {
             return; // a press while a stroke runs does nothing
         }
         this.suppressClick = false;
@@ -297,8 +336,15 @@ export class Game extends Scene {
         if (event.pointerType !== 'mouse' || event.button !== 0 || event.ctrlKey || this.play !== null || this.startMode || index === null) {
             return;
         }
+        if (this.tool === 'fill') {
+            return; // the fill works on the click
+        }
         event.preventDefault();
         this.suppressClick = true;
+        if (isShapeTool(this.tool)) {
+            this.beginShape(this.tool, index);
+            return;
+        }
         const mines = this.cells.map((c) => c.hasMine);
         this.stroke = { paint: beginStroke(paintModeAt(mines, index)), mines, before: this.snapshot(), last: index };
         window.addEventListener('pointermove', this.onStrokeMove);
@@ -383,8 +429,158 @@ export class Game extends Scene {
         this.renderAll();
     }
 
+    /**
+     * Picks the editing tool. Not while the play, the start-cell mode or a drag is on. The buttons are disabled only for
+     * the play and the start-cell mode; the drag guard here is what stops a keyboard activation during a drag.
+     */
+    private selectTool(tool: Tool): void {
+        if (this.play !== null || this.startMode || this.stroke !== null || this.shape !== null) {
+            return;
+        }
+        this.tool = tool;
+        this.updateToolUi();
+    }
+
+    /** The tool buttons show the tool in use, and are off while the play or the start-cell mode is on. */
+    private updateToolUi(): void {
+        if (!this.ui) {
+            return;
+        }
+        const locked = this.play !== null || this.startMode;
+        for (const button of this.ui.toolBtns) {
+            const active = button.dataset.tool === this.tool;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+            button.disabled = locked;
+        }
+    }
+
+    /** Presses on `index` with a line / rectangle / frame tool: the mode is decided now, nothing is changed yet. */
+    private beginShape(tool: ShapeTool, index: number): void {
+        const mines = this.cells.map((c) => c.hasMine);
+        this.shape = { tool, mode: paintModeAt(mines, index), start: index, end: index, marked: new Set<number>() };
+        window.addEventListener('pointermove', this.onShapeMove);
+        window.addEventListener('pointerup', this.onShapeUp);
+        window.addEventListener('pointercancel', this.onShapeCancel);
+        window.addEventListener('keydown', this.onShapeKey);
+        window.addEventListener('mousedown', this.onStrokeMouseDown);
+        this.updatePreview();
+    }
+
+    private readonly onShapeMove = (event: PointerEvent): void => {
+        const shape = this.shape;
+        if (shape === null) {
+            return;
+        }
+        if ((event.buttons & 1) === 0) {
+            this.endShape(true); // the release was missed
+            return;
+        }
+        const index = this.cellIndexOf(document.elementFromPoint(event.clientX, event.clientY));
+        if (index === null || index === shape.end) {
+            return; // outside the board the last cell inside stays the end
+        }
+        shape.end = index;
+        this.updatePreview();
+    };
+
+    private readonly onShapeUp = (): void => this.endShape(true);
+
+    private readonly onShapeCancel = (): void => this.endShape(false);
+
+    private readonly onShapeKey = (event: KeyboardEvent): void => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.endShape(false);
+        }
+    };
+
+    private removeShapeListeners(): void {
+        window.removeEventListener('pointermove', this.onShapeMove);
+        window.removeEventListener('pointerup', this.onShapeUp);
+        window.removeEventListener('pointercancel', this.onShapeCancel);
+        window.removeEventListener('keydown', this.onShapeKey);
+        window.removeEventListener('mousedown', this.onStrokeMouseDown);
+    }
+
+    private previewClass(mode: PaintMode): string {
+        return mode === 'place' ? 'preview-place' : 'preview-erase';
+    }
+
+    /** Marks the cells the drag would change, by classes only: no button is rebuilt, nothing else is touched. */
+    private updatePreview(): void {
+        const shape = this.shape;
+        if (shape === null || !this.ui) {
+            return;
+        }
+        const mines = this.cells.map((c) => c.hasMine);
+        const cells = shapeCells(shape.tool, shape.start, shape.end, this.widthCells);
+        const forbidden = this.forbiddenCells(); // once per update: the same rule as canPlaceMine
+        const next = new Set(previewCells(shape.mode, mines, cells, (i) => !forbidden.has(i)));
+        const buttons = this.ui.boardGrid.children;
+        const cls = this.previewClass(shape.mode);
+        for (const i of shape.marked) {
+            if (!next.has(i)) {
+                buttons[i]?.classList.remove(cls);
+            }
+        }
+        for (const i of next) {
+            if (!shape.marked.has(i)) {
+                buttons[i]?.classList.add(cls);
+            }
+        }
+        shape.marked = next;
+    }
+
+    /** Puts the preview classes back after the cell views were redrawn (a display-mode change during the drag). */
+    private remarkPreview(): void {
+        const shape = this.shape;
+        if (shape === null || !this.ui) {
+            return;
+        }
+        for (const i of shape.marked) {
+            this.ui.boardGrid.children[i]?.classList.add(this.previewClass(shape.mode));
+        }
+    }
+
+    /** Ends the drag: applies the shape (release) or drops it (cancel). The preview is always removed. */
+    private endShape(apply: boolean): void {
+        const shape = this.shape;
+        if (shape === null) {
+            return;
+        }
+        this.shape = null;
+        this.removeShapeListeners();
+        const cls = this.previewClass(shape.mode);
+        for (const i of shape.marked) {
+            this.ui?.boardGrid.children[i]?.classList.remove(cls);
+        }
+        if (apply) {
+            this.applyCells(shapeCells(shape.tool, shape.start, shape.end, this.widthCells), shape.mode);
+        }
+    }
+
+    /** The flood fill on a click: the cells joined to `index` in the same state get the opposite one. */
+    private fillAt(index: number): void {
+        const mines = this.cells.map((c) => c.hasMine);
+        this.applyCells(fillRegion(mines, index, this.widthCells, this.heightCells), paintModeAt(mines, index));
+    }
+
+    /** One edit of the shape tools: the pen's per-cell rules on `cells`, the status line, one history move, one redraw. */
+    private applyCells(cells: readonly number[], mode: PaintMode): void {
+        const before = this.snapshot();
+        const forbidden = this.forbiddenCells(); // once per edit: the same rule as canPlaceMine
+        const result = applyShape(mode, before.mines, cells, (i) => !forbidden.has(i));
+        const text = strokeStatusText(strokeStatus(result.stroke));
+        if (text !== null) {
+            this.setStatus(text);
+        }
+        this.commitMove(before, { ...before, mines: result.mines });
+        this.renderAll();
+    }
+
     private readonly onHistoryKey = (event: KeyboardEvent): void => {
-        const action = historyKeyAction(event, isTypingInInput(event), this.play !== null || this.stroke !== null);
+        const action = historyKeyAction(event, isTypingInInput(event), this.play !== null || this.stroke !== null || this.shape !== null);
         if (action !== null) {
             event.preventDefault();
             this.stepHistory(action);
@@ -555,6 +751,7 @@ export class Game extends Scene {
         this.displayMode = nextDisplayMode(this.displayMode);
         this.applyGridDisplayClasses();
         this.applyCellViews();
+        this.remarkPreview();
     }
 
     /** Sets each cell's text and classes from the mode (or the play) and the cell state. No button is created here. */
@@ -700,6 +897,12 @@ export class Game extends Scene {
             }
             this.setStatus('開始マスを設定しました。');
             this.renderAll();
+            return;
+        }
+
+        // The fill works on a mouse click or a tap; a keyboard "click" (detail 0) still toggles the one cell.
+        if (this.tool === 'fill' && event.detail !== 0) {
+            this.fillAt(index);
             return;
         }
 
@@ -855,6 +1058,7 @@ export class Game extends Scene {
         this.ui.redoBtn.disabled = !buttons.redoEnabled;
         this.ui.clearBtn.disabled = !buttons.clearEnabled;
         this.ui.playStatus.textContent = this.playStatusText();
+        this.updateToolUi();
         this.applyGridDisplayClasses();
         this.applyCellViews();
     }
