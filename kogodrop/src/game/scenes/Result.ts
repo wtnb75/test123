@@ -4,6 +4,7 @@ import {
     RESULT_REVIEW_BUTTON_Y,
     RESULT_WIDE_BUTTON_WIDTH_RATIO,
     resultLayout,
+    resultReviewLabel,
     resultTexts,
     uniqueEntries,
     type RetryGameData,
@@ -71,9 +72,7 @@ export class Result extends Scene {
             lineSpacing: 16,
         }).setOrigin(0.5);
 
-        const reviewLabel = incorrectCount > 0
-            ? `間違えた単語を復習する (${incorrectCount}語)`
-            : `全単語を復習する (${this.totalCount}語)`;
+        const reviewLabel = resultReviewLabel(missedEntries.length, this.totalCount);
         const reviewBtn = this.add.rectangle(width / 2, RESULT_REVIEW_BUTTON_Y, width * RESULT_WIDE_BUTTON_WIDTH_RATIO, 64, 0x778da9)
             .setInteractive({ useHandCursor: true });
         this.add.text(width / 2, RESULT_REVIEW_BUTTON_Y, reviewLabel, {

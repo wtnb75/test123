@@ -23,7 +23,8 @@ export class Review extends Scene {
     }
 
     init(data: ReviewData) {
-        this.wrongEntries = data.wrongEntries ?? [];
+        // The record may hold a word twice; the list shows each missed word once.
+        this.wrongEntries = uniqueEntries(data.wrongEntries ?? []);
         this.correctEntries = data.correctEntries ?? [];
         this.config = data.config ?? { langMode: { tile: 'kogo', slot: 'jp' }, difficulty: 'normal', questionCount: 20 };
         this.isRetry = data.isRetry ?? false;
@@ -102,9 +103,8 @@ export class Review extends Scene {
         this.renderList(list, false);
         overlay.appendChild(list);
 
-        const missedEntries = uniqueEntries(this.wrongEntries);
         const compact = isReviewCompact(rect.height);
-        const retryRoundBtn = missedEntries.length > 0 ? this.buildRetryRoundButton(missedEntries, compact) : null;
+        const retryRoundBtn = this.wrongEntries.length > 0 ? this.buildRetryRoundButton(this.wrongEntries, compact) : null;
 
         if (retryRoundBtn && !compact) {
             const retryRow = document.createElement('div');
