@@ -37,7 +37,7 @@ export class Title extends Scene {
         if (!this.relayout) fadeInScene(this);
         const o = screenCenter(this);
         addLabel(this, o.x, o.y + NAME_DY, 'モグラロール', 56);
-        addLabel(this, o.x, o.y + TAGLINE_DY, '立体を回して、裏のモグラを叩け！', 24);
+        addLabel(this, o.x, o.y + TAGLINE_DY, '矢印の先は、モグラとは限らない！', 24);
         HOW_TO.forEach((line, i) => addLabel(this, o.x, o.y + HOW_TO_DY[i], line, 22, '#d6dcea'));
         addButton(this, o.x, o.y + START_DY, 'START', () => this.start());
         onKeyPress(this, ['ENTER', 'SPACE'], () => this.start());

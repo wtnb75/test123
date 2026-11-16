@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IDENTITY, isHiddenSide } from './math';
 import { pickSpawn, tickSpawnTimer } from './spawn';
-import { SHAPE, sequence } from './testing';
+import { SHAPE, seeded, sequence } from './testing';
 
 // With the identity pose only +Z (holes 36-44) is seen; the other 45 holes are on the hidden side.
 const VISIBLE_IDS = [36, 37, 38, 39, 40, 41, 42, 43, 44];
@@ -13,19 +13,48 @@ describe('pickSpawn', () => {
         expect(hiddenIds).not.toContain(36);
     });
 
-    it('draws below the back ratio (0.59) → a hidden-side hole, and below the cat ratio (0.1999) → a cat', () => {
-        const { rng, calls } = sequence([0.59, 0, 0.1999]);
+    it('draws below the back ratio (0.59) → a hidden-side hole, below the cat ratio (0.1999) → a cat, below the decoy ratio (0.4999) → a decoy', () => {
+        const { rng, calls } = sequence([0.59, 0, 0.1999, 0.4999]);
         const pick = pickSpawn(SHAPE.holes, new Set(), IDENTITY, rng);
         expect(pick?.hole.id).toBe(hiddenIds[0]);
         expect(pick?.kind).toBe('cat');
-        expect(calls()).toBe(3);
+        expect(pick?.decoy).toBe(true);
+        expect(calls()).toBe(4);
     });
 
-    it('draws exactly the back ratio (0.6) → a seen-side hole, and exactly the cat ratio (0.2) → a mole', () => {
-        const { rng } = sequence([0.6, 0, 0.2]);
+    it('draws exactly the decoy ratio (0.5) → a plain cat (still four draws)', () => {
+        const { rng, calls } = sequence([0.59, 0, 0.1999, 0.5]);
+        const pick = pickSpawn(SHAPE.holes, new Set(), IDENTITY, rng);
+        expect(pick?.kind).toBe('cat');
+        expect(pick?.decoy).toBe(false);
+        expect(calls()).toBe(4);
+    });
+
+    it('draws exactly the back ratio (0.6) → a seen-side hole, and exactly the cat ratio (0.2) → a mole with only three draws', () => {
+        const { rng, calls } = sequence([0.6, 0, 0.2]);
         const pick = pickSpawn(SHAPE.holes, new Set(), IDENTITY, rng);
         expect(pick?.hole.id).toBe(VISIBLE_IDS[0]);
         expect(pick?.kind).toBe('mole');
+        expect(pick?.decoy).toBe(false);
+        expect(calls()).toBe(3);
+    });
+
+    it('over many seeded picks, decoys are about half of the cats and never moles', () => {
+        const rng = seeded(7);
+        let cats = 0;
+        let decoys = 0;
+        for (let i = 0; i < 4000; i++) {
+            const pick = pickSpawn(SHAPE.holes, new Set(), IDENTITY, rng);
+            if (!pick) expect.fail('no pick with all holes free');
+            if (pick.kind === 'mole' && pick.decoy) expect.fail('a mole was a decoy');
+            if (pick.kind === 'cat') {
+                cats++;
+                if (pick.decoy) decoys++;
+            }
+        }
+        expect(cats).toBeGreaterThan(600);
+        expect(decoys / cats).toBeGreaterThan(0.4);
+        expect(decoys / cats).toBeLessThan(0.6);
     });
 
     it('picks the (draw × candidates, rounded down)-th candidate', () => {

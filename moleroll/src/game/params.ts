@@ -12,6 +12,8 @@ export const SPAWN_INTERVAL_SEC = 0.9;
 export const MAX_ACTIVE = 4;
 export const LIFE_SEC = 2.2;
 export const CAT_RATIO = 0.2;
+/** Share of cats that are decoys: they get the same direction arrow as a mole. */
+export const DECOY_RATIO = 0.5;
 export const BACK_SPAWN_RATIO = 0.6;
 
 // Cube and holes (lengths in cube units: the half edge is 1)

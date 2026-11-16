@@ -132,7 +132,7 @@ export function step(run: Run, dt: number, keys: KeyDir, shape: Shape, rng: () =
     run.spawnTimer = tick.timer;
     if (tick.spawn) {
         const pick = pickSpawn(shape.holes, new Set(run.pops.map((p) => p.hole.id)), run.rot, rng);
-        if (pick) run.pops.push({ hole: pick.hole, kind: pick.kind, age: 0 });
+        if (pick) run.pops.push({ hole: pick.hole, kind: pick.kind, decoy: pick.decoy, age: 0 });
     }
     return 'none';
 }

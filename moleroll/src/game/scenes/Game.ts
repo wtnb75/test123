@@ -102,6 +102,7 @@ export class Game extends Scene {
                         return {
                             hole: p.hole.id,
                             kind: p.kind,
+                            decoy: p.decoy,
                             age: p.age,
                             x: at.x,
                             y: at.y,

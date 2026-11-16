@@ -1,5 +1,5 @@
 // Spawning (docs/spec.md "ルール" 出現判定・出現の選び方).
-import { BACK_SPAWN_RATIO, CAT_RATIO, MAX_ACTIVE, SPAWN_INTERVAL_SEC } from '../params';
+import { BACK_SPAWN_RATIO, CAT_RATIO, DECOY_RATIO, MAX_ACTIVE, SPAWN_INTERVAL_SEC } from '../params';
 import { isHiddenSide, type Mat3 } from './math';
 import type { Kind } from './pop';
 import type { Hole } from './shape';
@@ -7,12 +7,14 @@ import type { Hole } from './shape';
 export interface SpawnPick {
     hole: Hole;
     kind: Kind;
+    decoy: boolean;
 }
 
 /**
  * Picks the hole and kind of a new Pop, or null when no hole is free (then no random number is drawn).
- * Otherwise draws exactly three: (a) back side or visible side, (b) the hole among that side's free holes
- * (all free holes when that side has none), (c) cat or mole.
+ * Otherwise draws: (a) back side or visible side, (b) the hole among that side's free holes
+ * (all free holes when that side has none), (c) cat or mole, and (d) only for a cat, decoy or not.
+ * That is three draws for a mole and four for a cat.
  */
 export function pickSpawn(
     holes: readonly Hole[],
@@ -27,7 +29,8 @@ export function pickSpawn(
     const pool = side.length > 0 ? side : free;
     const hole = pool[Math.floor(rng() * pool.length)];
     const kind: Kind = rng() < CAT_RATIO ? 'cat' : 'mole';
-    return { hole, kind };
+    const decoy = kind === 'cat' && rng() < DECOY_RATIO;
+    return { hole, kind, decoy };
 }
 
 export interface SpawnTick {

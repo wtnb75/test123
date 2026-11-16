@@ -20,9 +20,9 @@ export interface Arrow {
     dir: Point;
 }
 
-/** Only moles on a hidden-side face get an arrow. */
+/** Only moles and decoy cats on a hidden-side face get an arrow (a plain cat never does). */
 export function hasArrow(pop: Pop, m: Mat3): boolean {
-    return pop.kind === 'mole' && isHiddenSide(m, pop.hole);
+    return (pop.kind === 'mole' || pop.decoy) && isHiddenSide(m, pop.hole);
 }
 
 /**
