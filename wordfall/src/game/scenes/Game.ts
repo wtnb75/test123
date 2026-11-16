@@ -16,6 +16,7 @@ import {
     LETTER_SIZE,
     MEANING_OFFSET,
     NEAR_RIM_W,
+    PANEL_RATIO,
     REACH_HALO_PAD,
     REACH_RIM_W,
     REACH_ROW_DY,
@@ -52,14 +53,14 @@ import {
     shouldBumpTime,
 } from '../logic/effects';
 import { fallDistance, hasLanded, stepSpawn } from '../logic/falling';
-import { freeColumns, pickColumn, pickLetter } from '../logic/letters';
-import { columnX, fieldGeometry, traySlotAt, traySlotRect, type FieldGeometry } from '../logic/layout';
+import { planSpawn } from '../logic/panel';
+import { columnX, fieldGeometry, panelBandW, panelX, traySlotAt, traySlotRect, type FieldGeometry } from '../logic/layout';
 import { buildResultList } from '../logic/results';
 import { Round } from '../logic/round';
 import { scoreFor } from '../logic/scoring';
 import { letterAtPoint, lowestLetterWithChar, type FallingLetter } from '../logic/targeting';
-import { matchedMask } from '../logic/tray';
-import type { Word } from '../logic/words';
+import { isPanel, matchedMask } from '../logic/tray';
+import { WORDS, type Word } from '../logic/words';
 import {
     addLabel,
     applyScreenSize,
@@ -77,14 +78,22 @@ import {
 
 type CueStyle = 'none' | 'near' | 'reach';
 
-interface Letter extends FallingLetter {
-    col: number;
-    obj: GameObjects.Container;
+/** What a single letter shows for the aim cue; a panel has none. */
+interface CueParts {
     /** Thin white rim (near letter) and thick one (reach letter), both inside the tile; hidden by default. */
     nearRim: GameObjects.Rectangle;
     reachRim: GameObjects.Rectangle;
     /** Glow behind a reach letter; follows the tile's y while visible. */
     halo: GameObjects.Rectangle;
+}
+
+/** A falling single letter, or a panel (`ch` is its whole text and `span` its letter count). */
+interface Letter extends FallingLetter {
+    /** Left column, and how many columns it spans. */
+    col: number;
+    span: number;
+    obj: GameObjects.Container;
+    cueParts?: CueParts;
     style: CueStyle;
 }
 
@@ -124,6 +133,7 @@ export class Game extends Scene {
     /** ms since the reach set became non-empty; -1 while it is empty. */
     private reachClock = -1;
     private rowRims: GameObjects.Rectangle[] = [];
+    private panelRatio = PANEL_RATIO;
 
     constructor() {
         super('Game');
@@ -139,6 +149,9 @@ export class Game extends Scene {
             // Dev-only QA aid: `?qatime=<seconds>` shortens the clock (set before the HUD is first drawn).
             const qaTime = Number(new URLSearchParams(window.location.search).get('qatime'));
             if (qaTime > 0) this.round.timeLeft = qaTime;
+            // `?qapanel=<ratio>` replaces the panel chance (0 = no panels, 1 = every spawn tries a panel).
+            const qaPanel = new URLSearchParams(window.location.search).get('qapanel');
+            this.panelRatio = !qaPanel || Number.isNaN(Number(qaPanel)) ? PANEL_RATIO : Number(qaPanel);
         }
         this.letters = [];
         this.spawnAcc = 0;
@@ -198,6 +211,15 @@ export class Game extends Scene {
                     }),
                 },
                 guard: { get: () => this.guard.active },
+                // Fixes the three words and the tray (e.g. `set(['CAT', 'CUP', 'DOG'], ['UP', 'A', 'T'])`) so a
+                // scenario can check one hand-worked pick without waiting for the right letters to fall.
+                set: {
+                    value: (words: string[], tray: string[]) => {
+                        this.round.targets = words.map((en) => WORDS.find((w) => w.en === en) ?? { en, ja: '' });
+                        this.round.tray = [...tray];
+                        this.refreshAfterTrayChange();
+                    },
+                },
             });
             (window as unknown as { __qa: unknown }).__qa = qa;
         }
@@ -310,16 +332,26 @@ export class Game extends Scene {
     /** The picked letter's tile flies from where it was to the tray slot it lands in. */
     private flyLetter(letter: Letter, trayBefore: number) {
         const plan = flyPlan(trayBefore, this.height);
-        const tile = this.add.rectangle(0, 0, LETTER_SIZE, LETTER_SIZE, COLOR.tile);
-        const label = this.add
-            .text(0, 0, letter.ch, { fontFamily: MONO_FONT, fontSize: `${FONT_LETTER}px`, color: COLOR.tileText })
-            .setOrigin(0.5);
-        const flying = this.add.container(letter.x, letter.y, [tile, label]).setDepth(DEPTH.fly);
+        let shapes: GameObjects.GameObject[];
+        let scaleTo = plan.scaleTo;
+        if (isPanel(letter.ch)) {
+            shapes = this.buildPanelShapes(letter.ch);
+            // The joined tiles shrink to fit the slot (never larger than a single letter's shrink).
+            const bandW = panelBandW(letter.span, COLUMNS);
+            scaleTo = Math.min(scaleTo, traySlotRect(trayBefore, this.height).w / bandW);
+        } else {
+            const tile = this.add.rectangle(0, 0, LETTER_SIZE, LETTER_SIZE, COLOR.tile);
+            const label = this.add
+                .text(0, 0, letter.ch, { fontFamily: MONO_FONT, fontSize: `${FONT_LETTER}px`, color: COLOR.tileText })
+                .setOrigin(0.5);
+            shapes = [tile, label];
+        }
+        const flying = this.add.container(letter.x, letter.y, shapes).setDepth(DEPTH.fly);
         this.tweens.add({
             targets: flying,
             x: plan.toX,
             y: plan.toY,
-            scale: plan.scaleTo,
+            scale: scaleTo,
             duration: plan.durationMs,
             onComplete: () => flying.destroy(),
         });
@@ -364,9 +396,47 @@ export class Game extends Scene {
     // ---- falling letters -----------------------------------------------------------------------------
 
     private spawn() {
-        const col = pickColumn(Math.random, freeColumns(this.letters, this.geom.spawnY));
-        if (col < 0) return;
-        const ch = pickLetter(Math.random, this.round.tray, this.round.targets);
+        const plan = planSpawn(
+            Math.random,
+            this.round.tray,
+            this.round.targets,
+            this.letters,
+            this.geom.spawnY,
+            this.panelRatio,
+        );
+        if (!plan) return;
+        if (plan.text.length > 1) this.spawnPanel(plan.text, plan.col);
+        else this.spawnSingle(plan.text, plan.col);
+    }
+
+    /** A panel's tiles joined by one band, a letter over each column; `bandW` wide. */
+    private buildPanelShapes(text: string): GameObjects.GameObject[] {
+        const colW = SCREEN_WIDTH / COLUMNS;
+        const n = text.length;
+        const band = this.add
+            .rectangle(0, 0, panelBandW(n, COLUMNS), LETTER_SIZE, COLOR.panel)
+            .setStrokeStyle(2, COLOR.panelRim);
+        const labels = [...text].map((c, i) =>
+            this.add
+                .text((i - (n - 1) / 2) * colW, 0, c, {
+                    fontFamily: MONO_FONT,
+                    fontSize: `${FONT_LETTER}px`,
+                    color: COLOR.tileText,
+                })
+                .setOrigin(0.5),
+        );
+        return [band, ...labels];
+    }
+
+    private spawnPanel(text: string, col: number) {
+        const span = text.length;
+        const x = panelX(col, span, COLUMNS);
+        const y = this.geom.spawnY;
+        const obj = this.add.container(x, y, this.buildPanelShapes(text)).setDepth(DEPTH.letters);
+        this.letters.push({ ch: text, x, y, col, span, obj, style: 'none' });
+    }
+
+    private spawnSingle(ch: string, col: number) {
         const x = columnX(col, COLUMNS);
         const y = this.geom.spawnY;
         const tile = this.add.rectangle(0, 0, LETTER_SIZE, LETTER_SIZE, COLOR.tile);
@@ -386,7 +456,7 @@ export class Game extends Scene {
             .rectangle(x, y, LETTER_SIZE + REACH_HALO_PAD, LETTER_SIZE + REACH_HALO_PAD, COLOR.tile)
             .setDepth(DEPTH.halo)
             .setVisible(false);
-        const letter: Letter = { ch, x, y, col, obj, nearRim, reachRim, halo, style: 'none' };
+        const letter: Letter = { ch, x, y, col, span: 1, obj, cueParts: { nearRim, reachRim, halo }, style: 'none' };
         this.letters.push(letter);
         this.styleLetter(letter);
         this.pulseReach();
@@ -394,7 +464,7 @@ export class Game extends Scene {
 
     private destroyLetter(l: Letter) {
         l.obj.destroy();
-        l.halo.destroy();
+        l.cueParts?.halo.destroy();
     }
 
     // ---- aim cue (docs/spec/multi-complete.md) ---------------------------------------------------------
@@ -415,12 +485,13 @@ export class Game extends Scene {
     }
 
     private styleLetter(l: Letter) {
+        if (!l.cueParts) return; // a panel gets no cue
         const style: CueStyle = this.cue.reach.has(l.ch) ? 'reach' : this.cue.near.has(l.ch) ? 'near' : 'none';
         if (style === l.style) return;
         l.style = style;
-        l.nearRim.setVisible(style === 'near');
-        l.reachRim.setVisible(style === 'reach');
-        l.halo.setVisible(style === 'reach');
+        l.cueParts.nearRim.setVisible(style === 'near');
+        l.cueParts.reachRim.setVisible(style === 'reach');
+        l.cueParts.halo.setVisible(style === 'reach');
         if (style !== 'reach') l.obj.setScale(1);
     }
 
@@ -429,9 +500,9 @@ export class Game extends Scene {
         if (this.reachClock < 0) return;
         const p = pulse(this.reachClock);
         for (const l of this.letters) {
-            if (l.style !== 'reach') continue;
+            if (l.style !== 'reach' || !l.cueParts) continue;
             l.obj.setScale(reachScale(p));
-            l.halo.setAlpha(haloAlpha(p));
+            l.cueParts.halo.setAlpha(haloAlpha(p));
         }
         const rimAlpha = rowRimAlpha(p);
         for (const r of this.rowRims) r.setAlpha(rimAlpha);
@@ -463,7 +534,7 @@ export class Game extends Scene {
                 this.letters.splice(i, 1);
             } else {
                 l.obj.y = l.y;
-                l.halo.y = l.y;
+                if (l.cueParts) l.cueParts.halo.y = l.y;
             }
         }
     }
@@ -555,7 +626,8 @@ export class Game extends Scene {
             if (slot.ch === ch) return;
             slot.ch = ch;
             slot.label.setText(ch);
-            slot.box.setFillStyle(ch ? COLOR.slotFilled : COLOR.slot);
+            slot.label.setColor(isPanel(ch) ? COLOR.tileText : COLOR.text); // dark on the panel's light fill
+            slot.box.setFillStyle(isPanel(ch) ? COLOR.panel : ch ? COLOR.slotFilled : COLOR.slot);
         });
     }
 

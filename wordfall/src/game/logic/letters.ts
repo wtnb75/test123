@@ -29,19 +29,22 @@ export function pickLetter(rng: Rng, tray: readonly string[], targets: readonly 
 }
 
 export interface ColumnLetter {
+    /** Left column (a letter's only column). */
     col: number;
+    /** How many columns it spans (a panel's length); 1 when absent. */
+    span?: number;
     /** Centre y of the falling letter. */
     y: number;
 }
 
 /**
  * Columns a new letter may appear in: those whose newest letter has fallen at least LETTER_SIZE from the
- * spawn line (`spawnY`, a centre y).
+ * spawn line (`spawnY`, a centre y). A panel holds every column it spans.
  */
 export function freeColumns(letters: readonly ColumnLetter[], spawnY: number, columns = COLUMNS): number[] {
     const free: number[] = [];
     for (let c = 0; c < columns; c++) {
-        const blocked = letters.some((l) => l.col === c && l.y - spawnY < LETTER_SIZE);
+        const blocked = letters.some((l) => c >= l.col && c < l.col + (l.span ?? 1) && l.y - spawnY < LETTER_SIZE);
         if (!blocked) free.push(c);
     }
     return free;

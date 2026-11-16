@@ -22,6 +22,9 @@ export const COLOR = {
     accent: '#ffd166',
     good: '#06d6a0',
     tile: 0xffd166,
+    /** Letter panels (docs/spec/letter-panel.md `COLOR.panel` / `COLOR.panelRim`): light blue, apart from the yellow tile. */
+    panel: 0x8ecae6,
+    panelRim: 0x023047,
     /** Rim of a cued tile: white, because the tile itself is yellow (docs/spec/multi-complete.md `COLOR.cue`). */
     cue: 0xffffff,
     tileText: '#101a2e',

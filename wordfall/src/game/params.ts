@@ -50,6 +50,11 @@ export const FALL_SPEED_START = 0.25;
 export const FALL_SPEED_RAMP = 0.0025;
 export const FALL_SPEED_MAX = 0.63;
 export const NEEDED_RATIO = 0.55;
+/** Letter panels: 2-3 letters in a row that take one tray slot (docs/spec/letter-panel.md). */
+export const PANEL_RATIO = 0.15;
+export const PANEL_LEN3_RATIO = 1 / 3;
+export const PANEL_MIN_LEN = 2;
+export const PANEL_MAX_LEN = 3;
 export const LETTER_SIZE = 40;
 export const LETTER_HIT_SIZE = 50;
 
