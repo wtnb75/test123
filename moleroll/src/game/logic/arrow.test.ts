@@ -127,8 +127,29 @@ describe('hasArrow', () => {
         expect(hasArrow(popIn(40, 'mole'), turned)).toBe(true);
     });
 
-    it('never gives a cat an arrow', () => {
+    it('never gives a plain cat an arrow', () => {
         expect(hasArrow(popIn(49, 'cat'), IDENTITY)).toBe(false);
+        expect(hasArrow(popIn(0, 'cat', 1, false), IDENTITY)).toBe(false);
+    });
+
+    it('gives a decoy cat on a hidden face the same arrow as a mole', () => {
+        expect(hasArrow(popIn(0, 'cat', 1, true), IDENTITY)).toBe(true); // +X, edge-on (z = 0)
+        expect(hasArrow(popIn(49, 'cat', 1, true), IDENTITY)).toBe(true); // -Z, behind
+        const decoy = arrowFor(popIn(49, 'cat', 1, true), IDENTITY, O);
+        expect(decoy).toEqual(arrowFor(popIn(49, 'mole'), IDENTITY, O));
+    });
+
+    it('gives a decoy cat on a visible face no arrow', () => {
+        expect(hasArrow(popIn(40, 'cat', 1, true), IDENTITY)).toBe(false); // +Z, in front
+        const turned = rotY(-Math.PI / 2);
+        expect(hasArrow(popIn(4, 'cat', 1, true), turned)).toBe(false);
+        expect(hasArrow(popIn(40, 'cat', 1, true), turned)).toBe(true);
+    });
+
+    it('blinks a decoy arrow exactly like a mole arrow', () => {
+        for (const age of [0, 1.5, 1.6, 1.7, 1.8, 2.0, 2.19]) {
+            expect(popArrowVisible(popIn(49, 'cat', age, true))).toBe(popArrowVisible(popIn(49, 'mole', age)));
+        }
     });
 });
 

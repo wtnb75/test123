@@ -111,6 +111,17 @@ describe('tap', () => {
         expect(b.progress).toBe(0);
     });
 
+    it('treats a decoy cat like a plain cat: takes 2 off, reports a cat, removes it', () => {
+        const run = createRun();
+        run.rot = IDENTITY;
+        run.pops = [popIn(40, 'cat', 1, true)];
+        run.progress = 5;
+        const hit = tap(run, 270, 480, O);
+        expect(hit?.kind).toBe('cat');
+        expect(run.progress).toBe(3);
+        expect(run.pops).toEqual([]);
+    });
+
     it('does nothing on a miss', () => {
         const run = withPop('mole');
         expect(tap(run, 100, 100, O)).toBeNull();
@@ -139,6 +150,18 @@ describe('step', () => {
         expect(run.pops[0].age).toBe(0);
         expect(run.spawnTimer).toBe(0.9);
         expect(calls()).toBe(3);
+    });
+
+    it('carries the decoy flag from the spawn pick onto the new Pop (cat: four draws; mole: not a decoy)', () => {
+        const cat = createRun();
+        const catRng = sequence([0.5, 0, 0.1, 0.1]);
+        step(cat, 0.3, NO_KEYS, SHAPE, catRng.rng);
+        expect(cat.pops[0]).toMatchObject({ kind: 'cat', decoy: true });
+        expect(catRng.calls()).toBe(4);
+
+        const mole = createRun();
+        step(mole, 0.3, NO_KEYS, SHAPE, sequence([0.5, 0, 0.5]).rng);
+        expect(mole.pops[0]).toMatchObject({ kind: 'mole', decoy: false });
     });
 
     it('spawns at most one Pop per update, even after a long frame', () => {

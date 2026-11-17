@@ -8,6 +8,8 @@ export type Kind = 'mole' | 'cat';
 export interface Pop {
     hole: Hole;
     kind: Kind;
+    /** A cat that shows a mole's arrow (never true for a mole). */
+    decoy: boolean;
     /** Seconds since it came out. */
     age: number;
 }

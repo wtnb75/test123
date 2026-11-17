@@ -5,7 +5,12 @@ import { buildCube } from './shape';
 export const SHAPE = buildCube();
 
 /** A Pop in the hole with this id. */
-export const popIn = (holeId: number, kind: Kind = 'mole', age = 1): Pop => ({ hole: SHAPE.holes[holeId], kind, age });
+export const popIn = (holeId: number, kind: Kind = 'mole', age = 1, decoy = false): Pop => ({
+    hole: SHAPE.holes[holeId],
+    kind,
+    decoy,
+    age,
+});
 
 /** Deterministic random numbers in [0, 1) (mulberry32). */
 export function seeded(seed: number): () => number {
