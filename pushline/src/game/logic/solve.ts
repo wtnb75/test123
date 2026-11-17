@@ -1,5 +1,5 @@
 import { PARAMS } from '../params';
-import { cloneGrid, colFull, DIR_LIST, DIRS, inBounds, rowFull } from './grid';
+import { chainEnd, cloneGrid, colFull, DIR_LIST, DIRS, inBounds, rowFull } from './grid';
 import { EMPTY, FIXED, MOVABLE, type Dir, type Grid, type LineRef } from './types';
 
 /** Required optimum (moves to the first clear) of a newly generated board at a given score. */
@@ -51,14 +51,13 @@ function search(
                 if (!inBounds(cur.grid, nx, ny) || cur.grid[ny][nx] === FIXED) continue;
                 let g = cur.grid;
                 if (g[ny][nx] === MOVABLE) {
-                    const bx = nx + DIRS[dir].x;
-                    const by = ny + DIRS[dir].y;
-                    if (!inBounds(g, bx, by) || g[by][bx] !== EMPTY) continue;
+                    const end = chainEnd(g, nx, ny, DIRS[dir]);
+                    if (!end) continue;
                     g = cloneGrid(g);
-                    g[by][bx] = MOVABLE;
+                    g[end.y][end.x] = MOVABLE;
                     g[ny][nx] = EMPTY;
-                    if (rowFull(g, by) || colFull(g, bx)) {
-                        const line: LineRef = rowFull(g, by) ? { horizontal: true, index: by } : { horizontal: false, index: bx };
+                    if (rowFull(g, end.y) || colFull(g, end.x)) {
+                        const line: LineRef = rowFull(g, end.y) ? { horizontal: true, index: end.y } : { horizontal: false, index: end.x };
                         return { depth, path: trackPath ? pathTo(cur, dir) : null, line };
                     }
                 }

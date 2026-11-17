@@ -55,7 +55,9 @@ describe('hasSingleBlockClear: (B) one block alone clears a line', () => {
         // b at (3,3) would complete row 4, but c above it blocks every approach from above unless c is moved
         const rows = ['.....', '...@.', '...o.', '...o.', 'ooo.o', '.....'];
         expect(single(rows)).toBe(false);
-        expect(oracleMinOf(board(rows), 40)).toBe(4); // two blocks together do clear
+        // two blocks together do clear: pushing the column of two down is one chain push (docs/spec/chain-push.md),
+        // which (B) deliberately does not model (the other blocks stay walls there)
+        expect(oracleMinOf(board(rows), 40)).toBe(1);
     });
 
     it('treats fixed blocks as walls', () => {
