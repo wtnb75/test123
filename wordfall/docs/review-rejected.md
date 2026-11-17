@@ -18,4 +18,8 @@
 - `src/game/logic/best.ts`（スコア 0 を記録しないガードが wordfall 側にある。共有ストアに `minScore` を足す案）— 理由: spec で決めた設計。共有ストアは変えない
 - `src/game/scenes/Game.ts`（DEV 専用の `?qatime=` が `Round` の内部を直接書き換える）: 理由: QA の補助だけ。`Round` に時間の上限のような状態は無い
 - `src/game/logic/tray.ts` の `resolveCompletions`: 取り除く文字が 0 個の完成が続くと、連鎖に上限が無い — 理由: 続くには、新しく引いた語がその都度トレイの文字だけで揃う必要があり、確率が急速に 0 に近づく。上限は仕様に無い規則を足すことになる
+- `src/game/scenes/Game.ts`（パネルの `Letter.span` と `ch.length` が同じ値を 2 通りで持つ）: 理由: `span` は出現のときに `text.length` から 1 回だけ入れるので、ずれる経路が無い
+- `src/game/logic/chance.ts`（`cueState` が 26 字ぶん `coverOf` を引き直す）: 理由: 呼ぶのはトレイ・お題が変わったときだけ（毎フレームではない）で、計測できる遅さではない
+- `src/game/logic/panel.ts`（`pickPanelColumn` の Set + every を、連続した空き列の 1 回の走査にする案）: 理由: 機能に影響が無く、列は 7 本で小さい
+- `src/game/scenes/Game.ts`（QA 用にお題・トレイを固定する手段が無い）: 理由: `game-qa` の段階で、DEV 専用の手段を足すか手順を決める
 - `src/game/scenes/Game.ts` の `spawn`（手がかり用の縁 2 つと光を全部の文字に作る。遅延生成の案）: 理由: 作るのは 650 ms に 1 回だけ（プール化を見送った理由と同じ）。遅延生成は複雑さを増やすわりに得が小さい

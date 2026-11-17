@@ -49,6 +49,14 @@ export function fieldGeometry(height: number): FieldGeometry {
 /** Centre x of a fall column. */
 export const columnX = (col: number, columns: number): number => ((col + 0.5) * SCREEN_WIDTH) / columns;
 
+/** Centre x of a panel `span` columns wide whose left column is `col`: the mean of its end columns' centres. */
+export const panelX = (col: number, span: number, columns: number): number =>
+    (columnX(col, columns) + columnX(col + span - 1, columns)) / 2;
+
+/** Width of the band joining a panel's tiles: its end tiles' centres are (span - 1) columns apart. */
+export const panelBandW = (span: number, columns: number): number =>
+    (span - 1) * (SCREEN_WIDTH / columns) + LETTER_SIZE;
+
 /** The visible rectangle of tray slot `index` (row-major from the top-left). */
 export function traySlotRect(index: number, height: number): Rect {
     const row = Math.floor(index / TRAY_COLS);
