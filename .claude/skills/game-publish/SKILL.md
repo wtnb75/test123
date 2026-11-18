@@ -35,16 +35,29 @@ extension), not the original add.
    the prototype):
    - **Missing** → add it. **Present but stale or off-convention** → change
      it. Otherwise leave it alone (don't churn wording that is fine).
-   - `title`: the game's display name (spec's name; if the spec only has a
-     provisional name, use the name the title screen shows).
-   - `summary`: 1–2 Japanese sentences — what you do and what makes it
-     distinct, plus the controls when they are unusual (e.g. phone
-     portrait/landscape). Match the existing games' tone; no spoilers of
-     numbers that change under balance.
-   - `tags`: genre first, then the input methods the game really supports
-     (`タッチ` / `マウス` / `キーボード`). Reuse existing tags — list them with
-     `rg -N -A8 '"tags"' */package.json` — and add a new one only when none
-     fits.
+   - The card is a pitch, not a description: the point is the game's selling
+     point in one playful line, like a game's catch copy. It is not the
+     place for an earnest explanation (that is `README.md`'s job). The card
+     text is separate from the title screen's name; don't copy one to the
+     other.
+   - `title`: `<main subject>「<one-line hook>」` — e.g. `モグラ「叩ける？」`,
+     `ミノ「ちょっと屋上行こうぜ」`, `地雷「オレを部屋に置くなよ！」`,
+     `電卓「60 秒で支度しな！」`. The subject is what the player deals with (a
+     mole, a mine); the hook is a line the subject itself says (or a
+     well-known line bent to fit), absurd enough to stick. Aim for impact over
+     explanation; a pun or a borrowed catchphrase is welcome.
+   - `summary`: 1–2 short, jokey Japanese sentences that say what you do and
+     what is fun or tricky, in a cheeky tone — e.g. 「探して、ぶっ叩く！
+     ただしネコ以外をな！！ お前の中のハンマーを目覚めさせろ」. No controls
+     list, no rule details, no numbers that change under balance; stay true to
+     the game (a joke must not promise something the game does not do).
+   - `tags`: genre first, then the input methods the game really supports,
+     always in the order `タッチ` → `マウス` → `キーボード` (the top page's
+     filter chips are ordered by first appearance, so a stable order keeps
+     them stable). A game played with pointer input gets both `タッチ` and
+     `マウス` (touch and mouse are the same Phaser pointer events). Reuse
+     existing tags — list them with `rg -N -A8 '"tags"' */package.json` —
+     and add a new one only when none fits.
    - Keep `description` (what the game is, for developers) separate from
      `summary` (what the player sees on the card); don't copy one to the other
      blindly.
