@@ -2,8 +2,8 @@
   "name": "moleroll",
   "description": "Whack-a-mole on a rotating 3D solid: drag to spin the cube, find moles on the hidden side, tap to hit them.",
   "index": {
-    "title": "モグラロール",
-    "summary": "回る立方体の表面に出るモグラを、ドラッグで回して探して叩く 45 秒のモグラ叩き。縁の矢印の向きにドラッグすれば裏側が見えてくるが、矢印の先がネコ（おとり）のこともある。ネコは叩かない。2 本の指でも遊べる。",
+    "title": "モグラ「裏にもいる」",
+    "summary": "立方体をぐるぐる回して、裏のモグラも叩け！ ただし矢印の先がネコのこともある。ネコには優しくな。",
     "tags": [
       "アクション",
       "タッチ",
