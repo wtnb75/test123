@@ -7,6 +7,10 @@
   `tags`) that matches what the game is now (spec/README), with tags reused
   from the existing games where possible? On a post-publish revision, was it
   re-checked against the change (new mode / input method / pitch)?
+- Is the card a playful pitch (`title` as `主役「ひとこと」`, `summary` a short
+  jokey line) rather than an earnest description, and does it not promise
+  anything the game doesn't do? Are the tags ordered genre → `タッチ` →
+  `マウス` → `キーボード`, with `マウス` alongside `タッチ` for pointer games?
 - First publish: is the game's line in `LAB_GAMES` (uncommented) and gone
   from `GAMES` — unless the user explicitly asked for the top page? Does
   `docs/backlog.md` exist with the non-MVP / cut items as cards?
