@@ -41,9 +41,11 @@ extension), not the original add.
      text is separate from the title screen's name; don't copy one to the
      other.
    - `title`: `<main subject>「<one-line hook>」` — e.g. `モグラ「叩ける？」`,
-     `インベーダー「その弾、返すわ」`, `地雷原「踏んだら最初から」`. The subject is
-     what the player deals with (a mole, a mine field), the hook is a short
-     line that speaks to the player.
+     `ミノ「ちょっと屋上行こうぜ」`, `地雷「オレを部屋に置くなよ！」`,
+     `電卓「60 秒で支度しな！」`. The subject is what the player deals with (a
+     mole, a mine); the hook is a line the subject itself says (or a
+     well-known line bent to fit), absurd enough to stick. Aim for impact over
+     explanation; a pun or a borrowed catchphrase is welcome.
    - `summary`: 1–2 short, jokey Japanese sentences that say what you do and
      what is fun or tricky, in a cheeky tone — e.g. 「探して、ぶっ叩く！
      ただしネコ以外をな！！ お前の中のハンマーを目覚めさせろ」. No controls

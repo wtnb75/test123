@@ -2,7 +2,7 @@
   "name": "moleroll",
   "description": "Whack-a-mole on a rotating 3D solid: drag to spin the cube, find moles on the hidden side, tap to hit them.",
   "index": {
-    "title": "モグラ「裏にもいる」",
+    "title": "モグラ「裏までは見えないだろ？」",
     "summary": "立方体をぐるぐる回して、裏のモグラも叩け！ ただし矢印の先がネコのこともある。ネコには優しくな。",
     "tags": [
       "アクション",
