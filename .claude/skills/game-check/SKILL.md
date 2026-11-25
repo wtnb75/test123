@@ -1,7 +1,10 @@
 ---
 name: game-check
 description: Use to run the full completion gate for a game in this monorepo — unused scaffold assets, lint, test, coverage, build (AGENTS.md section 6) — before it's considered ready for QA or publishing.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-check
 
@@ -10,72 +13,43 @@ report the result honestly. This skill never claims success with a failing
 gate (AGENTS.md 7: 禁止事項 — lint/test/buildの失敗を残したまま完了扱いに
 しない).
 
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-check/flow.toml --arg package=<game-dir>`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
+
 ## Inputs
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
+  The flow's `<game-dir>` is this value.
 
-## Steps
+## Scaffold cleanup
 
-`task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=in_progress`
+`task newgame` carries scaffold files into `public/` (including
+`public/assets/`) that nothing actually uses — most commonly `bg.png` and
+`logo.png`, the Phaser template's stock demo images, which are dead weight in
+every game in this repo since they draw via `Phaser.Graphics` instead of
+raster assets (AGENTS.md 技術要件 convention).
 
-Inside `<game-dir>`, run in order and capture each result:
-
-1. Check `public/` (including `public/assets/`) for files carried over
-   from `task newgame`'s scaffold that nothing actually uses — most
-   commonly `bg.png` and `logo.png`, the Phaser template's stock demo
-   images, which are dead weight in every game in this repo since they
-   draw via `Phaser.Graphics` instead of raster assets (AGENTS.md 技術要件
-   convention). For each file under `public/`, grep `src/` and
-   `index.html` for its filename; if nothing references it, delete it
-   (`git rm` if already tracked). This can't be caught by `vite build`
-   succeeding — Vite copies everything under `public/` into `dist/`
-   verbatim regardless of whether anything references it, so an unused
-   file here ships forever unless removed by hand. If a filename search
-   turns up nothing but you suspect it might still be referenced via a
-   dynamically-built path (e.g. a template string), double-check before
-   deleting rather than assuming the grep is conclusive.
-2. `npm run lint` — must be 0 errors. Any disable comment in the codebase
-   must already carry a reason and be minimally scoped (AGENTS.md 4.4); if
-   you find one without a reason while here, that's worth flagging, not
-   silently leaving.
-3. `npm run test`
-4. `npm run test:coverage` — statement/branch/function/line all ≥ 90%.
-5. `npm run build` — must produce static output with no Node-server-only
-   runtime dependency, and `rg -c __qa dist/assets/*.js` must print nothing
-   (the dev-only QA hook must not ship).
-
-6. `task game:check-title-link PACKAGE=<game-dir>` — must pass. A game with
-   `src/game/scenes/Title.ts` must import `showGameListLink` from
-   `game-list-link`, call it in the Title's `create()`, and depend on
-   `game-list-link` in `package.json` (`shared/game-list-link/README.md`).
-   A game without a Title.ts passes.
-
-## On failure
-
-Do not mark this stage done. Report exactly which command failed and why,
-fix root causes (not by disabling checks), and re-run from the top. If a
-coverage shortfall can't be closed in this pass, state the shortfall and a
-concrete plan per AGENTS.md 6 — don't paper over it.
-
-## Review (before completion)
-
-Run `game-review STAGE=check PACKAGE=<game-dir>` — a self-review against
-its `STAGE=check` checklist — before marking this stage done. Fix anything that
-fails rather than just noting it.
-
-## Completion
-
-1. All six steps done — scaffold cleanup applied, and the four commands
-   and the Title link check pass.
-2. `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`
-3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-codereview` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode").
+This can't be caught by `vite build` succeeding — Vite copies everything
+under `public/` into `dist/` verbatim regardless of whether anything
+references it, so an unused file here ships forever unless removed by hand.
+If a filename search turns up nothing but the file might still be referenced
+via a dynamically-built path (e.g. a template string), double-check before
+deleting rather than assuming the grep is conclusive.
 
 ## Small revisions
 
 After a one-rule or one-module revision, `check` may be marked `done` once
-all four commands and the Title link check pass from the top after the last change (the scaffold
-cleanup only when the change touched `public/` or the build). Say in the
-report that the small-revision path was used. Anything bigger runs the
-whole skill.
+all four commands and the Title link check pass from the top after the last
+change (the scaffold cleanup only when the change touched `public/` or the
+build). Say in the report that the small-revision path was used. Anything
+bigger runs the whole flow.
+
+## Added by the flow conversion
+
+The original had no loop limits. The flow adds `max_visits` to `fix` (5) and
+`fix_review` (2); exceeding either ends at `blocked` (stage not done, report
+to the user).

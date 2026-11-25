@@ -1,0 +1,154 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section; テスト観点 and 完了条件 in all of them count.",
+  "Never lower the coverage threshold in `vitest.config.ts` (or `scaffold/vitest.base.mjs`) and never add per-game `coverage.exclude` entries for code that can be unit tested.",
+  "Never delete an existing test, loosen its assertion or change its expected value to make a change pass, unless the spec changed that behavior (then update it to the new spec value and say so in the summary).",
+]
+
+[states.begin]
+prompt = "Run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=in_progress`. Then decide whether this is a small revision (`SKILL.md` \"Small revisions\"): a delta of one rule or one pure module. A revision that touches more than one module, a Scene, or the input handling is not small."
+
+[[states.begin.choices]]
+label = "full"
+when = "A new game, or a revision that is not small"
+goto = "write_tests"
+
+[[states.begin.choices]]
+label = "small"
+when = "A revision that changes one rule or one pure module only"
+goto = "small_update"
+
+[states.write_tests]
+prompt = """Write or update the Vitest tests under the Rules in `SKILL.md` (AGENTS.md 4.5): test names describe behavior; prioritize boundary values, error paths and past regressions; inject or mock time, randomness and external dependencies (never real timers or `Math.random()` in assertions).
+When tests already exist (a revision): every regression condition in 完了条件 gets a test that would fail if that behavior changed."""
+goto = "coverage"
+
+[states.coverage]
+prompt = """Run `npm run test` and `npm run test:coverage` inside `{{arg.package}}`. Statement, branch, function and line coverage must all be at least 90%. If not, find the uncovered branches and add tests for them."""
+
+[[states.coverage.choices]]
+label = "pass"
+when = "Tests pass and all four metrics are at least 90%"
+goto = "logic_check"
+
+[[states.coverage.choices]]
+label = "fail"
+when = "A test fails or a metric is below 90%, and it can be closed by adding or fixing tests"
+goto = "fix_coverage"
+
+[[states.coverage.choices]]
+label = "shortfall"
+when = "A coverage shortfall cannot be closed in this pass"
+goto = "shortfall_plan"
+
+[states.fix_coverage]
+prompt = "Find the uncovered branches (or the failing test's cause) and add or fix tests. Do not lower thresholds or add `coverage.exclude` entries for testable code."
+goto = "coverage"
+max_visits = 5
+on_exceed = "shortfall_plan"
+
+[states.shortfall_plan]
+prompt = "Write up for the user the shortfall (which metric, how far) and a concrete plan to close it (AGENTS.md 6: don't claim done at a coverage gap without explaining why and what's next)."
+goto = "review"
+
+[states.logic_check]
+prompt = "Decide whether the game has a logic-heavy module (a solver, generator or rules engine: a few hundred lines of pure logic, not Scenes or rendering glue, not a trivial helper). The 90% gate only proves code was executed, not that it is right (`SKILL.md` \"Logic-heavy modules\")."
+
+[[states.logic_check.choices]]
+label = "heavy"
+when = "There is a logic-heavy module worth oracle and mutation checks"
+goto = "oracle"
+
+[[states.logic_check.choices]]
+label = "light"
+when = "No logic-heavy module"
+goto = "review"
+
+[states.oracle]
+prompt = """Add oracle-based correctness tests for the logic-heavy module, following `SKILL.md` \"Logic-heavy modules\": compare against an independent brute-force oracle (soundness first); generate only states the game can really reach; guard against vacuous runs (count the cases that hit each outcome and assert counts above zero); keep big loops cheap (`expect.fail` in hot loops); sweep time-dependent code with a deterministic clock; pick expected values independently; make a rejection test reject for the reason you name.
+When an oracle test fails, find out who is wrong (the implementation or the oracle) from what the code is documented to guarantee. Don't bend the test to pass and don't call it a bug without evidence. A real bug is not fixed inside the test PR: report it, record the gap (`it.todo` with the numbers, and the PR description), and fix it on its own branch with a failing regression test first. If the code documents itself as a heuristic, whether to make it exact is the user's decision."""
+goto = "mutation"
+
+[states.mutation]
+prompt = """Spot-check with mutations before finishing: temporarily break the code in 3-5 ways (flip `<` / `<=`, shift a range by one, loosen a condition) in a throwaway script under the scratchpad, run the new tests, and restore the code (`git status` must be clean afterwards).
+Bound each mutant with a hard time limit (e.g. `timeout 60`); count a timeout as \"killed (hung)\". Print one line per mutant as it finishes (`n/N <name> killed|survived|timeout`) and say in the reply how many remain when starting. Every mutant should make a test fail; for a survivor, add a test or explain why it is equivalent (speed-only changes and unreachable mutants are equivalent). Survivors are often gaps in the tests: read each one."""
+goto = "review"
+
+[states.review]
+prompt = """Run `game-review STAGE=test PACKAGE={{arg.package}}`. A fresh subagent checks that every テスト観点 / rule boundary in the spec has a test, that existing tests weren't loosened, that expected values don't come from the implementation itself, that nothing nondeterministic is asserted directly, and the logic-heavy-module checks. Fix blockers before completion."""
+
+[[states.review.choices]]
+label = "pass"
+when = "No blockers remain"
+goto = "set_done"
+
+[[states.review.choices]]
+label = "fail"
+when = "Blockers remain"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix the blockers (re-run `npm run test:coverage` if tests changed), then run the review again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.set_done]
+prompt = """Confirm `npm run test` and `npm run test:coverage` both pass at 90% or more across all four metrics (or that the shortfall and plan were written up).
+If oracle tests or mutation checks were used, say in the PR/summary what the oracle was, which mutants were caught, and which survived and why. If exported internals were added for tests, mention it in the PR.
+Run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-check`)."""
+end = true
+
+[states.small_update]
+prompt = "Small revision, step 1: update the tests that pin the changed behavior to the new spec (and say so in the summary); add new boundary cases of the change. Every regression condition in 完了条件 that the change could reach keeps a test that would fail if it changed."
+goto = "small_mutation"
+
+[states.small_mutation]
+prompt = "Small revision, step 2: run a mutation spot-check of the changed lines (a throwaway script under the scratchpad that restores the file in `finally` and compares its md5 afterwards, each mutant bounded by a hard time limit). Survivors are explained or killed."
+goto = "small_gate"
+
+[states.small_gate]
+prompt = "Small revision, step 3: the four gate commands pass from the top (`npm run lint`, `npm run test`, `npm run test:coverage` with all four metrics at least 90%, `npm run build`)."
+
+[[states.small_gate.choices]]
+label = "pass"
+when = "All four commands pass"
+goto = "small_review"
+
+[[states.small_gate.choices]]
+label = "fail"
+when = "A command fails"
+goto = "small_fix"
+
+[states.small_fix]
+prompt = "Fix the cause (without lowering thresholds or loosening tests), then re-run the gate."
+goto = "small_gate"
+max_visits = 3
+on_exceed = "blocked"
+
+[states.small_review]
+prompt = "Small revision, step 4: one fresh-subagent review limited to the delta: `game-review STAGE=test PACKAGE={{arg.package}}` with the change summary."
+
+[[states.small_review.choices]]
+label = "pass"
+when = "No blockers remain"
+goto = "small_done"
+
+[[states.small_review.choices]]
+label = "fail"
+when = "Blockers remain"
+goto = "small_fix"
+
+[states.small_done]
+prompt = """Say in the report that the small-revision path was used and why, then run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}`."""
+end = true
+
+[states.blocked]
+prompt = "Tests, coverage or the review keep failing after repeated fixes. Report exactly what fails and why, and ask the user how to proceed. Do not mark `test` done."
+end = true

@@ -1,0 +1,147 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "Whether the game is fun is a subjective call: don't decide alone what \"fun\" means for the user's game. Only the user decides the game is fun enough to ship.",
+  "Effects and UI problems noticed here go to `game-polish`, not into a tuning change.",
+  "This stage is re-entered after a tuning revision has gone through the chain (impl → test → check → codereview → qa → polish): pick the entry that matches where you are.",
+]
+
+[states.begin]
+prompt = """Check `status_polish` (`task game:status PACKAGE={{arg.package}} STAGE=polish`). If it is not `done`, send the user back to `game-polish` first (presentation is settled first, so tuning is judged on the game as it will ship).
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=balance VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_polish` is `done`"
+goto = "entry"
+
+[[states.begin.choices]]
+label = "not_polish"
+when = "`status_polish` is not `done`"
+goto = "need_polish"
+
+[states.need_polish]
+prompt = "Tell the user to run `game-polish` first. Do not change any status. Stop."
+end = true
+
+[states.entry]
+prompt = """Decide where this run starts:
+- autopilot: `{{arg.package}}/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\"): no tuning and no question;
+- a presentation-only revision whose polish confirmation already asked about the feel (`game-polish` \"Presentation-only revisions\"): that answer is the sign-off;
+- a tuned version has just passed QA again and the user is to confirm the feel;
+- otherwise the first pass: play the game."""
+
+[[states.entry.choices]]
+label = "autopilot"
+when = "`{{arg.package}}/.autopilot.md` exists"
+goto = "measure"
+
+[[states.entry.choices]]
+label = "signed_off"
+when = "A presentation-only revision whose polish confirmation already asked about the feel"
+goto = "review"
+
+[[states.entry.choices]]
+label = "tuned"
+when = "A tuned version has just passed QA again"
+goto = "confirm_feel"
+
+[[states.entry.choices]]
+label = "first_pass"
+when = "The first pass: play the game"
+goto = "play"
+
+[states.play]
+prompt = """Play the game (or reuse `game-qa`'s Docker+Playwright setup to drive several playthroughs), focused on feel, not correctness: is the difficulty curve fair, is there a dead spot where nothing interesting happens, does an early failure feel like a \"wait, again?\" or like information the player can act on next time? After an extension (`game-extend`), also judge the existing flow with the new element in play: did it flatten or spike the existing difficulty curve, or change pacing that the regression conditions said to keep?"""
+goto = "discuss"
+
+[states.discuss]
+prompt = """Discuss the findings with the user. Propose specific parameter changes (speed, spawn rate, hit-box size, timing windows, etc.) with reasoning, not vague \"make it more fun\" edits. Ask explicitly whether the current feel is good enough to ship."""
+gate = true
+
+[[states.discuss.choices]]
+label = "tune"
+when = "The user agrees to specific parameter changes"
+goto = "to_spec"
+
+[[states.discuss.choices]]
+label = "good"
+when = "The user says the current feel is good and nothing needs tuning"
+goto = "review"
+
+[states.to_spec]
+prompt = """On agreement, invoke `game-spec` to update the file that owns the element (`docs/spec.md` or its `docs/spec/<slug>.md`) first (AGENTS.md 2.4), documenting the tuning change and why. `game-spec` resets every downstream stage on its own. Then hand off to `game-impl` to apply the tuning change; the normal impl → test → check → codereview → qa → polish chain runs again (`game-codereview` and `game-polish` only look at what the tuning changed), and comes back to `game-balance` at the `tuned` entry. Do not mark `balance` done now. Stop this flow."""
+end = true
+
+[states.confirm_feel]
+prompt = "Ask the user explicitly whether the current feel is good now (QA has passed again on the tuned version). Don't declare it fun enough on your own judgment."
+gate = true
+
+[[states.confirm_feel.choices]]
+label = "ok"
+when = "The user confirmed the current feel is good"
+goto = "review"
+
+[[states.confirm_feel.choices]]
+label = "more"
+when = "The user wants to tune further"
+goto = "play"
+
+[states.measure]
+prompt = """Autopilot: the initial numbers from the agreement stay. For a **gameplay** change only, measure them once so the PR does not go out blind:
+- run automated play as `game-backlog` \"Automated play\" describes (a throwaway harness on the pure logic, seeded runs, 40-60 seeds per condition, medians) in the conditions where the new element is in play;
+- put the numbers next to the before-numbers where they exist (the card's 根拠, the comparison `game-extend` step 5 made, or a condition of the same harness in which the new element is off); don't build a second checkout of `origin/main` for a before-run;
+- hand the table and its conditions to `game-publish` for the PR body, with what a simple bot can't tell. Don't change a number because of it.
+A presentation-only change, or a game with no pure logic a bot can drive, has nothing to measure: say so in the hand-off and note that the numbers have not been tried by hand (the PR body says so; the playtest is where the user judges them)."""
+
+[[states.measure.choices]]
+label = "measured"
+when = "The numbers were measured and are consistent with the agreement's 変えないもの"
+goto = "review"
+
+[[states.measure.choices]]
+label = "nothing_to_measure"
+when = "A presentation-only change, or no pure logic a bot can drive"
+goto = "review"
+
+[[states.measure.choices]]
+label = "contradiction"
+when = "A measured number contradicts the agreement's 変えないもの (an \"unchanged\" median moved)"
+goto = "stopped"
+
+[states.stopped]
+prompt = "Write the contradiction under 「止まった理由」 in the autopilot agreement and ask the user. Do not mark `balance` done. Stop."
+end = true
+
+[states.review]
+prompt = "Run `game-review STAGE=balance PACKAGE={{arg.package}}` (a self-review against its `STAGE=balance` checklist). Fix anything that fails."
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "set_done"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found, then run it again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.set_done]
+prompt = """The user confirmed the current feel is good and QA has passed on the tuned version (or the autopilot / signed-off path applies). Run `task game:status:set PACKAGE={{arg.package}} STAGE=balance VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-publish`)."""
+end = true
+
+[states.blocked]
+prompt = "The self-review still fails after two fix rounds. Report which checklist items fail and ask the user how to proceed. Do not mark `balance` done."
+end = true

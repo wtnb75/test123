@@ -1,0 +1,187 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "Nothing gets changed or posted before the user has triaged: never pass `--fix` or `--comment` to `code-review`, and say in the arguments in words: \"READ-ONLY: report findings, do NOT edit any file\".",
+  "Keep each fix to its finding: no drive-by refactoring (AGENTS.md 4.1).",
+]
+
+[states.begin]
+prompt = """Check `status_check` (`task game:status PACKAGE={{arg.package}} STAGE=check`). If it is not `done`, send the user back to `game-check` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=codereview VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_check` is `done`"
+goto = "scope"
+
+[[states.begin.choices]]
+label = "not_check"
+when = "`status_check` is not `done`"
+goto = "need_check"
+
+[states.need_check]
+prompt = "Tell the user to run `game-check` first. Do not change any status. Stop."
+end = true
+
+[states.scope]
+prompt = """Decide the scope of the review (`SKILL.md` \"Scope of the review\"): committed changes (`git diff origin/main -- {{arg.package}}`) plus uncommitted and untracked files (`git status --porcelain --untracked-files=all -- {{arg.package}}`). Name the files or directories (and what changed) explicitly; don't rely on a diff, since new uncommitted files have none. A first pass on a new game is the whole game directory; a revision focuses on the code that revision changed.
+Read `{{arg.package}}/docs/review-rejected.md` if it exists: its lines are handed to the reviewer.
+Choose the level from \"Level by size\" in `SKILL.md`: `high` with at most 3 rounds, or `medium` with at most 2 rounds for a size-S revision. When in doubt, the first row."""
+
+[[states.scope.choices]]
+label = "high"
+when = "A new game's first pass, a revision of size M or L, or anything touching Scene start/stop, input handling or shared parts (at most 3 rounds)"
+goto = "review_first"
+
+[[states.scope.choices]]
+label = "medium_s"
+when = "A revision of size S (one module or one Scene's local change, no new state or listener; at most 2 rounds)"
+goto = "review_first"
+
+[states.review_first]
+prompt = """Round 1. Invoke the `code-review` skill (same as `/code-review`) at the level chosen in `scope` (`high`, or `medium` for size S), aimed at the scope above. Hand it, in the arguments: the level, the game directory, the scope and what changed, the round number, the lines of `docs/review-rejected.md`, and anything rejected earlier in this run; and say READ-ONLY in words.
+If `code-review` isn't available, launch one fresh `general-purpose` agent with only: the game directory, the scope, the spec files, AGENTS.md section 4, the rejected lines, and the \"Look for\" list from `SKILL.md`; it stays read-only and returns findings in the format in `SKILL.md`, or `no findings`.
+Afterwards check `git status`: if files changed anyway, tell the user which findings were already applied (and let them keep or revert them) before showing the triage table."""
+goto = "triage_prep"
+
+[states.review_next]
+prompt = """Round 2 or later (at most one more round after round 2 for the `high` level, none for size S; the flow enforces the limit). Invoke `code-review` at level `medium`, as a re-review of the previous round's fix diff only (name the files and what each fix did). Pass the same arguments as in round 1 (READ-ONLY, rejected lines, and everything rejected so far)."""
+goto = "triage_prep"
+max_visits = 2
+on_exceed = "open_items"
+
+[states.triage_prep]
+prompt = """Before showing anything, check each finding yourself: read the code path and, where cheap, reproduce the problem with a failing test. Give each finding a recommendation: **accept** (real and worth fixing now), **reject** (wrong, or not worth it; say why), **spec** (fixing it changes player-visible behavior the spec defines or leaves open), or **spec (clarify)** (the code is already right; only the spec's wording is missing or inaccurate).
+When a finding says a library already provides what the code hand-rolls (e.g. Phaser `camera.shake`, tweens), lean towards **accept**: keep only the decision logic pure and tested. That the hand-rolled version is easier to unit-test is not by itself a reason to reject.
+Then decide how this round is handled:
+- `{{arg.package}}/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\"): don't ask in any round; apply your recommendations.
+- Round 1 is always asked. From round 2 on, if every finding is **reject**, don't ask: show the table with the reasons and end the loop.
+- A round with even one accept, spec or spec (clarify) is asked as usual."""
+
+[[states.triage_prep.choices]]
+label = "no_findings"
+when = "The reviewer returned no findings"
+goto = "wrap_up"
+
+[[states.triage_prep.choices]]
+label = "ask"
+when = "Round 1, or a later round with at least one accept, spec or spec (clarify) finding, and no autopilot"
+goto = "triage_ask"
+
+[[states.triage_prep.choices]]
+label = "all_rejected"
+when = "Round 2 or later and every finding is reject (no autopilot): nothing would change"
+goto = "show_rejected"
+
+[[states.triage_prep.choices]]
+label = "autopilot"
+when = "`{{arg.package}}/.autopilot.md` exists"
+goto = "fix"
+
+[states.show_rejected]
+prompt = "Show the user the table with the reasons, say the loop ends here and that they can ask for any item to be reconsidered."
+goto = "wrap_up"
+
+[states.triage_ask]
+prompt = """Show the user one numbered table (番号 / 場所 / 指摘 / 推奨 / 理由) and ask **once** which ones to accept (\"推奨どおり\" is a valid answer). Don't ask per finding."""
+gate = true
+goto = "fix"
+
+[states.fix]
+prompt = """Apply the triage (the user's answer, or your recommendations in autopilot):
+- accept: fix it. For a correctness bug, write a regression test that fails before the fix and passes after.
+- spec: don't fix it in code. Findings that don't depend on the spec change can still be fixed in this round first. In autopilot a **spec** finding is not applied: list it for the PR body under 「未対応の指摘」.
+- spec (clarify): hand it to `game-spec` as a clarification-only revision (see its \"Clarification-only revisions\"); it only resets the stages after this one, so this loop carries on. In autopilot it is applied as a wording-only spec change.
+- reject: remember the reason; report it at completion and add it to `docs/review-rejected.md`."""
+
+[[states.fix.choices]]
+label = "fixed"
+when = "At least one fix was made and no non-autopilot **spec** finding needs a revision"
+goto = "gate_run"
+
+[[states.fix.choices]]
+label = "nothing_to_fix"
+when = "Nothing was accepted (every finding was rejected) and no spec revision is needed"
+goto = "wrap_up"
+
+[[states.fix.choices]]
+label = "spec"
+when = "At least one **spec** finding (not autopilot) needs a `game-spec` revision (independent fixes were made first)"
+goto = "to_spec"
+
+[states.to_spec]
+prompt = """Hand the batch of **spec** findings to `game-spec` as a revision (it resets downstream stages, so `game-impl` onward runs again and this stage comes back later). Do not mark `codereview` done. Stop this flow."""
+end = true
+
+[states.gate_run]
+prompt = """After the last fix of the round, run the `game-check` gate from the top: `npm run lint`, `npm run test`, `npm run test:coverage`, `npm run build` (inside `{{arg.package}}`). Don't start the next round with a failing gate."""
+
+[[states.gate_run.choices]]
+label = "pass"
+when = "All four commands pass"
+goto = "continue_check"
+
+[[states.gate_run.choices]]
+label = "fail"
+when = "A command fails"
+goto = "fix_gate"
+
+[states.fix_gate]
+prompt = "Fix the cause of the gate failure (not by disabling checks), then run the gate again."
+goto = "gate_run"
+max_visits = 3
+on_exceed = "blocked"
+
+[states.continue_check]
+prompt = """Decide whether another round runs. A round whose findings are all rejected (or `no findings`) ends the loop. The last allowed round is round 3, or round 2 for a size-S revision."""
+
+[[states.continue_check.choices]]
+label = "next_round"
+when = "This round made fixes and the last allowed round has not been used yet"
+goto = "review_next"
+
+[[states.continue_check.choices]]
+label = "limit"
+when = "This round made fixes and it was the last allowed round"
+goto = "open_items"
+
+[states.open_items]
+prompt = "After the last allowed round, list anything still open for the user with your recommendation instead of starting another round."
+goto = "wrap_up"
+
+[states.wrap_up]
+prompt = "Run `game-review STAGE=codereview PACKAGE={{arg.package}}` (a self-review against its `STAGE=codereview` checklist). Fix anything that fails."
+
+[[states.wrap_up.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "completion"
+
+[[states.wrap_up.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_self"
+
+[states.fix_self]
+prompt = "Fix what the self-review found, then run it again."
+goto = "wrap_up"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.completion]
+prompt = """The loop ended and the four gate commands pass after the last fix.
+1. Report in one short block: rounds run (and which row of \"Level by size\" was used), fixes made (with their regression tests), findings rejected and why, anything sent to `game-spec`, and in autopilot the 「未対応の指摘」.
+2. Append this run's rejected findings to `{{arg.package}}/docs/review-rejected.md` (create it if missing; one line each: `- <file or area>: <the finding> — 理由: <why>`; drop lines about code that is gone; keep it short). It is part of the change.
+3. Run `task game:status:set PACKAGE={{arg.package}} STAGE=codereview VALUE=done`.
+4. Continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-qa`)."""
+end = true
+
+[states.blocked]
+prompt = "The gate or the self-review keeps failing after repeated fixes. Report exactly what fails and why, and ask the user how to proceed. Do not mark `codereview` done."
+end = true

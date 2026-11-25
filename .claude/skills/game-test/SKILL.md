@@ -1,13 +1,23 @@
 ---
 name: game-test
 description: Use to write or update Vitest unit tests for a game in this monorepo, targeting the 90% coverage gate (AGENTS.md section 4.5) — boundary values, error paths, regression cases, and oracle/mutation checks for logic-heavy modules.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-test
 
 Write Vitest unit tests for `<game-dir>`. This is unit-level coverage work,
 not the pass/fail gate itself (that's `game-check`) and not the visual/feel
 check (that's `game-qa`).
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-test/flow.toml --arg package=<game-dir>`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -140,25 +150,11 @@ worth it, a trivial helper is not.
   If the code documents itself as a heuristic, whether to make it exact is
   the user's decision — report the size of the gap and propose a fix.
 
-## Review (before completion)
+## Added by the flow conversion
 
-Once coverage passes, run `game-review STAGE=test PACKAGE=<game-dir>`. A
-fresh subagent checks that every テスト観点 / rule boundary in the spec
-(`docs/spec.md` and its linked files) has a test, that existing tests
-weren't loosened, that expected values don't come from the
-implementation itself, that nothing nondeterministic is asserted directly,
-and the logic-heavy-module checks above. Fix blockers before completion.
-
-## Completion
-
-1. `npm run test` and `npm run test:coverage` both pass at ≥90% across all
-   four metrics, or the shortfall and a concrete plan to close it are
-   written up for the user (AGENTS.md 6: don't claim done at a coverage gap
-   without explaining why and what's next).
-2. If oracle tests or mutation checks were used, say in the PR/summary what
-   the oracle was, which mutants were caught, and which survived and why.
-3. `game-review STAGE=test` has no remaining blockers.
-4. `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`
-5. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-check` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode").
+- The coverage run, the oracle and mutation steps, the review, completion
+  and the hand-off to `game-next` live in `flow.toml`.
+- `fix_coverage` has `max_visits = 5` (exceeding it goes on to
+  `shortfall_plan`, which writes the shortfall and a plan up for the user);
+  `fix_review` has `max_visits = 2` and `small_fix` has `max_visits = 3`
+  (exceeding either ends at `blocked`).

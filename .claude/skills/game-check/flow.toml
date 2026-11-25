@@ -1,0 +1,168 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). Run every command inside `{{arg.package}}` unless it is a `task` command.",
+  "Never claim success with a failing gate (AGENTS.md 7). Fix root causes; never disable a check.",
+]
+
+[states.begin]
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=check VALUE=in_progress`.
+Decide the path (see `SKILL.md` \"Small revisions\"): a one-rule or one-module revision may take the small path; anything bigger takes the full path."""
+
+[[states.begin.choices]]
+label = "full"
+when = "A new game, or any revision bigger than one rule or one module"
+goto = "scaffold"
+
+[[states.begin.choices]]
+label = "small_touched_public"
+when = "Small revision (one rule or one module) whose change touched `public/` or the build"
+goto = "scaffold"
+
+[[states.begin.choices]]
+label = "small"
+when = "Small revision (one rule or one module) that touched neither `public/` nor the build"
+goto = "lint"
+
+[states.scaffold]
+prompt = """Check `public/` (including `public/assets/`) for files carried over from `task newgame`'s scaffold that nothing uses (most commonly `bg.png` and `logo.png`).
+For each file under `public/`, search `src/` and `index.html` for its filename; delete it if nothing references it (`git rm` if tracked). Double-check a suspected dynamically-built path before deleting. Details: `SKILL.md` \"Scaffold cleanup\"."""
+goto = "lint"
+
+[states.lint]
+prompt = """Run `npm run lint` in `{{arg.package}}`. It must report 0 errors.
+Any lint-disable comment must already carry a reason and be minimally scoped (AGENTS.md 4.4); flag one that does not, do not leave it silently."""
+
+[[states.lint.choices]]
+label = "pass"
+when = "0 lint errors"
+goto = "test"
+
+[[states.lint.choices]]
+label = "fail"
+when = "One or more lint errors"
+goto = "fix"
+
+[states.test]
+prompt = "Run `npm run test` in `{{arg.package}}`."
+
+[[states.test.choices]]
+label = "pass"
+when = "All tests passed"
+goto = "coverage"
+
+[[states.test.choices]]
+label = "fail"
+when = "One or more tests failed"
+goto = "fix"
+
+[states.coverage]
+prompt = "Run `npm run test:coverage` in `{{arg.package}}`. Statement, branch, function and line coverage must all be at least 90%."
+
+[[states.coverage.choices]]
+label = "pass"
+when = "All four metrics are at least 90%"
+goto = "build"
+
+[[states.coverage.choices]]
+label = "fail"
+when = "A metric is below 90% and it can be closed in this pass"
+goto = "fix"
+
+[[states.coverage.choices]]
+label = "shortfall"
+when = "A coverage shortfall cannot be closed in this pass"
+goto = "blocked"
+
+[states.build]
+prompt = """Run `npm run build` in `{{arg.package}}`. It must produce static output with no Node-server-only runtime dependency.
+Then run `rg -c __qa dist/assets/*.js`; it must print nothing (the dev-only QA hook must not ship)."""
+
+[[states.build.choices]]
+label = "pass"
+when = "The build succeeded and the `__qa` search printed nothing"
+goto = "title_link"
+
+[[states.build.choices]]
+label = "fail"
+when = "The build failed, or `__qa` appears in `dist/assets/*.js`"
+goto = "fix"
+
+[states.title_link]
+prompt = """Run `task game:check-title-link PACKAGE={{arg.package}}`. It must pass.
+A game with `src/game/scenes/Title.ts` must import `showGameListLink` from `game-list-link`, call it in the Title's `create()`, and depend on `game-list-link` in `package.json`. A game without a Title.ts passes."""
+
+[[states.title_link.choices]]
+label = "pass"
+when = "The task passed"
+goto = "review"
+
+[[states.title_link.choices]]
+label = "fail"
+when = "The task failed"
+goto = "fix"
+
+[states.fix]
+prompt = """Do not mark this stage done. Note exactly which command failed and why, and fix the root cause (not by disabling checks).
+Then re-run from the top: pick `rerun_full` if this run took the full path or the fix touched `public/` or the build; otherwise `rerun_small`."""
+max_visits = 5
+on_exceed = "blocked"
+
+[[states.fix.choices]]
+label = "rerun_full"
+when = "The run took the full path, or the fix touched `public/` or the build"
+goto = "scaffold"
+
+[[states.fix.choices]]
+label = "rerun_small"
+when = "The run took the small path and the fix did not touch `public/` or the build"
+goto = "lint"
+
+[states.review]
+prompt = """Run `game-review STAGE=check PACKAGE={{arg.package}}` (a self-review against its `STAGE=check` checklist). Fix anything that fails rather than just noting it."""
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "done"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = """Fix what the self-review found. If the fix changed code, re-run the gate from the top (pick `rerun_full` or `rerun_small` as in the `fix` state); if it changed only wording or process, go straight back to the review."""
+max_visits = 2
+on_exceed = "blocked"
+
+[[states.fix_review.choices]]
+label = "rerun_full"
+when = "The fix changed code and the run took the full path"
+goto = "scaffold"
+
+[[states.fix_review.choices]]
+label = "rerun_small"
+when = "The fix changed code and the run took the small path"
+goto = "lint"
+
+[[states.fix_review.choices]]
+label = "review_only"
+when = "The fix changed no code"
+goto = "review"
+
+[states.done]
+prompt = """All steps passed: scaffold cleanup (when the path required it), lint, test, coverage, build and the Title link check.
+Run `task game:status:set PACKAGE={{arg.package}} STAGE=check VALUE=done`.
+Say in the report which path was used (full or small revision).
+Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-codereview`)."""
+end = true
+
+[states.blocked]
+prompt = """The stage is NOT done. Report exactly which command failed and why, or the coverage shortfall with a concrete plan (AGENTS.md 6). Do not mark `check` done. Ask the user how to proceed; restart this flow after the cause is fixed."""
+end = true

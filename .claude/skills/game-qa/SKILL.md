@@ -1,7 +1,10 @@
 ---
 name: game-qa
 description: Use to visually confirm a game in this monorepo actually works in a real browser — canvas rendering, input feel, clear/game-over states — via the Docker+Playwright headless-browser procedure in AGENTS.md section 9 (helpers in scripts/qa/).
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-qa
 
@@ -9,61 +12,18 @@ description: Use to visually confirm a game in this monorepo actually works in a
 *actually renders and plays* — Vitest can't see canvas output, so this is
 the only step that looks at real pixels.
 
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-qa/flow.toml --arg package=<game-dir>`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
+
 ## Inputs
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
 - Requires `status_codereview: done` for this game — if not, send the user
   back to `game-codereview` (or `game-check` before it) first.
-
-## Procedure — full detail in `AGENTS.md` section 9, summary here
-
-`task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=in_progress`
-
-Use the helpers in `scripts/qa/` (see `scripts/qa/README.md`); don't rebuild
-the Docker + Playwright setup by hand.
-
-1. `scripts/qa/up.sh <game-dir> [port]` — starts the dev server on
-   this session's Docker IP (`<ip>:<port>`, not every interface) and a
-   Playwright container on *this session's* Docker
-   network (not `--network host`, which can't reach this session's
-   `localhost`), installs `playwright` in it, and prints the base URL and the
-   container's UTC date (games that pick content by date need it).
-2. Write the scenario as an ES module under the scratchpad that imports from
-   `./lib.mjs` (`launch`, `newPage`, `shot`, `burst`, `tap`, `setHidden`,
-   `waitForQa`, `fps`, `report`). `scripts/qa/smoke.mjs` is a generic
-   starting point (desktop and phone viewport, frame rate, one tap, console
-   errors). Run it with
-   `scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]`; the
-   screenshots come back in `<out-dir>` (files move with `docker cp`, never a
-   bind mount).
-3. For a first look at a game's layout, `scripts/qa/look.mjs` gives one montage per
-   screen size (AGENTS.md 4.6 lists what to check there).
-   Take screenshots at the states that matter for this game (title,
-   mid-play, clear, game-over, and every state/Scene the spec names), on a
-   desktop and a phone-sized viewport. For effects and transitions take a
-   short burst (`burst`, every 50–100 ms). Judge on speed feel,
-   hit-detection feel, and whether transitions match the spec, not just "it
-   didn't crash". The spec is `docs/spec.md` plus its linked
-   `docs/spec/*.md` files.
-
-   For a revision (this game passed QA before — e.g. after `game-extend`),
-   how much to re-shoot depends on what the change touched — see "Scope of
-   a revision's QA" below. The first QA of a game is always the full set.
-4. `scripts/qa/down.sh <game-dir> [port]` — removes the container and stops
-   the server. Always, even if QA failed.
-5. **Shared build check** (what is actually published): the dev server runs
-   a different bundle from the one GitHub Pages serves — Phaser is left out
-   of `dist-shared/` and loaded from `../vendor/` through an import map, and
-   the site lives under a sub-path, so a wrong asset path or a missing
-   vendor file only shows up there. After the dev-server run, do
-   `scripts/qa/up.sh <game-dir> <port> --shared` (builds with
-   `SHARED_VENDOR=1`, lays it out like `output/`, serves it under `/<repo>/`),
-   run `scripts/qa/run.sh <game-dir> scripts/qa/smoke.mjs <out-dir>` (it
-   fails on a missing canvas, console errors or 4xx/5xx requests, and its
-   screenshots show title and the first tap), look at them, then
-   `scripts/qa/down.sh <game-dir> <port>`. Do it every time a game goes
-   through QA, and always when `index.html` or the build config changed
-   (AGENTS.md 4.3). `task build` itself (all games, CI) stays CI's job.
 
 ## Scope of a revision's QA
 
@@ -115,22 +75,9 @@ Rules for scenarios (each one cost a QA run before):
   produced no new file for a minute, kill the node process in the container
   (`docker exec <container> pkill node`) and rerun only the missing part.
 
-## On failure
+## Added by the flow conversion
 
-Don't mark this stage done. Report what looked wrong with the screenshots
-as evidence, and route back to `game-impl` for a fix (one change, one
-purpose — don't bundle the fix with unrelated work).
-
-## Review (before completion)
-
-Run `game-review STAGE=qa PACKAGE=<game-dir>` — a self-review against
-its `STAGE=qa` checklist — before marking this stage done. Fix anything that
-fails rather than just noting it.
-
-## Completion
-
-1. Screenshots confirm the game renders and behaves as the spec describes.
-2. `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=done`
-3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-polish` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode").
+- The procedure (up, shoot, down, the shared build check), the judgement,
+  the self-review and completion live in `flow.toml`; the commands are in
+  its prompts and in `AGENTS.md` section 9 and `scripts/qa/README.md`.
+- `fix_review` has `max_visits = 2`; exceeding it ends at `blocked`.

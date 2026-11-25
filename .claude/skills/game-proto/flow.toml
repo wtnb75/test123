@@ -1,0 +1,131 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). This stage is for the first pass of a new game only (before `status_publish` is `done`).",
+  "The prototype code is throwaway: it lives only in `{{arg.package}}/src/proto/`. Don't add dependencies and don't touch files outside `{{arg.package}}` (the one edit outside `src/proto/` is the import in `src/main.ts`).",
+  "Only the user decides that the loop is settled; your own opinion that it \"works\" does not end it.",
+]
+
+[states.begin]
+prompt = """Check `status_init` (`task game:status PACKAGE={{arg.package}} STAGE=init`). Do not start this skill if it is not `done`: send the user to `game-init` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=proto VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_init` is `done`"
+goto = "spec_lite"
+
+[[states.begin.choices]]
+label = "not_init"
+when = "`status_init` is not `done`"
+goto = "need_init"
+
+[states.need_init]
+prompt = "Tell the user to run `game-init` first. Do not change any status. Stop."
+end = true
+
+[states.spec_lite]
+prompt = """Write the body of `{{arg.package}}/docs/spec.md` below the existing frontmatter (do not touch the `status_*` keys by hand). Only these five items: ゲーム名 / コンセプト（1-3行） / コアループ / 操作仕様 / パラメータ表.
+Start the body with this line: `> spec-lite: プロトタイプ用の下書き。`game-spec` が完全版に仕上げる。`
+Pull concept, core loop and input from the `game-idea` conversation. The パラメータ表 only needs reasonable initial values (`game-spec` \"パラメータ表 and 実装裁量\"). Keep it to a page. Don't ask the user to approve it: it is a working note."""
+goto = "build"
+
+[states.build]
+prompt = """Build the smallest prototype that lets the user play the core loop end to end (usually one Scene: start, play, an ending the player can restart from). Skip anything the loop doesn't need (title screen, sound, effects, persistence).
+Rules for the code:
+- Everything lives in `{{arg.package}}/src/proto/`, with its own `src/proto/main.ts` exporting `StartGame` like `src/game/main.ts`. The only edit outside it is changing the import in `src/main.ts` from `./game/main` to `./proto/main`.
+- Every number from the パラメータ表 lives in `src/proto/params.ts`, and the spec-lite table matches it.
+- Keep game rules in pure functions in `src/proto/logic.ts` (no Phaser imports): hit tests, scoring, spawn tables, win/lose conditions.
+- Prefer what Phaser provides (tweens, timers, camera effects) over hand-rolling.
+- Not required here: Scene responsibility split, tests, coverage, lint-clean code, effects/polish."""
+goto = "serve"
+
+[states.serve]
+prompt = """Start the dev server in the background from `{{arg.package}}` (`npm run dev -- --host 0.0.0.0 --port <PORT>`) and give the user a URL they can actually reach (when this session runs in a container, that is the session's IP, not `localhost`: AGENTS.md section 9). Check it boots and renders without console errors before asking them to play; if you can't see the browser, say so rather than guessing it works. (A headless screenshot is fine for \"does it start\", never for \"is it fun\".)
+If they want to play on another device, offer `scripts/qa/share.sh {{arg.package}} <PORT>` (AGENTS.md 9.1) and run it only when they say yes. Stop it with `scripts/qa/down.sh` when the playtest is over."""
+goto = "feedback"
+
+[states.feedback]
+prompt = """Ask once, open-ended: play it and tell me what felt wrong, boring or unclear, and what felt good so it isn't tuned away. Don't pre-load a questionnaire.
+Then sort each point:
+- A number (too fast, too many, too generous): edit `params.ts` and the spec-lite table together.
+- A rule (what ends the run, how scoring works, what an input does): change `logic.ts` / the Scene and the spec-lite text.
+- Screens / flow: change the Scene and note it in the spec-lite.
+- The loop itself isn't fun: don't patch around it. Say so plainly and offer: change the core mechanic and re-prototype, or go back to `game-idea` (and stop this stage). The user decides.
+Apply one change at a time that the user can feel, and report what changed in a few lines. Write what the playtests settled into the spec-lite as you go, under `## プレイテストで固まったこと` (rules confirmed or changed, why a number ended up where it did, things that felt good and must stay, screens that turned out to be needed). List every feature or idea tried or discussed and then cut under `## 見送ったこと`, with the reason and any playtest evidence."""
+
+[[states.feedback.choices]]
+label = "changed"
+when = "The user gave feedback that was applied (number, rule or screens), and the loop goes on"
+goto = "feedback"
+
+[[states.feedback.choices]]
+label = "not_fun"
+when = "The loop itself isn't fun and the user must decide what to do"
+goto = "core_decision"
+
+[[states.feedback.choices]]
+label = "settled"
+when = "The user says it is settled"
+goto = "stop_server"
+
+[states.core_decision]
+prompt = "Ask the user: change the core mechanic and re-prototype, or go back to `game-idea` and stop this stage?"
+
+[[states.core_decision.choices]]
+label = "remake"
+when = "The user wants to change the core mechanic and re-prototype"
+goto = "build"
+
+[[states.core_decision.choices]]
+label = "abandon"
+when = "The user wants to go back to `game-idea`"
+goto = "stop_server_abort"
+
+[states.stop_server]
+prompt = """Stop the dev server (and any QA container). Stop it by its process id (the background task's PID, or the vite process whose `/proc/<pid>/cwd` is `{{arg.package}}`), then confirm the URL no longer answers. Never `pkill -f <pattern>`: the pattern also matches your own command line and kills the shell."""
+goto = "review"
+
+[states.stop_server_abort]
+prompt = """Stop the dev server (and any QA container) by its process id, never `pkill -f <pattern>`, and confirm the URL no longer answers. Do not mark `proto` done. Tell the user to go back to `game-idea`."""
+end = true
+
+[states.review]
+prompt = "Run `game-review STAGE=proto PACKAGE={{arg.package}}` (a self-review against its `STAGE=proto` checklist). Fix anything that fails."
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "summary"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found, then run the review again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.summary]
+prompt = """Show the user a short summary: the final パラメータ表 values, the rules and screens that settled, which `src/proto/` files hold pure logic worth porting, and what will be dropped.
+In the same question, ask whether to commit the prototype as a WIP commit on this branch (so `game-impl` and the user can still read it from git history after `src/proto/` is removed). Don't commit without the answer; commit if they say yes."""
+gate = true
+goto = "set_done"
+
+[states.set_done]
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=proto VALUE=done`.
+Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-spec`).
+`src/proto/` stays in place until `game-impl` replaces it: don't delete it here, and don't promote it into the real implementation by copying it over wholesale."""
+end = true
+
+[states.blocked]
+prompt = "The self-review still fails after two fix rounds. Report which checklist items fail and ask the user how to proceed. Do not mark `proto` done."
+end = true

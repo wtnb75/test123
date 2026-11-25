@@ -1,0 +1,205 @@
+schema = 1
+start = "begin"
+
+[args.package]
+required = true
+
+[notes]
+always = [
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section.",
+  "Follow the Rules in `SKILL.md` (AGENTS.md 3-4): one change, one purpose; Scene responsibilities separated; no per-frame allocation; listeners cleaned up; static distribution only; dev-only `window.__qa` inline in `if (import.meta.env.DEV)`; Title calls `showGameListLink(this)`; prefer what Phaser provides.",
+  "Don't run lint, the full test suite or coverage in this stage: that is `game-check`'s job.",
+]
+
+[states.begin]
+prompt = """Check `status_spec` (`task game:status PACKAGE={{arg.package}} STAGE=spec`). Do not start this skill if it is not `done`: send the user back to `game-spec` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=impl VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_spec` is `done`"
+goto = "reread"
+
+[[states.begin.choices]]
+label = "not_spec"
+when = "`status_spec` is not `done`"
+goto = "to_spec"
+
+[states.reread]
+prompt = """Re-read the spec fully (`{{arg.package}}/docs/spec.md` and its linked files): it is the source of truth for scope. If what is being asked diverges from the spec, stop and route back to `game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新)."""
+
+[[states.reread.choices]]
+label = "matches"
+when = "What is being asked is covered by the spec"
+goto = "context"
+
+[[states.reread.choices]]
+label = "diverges"
+when = "What is being asked diverges from the spec"
+goto = "to_spec"
+
+[states.context]
+prompt = "Check what code exists in `{{arg.package}}/src` (not just the status key) to decide how to start (`SKILL.md` \"If `src/proto/` exists\" and \"If code already exists\")."
+
+[[states.context.choices]]
+label = "proto"
+when = "`src/proto/` exists (first implementation after `game-proto`)"
+goto = "port_proto"
+
+[[states.context.choices]]
+label = "delta"
+when = "Real implementation code already exists (a revision); implement the delta, not a rewrite"
+goto = "delta"
+
+[[states.context.choices]]
+label = "blank"
+when = "There is no implementation code yet and no `src/proto/`"
+goto = "implement"
+
+[states.port_proto]
+prompt = """`src/proto/` is the throwaway prototype, not code to build on. Read it for what the spec doesn't say in code form (how a rule was implemented, what the playtests tuned). Then:
+- Port the pure logic (`src/proto/logic.ts`, `params.ts`) into the real structure, adjusting it to the spec; carry nothing over wholesale because it happens to work.
+- Write Scenes fresh under the Scene/preload/create/update rules.
+- A player-visible behavior that exists only in the prototype and not in the spec is a spec gap: handle it as in `implement` (don't silently keep it, don't silently drop it).
+- Removing `src/proto/` and pointing `src/main.ts` back at `./game/main` happens in the build step, before declaring done."""
+goto = "implement"
+
+[states.delta]
+prompt = """Figure out what changed between the spec version the code was built against and the current one (the conversation that led to this revision is usually the fastest way), and touch only the code that change affects. Don't rewrite unaffected parts \"while you're in there\". Regression conditions in 完了条件 (added for an extension from `game-extend`) are limits on the delta."""
+goto = "implement"
+
+[states.implement]
+prompt = """Write the code against the spec, following the Rules in `SKILL.md`.
+When the spec is silent (`SKILL.md` \"When the spec is silent\"):
+- listed in 実装裁量, or no player-visible effect (internal structure, helper naming): decide it yourself and move on, and mention player-visible choices under 実装裁量 in the completion summary;
+- player-visible and not delegated (a rule, a number, an edge case): collect all such gaps; parts of the spec not affected can be implemented meanwhile."""
+
+[[states.implement.choices]]
+label = "coded"
+when = "The code is written and there are no player-visible spec gaps"
+goto = "build"
+
+[[states.implement.choices]]
+label = "gaps"
+when = "There are player-visible gaps that the spec neither specifies nor delegates"
+goto = "gaps_ask"
+
+[states.gaps_ask]
+prompt = """Implement the unaffected parts first. Then ask the user once, with a recommended answer for each gap, and route the answers to `game-spec` as a revision before implementing that part. Do not mark `impl` done."""
+goto = "to_spec"
+
+[states.build]
+prompt = """Run `npm run build` in `{{arg.package}}`; it must succeed (static output).
+If `src/proto/` still exists (first implementation after `game-proto`): point `src/main.ts` back at `./game/main` and remove `src/proto/` now: `git rm -r src/proto` if it was committed, otherwise `git clean -fd src/proto`. A committed prototype stays readable in the history; an uncommitted one is gone after this, which is what the user chose when `game-proto` asked about the WIP commit.
+Done only when the build succeeds and `src/proto/` no longer exists."""
+
+[[states.build.choices]]
+label = "pass"
+when = "The build succeeded and `src/proto/` no longer exists"
+goto = "measured"
+
+[[states.build.choices]]
+label = "fail"
+when = "The build failed"
+goto = "fix_build"
+
+[states.fix_build]
+prompt = "Fix the cause of the build failure (not by disabling checks)."
+goto = "build"
+max_visits = 3
+on_exceed = "blocked"
+
+[states.measured]
+prompt = """Check whether 完了条件 / テスト観点 holds a threshold on a ratio or a count (e.g. \"下限を満たさない盤面は 10% 以下\"). If so, measure it with the spec's own numbers now that the build works (a throwaway harness in the scratchpad; remove anything you put in the tree with `git clean`) and put the result in the completion summary.
+If it misses, do not change a number from the パラメータ表 in the code alone: show the user a table of the measured results for the candidate values and route the change through `game-spec`, like any other player-visible gap."""
+
+[[states.measured.choices]]
+label = "none"
+when = "The spec holds no measured threshold"
+goto = "review"
+
+[[states.measured.choices]]
+label = "met"
+when = "The measured thresholds are met"
+goto = "review"
+
+[[states.measured.choices]]
+label = "missed"
+when = "A measured threshold is missed"
+goto = "missed_ask"
+
+[states.missed_ask]
+prompt = "Show the user the table of measured results for candidate values and route the change through `game-spec`. Do not mark `impl` done."
+goto = "to_spec"
+
+[states.review]
+prompt = """Run `game-review STAGE=impl PACKAGE={{arg.package}}`. A fresh subagent checks the change against the spec (every rule/parameter implemented, nothing invented, parameters in one place, logic testable without Phaser) and the Rules in `SKILL.md`. Fix blockers; a finding that turns out to be a spec gap goes to `game-spec` as in `implement`."""
+
+[[states.review.choices]]
+label = "pass"
+when = "No blockers remain"
+goto = "feel_check"
+
+[[states.review.choices]]
+label = "fail"
+when = "Blockers that are implementation-only remain"
+goto = "fix_review"
+
+[[states.review.choices]]
+label = "spec_gap"
+when = "A finding is a player-visible spec gap"
+goto = "gaps_ask"
+
+[states.fix_review]
+prompt = "Fix the implementation-only blockers, then rebuild and run the review again."
+goto = "build"
+max_visits = 3
+on_exceed = "blocked"
+
+[states.feel_check]
+prompt = """Playtesting and feel feedback are normally deferred to `game-qa` and `game-balance`. But if this session implemented something whose feel can't be judged by reading the diff (a new input/gesture mechanic, physics- or math-heavy interaction, timing-sensitive behavior), say so explicitly and offer the user a quick manual check (`npm run dev` and try it in a browser; for another device, `scripts/qa/share.sh`, AGENTS.md 9.1, only on their say-so). It is the user's call: offer it, don't force it, and don't offer it for ordinary changes that don't carry this risk."""
+
+[[states.feel_check.choices]]
+label = "not_needed"
+when = "Nothing implemented here has a feel that can't be judged from the diff"
+goto = "set_done"
+
+[[states.feel_check.choices]]
+label = "offer"
+when = "Something feel-sensitive was implemented and a manual check should be offered"
+goto = "offer_check"
+
+[states.offer_check]
+prompt = "Offer the manual check and wait for the user's answer."
+
+[[states.offer_check.choices]]
+label = "ok"
+when = "The user declined the check, or it showed no problem"
+goto = "set_done"
+
+[[states.offer_check.choices]]
+label = "impl_problems"
+when = "The check surfaced problems that are implementation-only"
+goto = "fix_feel"
+
+[[states.offer_check.choices]]
+label = "spec_problems"
+when = "The check surfaced spec-level decisions (an interaction rule, a scoring formula, a state-machine detail); fix any implementation-only problems directly first"
+goto = "to_spec"
+
+[states.fix_feel]
+prompt = "Fix the implementation-only problems. Then rebuild; if the changed part is still feel-sensitive, offer another quick check."
+goto = "build"
+
+[states.set_done]
+prompt = """Confirm `npm run build` succeeds, `src/proto/` no longer exists and `game-review STAGE=impl` has no blockers. Then run `task game:status:set PACKAGE={{arg.package}} STAGE=impl VALUE=done`.
+Give the completion summary (player-visible 実装裁量 choices, measured values). Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-test`)."""
+end = true
+
+[states.to_spec]
+prompt = "Route to `game-spec` as a revision (with the user's answers or the measured table, if any): it resets the downstream stages, and `game-impl` runs again afterwards from its start. Do not mark `impl` done. Stop this flow."
+end = true
+
+[states.blocked]
+prompt = "The build or the review keeps failing after repeated fixes. Report exactly what fails and why, and ask the user how to proceed. Do not mark `impl` done."
+end = true
