@@ -1,7 +1,10 @@
 ---
 name: game-impl
 description: Use to implement or modify a game's Phaser.js code against its approved docs/spec.md, following this monorepo's Scene/preload/create/update discipline (AGENTS.md section 4).
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-impl
 
@@ -9,6 +12,13 @@ Implement against the approved spec — `<game-dir>/docs/spec.md` plus every
 `docs/spec/*.md` linked from its `## 拡張` section (see `game-spec` "Spec
 layout"). Do not start this skill if `status_spec` isn't `done` — send the
 user back to `game-spec` first.
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-impl/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -128,55 +138,12 @@ to misread as "the hit area is just too small" — confirmed by direct
 instrumentation (logging the callback's `x, y` against the container's
 known position) in `fukuwarai`, not by guessing from symptoms.
 
-## Review (before completion)
+## Added by the flow conversion
 
-After `npm run build` succeeds, run `game-review STAGE=impl
-PACKAGE=<game-dir>`. A fresh subagent checks the change against the spec
-(`docs/spec.md` and its linked files — every rule/parameter implemented,
-nothing invented, parameters in one place, logic testable without Phaser)
-and the Phaser rules above. Fix blockers; a finding that turns out to be
-a spec gap goes to `game-spec` as described in "When the spec is silent".
-
-## Before declaring done: does this need a human look first?
-
-Playtesting and feel feedback are normally deferred to `game-qa` (does it
-work) and `game-balance` (is it fun) — not this skill or `game-test`, so
-that "broken" and "not fun" stay separate signals and cheap automated
-checks run before human time is spent.
-
-But if this session implemented something whose *feel* can't be judged by
-reading the diff — a new input/gesture mechanic, physics- or math-heavy
-interaction, timing-sensitive behavior, anything where "does this feel
-right" genuinely can't be answered without touching it — say so explicitly
-and offer the user a quick manual check (e.g. `npm run dev` and try it in
-a browser; for another device, `scripts/qa/share.sh` — AGENTS.md section
-9.1, only on their say-so) before moving on. This is the user's call, not a silent skip —
-offer it, don't force it, and don't default to offering it for ordinary
-changes that don't carry this risk.
-
-**This can loop, and that's normal, not a failure.** If the check surfaces
-real problems, some fixable here and some that are actually spec-level
-decisions (an interaction rule, a scoring formula, a state-machine detail
-the spec got wrong or left too vague) — fix what's implementation-only
-directly, then route the rest to `game-spec` as a revision (see AGENTS.md:
-仕様変更時は spec.md を先に更新). Once that revision lands you're back
-here — re-read the updated spec, apply the delta (see above), and offer
-another quick check if the changed part is still feel-sensitive. Treat
-this as the expected shape of implementing a genuinely new mechanic, not
-as something to route around: writing `game-test` cases before this
-settles risks wasting that work on a mechanic that's still moving.
-
-## Completion
-
-1. `npm run build` succeeds (static output), and `src/proto/` no longer
-   exists.
-2. `game-review STAGE=impl` has no remaining blockers.
-3. `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=done`
-4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-test` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode"). If you offered a manual feel
-   check (above), wait for the user's answer first — continue once they
-   decline it or the check settles.
-
-Don't run lint/full test/coverage here — that's `game-check`'s job. This
-skill's job is working code against the spec, not the quality gate.
+- The review, the optional manual feel check, completion and the hand-off
+  to `game-next` live in `flow.toml`.
+- `fix_build` and `fix_review` have `max_visits = 3`; exceeding either
+  ends at `blocked` (stage not done, report to the user).
+- The feel-check loop (`offer_check` → `fix_feel` → `build`) has no limit:
+  the user decides. A spec-level problem ends this flow at `to_spec`; the
+  revision resets this stage and the flow is started again afterwards.
