@@ -42,6 +42,9 @@ package-lock.json
 # game-autopilot agreement (per game, never committed)
 **/.autopilot.md
 
+# deskil flow run state (per session, never committed)
+.flow/
+
 /.codegraph
 /.pnpm-store
 .gstack/

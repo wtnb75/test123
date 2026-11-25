@@ -15,7 +15,7 @@ gate (AGENTS.md 7: 禁止事項 — lint/test/buildの失敗を残したまま�
 
 Run this skill as a step-by-step flow:
 
-1. Run `deskil flow start .claude/skills/game-check/flow.toml`.
+1. Run `deskil flow start .claude/skills/game-check/flow.toml --arg package=<game-dir>`.
 2. Follow the instructions in the output. When the work is done, run the
    `next` command shown at the end of the output.
 3. Repeat until the output ends with `Flow complete.`

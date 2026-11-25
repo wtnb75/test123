@@ -1,16 +1,19 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The PR's content is scoped to exactly one thing: adding `<game-dir>` (first publish) or that one revision (post-publish).",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The PR's content is scoped to exactly one thing: adding `{{arg.package}}` (first publish) or that one revision (post-publish).",
   "Pushing and PR creation are visible: confirm with the user before them, unless the agreement covers it (autopilot, or `game-polish`'s combined confirmation for a presentation-only revision).",
   "Don't run `task build` or verify `output/index.html` here: that is CI's job. If the PR title/body has to change after it is open, use `gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F title=... -F body=@<file>` (`gh pr edit` fails in this repo with a Projects (classic) GraphQL error).",
 ]
 
 [states.begin]
-prompt = """Check `status_balance` (`task game:status PACKAGE=<game-dir> STAGE=balance`). If it is not `done`, send the user back to `game-balance` first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`."""
+prompt = """Check `status_balance` (`task game:status PACKAGE={{arg.package}} STAGE=balance`). If it is not `done`, send the user back to `game-balance` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=publish VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -27,15 +30,15 @@ prompt = "Tell the user to run `game-balance` first. Do not change any status. S
 end = true
 
 [states.readme]
-prompt = "Confirm `<game-dir>/README.md` documents purpose, rules, and controls (AGENTS.md 4.1: required, not optional). For a post-publish revision, check it reflects the changed rules and controls, and update it in this change if it doesn't."
+prompt = "Confirm `{{arg.package}}/README.md` documents purpose, rules, and controls (AGENTS.md 4.1: required, not optional). For a post-publish revision, check it reflects the changed rules and controls, and update it in this change if it doesn't."
 goto = "favicon"
 
 [states.favicon]
-prompt = """Confirm the game has its own favicon: `cmp -s <game-dir>/public/favicon.png scaffold/base-template/public/favicon.png` succeeding means it's still the template's stock icon. In that case run `task game:favicon PACKAGE=<game-dir>` and include the result in this change."""
+prompt = """Confirm the game has its own favicon: `cmp -s {{arg.package}}/public/favicon.png scaffold/base-template/public/favicon.png` succeeding means it's still the template's stock icon. In that case run `task game:favicon PACKAGE={{arg.package}}` and include the result in this change."""
 goto = "card"
 
 [states.card]
-prompt = """Check the top-page card data: the `index` field of `<game-dir>/package.json` (`{ title, summary, tags }`; see `SKILL.md` \"Top-page card\" for the conventions). Compare it with `docs/spec.md` and `README.md` (what the game is now, not what it was at the prototype). Missing: add it. Present but stale or off-convention: change it. Otherwise leave it alone (don't churn wording that is fine). On a post-publish revision re-check it too: an extension that adds a mode or an input method (or a balance change that alters the pitch) can make the card wrong, and the change belongs in this PR."""
+prompt = """Check the top-page card data: the `index` field of `{{arg.package}}/package.json` (`{ title, summary, tags }`; see `SKILL.md` \"Top-page card\" for the conventions). Compare it with `docs/spec.md` and `README.md` (what the game is now, not what it was at the prototype). Missing: add it. Present but stale or off-convention: change it. Otherwise leave it alone (don't churn wording that is fine). On a post-publish revision re-check it too: an extension that adds a mode or an input method (or a balance change that alters the pitch) can make the card wrong, and the change belongs in this PR."""
 
 [[states.card.choices]]
 label = "first"
@@ -48,26 +51,26 @@ when = "This is a post-publish revision (the game is already listed)"
 goto = "post_backlog"
 
 [states.first_confirm]
-prompt = """First publish goes to **labs** by default (`labs.html`), not the top page. Ask the user once, covering: (1) the `index` card text from the previous step and \"listed on labs\" (the commented `#- <game-dir>` line `task newgame` left at the end of `GAMES:` moves to the end of `LAB_GAMES:`, uncommented, oldest first, and is removed from `GAMES:`), and (2) the push and PR (one question can cover both). Listing on the top page (`GAMES`) is a separate, later change: do it only if the user says so in this same question, otherwise as a `Taskfile.yml`-only PR when they ask."""
+prompt = """First publish goes to **labs** by default (`labs.html`), not the top page. Ask the user once, covering: (1) the `index` card text from the previous step and \"listed on labs\" (the commented `#- {{arg.package}}` line `task newgame` left at the end of `GAMES:` moves to the end of `LAB_GAMES:`, uncommented, oldest first, and is removed from `GAMES:`), and (2) the push and PR (one question can cover both). Listing on the top page (`GAMES`) is a separate, later change: do it only if the user says so in this same question, otherwise as a `Taskfile.yml`-only PR when they ask."""
 gate = true
 goto = "first_taskfile"
 
 [states.first_taskfile]
-prompt = "Only after the user's confirmation, edit `Taskfile.yml`: move the `<game-dir>` line from `GAMES` to the end of `LAB_GAMES` (or leave it in `GAMES` for the top page if the user asked for that), as the confirmation said."
+prompt = "Only after the user's confirmation, edit `Taskfile.yml`: move the `{{arg.package}}` line from `GAMES` to the end of `LAB_GAMES` (or leave it in `GAMES` for the top page if the user asked for that), as the confirmation said."
 goto = "first_backlog"
 
 [states.first_backlog]
-prompt = """Backlog (first publish): confirm `<game-dir>/docs/backlog.md` exists and holds the items that missed the MVP (see `game-spec`'s `first-write.md`, \"Backlog from the first write\"). Missing: write it now in the `game-backlog` card format from 非MVP範囲 and the cut items; it is part of this PR."""
+prompt = """Backlog (first publish): confirm `{{arg.package}}/docs/backlog.md` exists and holds the items that missed the MVP (see `game-spec`'s `first-write.md`, \"Backlog from the first write\"). Missing: write it now in the `game-backlog` card format from 非MVP範囲 and the cut items; it is part of this PR."""
 goto = "pr_mode"
 
 [states.post_backlog]
-prompt = "The `GAMES` / `LAB_GAMES` line is already in place: leave `Taskfile.yml` alone. If `game-spec` updated `<game-dir>/docs/backlog.md`, check it is in this change."
+prompt = "The `GAMES` / `LAB_GAMES` line is already in place: leave `Taskfile.yml` alone. If `game-spec` updated `{{arg.package}}/docs/backlog.md`, check it is in this change."
 goto = "pr_mode"
 
 [states.pr_mode]
 prompt = """Decide how the push and PR are confirmed (`SKILL.md` \"Opening the PR\"):
 - existing PR: `game-playtest` is reflecting change requests on a PR that is already open: commit and push to the same branch, don't run `gh pr create`, update the PR body with the `gh api` call if the content changed;
-- already confirmed: first publish (confirmed in the question above), autopilot (`<game-dir>/.autopilot.md` exists: the agreement covers the commit, push and `gh pr create`), or `game-polish`'s combined confirmation for a presentation-only revision;
+- already confirmed: first publish (confirmed in the question above), autopilot (`{{arg.package}}/.autopilot.md` exists: the agreement covers the commit, push and `gh pr create`), or `game-polish`'s combined confirmation for a presentation-only revision;
 - otherwise ask the user to confirm."""
 
 [[states.pr_mode.choices]]
@@ -91,7 +94,7 @@ gate = true
 goto = "review"
 
 [states.review]
-prompt = "Run `game-review STAGE=publish PACKAGE=<game-dir>` (a self-review against its `STAGE=publish` checklist) before the status is written and committed. Fix anything that fails."
+prompt = "Run `game-review STAGE=publish PACKAGE={{arg.package}}` (a self-review against its `STAGE=publish` checklist) before the status is written and committed. Fix anything that fails."
 
 [[states.review.choices]]
 label = "pass"
@@ -110,7 +113,7 @@ max_visits = 2
 on_exceed = "blocked"
 
 [states.branch_check]
-prompt = """Check you are on a dedicated branch for this game (`feat/<game-dir>` from `game-init` for a first publish, or a `<type>/<game-dir>-<slug>` branch from `game-spec` for a post-publish revision), **not** `main`. If you're on `main`, stop: something upstream skipped its branch step. Don't improvise by hand-picking hunks; go back and create the branch from `origin/main` (`git fetch origin && git checkout --no-track -b <branch> origin/main`), then return here."""
+prompt = """Check you are on a dedicated branch for this game (`feat/{{arg.package}}` from `game-init` for a first publish, or a `<type>/{{arg.package}}-<slug>` branch from `game-spec` for a post-publish revision), **not** `main`. If you're on `main`, stop: something upstream skipped its branch step. Don't improvise by hand-picking hunks; go back and create the branch from `origin/main` (`git fetch origin && git checkout --no-track -b <branch> origin/main`), then return here."""
 
 [[states.branch_check.choices]]
 label = "ok"
@@ -127,7 +130,7 @@ prompt = "Stop. Tell the user the branch step was skipped upstream and that comm
 end = true
 
 [states.mark_done]
-prompt = """`status_publish` lives in `<game-dir>/docs/spec.md`, which is part of this PR, so `done` is written **before** the commit. Run `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`. (Don't write it earlier: if the user declined, nothing was marked.)
+prompt = """`status_publish` lives in `{{arg.package}}/docs/spec.md`, which is part of this PR, so `done` is written **before** the commit. Run `task game:status:set PACKAGE={{arg.package}} STAGE=publish VALUE=done`. (Don't write it earlier: if the user declined, nothing was marked.)
 Then run `git status` once: staging is normally `git add -A` on this branch, since everything dirty on it belongs to this change. If something unrelated is there, stop and ask rather than silently including or excluding it."""
 
 [[states.mark_done.choices]]
@@ -141,7 +144,7 @@ when = "Something unrelated to this change is in the working tree"
 goto = "ask_unrelated"
 
 [states.ask_unrelated]
-prompt = "Ask the user what to do with the unrelated changes. Then go on, or stop and reset `status_publish` with `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`."
+prompt = "Ask the user what to do with the unrelated changes. Then go on, or stop and reset `status_publish` with `task game:status:set PACKAGE={{arg.package}} STAGE=publish VALUE=in_progress`."
 
 [[states.ask_unrelated.choices]]
 label = "proceed"
@@ -154,7 +157,7 @@ when = "The user stops the publish"
 goto = "revert_status"
 
 [states.commit_pr]
-prompt = """Stage and commit with a message describing the change, push the branch (`git push -u origin <branch>`), and open the PR with `gh pr create` (title/body describing the change: for a first publish \"add one game\" with one line on what it is and a link to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed and why). For an existing PR: commit and push to the same branch, no `gh pr create`, and update the body with `gh api` if the content changed.
+prompt = """Stage and commit with a message describing the change, push the branch (`git push -u origin <branch>`), and open the PR with `gh pr create` (title/body describing the change: for a first publish \"add one game\" with one line on what it is and a link to `{{arg.package}}/docs/spec.md`; for a post-publish revision, what changed and why). For an existing PR: commit and push to the same branch, no `gh pr create`, and update the body with `gh api` if the content changed.
 In autopilot the PR body states that it was made in autopilot, that polish and balance were skipped (numbers untried by hand), gives the automated-play numbers from `game-balance` with their conditions (or says why there are none), and lists 「未対応の指摘」 from `game-codereview` and anything QA could not confirm by eye. The agreement file is git-ignored and is never part of the commit; `game-autopilot` removes it once the PR is open."""
 
 [[states.commit_pr.choices]]
@@ -168,7 +171,7 @@ when = "The commit, push or PR failed, or the user stopped it"
 goto = "revert_status"
 
 [states.revert_status]
-prompt = "Run `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress` and tell the user what failed. Never leave `done` on a branch whose PR is not open. Stop."
+prompt = "Run `task game:status:set PACKAGE={{arg.package}} STAGE=publish VALUE=in_progress` and tell the user what failed. Never leave `done` on a branch whose PR is not open. Stop."
 end = true
 
 [states.completion]

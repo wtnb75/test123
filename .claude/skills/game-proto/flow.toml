@@ -1,16 +1,19 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). This stage is for the first pass of a new game only (before `status_publish` is `done`).",
-  "The prototype code is throwaway: it lives only in `<game-dir>/src/proto/`. Don't add dependencies and don't touch files outside `<game-dir>` (the one edit outside `src/proto/` is the import in `src/main.ts`).",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). This stage is for the first pass of a new game only (before `status_publish` is `done`).",
+  "The prototype code is throwaway: it lives only in `{{arg.package}}/src/proto/`. Don't add dependencies and don't touch files outside `{{arg.package}}` (the one edit outside `src/proto/` is the import in `src/main.ts`).",
   "Only the user decides that the loop is settled; your own opinion that it \"works\" does not end it.",
 ]
 
 [states.begin]
-prompt = """Check `status_init` (`task game:status PACKAGE=<game-dir> STAGE=init`). Do not start this skill if it is not `done`: send the user to `game-init` first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=proto VALUE=in_progress`."""
+prompt = """Check `status_init` (`task game:status PACKAGE={{arg.package}} STAGE=init`). Do not start this skill if it is not `done`: send the user to `game-init` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=proto VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -27,7 +30,7 @@ prompt = "Tell the user to run `game-init` first. Do not change any status. Stop
 end = true
 
 [states.spec_lite]
-prompt = """Write the body of `<game-dir>/docs/spec.md` below the existing frontmatter (do not touch the `status_*` keys by hand). Only these five items: ゲーム名 / コンセプト（1-3行） / コアループ / 操作仕様 / パラメータ表.
+prompt = """Write the body of `{{arg.package}}/docs/spec.md` below the existing frontmatter (do not touch the `status_*` keys by hand). Only these five items: ゲーム名 / コンセプト（1-3行） / コアループ / 操作仕様 / パラメータ表.
 Start the body with this line: `> spec-lite: プロトタイプ用の下書き。`game-spec` が完全版に仕上げる。`
 Pull concept, core loop and input from the `game-idea` conversation. The パラメータ表 only needs reasonable initial values (`game-spec` \"パラメータ表 and 実装裁量\"). Keep it to a page. Don't ask the user to approve it: it is a working note."""
 goto = "build"
@@ -35,7 +38,7 @@ goto = "build"
 [states.build]
 prompt = """Build the smallest prototype that lets the user play the core loop end to end (usually one Scene: start, play, an ending the player can restart from). Skip anything the loop doesn't need (title screen, sound, effects, persistence).
 Rules for the code:
-- Everything lives in `<game-dir>/src/proto/`, with its own `src/proto/main.ts` exporting `StartGame` like `src/game/main.ts`. The only edit outside it is changing the import in `src/main.ts` from `./game/main` to `./proto/main`.
+- Everything lives in `{{arg.package}}/src/proto/`, with its own `src/proto/main.ts` exporting `StartGame` like `src/game/main.ts`. The only edit outside it is changing the import in `src/main.ts` from `./game/main` to `./proto/main`.
 - Every number from the パラメータ表 lives in `src/proto/params.ts`, and the spec-lite table matches it.
 - Keep game rules in pure functions in `src/proto/logic.ts` (no Phaser imports): hit tests, scoring, spawn tables, win/lose conditions.
 - Prefer what Phaser provides (tweens, timers, camera effects) over hand-rolling.
@@ -43,8 +46,8 @@ Rules for the code:
 goto = "serve"
 
 [states.serve]
-prompt = """Start the dev server in the background from `<game-dir>` (`npm run dev -- --host 0.0.0.0 --port <PORT>`) and give the user a URL they can actually reach (when this session runs in a container, that is the session's IP, not `localhost`: AGENTS.md section 9). Check it boots and renders without console errors before asking them to play; if you can't see the browser, say so rather than guessing it works. (A headless screenshot is fine for \"does it start\", never for \"is it fun\".)
-If they want to play on another device, offer `scripts/qa/share.sh <game-dir> <PORT>` (AGENTS.md 9.1) and run it only when they say yes. Stop it with `scripts/qa/down.sh` when the playtest is over."""
+prompt = """Start the dev server in the background from `{{arg.package}}` (`npm run dev -- --host 0.0.0.0 --port <PORT>`) and give the user a URL they can actually reach (when this session runs in a container, that is the session's IP, not `localhost`: AGENTS.md section 9). Check it boots and renders without console errors before asking them to play; if you can't see the browser, say so rather than guessing it works. (A headless screenshot is fine for \"does it start\", never for \"is it fun\".)
+If they want to play on another device, offer `scripts/qa/share.sh {{arg.package}} <PORT>` (AGENTS.md 9.1) and run it only when they say yes. Stop it with `scripts/qa/down.sh` when the playtest is over."""
 goto = "feedback"
 
 [states.feedback]
@@ -85,7 +88,7 @@ when = "The user wants to go back to `game-idea`"
 goto = "stop_server_abort"
 
 [states.stop_server]
-prompt = """Stop the dev server (and any QA container). Stop it by its process id (the background task's PID, or the vite process whose `/proc/<pid>/cwd` is `<game-dir>`), then confirm the URL no longer answers. Never `pkill -f <pattern>`: the pattern also matches your own command line and kills the shell."""
+prompt = """Stop the dev server (and any QA container). Stop it by its process id (the background task's PID, or the vite process whose `/proc/<pid>/cwd` is `{{arg.package}}`), then confirm the URL no longer answers. Never `pkill -f <pattern>`: the pattern also matches your own command line and kills the shell."""
 goto = "review"
 
 [states.stop_server_abort]
@@ -93,7 +96,7 @@ prompt = """Stop the dev server (and any QA container) by its process id, never 
 end = true
 
 [states.review]
-prompt = "Run `game-review STAGE=proto PACKAGE=<game-dir>` (a self-review against its `STAGE=proto` checklist). Fix anything that fails."
+prompt = "Run `game-review STAGE=proto PACKAGE={{arg.package}}` (a self-review against its `STAGE=proto` checklist). Fix anything that fails."
 
 [[states.review.choices]]
 label = "pass"
@@ -118,8 +121,8 @@ gate = true
 goto = "set_done"
 
 [states.set_done]
-prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=proto VALUE=done`.
-Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-spec`).
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=proto VALUE=done`.
+Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-spec`).
 `src/proto/` stays in place until `game-impl` replaces it: don't delete it here, and don't promote it into the real implementation by copying it over wholesale."""
 end = true
 

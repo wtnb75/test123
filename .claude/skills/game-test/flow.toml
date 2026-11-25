@@ -1,15 +1,18 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section; テスト観点 and 完了条件 in all of them count.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section; テスト観点 and 完了条件 in all of them count.",
   "Never lower the coverage threshold in `vitest.config.ts` (or `scaffold/vitest.base.mjs`) and never add per-game `coverage.exclude` entries for code that can be unit tested.",
   "Never delete an existing test, loosen its assertion or change its expected value to make a change pass, unless the spec changed that behavior (then update it to the new spec value and say so in the summary).",
 ]
 
 [states.begin]
-prompt = "Run `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=in_progress`. Then decide whether this is a small revision (`SKILL.md` \"Small revisions\"): a delta of one rule or one pure module. A revision that touches more than one module, a Scene, or the input handling is not small."
+prompt = "Run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=in_progress`. Then decide whether this is a small revision (`SKILL.md` \"Small revisions\"): a delta of one rule or one pure module. A revision that touches more than one module, a Scene, or the input handling is not small."
 
 [[states.begin.choices]]
 label = "full"
@@ -27,7 +30,7 @@ When tests already exist (a revision): every regression condition in 完了条�
 goto = "coverage"
 
 [states.coverage]
-prompt = """Run `npm run test` and `npm run test:coverage` inside `<game-dir>`. Statement, branch, function and line coverage must all be at least 90%. If not, find the uncovered branches and add tests for them."""
+prompt = """Run `npm run test` and `npm run test:coverage` inside `{{arg.package}}`. Statement, branch, function and line coverage must all be at least 90%. If not, find the uncovered branches and add tests for them."""
 
 [[states.coverage.choices]]
 label = "pass"
@@ -78,7 +81,7 @@ Bound each mutant with a hard time limit (e.g. `timeout 60`); count a timeout as
 goto = "review"
 
 [states.review]
-prompt = """Run `game-review STAGE=test PACKAGE=<game-dir>`. A fresh subagent checks that every テスト観点 / rule boundary in the spec has a test, that existing tests weren't loosened, that expected values don't come from the implementation itself, that nothing nondeterministic is asserted directly, and the logic-heavy-module checks. Fix blockers before completion."""
+prompt = """Run `game-review STAGE=test PACKAGE={{arg.package}}`. A fresh subagent checks that every テスト観点 / rule boundary in the spec has a test, that existing tests weren't loosened, that expected values don't come from the implementation itself, that nothing nondeterministic is asserted directly, and the logic-heavy-module checks. Fix blockers before completion."""
 
 [[states.review.choices]]
 label = "pass"
@@ -99,7 +102,7 @@ on_exceed = "blocked"
 [states.set_done]
 prompt = """Confirm `npm run test` and `npm run test:coverage` both pass at 90% or more across all four metrics (or that the shortfall and plan were written up).
 If oracle tests or mutation checks were used, say in the PR/summary what the oracle was, which mutants were caught, and which survived and why. If exported internals were added for tests, mention it in the PR.
-Run `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-check`)."""
+Run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-check`)."""
 end = true
 
 [states.small_update]
@@ -130,7 +133,7 @@ max_visits = 3
 on_exceed = "blocked"
 
 [states.small_review]
-prompt = "Small revision, step 4: one fresh-subagent review limited to the delta: `game-review STAGE=test PACKAGE=<game-dir>` with the change summary."
+prompt = "Small revision, step 4: one fresh-subagent review limited to the delta: `game-review STAGE=test PACKAGE={{arg.package}}` with the change summary."
 
 [[states.small_review.choices]]
 label = "pass"
@@ -143,7 +146,7 @@ when = "Blockers remain"
 goto = "small_fix"
 
 [states.small_done]
-prompt = """Say in the report that the small-revision path was used and why, then run `task game:status:set PACKAGE=<game-dir> STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`."""
+prompt = """Say in the report that the small-revision path was used and why, then run `task game:status:set PACKAGE={{arg.package}} STAGE=test VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}`."""
 end = true
 
 [states.blocked]

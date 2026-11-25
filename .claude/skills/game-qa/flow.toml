@@ -1,16 +1,19 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
   "Use the helpers in `scripts/qa/` (see `scripts/qa/README.md`); don't rebuild the Docker + Playwright setup by hand. File moves use `docker cp`, never a bind mount.",
   "Scenario rules (`SKILL.md` \"Rules for scenarios\"): no Playwright clock, one page at a time, wait for a state not for a time, keep each run short and split by viewport.",
 ]
 
 [states.begin]
-prompt = """Check `status_codereview` (`task game:status PACKAGE=<game-dir> STAGE=codereview`). If it is not `done`, send the user back to `game-codereview` (or `game-check` before it) first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=in_progress`."""
+prompt = """Check `status_codereview` (`task game:status PACKAGE={{arg.package}} STAGE=codereview`). If it is not `done`, send the user back to `game-codereview` (or `game-check` before it) first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=qa VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -50,30 +53,30 @@ when = "Wording only (README, spec text, comments)"
 goto = "up"
 
 [states.up]
-prompt = """Run `scripts/qa/up.sh <game-dir> [port]`: it starts the dev server on this session's Docker IP and a Playwright container on this session's Docker network, installs `playwright` in it, and prints the base URL and the container's UTC date (games that pick content by date need it)."""
+prompt = """Run `scripts/qa/up.sh {{arg.package}} [port]`: it starts the dev server on this session's Docker IP and a Playwright container on this session's Docker network, installs `playwright` in it, and prints the base URL and the container's UTC date (games that pick content by date need it)."""
 goto = "shoot"
 
 [states.shoot]
-prompt = """Write the scenario as an ES module under the scratchpad that imports from `./lib.mjs` (`launch`, `newPage`, `shot`, `burst`, `tap`, `setHidden`, `waitForQa`, `fps`, `report`; `scripts/qa/smoke.mjs` is a generic starting point). Run it with `scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]`; the screenshots come back in `<out-dir>`.
+prompt = """Write the scenario as an ES module under the scratchpad that imports from `./lib.mjs` (`launch`, `newPage`, `shot`, `burst`, `tap`, `setHidden`, `waitForQa`, `fps`, `report`; `scripts/qa/smoke.mjs` is a generic starting point). Run it with `scripts/qa/run.sh {{arg.package}} <script.mjs> <out-dir> [extra files…]`; the screenshots come back in `<out-dir>`.
 Shoot what the class chosen in `classify` requires (the table in `SKILL.md`), on a desktop and a phone-sized viewport: title, mid-play, clear, game-over and every state/Scene the spec names; for a first look at the layout use `scripts/qa/look.mjs` (AGENTS.md 4.6). For effects and transitions take a short burst (`burst`, every 50-100 ms). Judge speed feel, hit-detection feel and whether transitions match the spec, not just \"it didn't crash\". If `fps` is far below 60, fix the harness before judging the feel.
-In autopilot (`<game-dir>/.autopilot.md` exists), shoot the states where the change shows at all four sizes of AGENTS.md 4.6 (375 × 550, 667 × 310, 390 × 844, 1280 × 720) and keep the files: `game-polish` checks these.
+In autopilot (`{{arg.package}}/.autopilot.md` exists), shoot the states where the change shows at all four sizes of AGENTS.md 4.6 (375 × 550, 667 × 310, 390 × 844, 1280 × 720) and keep the files: `game-polish` checks these.
 If a run has produced no new file for a minute, kill the node process in the container and rerun only the missing part."""
 goto = "down"
 
 [states.down]
-prompt = "Run `scripts/qa/down.sh <game-dir> [port]`: it removes the container and stops the server. Always, even if QA failed."
+prompt = "Run `scripts/qa/down.sh {{arg.package}} [port]`: it removes the container and stops the server. Always, even if QA failed."
 goto = "shared_up"
 
 [states.shared_up]
-prompt = """Shared build check (what is actually published; done in every case): run `scripts/qa/up.sh <game-dir> <port> --shared` (builds with `SHARED_VENDOR=1`, lays it out like `output/`, serves it under `/<repo>/`)."""
+prompt = """Shared build check (what is actually published; done in every case): run `scripts/qa/up.sh {{arg.package}} <port> --shared` (builds with `SHARED_VENDOR=1`, lays it out like `output/`, serves it under `/<repo>/`)."""
 goto = "shared_smoke"
 
 [states.shared_smoke]
-prompt = """Run `scripts/qa/run.sh <game-dir> scripts/qa/smoke.mjs <out-dir>`. It fails on a missing canvas, console errors or 4xx/5xx requests; its screenshots show the title and the first tap. Look at them."""
+prompt = """Run `scripts/qa/run.sh {{arg.package}} scripts/qa/smoke.mjs <out-dir>`. It fails on a missing canvas, console errors or 4xx/5xx requests; its screenshots show the title and the first tap. Look at them."""
 goto = "shared_down"
 
 [states.shared_down]
-prompt = "Run `scripts/qa/down.sh <game-dir> <port>`."
+prompt = "Run `scripts/qa/down.sh {{arg.package}} <port>`."
 goto = "judge"
 
 [states.judge]
@@ -90,7 +93,7 @@ when = "Something looked wrong, or the shared build check failed"
 goto = "report_failure"
 
 [states.review]
-prompt = "Run `game-review STAGE=qa PACKAGE=<game-dir>` (a self-review against its `STAGE=qa` checklist). Fix anything that fails rather than just noting it."
+prompt = "Run `game-review STAGE=qa PACKAGE={{arg.package}}` (a self-review against its `STAGE=qa` checklist). Fix anything that fails rather than just noting it."
 
 [[states.review.choices]]
 label = "pass"
@@ -109,7 +112,7 @@ max_visits = 2
 on_exceed = "blocked"
 
 [states.set_done]
-prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-polish`)."""
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=qa VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-polish`)."""
 end = true
 
 [states.report_failure]

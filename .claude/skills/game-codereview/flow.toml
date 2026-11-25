@@ -1,16 +1,19 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
   "Nothing gets changed or posted before the user has triaged: never pass `--fix` or `--comment` to `code-review`, and say in the arguments in words: \"READ-ONLY: report findings, do NOT edit any file\".",
   "Keep each fix to its finding: no drive-by refactoring (AGENTS.md 4.1).",
 ]
 
 [states.begin]
-prompt = """Check `status_check` (`task game:status PACKAGE=<game-dir> STAGE=check`). If it is not `done`, send the user back to `game-check` first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=in_progress`."""
+prompt = """Check `status_check` (`task game:status PACKAGE={{arg.package}} STAGE=check`). If it is not `done`, send the user back to `game-check` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=codereview VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -27,8 +30,8 @@ prompt = "Tell the user to run `game-check` first. Do not change any status. Sto
 end = true
 
 [states.scope]
-prompt = """Decide the scope of the review (`SKILL.md` \"Scope of the review\"): committed changes (`git diff origin/main -- <game-dir>`) plus uncommitted and untracked files (`git status --porcelain --untracked-files=all -- <game-dir>`). Name the files or directories (and what changed) explicitly; don't rely on a diff, since new uncommitted files have none. A first pass on a new game is the whole game directory; a revision focuses on the code that revision changed.
-Read `<game-dir>/docs/review-rejected.md` if it exists: its lines are handed to the reviewer.
+prompt = """Decide the scope of the review (`SKILL.md` \"Scope of the review\"): committed changes (`git diff origin/main -- {{arg.package}}`) plus uncommitted and untracked files (`git status --porcelain --untracked-files=all -- {{arg.package}}`). Name the files or directories (and what changed) explicitly; don't rely on a diff, since new uncommitted files have none. A first pass on a new game is the whole game directory; a revision focuses on the code that revision changed.
+Read `{{arg.package}}/docs/review-rejected.md` if it exists: its lines are handed to the reviewer.
 Choose the level from \"Level by size\" in `SKILL.md`: `high` with at most 3 rounds, or `medium` with at most 2 rounds for a size-S revision. When in doubt, the first row."""
 
 [[states.scope.choices]]
@@ -57,7 +60,7 @@ on_exceed = "open_items"
 prompt = """Before showing anything, check each finding yourself: read the code path and, where cheap, reproduce the problem with a failing test. Give each finding a recommendation: **accept** (real and worth fixing now), **reject** (wrong, or not worth it; say why), **spec** (fixing it changes player-visible behavior the spec defines or leaves open), or **spec (clarify)** (the code is already right; only the spec's wording is missing or inaccurate).
 When a finding says a library already provides what the code hand-rolls (e.g. Phaser `camera.shake`, tweens), lean towards **accept**: keep only the decision logic pure and tested. That the hand-rolled version is easier to unit-test is not by itself a reason to reject.
 Then decide how this round is handled:
-- `<game-dir>/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\"): don't ask in any round; apply your recommendations.
+- `{{arg.package}}/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\"): don't ask in any round; apply your recommendations.
 - Round 1 is always asked. From round 2 on, if every finding is **reject**, don't ask: show the table with the reasons and end the loop.
 - A round with even one accept, spec or spec (clarify) is asked as usual."""
 
@@ -78,7 +81,7 @@ goto = "show_rejected"
 
 [[states.triage_prep.choices]]
 label = "autopilot"
-when = "`<game-dir>/.autopilot.md` exists"
+when = "`{{arg.package}}/.autopilot.md` exists"
 goto = "fix"
 
 [states.show_rejected]
@@ -117,7 +120,7 @@ prompt = """Hand the batch of **spec** findings to `game-spec` as a revision (it
 end = true
 
 [states.gate_run]
-prompt = """After the last fix of the round, run the `game-check` gate from the top: `npm run lint`, `npm run test`, `npm run test:coverage`, `npm run build` (inside `<game-dir>`). Don't start the next round with a failing gate."""
+prompt = """After the last fix of the round, run the `game-check` gate from the top: `npm run lint`, `npm run test`, `npm run test:coverage`, `npm run build` (inside `{{arg.package}}`). Don't start the next round with a failing gate."""
 
 [[states.gate_run.choices]]
 label = "pass"
@@ -153,7 +156,7 @@ prompt = "After the last allowed round, list anything still open for the user wi
 goto = "wrap_up"
 
 [states.wrap_up]
-prompt = "Run `game-review STAGE=codereview PACKAGE=<game-dir>` (a self-review against its `STAGE=codereview` checklist). Fix anything that fails."
+prompt = "Run `game-review STAGE=codereview PACKAGE={{arg.package}}` (a self-review against its `STAGE=codereview` checklist). Fix anything that fails."
 
 [[states.wrap_up.choices]]
 label = "pass"
@@ -174,9 +177,9 @@ on_exceed = "blocked"
 [states.completion]
 prompt = """The loop ended and the four gate commands pass after the last fix.
 1. Report in one short block: rounds run (and which row of \"Level by size\" was used), fixes made (with their regression tests), findings rejected and why, anything sent to `game-spec`, and in autopilot the 「未対応の指摘」.
-2. Append this run's rejected findings to `<game-dir>/docs/review-rejected.md` (create it if missing; one line each: `- <file or area>: <the finding> — 理由: <why>`; drop lines about code that is gone; keep it short). It is part of the change.
-3. Run `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=done`.
-4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-qa`)."""
+2. Append this run's rejected findings to `{{arg.package}}/docs/review-rejected.md` (create it if missing; one line each: `- <file or area>: <the finding> — 理由: <why>`; drop lines about code that is gone; keep it short). It is part of the change.
+3. Run `task game:status:set PACKAGE={{arg.package}} STAGE=codereview VALUE=done`.
+4. Continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-qa`)."""
 end = true
 
 [states.blocked]

@@ -1,17 +1,20 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
   "This stage covers presentation and clarity only. Numbers with gameplay weight go to `game-balance`; new mechanics or rule changes go to `game-spec` as a feature revision; bugs found along the way go to `game-impl` (one change, one purpose).",
   "This stage is re-entered several times (after the agreed changes have passed `game-qa`, after an unrelated revision, in a presentation-only revision, in autopilot): pick the entry that matches where you are.",
   "Taste is the user's. Only the user decides the look is good enough; show before/after screenshots and ask explicitly.",
 ]
 
 [states.begin]
-prompt = """Check `status_qa` (`task game:status PACKAGE=<game-dir> STAGE=qa`). If it is not `done`, send the user back to `game-qa` first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=in_progress`."""
+prompt = """Check `status_qa` (`task game:status PACKAGE={{arg.package}} STAGE=qa`). If it is not `done`, send the user back to `game-qa` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=polish VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -29,7 +32,7 @@ end = true
 
 [states.entry]
 prompt = """Decide where this run starts (`SKILL.md` \"Process\", \"Presentation-only revisions\", \"Autopilot\", \"Coming back after an unrelated revision\"):
-- autopilot: `<game-dir>/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\");
+- autopilot: `{{arg.package}}/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\");
 - presentation-only revision (`game-extend` classified it so, or it is itself a polish change) and QA has just passed on it;
 - the agreed polish changes have been implemented and QA has just passed on the polished version;
 - coming back after an unrelated revision (`game-balance` or a bug fix reset this stage) where nothing visual changed;
@@ -37,7 +40,7 @@ prompt = """Decide where this run starts (`SKILL.md` \"Process\", \"Presentation
 
 [[states.entry.choices]]
 label = "autopilot"
-when = "`<game-dir>/.autopilot.md` exists"
+when = "`{{arg.package}}/.autopilot.md` exists"
 goto = "auto_check"
 
 [[states.entry.choices]]
@@ -156,7 +159,7 @@ prompt = "Hand over to `game-balance` (it will tune the numbers the user wants c
 end = true
 
 [states.review_both]
-prompt = """The explicit answers and the screenshots are the evidence for both stages. Run `game-review STAGE=polish PACKAGE=<game-dir>` and `game-review STAGE=balance PACKAGE=<game-dir>` (self-reviews against their checklists). Fix anything that fails."""
+prompt = """The explicit answers and the screenshots are the evidence for both stages. Run `game-review STAGE=polish PACKAGE={{arg.package}}` and `game-review STAGE=balance PACKAGE={{arg.package}}` (self-reviews against their checklists). Fix anything that fails."""
 
 [[states.review_both.choices]]
 label = "pass"
@@ -175,7 +178,7 @@ max_visits = 2
 on_exceed = "blocked"
 
 [states.set_done_both]
-prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done` and `task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`; `game-publish` runs without asking its confirmation again (the user agreed to the PR in this combined question)."""
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=polish VALUE=done` and `task game:status:set PACKAGE={{arg.package}} STAGE=balance VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}`; `game-publish` runs without asking its confirmation again (the user agreed to the PR in this combined question)."""
 end = true
 
 [states.auto_check]
@@ -183,7 +186,7 @@ prompt = """Autopilot: don't propose or ask. Check **the screenshots `game-qa` j
 goto = "review"
 
 [states.review]
-prompt = "Run `game-review STAGE=polish PACKAGE=<game-dir>` (a self-review against its `STAGE=polish` checklist). Fix anything that fails."
+prompt = "Run `game-review STAGE=polish PACKAGE={{arg.package}}` (a self-review against its `STAGE=polish` checklist). Fix anything that fails."
 
 [[states.review.choices]]
 label = "pass"
@@ -203,7 +206,7 @@ on_exceed = "blocked"
 
 [states.set_done]
 prompt = """Confirm that the agreed changes are in the file that owns the element (`docs/spec.md` or its `docs/spec/<slug>.md`), implemented, and that QA has passed on the polished version, and that the user confirmed the look and flow (not needed in autopilot).
-Run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-balance`)."""
+Run `task game:status:set PACKAGE={{arg.package}} STAGE=polish VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-balance`)."""
 end = true
 
 [states.blocked]

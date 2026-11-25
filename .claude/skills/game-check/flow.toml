@@ -1,14 +1,17 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). Run every command inside `<game-dir>` unless it is a `task` command.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). Run every command inside `{{arg.package}}` unless it is a `task` command.",
   "Never claim success with a failing gate (AGENTS.md 7). Fix root causes; never disable a check.",
 ]
 
 [states.begin]
-prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=in_progress`.
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=check VALUE=in_progress`.
 Decide the path (see `SKILL.md` \"Small revisions\"): a one-rule or one-module revision may take the small path; anything bigger takes the full path."""
 
 [[states.begin.choices]]
@@ -32,7 +35,7 @@ For each file under `public/`, search `src/` and `index.html` for its filename; 
 goto = "lint"
 
 [states.lint]
-prompt = """Run `npm run lint` in `<game-dir>`. It must report 0 errors.
+prompt = """Run `npm run lint` in `{{arg.package}}`. It must report 0 errors.
 Any lint-disable comment must already carry a reason and be minimally scoped (AGENTS.md 4.4); flag one that does not, do not leave it silently."""
 
 [[states.lint.choices]]
@@ -46,7 +49,7 @@ when = "One or more lint errors"
 goto = "fix"
 
 [states.test]
-prompt = "Run `npm run test` in `<game-dir>`."
+prompt = "Run `npm run test` in `{{arg.package}}`."
 
 [[states.test.choices]]
 label = "pass"
@@ -59,7 +62,7 @@ when = "One or more tests failed"
 goto = "fix"
 
 [states.coverage]
-prompt = "Run `npm run test:coverage` in `<game-dir>`. Statement, branch, function and line coverage must all be at least 90%."
+prompt = "Run `npm run test:coverage` in `{{arg.package}}`. Statement, branch, function and line coverage must all be at least 90%."
 
 [[states.coverage.choices]]
 label = "pass"
@@ -77,7 +80,7 @@ when = "A coverage shortfall cannot be closed in this pass"
 goto = "blocked"
 
 [states.build]
-prompt = """Run `npm run build` in `<game-dir>`. It must produce static output with no Node-server-only runtime dependency.
+prompt = """Run `npm run build` in `{{arg.package}}`. It must produce static output with no Node-server-only runtime dependency.
 Then run `rg -c __qa dist/assets/*.js`; it must print nothing (the dev-only QA hook must not ship)."""
 
 [[states.build.choices]]
@@ -91,7 +94,7 @@ when = "The build failed, or `__qa` appears in `dist/assets/*.js`"
 goto = "fix"
 
 [states.title_link]
-prompt = """Run `task game:check-title-link PACKAGE=<game-dir>`. It must pass.
+prompt = """Run `task game:check-title-link PACKAGE={{arg.package}}`. It must pass.
 A game with `src/game/scenes/Title.ts` must import `showGameListLink` from `game-list-link`, call it in the Title's `create()`, and depend on `game-list-link` in `package.json`. A game without a Title.ts passes."""
 
 [[states.title_link.choices]]
@@ -121,7 +124,7 @@ when = "The run took the small path and the fix did not touch `public/` or the b
 goto = "lint"
 
 [states.review]
-prompt = """Run `game-review STAGE=check PACKAGE=<game-dir>` (a self-review against its `STAGE=check` checklist). Fix anything that fails rather than just noting it."""
+prompt = """Run `game-review STAGE=check PACKAGE={{arg.package}}` (a self-review against its `STAGE=check` checklist). Fix anything that fails rather than just noting it."""
 
 [[states.review.choices]]
 label = "pass"
@@ -155,9 +158,9 @@ goto = "review"
 
 [states.done]
 prompt = """All steps passed: scaffold cleanup (when the path required it), lint, test, coverage, build and the Title link check.
-Run `task game:status:set PACKAGE=<game-dir> STAGE=check VALUE=done`.
+Run `task game:status:set PACKAGE={{arg.package}} STAGE=check VALUE=done`.
 Say in the report which path was used (full or small revision).
-Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-codereview`)."""
+Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-codereview`)."""
 end = true
 
 [states.blocked]

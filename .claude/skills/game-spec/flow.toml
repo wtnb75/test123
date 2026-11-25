@@ -1,16 +1,19 @@
 schema = 1
 start = "classify"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` it links to.",
   "Write for a reader who wasn't in the conversation: `game-impl` and the `game-review` subagent see only the spec. Anything agreed but not written there is lost. Don't record history in the spec; it always describes the current game.",
   "Never touch the `status_*` frontmatter by hand; only `task game:status:set` / `task game:reset`.",
 ]
 
 [states.classify]
-prompt = """Before touching frontmatter or drafting, check the current values: `task game:status PACKAGE=<game-dir> STAGE=spec` and `task game:status PACKAGE=<game-dir> STAGE=publish` (before any reset overwrites `status_publish`). Decide which case this is (`SKILL.md` \"A revision after publish needs its own branch\"):
-- first write: `status_spec` is `pending` (you are already on the `feat/<game-dir>` branch `game-init` created);
+prompt = """Before touching frontmatter or drafting, check the current values: `task game:status PACKAGE={{arg.package}} STAGE=spec` and `task game:status PACKAGE={{arg.package}} STAGE=publish` (before any reset overwrites `status_publish`). Decide which case this is (`SKILL.md` \"A revision after publish needs its own branch\"):
+- first write: `status_spec` is `pending` (you are already on the `feat/{{arg.package}}` branch `game-init` created);
 - pre-publish revision: `status_spec` is `done`, `status_publish` is not `done` (keep working on the same branch);
 - post-publish revision: `status_publish` is `done` (needs a new branch);
 - clarification-only: the revision only writes down what the implementation already does, with no code change (typically a `game-codereview` finding classified **spec (clarify)**);
@@ -42,13 +45,13 @@ when = "Moving existing text out of `docs/spec.md` verbatim into split files"
 goto = "split_branch"
 
 [states.new_branch]
-prompt = """A post-publish revision needs a new, distinctly-named branch, not a reuse of the old `feat/<game-dir>`. Pick `<type>` (`fix` for a bug found in `game-qa`/`game-check`, `balance` for a `game-balance` tuning pass, `feat` for a new mechanic/stage/feature, `refactor` for a restructuring with no player-visible change) and a short kebab-case slug. For anything coming from `game-extend` or a 着手可 card, the branch name agreed there is the confirmation; otherwise confirm type and slug with the user rather than assuming.
-`git fetch origin && git checkout --no-track -b <type>/<game-dir>-<slug> origin/main` (not `git checkout main`).
+prompt = """A post-publish revision needs a new, distinctly-named branch, not a reuse of the old `feat/{{arg.package}}`. Pick `<type>` (`fix` for a bug found in `game-qa`/`game-check`, `balance` for a `game-balance` tuning pass, `feat` for a new mechanic/stage/feature, `refactor` for a restructuring with no player-visible change) and a short kebab-case slug. For anything coming from `game-extend` or a 着手可 card, the branch name agreed there is the confirmation; otherwise confirm type and slug with the user rather than assuming.
+`git fetch origin && git checkout --no-track -b <type>/{{arg.package}}-<slug> origin/main` (not `git checkout main`).
 If that branch name already exists, don't reuse or overwrite it silently: pick a different slug or append `-2`, `-3`, ... and tell the user."""
 goto = "set_in_progress"
 
 [states.set_in_progress]
-prompt = "Run `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=in_progress` before drafting."
+prompt = "Run `task game:status:set PACKAGE={{arg.package}} STAGE=spec VALUE=in_progress` before drafting."
 
 [[states.set_in_progress.choices]]
 label = "first_write"
@@ -71,7 +74,7 @@ Do not touch `status_*` by hand."""
 goto = "review"
 
 [states.review]
-prompt = """Run `game-review STAGE=spec PACKAGE=<game-dir>` on the draft: a fresh subagent reads only the spec and does an implementer dry run. Fix what is already agreed; put the remaining questions to the user in one batch.
+prompt = """Run `game-review STAGE=spec PACKAGE={{arg.package}}` on the draft: a fresh subagent reads only the spec and does an implementer dry run. Fix what is already agreed; put the remaining questions to the user in one batch.
 For a revision also check the process yourself: did you check `status_publish` before resetting anything and branch accordingly (a new branch only if it was `done`)? Is every item of the 演出・UI checklist settled for an effect section? (The reset itself runs after approval, below.)"""
 
 [[states.review.choices]]
@@ -91,20 +94,20 @@ max_visits = 2
 on_exceed = "approve"
 
 [states.autopilot_check]
-prompt = "Check whether `<game-dir>/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\")."
+prompt = "Check whether `{{arg.package}}/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\")."
 
 [[states.autopilot_check.choices]]
 label = "autopilot"
-when = "`<game-dir>/.autopilot.md` exists"
+when = "`{{arg.package}}/.autopilot.md` exists"
 goto = "autopilot_verify"
 
 [[states.autopilot_check.choices]]
 label = "manual"
-when = "`<game-dir>/.autopilot.md` does not exist"
+when = "`{{arg.package}}/.autopilot.md` does not exist"
 goto = "approve"
 
 [states.autopilot_verify]
-prompt = """Autopilot: skip the approval stop; the agreement is the approval. Read `<game-dir>/.autopilot.md` again (don't rely on memory of the conversation) and check the draft against 「拡張の内容」. Report the spec diff and the review result at the end."""
+prompt = """Autopilot: skip the approval stop; the agreement is the approval. Read `{{arg.package}}/.autopilot.md` again (don't rely on memory of the conversation) and check the draft against 「拡張の内容」. Report the spec diff and the review result at the end."""
 
 [[states.autopilot_verify.choices]]
 label = "consistent"
@@ -149,20 +152,20 @@ when = "A clarification-only revision: reset only the stages after `codereview`"
 goto = "reset_qa"
 
 [states.reset_full]
-prompt = "Run `task game:reset PACKAGE=<game-dir>` in full (it sets impl, test, check, codereview, qa, polish, balance and publish back to `pending`). Don't guess which stages the change affects."
+prompt = "Run `task game:reset PACKAGE={{arg.package}}` in full (it sets impl, test, check, codereview, qa, polish, balance and publish back to `pending`). Don't guess which stages the change affects."
 goto = "set_done"
 
 [states.reset_qa]
-prompt = "Run `task game:reset PACKAGE=<game-dir> FROM=qa`, and say in the conversation which finding it records and why nothing earlier needs to run again (implementation, tests and gate are untouched)."
+prompt = "Run `task game:reset PACKAGE={{arg.package}} FROM=qa`, and say in the conversation which finding it records and why nothing earlier needs to run again (implementation, tests and gate are untouched)."
 goto = "set_done"
 
 [states.set_done]
-prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`.
-Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-impl`)."""
+prompt = """Run `task game:status:set PACKAGE={{arg.package}} STAGE=spec VALUE=done`.
+Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-impl`)."""
 end = true
 
 [states.split_branch]
-prompt = """Read `split.md` next to `SKILL.md`. Branch from `origin/main`: `git fetch origin && git checkout --no-track -b docs/<game-dir>-split-spec origin/main` (next free `-2`, `-3`, ... if taken)."""
+prompt = """Read `split.md` next to `SKILL.md`. Branch from `origin/main`: `git fetch origin && git checkout --no-track -b docs/{{arg.package}}-split-spec origin/main` (next free `-2`, `-3`, ... if taken)."""
 goto = "split_move"
 
 [states.split_move]

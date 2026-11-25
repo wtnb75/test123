@@ -1,16 +1,19 @@
 schema = 1
 start = "begin"
 
+[args.package]
+required = true
+
 [notes]
 always = [
-  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section.",
+  "The game directory is `{{arg.package}}` (passed with `--arg package=<game-dir>`; the caller, or `task game:detect` confirmed with the user, decides it). The spec is `{{arg.package}}/docs/spec.md` plus every `docs/spec/*.md` linked from its `## 拡張` section.",
   "Follow the Rules in `SKILL.md` (AGENTS.md 3-4): one change, one purpose; Scene responsibilities separated; no per-frame allocation; listeners cleaned up; static distribution only; dev-only `window.__qa` inline in `if (import.meta.env.DEV)`; Title calls `showGameListLink(this)`; prefer what Phaser provides.",
   "Don't run lint, the full test suite or coverage in this stage: that is `game-check`'s job.",
 ]
 
 [states.begin]
-prompt = """Check `status_spec` (`task game:status PACKAGE=<game-dir> STAGE=spec`). Do not start this skill if it is not `done`: send the user back to `game-spec` first.
-If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=in_progress`."""
+prompt = """Check `status_spec` (`task game:status PACKAGE={{arg.package}} STAGE=spec`). Do not start this skill if it is not `done`: send the user back to `game-spec` first.
+If it is `done`, run `task game:status:set PACKAGE={{arg.package}} STAGE=impl VALUE=in_progress`."""
 
 [[states.begin.choices]]
 label = "ready"
@@ -23,7 +26,7 @@ when = "`status_spec` is not `done`"
 goto = "to_spec"
 
 [states.reread]
-prompt = """Re-read the spec fully (`<game-dir>/docs/spec.md` and its linked files): it is the source of truth for scope. If what is being asked diverges from the spec, stop and route back to `game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新)."""
+prompt = """Re-read the spec fully (`{{arg.package}}/docs/spec.md` and its linked files): it is the source of truth for scope. If what is being asked diverges from the spec, stop and route back to `game-spec` first (AGENTS.md: 仕様変更時は spec.md を先に更新)."""
 
 [[states.reread.choices]]
 label = "matches"
@@ -36,7 +39,7 @@ when = "What is being asked diverges from the spec"
 goto = "to_spec"
 
 [states.context]
-prompt = "Check what code exists in `<game-dir>/src` (not just the status key) to decide how to start (`SKILL.md` \"If `src/proto/` exists\" and \"If code already exists\")."
+prompt = "Check what code exists in `{{arg.package}}/src` (not just the status key) to decide how to start (`SKILL.md` \"If `src/proto/` exists\" and \"If code already exists\")."
 
 [[states.context.choices]]
 label = "proto"
@@ -86,7 +89,7 @@ prompt = """Implement the unaffected parts first. Then ask the user once, with a
 goto = "to_spec"
 
 [states.build]
-prompt = """Run `npm run build` in `<game-dir>`; it must succeed (static output).
+prompt = """Run `npm run build` in `{{arg.package}}`; it must succeed (static output).
 If `src/proto/` still exists (first implementation after `game-proto`): point `src/main.ts` back at `./game/main` and remove `src/proto/` now: `git rm -r src/proto` if it was committed, otherwise `git clean -fd src/proto`. A committed prototype stays readable in the history; an uncommitted one is gone after this, which is what the user chose when `game-proto` asked about the WIP commit.
 Done only when the build succeeds and `src/proto/` no longer exists."""
 
@@ -130,7 +133,7 @@ prompt = "Show the user the table of measured results for candidate values and r
 goto = "to_spec"
 
 [states.review]
-prompt = """Run `game-review STAGE=impl PACKAGE=<game-dir>`. A fresh subagent checks the change against the spec (every rule/parameter implemented, nothing invented, parameters in one place, logic testable without Phaser) and the Rules in `SKILL.md`. Fix blockers; a finding that turns out to be a spec gap goes to `game-spec` as in `implement`."""
+prompt = """Run `game-review STAGE=impl PACKAGE={{arg.package}}`. A fresh subagent checks the change against the spec (every rule/parameter implemented, nothing invented, parameters in one place, logic testable without Phaser) and the Rules in `SKILL.md`. Fix blockers; a finding that turns out to be a spec gap goes to `game-spec` as in `implement`."""
 
 [[states.review.choices]]
 label = "pass"
@@ -189,8 +192,8 @@ prompt = "Fix the implementation-only problems. Then rebuild; if the changed par
 goto = "build"
 
 [states.set_done]
-prompt = """Confirm `npm run build` succeeds, `src/proto/` no longer exists and `game-review STAGE=impl` has no blockers. Then run `task game:status:set PACKAGE=<game-dir> STAGE=impl VALUE=done`.
-Give the completion summary (player-visible 実装裁量 choices, measured values). Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-test`)."""
+prompt = """Confirm `npm run build` succeeds, `src/proto/` no longer exists and `game-review STAGE=impl` has no blockers. Then run `task game:status:set PACKAGE={{arg.package}} STAGE=impl VALUE=done`.
+Give the completion summary (player-visible 実装裁量 choices, measured values). Then continue without asking: invoke `game-next` with `PACKAGE={{arg.package}}` (it dispatches `game-test`)."""
 end = true
 
 [states.to_spec]
