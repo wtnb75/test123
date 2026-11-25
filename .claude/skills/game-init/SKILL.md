@@ -1,12 +1,22 @@
 ---
 name: game-init
 description: Use when a game concept has been agreed (see game-idea) and needs its directory scaffolded via `task newgame` — the required first filesystem step for any new game in this monorepo (AGENTS.md section 2.2).
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-init
 
 Scaffold a new game directory. Follows `AGENTS.md` section 2.2/2.3 exactly —
 never call `pnpm create @phaserjs/game@latest` directly.
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-init/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -16,94 +26,23 @@ never call `pnpm create @phaserjs/game@latest` directly.
   from, passed by `game-idea`. Absent when the idea never went through the
   list.
 
-## Steps
+## Background
 
-1. Make sure the directory name is one the user agreed to (it becomes the
-   public URL path; renaming later is possible but costs a rerun). If the
-   user already approved this exact name — in the `game-idea` summary or
-   by passing `PACKAGE=` themselves — don't ask again. Confirm only when
-   the name is new to them (e.g. you had to pick or adjust it here).
-2. Create and check out a dedicated branch for this game before touching
-   any files: `feat/<game-dir>`, branched from `origin/main`. This is
-   what lets `game-publish` later open a PR scoped to exactly this game,
-   without needing to pick this game's changes out of a working tree that
-   also has unrelated work sitting in it (learned the hard way — sorting
-   that out by hand after the fact is real, avoidable effort).
-   - Always branch from `origin/main`, not from the branch you happen to be
-     on: in a worktree session you start on a worktree branch, and local
-     `main` may be checked out in another worktree (so `git checkout main`
-     fails) or be behind. Branching from `origin/main` also keeps whatever
-     is on the current branch out of the game's branch. If the working tree
-     has uncommitted changes, stop and confirm with the user first — they
-     would be carried into the new branch.
-   - `git fetch origin && git checkout --no-track -b feat/<game-dir> origin/main`
-     (`--no-track`: otherwise the branch tracks `origin/main`, and a bare
-     `git push` would aim at `main`)
-   - If `feat/<game-dir>` already exists, don't reuse or overwrite it
-     silently — you don't know what state it's in (an abandoned earlier
-     attempt, leftover from a rename, something else entirely). Find the
-     next free name instead (`feat/<game-dir>-2`, `-3`, ...) and create
-     that, and tell the user a branch by the original name already existed
-     so they can look at it later if it's worth recovering.
-   - If `IDEA` was given: in `docs/ideas.md`, remove its Inbox line or 候補
-     card and add `- <仮タイトル>（`<game-dir>`）— feat/<game-dir>` (use the
-     actual branch name) under **採用済み**. Do it here, on the game's
-     branch, so the move lands in the same PR as the game. If no matching
-     entry exists on this branch, skip it and say so.
-3. Run `task newgame PACKAGE=<game-dir>`. This merges `package.json` with
-   `base.json`, sets up thin `tsconfig.json` / `eslint.config.mjs` /
-   `vitest.config.ts` / `vite/config.*.mjs` that reference the shared
-   configs under `scaffold/` (90% coverage threshold), and registers the
-   package in `pnpm-workspace.yaml` plus a **commented-out** line in
-   `Taskfile.yml`'s `GAMES` list.
-4. Required follow-ups (do all of these — AGENTS.md 2.2 lists them as
-   mandatory, not optional):
-   - Edit `<game-dir>/package.json` `description` to match the game concept
-     from `game-idea`.
-   - Run `pnpm install` to update the lockfile.
-   - Run `task game:favicon PACKAGE=<game-dir>` to replace the Phaser
-     template's stock `public/favicon.png` with an identicon generated
-     from the game name (jdenticon via `pnpm dlx`, so it needs network
-     access). If it fails, tell the user and carry on — `game-publish`
-     checks it again.
-   - Leave the `GAMES` line commented out — `game-publish` moves it into
-     `LAB_GAMES` (labs.html, the default for a first publish) once the game
-     is ready to be listed. The top page (`GAMES`) is a later, separate step.
-5. Create `<game-dir>/docs/spec.md` with **only** this frontmatter block —
-   no body content yet, that's `game-spec`'s job. This is what makes the
-   game visible to `task game:detect` / `task game:next` / `game-next`
-   immediately, instead of only after the spec is written. Create the file
-   with the Write tool, not a shell `printf`/`echo`: in a worktree-isolated
-   session a shell command whose argument starts with `---` is refused as
-   "cannot be shown not to be git".
+- The branch exists so `game-publish` can later open a PR scoped to exactly
+  this game, without picking this game's changes out of a working tree that
+  also has unrelated work in it. Always branch from `origin/main`: in a
+  worktree session `main` may be checked out elsewhere or be behind, and
+  branching from `origin/main` keeps the current branch's work out.
+- `spec_stub` creates `docs/spec.md` with only the frontmatter so the game is
+  visible to `task game:detect` / `task game:next` / `game-next` immediately.
+  Use the Write tool, not a shell `printf`/`echo`: in a worktree-isolated
+  session a shell command whose argument starts with `---` is refused as
+  "cannot be shown not to be git".
+- The `GAMES` line `task newgame` leaves is commented out on purpose:
+  `game-publish` moves it into `LAB_GAMES` (labs.html, the default for a
+  first publish). The top page (`GAMES`) is a later, separate step.
 
-   ```yaml
-   ---
-   status_idea: done
-   status_init: done
-   status_proto: pending
-   status_spec: pending
-   status_impl: pending
-   status_test: pending
-   status_check: pending
-   status_codereview: pending
-   status_qa: pending
-   status_polish: pending
-   status_balance: pending
-   status_publish: pending
-   ---
-   ```
+## Added by the flow conversion
 
-## Review (before handoff)
-
-Run `game-review STAGE=init PACKAGE=<game-dir>` — a self-review against
-its `STAGE=init` checklist — before handing off. Fix anything that
-fails rather than just noting it.
-
-## Handoff
-
-Tell the user in one line that the directory is ready, then continue
-without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-dispatches `game-proto`, which writes a short spec-lite, builds a
-throwaway prototype and loops playtests with the user (see `game-next`
-"Continuous mode"); the full spec comes after that, from `game-spec`.
+`fix_review` has `max_visits = 2`; exceeding it ends at `blocked` (no hand-off
+to `game-next`; report to the user).

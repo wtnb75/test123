@@ -1,0 +1,135 @@
+schema = 1
+start = "check_name"
+
+[notes]
+always = [
+  "Follow `AGENTS.md` section 2.2/2.3 exactly: never call `pnpm create @phaserjs/game@latest` directly.",
+  "`<game-dir>` is the PACKAGE (folder name only, kebab/lowercase). `IDEA=<仮タイトル>` is optional: the `docs/ideas.md` entry this game comes from, passed by `game-idea`.",
+]
+
+[states.check_name]
+prompt = """Make sure `<game-dir>` is a name the user agreed to (it becomes the public URL path; renaming later costs a rerun).
+If `PACKAGE` was not given, ask the user: do not guess a name silently.
+If the user already approved this exact name (in the `game-idea` summary, or by passing `PACKAGE=` themselves), don't ask again. Confirm only when the name is new to them (e.g. you had to pick or adjust it here)."""
+
+[[states.check_name.choices]]
+label = "agreed"
+when = "The user already approved this exact name"
+goto = "check_tree"
+
+[[states.check_name.choices]]
+label = "confirm"
+when = "The name is new to the user, or `PACKAGE` was not given"
+goto = "confirm_name"
+
+[states.confirm_name]
+prompt = "Ask the user to confirm (or give) the `<game-dir>` name."
+gate = true
+goto = "check_tree"
+
+[states.check_tree]
+prompt = "Run `git status`. If the working tree has uncommitted changes, stop and confirm with the user first: they would be carried into the new branch."
+
+[[states.check_tree.choices]]
+label = "clean"
+when = "The working tree has no uncommitted changes"
+goto = "branch"
+
+[[states.check_tree.choices]]
+label = "dirty"
+when = "The working tree has uncommitted changes"
+goto = "confirm_dirty"
+
+[states.confirm_dirty]
+prompt = "Tell the user what is uncommitted and ask whether to carry it into the new branch."
+
+[[states.confirm_dirty.choices]]
+label = "proceed"
+when = "The user agrees to continue"
+goto = "branch"
+
+[[states.confirm_dirty.choices]]
+label = "stop"
+when = "The user does not want to continue"
+goto = "stopped"
+
+[states.branch]
+prompt = """Create and check out a dedicated branch before touching any files: `feat/<game-dir>`, branched from `origin/main` (not from the current branch).
+`git fetch origin && git checkout --no-track -b feat/<game-dir> origin/main` (`--no-track`: otherwise a bare `git push` would aim at `main`).
+If `feat/<game-dir>` already exists, don't reuse or overwrite it silently: use the next free name (`feat/<game-dir>-2`, `-3`, ...) and tell the user a branch by the original name already existed."""
+
+[[states.branch.choices]]
+label = "with_idea"
+when = "`IDEA` was given"
+goto = "move_idea"
+
+[[states.branch.choices]]
+label = "no_idea"
+when = "`IDEA` was not given"
+goto = "newgame"
+
+[states.move_idea]
+prompt = """In `docs/ideas.md`, remove the Inbox line or 候補 card for `IDEA` and add `- <仮タイトル>（`<game-dir>`）— feat/<game-dir>` (use the actual branch name) under **採用済み**. Do it here, on the game's branch, so the move lands in the same PR as the game.
+If no matching entry exists on this branch, skip it and say so."""
+goto = "newgame"
+
+[states.newgame]
+prompt = """Run `task newgame PACKAGE=<game-dir>`. It merges `package.json` with `base.json`, sets up the thin config files that reference `scaffold/` (90% coverage threshold), and registers the package in `pnpm-workspace.yaml` plus a **commented-out** line in `Taskfile.yml`'s `GAMES` list."""
+goto = "followups"
+
+[states.followups]
+prompt = """Do all of these (AGENTS.md 2.2 lists them as mandatory):
+- Edit `<game-dir>/package.json` `description` to match the game concept from `game-idea`.
+- Run `pnpm install` to update the lockfile.
+- Run `task game:favicon PACKAGE=<game-dir>` to replace the template's stock `public/favicon.png` (needs network access). If it fails, tell the user and carry on: `game-publish` checks it again.
+- Leave the `GAMES` line commented out: `game-publish` moves it into `LAB_GAMES` later."""
+goto = "spec_stub"
+
+[states.spec_stub]
+prompt = """Create `<game-dir>/docs/spec.md` with the Write tool (not a shell `printf`/`echo`: a shell command whose argument starts with `---` is refused in a worktree session) with **only** this frontmatter block, no body (that is `game-spec`'s job):
+---
+status_idea: done
+status_init: done
+status_proto: pending
+status_spec: pending
+status_impl: pending
+status_test: pending
+status_check: pending
+status_codereview: pending
+status_qa: pending
+status_polish: pending
+status_balance: pending
+status_publish: pending
+---"""
+goto = "review"
+
+[states.review]
+prompt = "Run `game-review STAGE=init PACKAGE=<game-dir>` (a self-review against its `STAGE=init` checklist). Fix anything that fails rather than just noting it."
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "handoff"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found, then run the review again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.handoff]
+prompt = """Tell the user in one line that the directory is ready, then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-proto`)."""
+end = true
+
+[states.blocked]
+prompt = "The self-review still fails after two fix rounds. Report which checklist items fail and ask the user how to proceed. Do not hand off to `game-next`."
+end = true
+
+[states.stopped]
+prompt = "The directory was not scaffolded. Tell the user nothing was changed."
+end = true
