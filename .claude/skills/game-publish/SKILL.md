@@ -1,7 +1,10 @@
 ---
 name: game-publish
 description: Use for the final step of adding a finished game to this monorepo's public listing — registering it in Taskfile.yml's LAB_GAMES (labs.html) by default, or GAMES (top page) only when asked, and opening an "add one game" PR (AGENTS.md section 2.2) — or, for a post-publish revision (fix/balance/extension), checking README and opening that revision's PR.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-publish
 
@@ -11,173 +14,61 @@ by the user. For a post-publish revision, the listing is already done —
 the "one thing" this stage scopes to is that revision (fix/balance/
 extension), not the original add.
 
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-publish/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
+
 ## Inputs
 
 - `PACKAGE=<game-dir>`. If not given, run `task game:detect` and confirm.
 - Requires `status_balance: done` for this game.
 
-## Steps
+## Top-page card
 
-`task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`
+Check the top-page card data: the `index` field of
+`<game-dir>/package.json` (`{ title, summary, tags }`;
+`scripts/build-index.mjs` builds the card from it, falling back to the
+directory name and `description` when it is missing). Compare it with
+`docs/spec.md` and `README.md` (what the game is now, not what it was at
+the prototype):
+- **Missing** → add it. **Present but stale or off-convention** → change
+  it. Otherwise leave it alone (don't churn wording that is fine).
+- The card is a pitch, not a description: the point is the game's selling
+  point in one playful line, like a game's catch copy. It is not the
+  place for an earnest explanation (that is `README.md`'s job). The card
+  text is separate from the title screen's name; don't copy one to the
+  other.
+- `title`: `<main subject>「<one-line hook>」` — e.g. `モグラ「叩ける？」`,
+  `ミノ「ちょっと屋上行こうぜ」`, `地雷「オレを部屋に置くなよ！」`,
+  `電卓「60 秒で支度しな！」`. The subject is what the player deals with (a
+  mole, a mine); the hook is a line the subject itself says (or a
+  well-known line bent to fit), absurd enough to stick. Aim for impact over
+  explanation; a pun or a borrowed catchphrase is welcome.
+- `summary`: 1–2 short, jokey Japanese sentences that say what you do and
+  what is fun or tricky, in a cheeky tone — e.g. 「探して、ぶっ叩く！
+  ただしネコ以外をな！！ お前の中のハンマーを目覚めさせろ」. No controls
+  list, no rule details, no numbers that change under balance; stay true to
+  the game (a joke must not promise something the game does not do).
+- `tags`: genre first, then the input methods the game really supports,
+  always in the order `タッチ` → `マウス` → `キーボード` (the top page's
+  filter chips are ordered by first appearance, so a stable order keeps
+  them stable). A game played with pointer input gets both `タッチ` and
+  `マウス` (touch and mouse are the same Phaser pointer events). Reuse
+  existing tags — list them with `rg -N -A8 '"tags"' */package.json` —
+  and add a new one only when none fits.
+- Keep `description` (what the game is, for developers) separate from
+  `summary` (what the player sees on the card); don't copy one to the other
+  blindly.
+- On a post-publish revision, re-check it too: an extension that adds a
+  mode or an input method (or a balance change that alters the pitch) can
+  make the card wrong. Include the change in this PR.
 
-1. Confirm `<game-dir>/README.md` documents purpose, rules, and controls
-   (AGENTS.md 4.1 — required, not optional).
-2. Confirm the game has its own favicon:
-   `cmp -s <game-dir>/public/favicon.png scaffold/base-template/public/favicon.png`
-   succeeding means it's still the template's stock icon — run
-   `task game:favicon PACKAGE=<game-dir>` and include the result in this
-   change.
-3. Check the top-page card data: the `index` field of
-   `<game-dir>/package.json` (`{ title, summary, tags }`;
-   `scripts/build-index.mjs` builds the card from it, falling back to the
-   directory name and `description` when it is missing). Compare it with
-   `docs/spec.md` and `README.md` (what the game is now, not what it was at
-   the prototype):
-   - **Missing** → add it. **Present but stale or off-convention** → change
-     it. Otherwise leave it alone (don't churn wording that is fine).
-   - The card is a pitch, not a description: the point is the game's selling
-     point in one playful line, like a game's catch copy. It is not the
-     place for an earnest explanation (that is `README.md`'s job). The card
-     text is separate from the title screen's name; don't copy one to the
-     other.
-   - `title`: `<main subject>「<one-line hook>」` — e.g. `モグラ「叩ける？」`,
-     `ミノ「ちょっと屋上行こうぜ」`, `地雷「オレを部屋に置くなよ！」`,
-     `電卓「60 秒で支度しな！」`. The subject is what the player deals with (a
-     mole, a mine); the hook is a line the subject itself says (or a
-     well-known line bent to fit), absurd enough to stick. Aim for impact over
-     explanation; a pun or a borrowed catchphrase is welcome.
-   - `summary`: 1–2 short, jokey Japanese sentences that say what you do and
-     what is fun or tricky, in a cheeky tone — e.g. 「探して、ぶっ叩く！
-     ただしネコ以外をな！！ お前の中のハンマーを目覚めさせろ」. No controls
-     list, no rule details, no numbers that change under balance; stay true to
-     the game (a joke must not promise something the game does not do).
-   - `tags`: genre first, then the input methods the game really supports,
-     always in the order `タッチ` → `マウス` → `キーボード` (the top page's
-     filter chips are ordered by first appearance, so a stable order keeps
-     them stable). A game played with pointer input gets both `タッチ` and
-     `マウス` (touch and mouse are the same Phaser pointer events). Reuse
-     existing tags — list them with `rg -N -A8 '"tags"' */package.json` —
-     and add a new one only when none fits.
-   - Keep `description` (what the game is, for developers) separate from
-     `summary` (what the player sees on the card); don't copy one to the other
-     blindly.
-   - On a post-publish revision, re-check it too: an extension that adds a
-     mode or an input method (or a balance change that alters the pitch) can
-     make the card wrong. Include the change in this PR.
-4. **First publish** goes to **labs** by default (`labs.html`, the
-   works-in-progress page), not the top page. Confirm with the user before
-   touching `Taskfile.yml`, then move the commented `#- <game-dir>` line that
-   `task newgame` left at the end of `GAMES:` to the end of `LAB_GAMES:`,
-   uncommented (oldest first), and remove it from `GAMES:`. Show the `index`
-   card text (from step 3) and "listed on labs" in the same question.
-   Listing on the top page (`GAMES`) is a separate, later change: do it only
-   when the user asks for it (a `Taskfile.yml`-only PR moving the line from
-   `LAB_GAMES` to `GAMES`); never as part of a first publish unless
-   the user says so in that same question.
-5. **Backlog (first publish)**: confirm `<game-dir>/docs/backlog.md` exists
-   and holds the items that missed the MVP (see `game-spec`'s
-   `first-write.md`, "Backlog from the first write"). Missing → write it now in the `game-backlog` card format
-   from 非MVP範囲 and the cut items; it is part of this PR.
-6. **Post-publish revision** (on a `<type>/<game-dir>-<slug>` branch): the
-   `GAMES` / `LAB_GAMES` line is already in place — leave `Taskfile.yml` alone.
-   Instead check that `README.md` reflects the changed rules and controls,
-   and update it in this change if it doesn't.
+## Added by the flow conversion
 
-For a post-publish revision, also check `<game-dir>/docs/backlog.md` is in
-the change if `game-spec` updated it.
-
-(The same `Taskfile.yml` rule applies to a PR that only promotes a lab game
-to the top page: only that line moves.)
-
-`task build` / `output/index.html` verification is CI's job, not this
-skill's — don't run it here (confirmed with the user: this repo's CI
-builds and verifies the top-page output on its own).
-
-### Opening the PR
-
-The finished PR's content should be scoped to exactly one thing: adding
-`<game-dir>` (first publish), or that one revision (post-publish). Confirm
-with the user before pushing anything or opening the PR (unless the
-user already agreed to it in `game-polish`'s combined confirmation for a
-presentation-only revision) — pushing and PR
-creation are both visible, and this skill has no standing authorization to
-do them silently.
-
-**Autopilot** (`<game-dir>/.autopilot.md` exists — see `game-autopilot`
-"Autopilot rules"): the agreement covers the commit, push and `gh pr create`;
-don't ask. The PR body states that it was made in autopilot, that polish and
-balance were skipped (numbers untried by hand), gives the automated-play
-numbers from `game-balance` with their conditions (or says why there are
-none), and lists 「未対応の指摘」 from `game-codereview` and anything QA could
-not confirm by eye. It still scopes to the one agreed change. The agreement
-file itself is git-ignored and is never part of the commit;
-`game-autopilot` removes it once the PR is open.
-
-**Existing PR** (`game-playtest` is reflecting change requests on a PR that
-is already open): commit and push to the same branch; don't run
-`gh pr create`. Update the PR body with the `gh api` call below if the
-content changed.
-
-By this point you should already be on a dedicated branch for this game
-(`feat/<game-dir>` from `game-init` for a first publish, or a
-`<type>/<game-dir>-<slug>` branch from `game-spec` for a post-publish
-revision — see that skill) — **not** `main`. If you're on `main`, stop:
-something upstream skipped its branch step, and committing here would mix
-this game with whatever else is on `main`. Don't improvise a fix by
-hand-picking hunks; go back and create the branch that skill should have
-created, from `origin/main` (`git fetch origin && git checkout --no-track -b
-<branch> origin/main`), then return here.
-
-If the PR title/body has to change after it is open, use
-`gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F title=... -F body=@<file>`.
-`gh pr edit` fails in this repo with a Projects (classic) GraphQL error.
-
-### Order of the steps (the status key is part of the PR)
-
-`status_publish` lives in `<game-dir>/docs/spec.md`, which is part of this
-PR. So `done` has to be written **before** the commit, or the merged spec
-would still say `in_progress` and the dashboard would never show the game as
-complete. Do it in this order:
-
-1. The user has confirmed the listing (first publish) and the push + PR
-   (above) — one question can cover both. Do not write `done` before that:
-   if they decline, nothing was marked.
-2. Run `game-review STAGE=publish PACKAGE=<game-dir>` (see "Review").
-3. `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=done`
-4. Staging is normally just `git add -A` on this branch — the whole point
-   of branching per-game upfront is that everything sitting dirty on it
-   already belongs to this change. Still, run `git status` once before
-   staging: this repo's per-game directories are independent, so it's
-   possible (if unlikely, on a correctly-branched session) for something
-   unrelated to have ended up here too — if so, stop and ask rather than
-   silently including or excluding it. The `status_publish: done` line in
-   `docs/spec.md` belongs to the change.
-5. Commit the staged files with a message describing the change, push the
-   branch (`git push -u origin <branch>`), and `gh pr create` with a
-   title/body describing the change — for a first publish, "add one game" with one line on what it is and a link
-   to `<game-dir>/docs/spec.md`; for a post-publish revision, what changed
-   and why.
-6. If the commit, the push or the PR fails (or the user stops you after
-   step 3), set it back with
-   `task game:status:set PACKAGE=<game-dir> STAGE=publish VALUE=in_progress`
-   and tell the user what failed. Never leave `done` on a branch whose PR
-   is not open.
-
-## Review (before the status is written and committed)
-
-Run `game-review STAGE=publish PACKAGE=<game-dir>` — a self-review against
-its `STAGE=publish` checklist — before step 3 above. Fix anything that
-fails rather than just noting it.
-
-## Completion
-
-1. `package.json`'s `index` is present and matches the game (added or
-   updated in this change if it was missing or stale). For a first publish,
-   the game is in `LAB_GAMES` (not `GAMES`, unless the user asked for the top
-   page), the user has confirmed the listing, and `docs/backlog.md` exists; for a post-publish revision, `README.md` is current and
-   `Taskfile.yml` is untouched. Either way, the PR is open with
-   a link to show them, and the commit contains `status_publish: done`.
-2. Tell the user this game's workflow is complete —
-   `task game:dashboard` will show it as `next=complete` once the PR is
-   merged — and that the next options are `game-extend` (add a feature) or
-   `game-balance` (another tuning pass), same as `game-next` offers.
+- The steps (README, favicon, card, listing, backlog, PR confirmation,
+  the review, writing `status_publish: done` before the commit, the
+  commit / push / PR, completion) live in `flow.toml`.
+- `fix_review` has `max_visits = 2`; exceeding it ends at `blocked`.
