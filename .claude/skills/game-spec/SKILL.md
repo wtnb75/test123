@@ -1,13 +1,23 @@
 ---
 name: game-spec
 description: Use to write or update <game-dir>/docs/spec.md for a game in this monorepo — the required spec file per AGENTS.md section 2.4, and the file that carries this repo's workflow-progress frontmatter for game-next/game-status.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-spec
 
 Write (or revise) `<game-dir>/docs/spec.md`. Per `AGENTS.md` 2.4, this file
 must exist and be filled in **before** implementation starts, and any later
 spec change must be made here first, with implementation/tests following.
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-spec/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -273,39 +283,12 @@ handles in the only sensible way. Such a revision:
   tests and gate are untouched; say in the conversation which finding it
   records and why nothing earlier needs to run again.
 
-## Review (before showing the user)
+## Added by the flow conversion
 
-Run `game-review STAGE=spec PACKAGE=<game-dir>` on the draft. It launches
-a fresh subagent that reads only the spec (`docs/spec.md` plus linked
-`docs/spec/*.md`) and does an "implementer dry run" — listing everything
-`game-impl` would have to invent. Handle its findings as `game-review`
-describes (fix what's already agreed, ask the user the remaining
-questions in one batch, at most 2 rounds).
-
-Also check the process yourself, for a revision:
-
-- Did you check `status_publish`'s value *before* resetting it, and branch
-  accordingly (new branch only if it was `done`)?
-- Did you actually run `task game:reset` (or, for a clarification-only
-  revision, with `FROM=qa` for the four stages after `codereview`), not just
-  remember that it exists?
-- For an effect section: is every item of the 演出・UI checklist settled?
-
-## Completion
-
-1. Draft the content below the existing frontmatter, run the review
-   above, then show the user the draft together with the review result
-   (blockers fixed, questions answered, remaining should/nit) and get
-   explicit approval — this is a design document other steps depend on,
-   not a formality. **Autopilot** (`<game-dir>/.autopilot.md` exists — see
-   `game-autopilot` "Autopilot rules"): skip the approval stop — the
-   agreement is the approval. Check the draft against 「拡張の内容」 in that
-   file (read it again rather than relying on memory of the conversation), and
-   report the spec diff and review result at the end; a question the
-   agreement doesn't answer stops the chain and is asked as usual.
-2. Once approved and the file is written:
-   `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`
-3. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-impl` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode"). Not for a verbatim split
-   (`split.md`) — that cycle ends at its docs-only PR.
+- The review and completion steps (review, approval, the downstream reset,
+  `status:set … done`, the hand-off to `game-next`) live in `flow.toml`.
+- `fix_review` and `split_fix` have `max_visits = 2`. Exceeding `fix_review`
+  goes on to the user's approval (with the remaining findings); exceeding
+  `split_fix` ends at `blocked`.
+- Autopilot (`<game-dir>/.autopilot.md` exists) skips the approval; a
+  question the agreement does not answer still goes to the user.

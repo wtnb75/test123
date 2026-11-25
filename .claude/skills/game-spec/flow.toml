@@ -1,0 +1,202 @@
+schema = 1
+start = "classify"
+
+[notes]
+always = [
+  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "Write for a reader who wasn't in the conversation: `game-impl` and the `game-review` subagent see only the spec. Anything agreed but not written there is lost. Don't record history in the spec; it always describes the current game.",
+  "Never touch the `status_*` frontmatter by hand; only `task game:status:set` / `task game:reset`.",
+]
+
+[states.classify]
+prompt = """Before touching frontmatter or drafting, check the current values: `task game:status PACKAGE=<game-dir> STAGE=spec` and `task game:status PACKAGE=<game-dir> STAGE=publish` (before any reset overwrites `status_publish`). Decide which case this is (`SKILL.md` \"A revision after publish needs its own branch\"):
+- first write: `status_spec` is `pending` (you are already on the `feat/<game-dir>` branch `game-init` created);
+- pre-publish revision: `status_spec` is `done`, `status_publish` is not `done` (keep working on the same branch);
+- post-publish revision: `status_publish` is `done` (needs a new branch);
+- clarification-only: the revision only writes down what the implementation already does, with no code change (typically a `game-codereview` finding classified **spec (clarify)**);
+- verbatim split of an existing spec (`split.md`)."""
+
+[[states.classify.choices]]
+label = "first_write"
+when = "`status_spec` was `pending` (first write of a new game)"
+goto = "set_in_progress"
+
+[[states.classify.choices]]
+label = "pre_publish"
+when = "A revision while `status_publish` is not `done`"
+goto = "set_in_progress"
+
+[[states.classify.choices]]
+label = "post_publish"
+when = "A revision while `status_publish` is `done`"
+goto = "new_branch"
+
+[[states.classify.choices]]
+label = "clarify"
+when = "A clarification-only revision (no player-visible change, no code change)"
+goto = "set_in_progress"
+
+[[states.classify.choices]]
+label = "split"
+when = "Moving existing text out of `docs/spec.md` verbatim into split files"
+goto = "split_branch"
+
+[states.new_branch]
+prompt = """A post-publish revision needs a new, distinctly-named branch, not a reuse of the old `feat/<game-dir>`. Pick `<type>` (`fix` for a bug found in `game-qa`/`game-check`, `balance` for a `game-balance` tuning pass, `feat` for a new mechanic/stage/feature, `refactor` for a restructuring with no player-visible change) and a short kebab-case slug. For anything coming from `game-extend` or a 着手可 card, the branch name agreed there is the confirmation; otherwise confirm type and slug with the user rather than assuming.
+`git fetch origin && git checkout --no-track -b <type>/<game-dir>-<slug> origin/main` (not `git checkout main`).
+If that branch name already exists, don't reuse or overwrite it silently: pick a different slug or append `-2`, `-3`, ... and tell the user."""
+goto = "set_in_progress"
+
+[states.set_in_progress]
+prompt = "Run `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=in_progress` before drafting."
+
+[[states.set_in_progress.choices]]
+label = "first_write"
+when = "This is the first write of a new game"
+goto = "first_write_prep"
+
+[[states.set_in_progress.choices]]
+label = "revision"
+when = "This is a revision (pre-publish, post-publish or clarification-only)"
+goto = "draft"
+
+[states.first_write_prep]
+prompt = """Read `first-write.md` next to `SKILL.md`: how to build the full spec from the spec-lite and `## プレイテストで固まったこと` (keep the settled values, fold the notes into the proper sections, remove the `> spec-lite:` banner and the two playtest sections), and the `docs/backlog.md` that is written in the same first write (cards from 非MVP範囲, the cut items, trimmed ideas and playtest drops)."""
+goto = "draft"
+
+[states.draft]
+prompt = """Draft the content below the existing frontmatter. All AGENTS.md 2.4 required items, no placeholders (`SKILL.md` \"Required content\"); see \"パラメータ表 and 実装裁量\", \"画面・Scene構成 needs more than a Scene table\" and, for effect sections, the \"演出・UI checklist\" (every item settled or delegated in 実装裁量).
+For a revision, change only the sections that actually changed (an older spec lacking a section added to AGENTS.md later gets it as part of the revision). A revision handed over by `game-extend` / `game-title` follows \"Revisions coming from `game-extend`\". Put the content where the \"Spec layout\" table says (a new split file also gets its line in `## 拡張`).
+Do not touch `status_*` by hand."""
+goto = "review"
+
+[states.review]
+prompt = """Run `game-review STAGE=spec PACKAGE=<game-dir>` on the draft: a fresh subagent reads only the spec and does an implementer dry run. Fix what is already agreed; put the remaining questions to the user in one batch.
+For a revision also check the process yourself: did you check `status_publish` before resetting anything and branch accordingly (a new branch only if it was `done`)? Is every item of the 演出・UI checklist settled for an effect section? (The reset itself runs after approval, below.)"""
+
+[[states.review.choices]]
+label = "pass"
+when = "No blockers remain in the review result"
+goto = "autopilot_check"
+
+[[states.review.choices]]
+label = "fail"
+when = "The review found blockers or open questions to fix or answer"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix the blockers (ask the user the remaining questions in one batch), then run the review again."
+goto = "review"
+max_visits = 2
+on_exceed = "approve"
+
+[states.autopilot_check]
+prompt = "Check whether `<game-dir>/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\")."
+
+[[states.autopilot_check.choices]]
+label = "autopilot"
+when = "`<game-dir>/.autopilot.md` exists"
+goto = "autopilot_verify"
+
+[[states.autopilot_check.choices]]
+label = "manual"
+when = "`<game-dir>/.autopilot.md` does not exist"
+goto = "approve"
+
+[states.autopilot_verify]
+prompt = """Autopilot: skip the approval stop; the agreement is the approval. Read `<game-dir>/.autopilot.md` again (don't rely on memory of the conversation) and check the draft against 「拡張の内容」. Report the spec diff and the review result at the end."""
+
+[[states.autopilot_verify.choices]]
+label = "consistent"
+when = "The draft matches the agreement and no open question remains"
+goto = "finish_kind"
+
+[[states.autopilot_verify.choices]]
+label = "question"
+when = "A question the agreement does not answer remains, or the draft goes beyond it"
+goto = "approve"
+
+[states.approve]
+prompt = """Show the user the draft together with the review result (blockers fixed, questions answered, remaining should/nit) and, for a first write, the `docs/backlog.md` draft. Get explicit approval: this is a design document other steps depend on, not a formality."""
+gate = true
+
+[[states.approve.choices]]
+label = "approved"
+when = "The user approved the spec"
+goto = "finish_kind"
+
+[[states.approve.choices]]
+label = "changes"
+when = "The user wants the draft changed"
+goto = "draft"
+
+[states.finish_kind]
+prompt = "Decide what the completion needs (see `SKILL.md` \"Any revision resets downstream stages\" and \"Clarification-only revisions\")."
+
+[[states.finish_kind.choices]]
+label = "first_write"
+when = "This was the first write: no downstream reset"
+goto = "set_done"
+
+[[states.finish_kind.choices]]
+label = "revision"
+when = "A normal revision: reset every downstream stage"
+goto = "reset_full"
+
+[[states.finish_kind.choices]]
+label = "clarify"
+when = "A clarification-only revision: reset only the stages after `codereview`"
+goto = "reset_qa"
+
+[states.reset_full]
+prompt = "Run `task game:reset PACKAGE=<game-dir>` in full (it sets impl, test, check, codereview, qa, polish, balance and publish back to `pending`). Don't guess which stages the change affects."
+goto = "set_done"
+
+[states.reset_qa]
+prompt = "Run `task game:reset PACKAGE=<game-dir> FROM=qa`, and say in the conversation which finding it records and why nothing earlier needs to run again (implementation, tests and gate are untouched)."
+goto = "set_done"
+
+[states.set_done]
+prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=spec VALUE=done`.
+Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-impl`)."""
+end = true
+
+[states.split_branch]
+prompt = """Read `split.md` next to `SKILL.md`. Branch from `origin/main`: `git fetch origin && git checkout --no-track -b docs/<game-dir>-split-spec origin/main` (next free `-2`, `-3`, ... if taken)."""
+goto = "split_move"
+
+[states.split_move]
+prompt = """Move only descriptions of self-contained elements (modes, stage sets, systems, Scenes) into `docs/spec/<slug>.md`, text verbatim (don't rewrite it). The AGENTS.md 2.4 required items for the base game stay in `docs/spec.md`, which gets a `## 拡張` link line for each new file. This revision does **not** run the downstream reset."""
+goto = "split_review"
+
+[states.split_review]
+prompt = "Run `game-review STAGE=spec` to confirm nothing was lost or duplicated and every link resolves."
+
+[[states.split_review.choices]]
+label = "pass"
+when = "Nothing was lost or duplicated and every link resolves"
+goto = "split_pr"
+
+[[states.split_review.choices]]
+label = "fail"
+when = "Text was lost or duplicated, or a link does not resolve"
+goto = "split_fix"
+
+[states.split_fix]
+prompt = "Fix what the review found, keeping the text verbatim."
+goto = "split_review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.split_pr]
+prompt = "Confirm with the user before pushing or opening anything. Then commit and open a docs-only PR."
+gate = true
+goto = "split_done"
+
+[states.split_done]
+prompt = "This cycle ends at its docs-only PR (do not invoke `game-next`). Tell the user: once it merges, restart `game-extend`."
+end = true
+
+[states.blocked]
+prompt = "The review still fails after two fix rounds. Report what is wrong and ask the user how to proceed. Do not mark the stage done and do not run the reset."
+end = true
