@@ -1,0 +1,177 @@
+schema = 1
+start = "choose_mode"
+
+[notes]
+always = [
+  "The only file this skill touches is `docs/ideas.md`, on a docs-only branch. Neither mode creates a game directory or `docs/spec.md`.",
+  "`docs/ideas.md` is for games that don't exist yet. Ideas for a published game belong in its own `docs/backlog.md` (`game-backlog`).",
+]
+
+[states.choose_mode]
+prompt = """Choose the mode (see `SKILL.md` \"Choosing the mode\"):
+- The user states an idea (\"〜というゲームを思いついた\", \"メモしておいて\") and does not ask to start it: memo.
+- The user wants to start a new game, asks \"what's in the idea list\", or `game-next` offers a new game: develop.
+- If unclear: ask once (メモだけ残すか、取り出して詳細化するか)."""
+
+[[states.choose_mode.choices]]
+label = "memo"
+when = "The user gave an idea and did not ask to start it"
+goto = "memo_read"
+
+[[states.choose_mode.choices]]
+label = "develop"
+when = "The user wants to start a new game, asks what is in the idea list, or `game-next` offered a new game"
+goto = "dev_read"
+
+[[states.choose_mode.choices]]
+label = "unclear"
+when = "It is not clear which mode the user wants"
+goto = "ask_mode"
+
+[states.ask_mode]
+prompt = "Ask the user once: メモだけ残すか、取り出して詳細化するか。"
+
+[[states.ask_mode.choices]]
+label = "memo"
+when = "The user wants only to jot the idea down"
+goto = "memo_read"
+
+[[states.ask_mode.choices]]
+label = "develop"
+when = "The user wants to take an idea out and develop it"
+goto = "dev_read"
+
+[states.memo_read]
+prompt = "Run `git fetch`, then read `origin/main`'s `docs/ideas.md` (not a stale local copy)."
+
+[[states.memo_read.choices]]
+label = "found"
+when = "`docs/ideas.md` exists on `origin/main`"
+goto = "memo_add"
+
+[[states.memo_read.choices]]
+label = "missing"
+when = "`docs/ideas.md` does not exist yet"
+goto = "memo_missing"
+
+[states.memo_missing]
+prompt = "Tell the user the file ships with the change that added this skill, so creating it is the introducing PR's job. Stop."
+end = true
+
+[states.memo_add]
+prompt = """Check the idea against the existing list first: if the same idea is already in Inbox / 候補 / 見送り, say so and do not add a duplicate (if it is in 見送り, show the reason and ask whether to bring it back to Inbox).
+Otherwise add one line under **Inbox**: `- <ひとこと>（YYYY-MM-DD）`. Take the user's words as given: don't develop, trim or rank here. Ask back only if the line can't be understood later (e.g. a bare title with no hint of what the game is)."""
+
+[[states.memo_add.choices]]
+label = "added"
+when = "A line was added to Inbox, or an idea was brought back from 見送り"
+goto = "memo_more"
+
+[[states.memo_add.choices]]
+label = "duplicate"
+when = "The idea is already listed and the user does not want it brought back"
+goto = "memo_more"
+
+[states.memo_more]
+prompt = "Ask whether the user has another memo in this session. Several memos in one session go in one PR."
+
+[[states.memo_more.choices]]
+label = "more"
+when = "The user has another idea to jot down"
+goto = "memo_add"
+
+[[states.memo_more.choices]]
+label = "none"
+when = "No more memos"
+goto = "memo_pr"
+
+[states.memo_pr]
+prompt = """Write the `docs/ideas.md` change on a docs-only branch from `origin/main`: `docs/ideas-<slug>` (next free `-2`, `-3`, ... if the name exists). Change only `docs/ideas.md`.
+Ask the user to confirm the change. Only then commit, push and open a docs-only PR (no behavior, build or test impact).
+If nothing changed (every memo was a duplicate), say so and open no PR."""
+gate = true
+goto = "memo_done"
+
+[states.memo_done]
+prompt = "Stop. Do not start develop mode unasked; offer it in one line."
+end = true
+
+[states.dev_read]
+prompt = """Run `git fetch`, then read `origin/main`'s `docs/ideas.md`. Also run `task game:dashboard` (or list the top-level game directories) so the idea can be checked against existing games."""
+goto = "pick"
+
+[states.pick]
+prompt = """Pick the idea:
+- The user names one: use it.
+- Otherwise show 候補 top-down (up to 5, as a short list: タイトル / コンセプト / 規模) and the Inbox lines, and ask which to take.
+- If the list is empty, the user brings a fresh idea (nothing to move into 採用済み)."""
+goto = "dialog"
+
+[states.dialog]
+prompt = """Develop the idea: ask the user, one question at a time, about:
+- コンセプト（1-3行で言える程度に絞る）
+- ターゲットプレイヤー
+- コアループ（プレイ中に繰り返す行動）
+- 操作仕様（キーボード／タッチのどちらを主にするか）
+- MVP範囲と非MVP範囲（最初のバージョンで作らないものを明確にする）
+Start from what the memo/card already says: confirm it and ask only for what is missing.
+Push back on scope creep: an idea that bundles multiple independent systems should be trimmed to a single core loop. What is trimmed away and worth keeping goes back into Inbox as its own line (or a separate 候補 card).
+Suggest a tentative `<game-dir>` name (English, kebab/lowercase, matching existing conventions like `cjump`, `kogodrop`, `dutchcalc`)."""
+goto = "review"
+
+[states.review]
+prompt = """Run `game-review STAGE=idea` (a self-review against its checklist) and fix anything that fails silently, rather than handing the gaps to the user."""
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "summary"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found (ask the user only if it needs an answer), then run the review again."
+goto = "review"
+max_visits = 2
+on_exceed = "summary"
+
+[states.summary]
+prompt = """Summarize the agreed concept in a few sentences, including the `<game-dir>` name (approving the summary approves the name). Get explicit confirmation from the user before proceeding.
+If the user drops the idea, or only wants to park it, say which."""
+gate = true
+
+[[states.summary.choices]]
+label = "approved"
+when = "The user approved the concept and the `<game-dir>` name"
+goto = "handoff"
+
+[[states.summary.choices]]
+label = "revise"
+when = "The user wants the concept changed before deciding"
+goto = "dialog"
+
+[[states.summary.choices]]
+label = "drop"
+when = "The user drops the idea"
+goto = "drop_card"
+
+[[states.summary.choices]]
+label = "park"
+when = "The user only wants to park the idea for later"
+goto = "park_card"
+
+[states.drop_card]
+prompt = """Do not start `game-init`. Move the card (or Inbox line) to **見送り** with the reason: `- <仮タイトル> — <理由>（YYYY-MM-DD）`. Then go to the docs-only PR step."""
+goto = "memo_pr"
+
+[states.park_card]
+prompt = """Do not start `game-init`. Leave the card where it is, with what was decided added to the card's メモ. Then go to the docs-only PR step."""
+goto = "memo_pr"
+
+[states.handoff]
+prompt = """The approval covers the handoff: don't ask a second time. Invoke `game-init` with `PACKAGE=<game-dir>`. If the idea came from `docs/ideas.md`, also pass `IDEA=<仮タイトル>` (the card's heading or the Inbox line's words), so `game-init` can move it to 採用済み on the game's branch.
+`game-init` then hands off to `game-next`, which keeps the chain going (see its \"Continuous mode\"). Do not run `task newgame` from this skill."""
+end = true
