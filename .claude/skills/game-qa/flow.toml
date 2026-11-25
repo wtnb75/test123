@@ -1,0 +1,121 @@
+schema = 1
+start = "begin"
+
+[notes]
+always = [
+  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "Use the helpers in `scripts/qa/` (see `scripts/qa/README.md`); don't rebuild the Docker + Playwright setup by hand. File moves use `docker cp`, never a bind mount.",
+  "Scenario rules (`SKILL.md` \"Rules for scenarios\"): no Playwright clock, one page at a time, wait for a state not for a time, keep each run short and split by viewport.",
+]
+
+[states.begin]
+prompt = """Check `status_codereview` (`task game:status PACKAGE=<game-dir> STAGE=codereview`). If it is not `done`, send the user back to `game-codereview` (or `game-check` before it) first.
+If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_codereview` is `done`"
+goto = "classify"
+
+[[states.begin.choices]]
+label = "not_codereview"
+when = "`status_codereview` is not `done`"
+goto = "need_codereview"
+
+[states.need_codereview]
+prompt = "Tell the user to run `game-codereview` (or `game-check` before it) first. Do not change any status. Stop."
+end = true
+
+[states.classify]
+prompt = """Decide how much to shoot (`SKILL.md` \"Scope of a revision's QA\"): the first QA of a game is always the full set. For a revision, classify the change from the spec revision and the diff. When in doubt, take the larger class. Write the class and the reason in the QA report in one line (e.g. \"local change: only the difference generator; rendering, input, layout untouched\") so the user can overrule it."""
+
+[[states.classify.choices]]
+label = "full"
+when = "The first QA of this game, or a change to shared parts (build config, `index.html`, canvas size / orientation / layout, Scene start-stop-restart, input handling, pause, anything every state goes through)"
+goto = "up"
+
+[[states.classify.choices]]
+label = "title_demo"
+when = "A Title / demo addition (no rule, number or in-game screen changes)"
+goto = "up"
+
+[[states.classify.choices]]
+label = "local"
+when = "A local change to rules or content (generation, judging, scoring, a new kind of element, a tuning number)"
+goto = "up"
+
+[[states.classify.choices]]
+label = "wording"
+when = "Wording only (README, spec text, comments)"
+goto = "up"
+
+[states.up]
+prompt = """Run `scripts/qa/up.sh <game-dir> [port]`: it starts the dev server on this session's Docker IP and a Playwright container on this session's Docker network, installs `playwright` in it, and prints the base URL and the container's UTC date (games that pick content by date need it)."""
+goto = "shoot"
+
+[states.shoot]
+prompt = """Write the scenario as an ES module under the scratchpad that imports from `./lib.mjs` (`launch`, `newPage`, `shot`, `burst`, `tap`, `setHidden`, `waitForQa`, `fps`, `report`; `scripts/qa/smoke.mjs` is a generic starting point). Run it with `scripts/qa/run.sh <game-dir> <script.mjs> <out-dir> [extra files…]`; the screenshots come back in `<out-dir>`.
+Shoot what the class chosen in `classify` requires (the table in `SKILL.md`), on a desktop and a phone-sized viewport: title, mid-play, clear, game-over and every state/Scene the spec names; for a first look at the layout use `scripts/qa/look.mjs` (AGENTS.md 4.6). For effects and transitions take a short burst (`burst`, every 50-100 ms). Judge speed feel, hit-detection feel and whether transitions match the spec, not just \"it didn't crash\". If `fps` is far below 60, fix the harness before judging the feel.
+In autopilot (`<game-dir>/.autopilot.md` exists), shoot the states where the change shows at all four sizes of AGENTS.md 4.6 (375 × 550, 667 × 310, 390 × 844, 1280 × 720) and keep the files: `game-polish` checks these.
+If a run has produced no new file for a minute, kill the node process in the container and rerun only the missing part."""
+goto = "down"
+
+[states.down]
+prompt = "Run `scripts/qa/down.sh <game-dir> [port]`: it removes the container and stops the server. Always, even if QA failed."
+goto = "shared_up"
+
+[states.shared_up]
+prompt = """Shared build check (what is actually published; done in every case): run `scripts/qa/up.sh <game-dir> <port> --shared` (builds with `SHARED_VENDOR=1`, lays it out like `output/`, serves it under `/<repo>/`)."""
+goto = "shared_smoke"
+
+[states.shared_smoke]
+prompt = """Run `scripts/qa/run.sh <game-dir> scripts/qa/smoke.mjs <out-dir>`. It fails on a missing canvas, console errors or 4xx/5xx requests; its screenshots show the title and the first tap. Look at them."""
+goto = "shared_down"
+
+[states.shared_down]
+prompt = "Run `scripts/qa/down.sh <game-dir> <port>`."
+goto = "judge"
+
+[states.judge]
+prompt = "Compare the screenshots and the shared-build smoke result with the spec: does the game render and behave as the spec describes?"
+
+[[states.judge.choices]]
+label = "ok"
+when = "The screenshots confirm the game renders and behaves as the spec describes, and the shared build check passed"
+goto = "review"
+
+[[states.judge.choices]]
+label = "problem"
+when = "Something looked wrong, or the shared build check failed"
+goto = "report_failure"
+
+[states.review]
+prompt = "Run `game-review STAGE=qa PACKAGE=<game-dir>` (a self-review against its `STAGE=qa` checklist). Fix anything that fails rather than just noting it."
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "set_done"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found, then run it again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.set_done]
+prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=qa VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-polish`)."""
+end = true
+
+[states.report_failure]
+prompt = "Do not mark this stage done. Report what looked wrong with the screenshots as evidence, and route back to `game-impl` for a fix (one change, one purpose: don't bundle the fix with unrelated work)."
+end = true
+
+[states.blocked]
+prompt = "The self-review still fails after two fix rounds. Report which checklist items fail and ask the user how to proceed. Do not mark `qa` done."
+end = true
