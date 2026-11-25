@@ -1,0 +1,211 @@
+schema = 1
+start = "begin"
+
+[notes]
+always = [
+  "`<game-dir>` is the PACKAGE of this run (from the caller, or from `task game:detect` confirmed with the user). The spec is `<game-dir>/docs/spec.md` plus every `docs/spec/*.md` it links to.",
+  "This stage covers presentation and clarity only. Numbers with gameplay weight go to `game-balance`; new mechanics or rule changes go to `game-spec` as a feature revision; bugs found along the way go to `game-impl` (one change, one purpose).",
+  "This stage is re-entered several times (after the agreed changes have passed `game-qa`, after an unrelated revision, in a presentation-only revision, in autopilot): pick the entry that matches where you are.",
+  "Taste is the user's. Only the user decides the look is good enough; show before/after screenshots and ask explicitly.",
+]
+
+[states.begin]
+prompt = """Check `status_qa` (`task game:status PACKAGE=<game-dir> STAGE=qa`). If it is not `done`, send the user back to `game-qa` first.
+If it is `done`, run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=in_progress`."""
+
+[[states.begin.choices]]
+label = "ready"
+when = "`status_qa` is `done`"
+goto = "entry"
+
+[[states.begin.choices]]
+label = "not_qa"
+when = "`status_qa` is not `done`"
+goto = "need_qa"
+
+[states.need_qa]
+prompt = "Tell the user to run `game-qa` first. Do not change any status. Stop."
+end = true
+
+[states.entry]
+prompt = """Decide where this run starts (`SKILL.md` \"Process\", \"Presentation-only revisions\", \"Autopilot\", \"Coming back after an unrelated revision\"):
+- autopilot: `<game-dir>/.autopilot.md` exists (see `game-autopilot` \"Autopilot rules\");
+- presentation-only revision (`game-extend` classified it so, or it is itself a polish change) and QA has just passed on it;
+- the agreed polish changes have been implemented and QA has just passed on the polished version;
+- coming back after an unrelated revision (`game-balance` or a bug fix reset this stage) where nothing visual changed;
+- otherwise the first pass."""
+
+[[states.entry.choices]]
+label = "autopilot"
+when = "`<game-dir>/.autopilot.md` exists"
+goto = "auto_check"
+
+[[states.entry.choices]]
+label = "presentation_only"
+when = "A presentation-only revision whose QA has just passed (no autopilot)"
+goto = "combined"
+
+[[states.entry.choices]]
+label = "after_changes"
+when = "The agreed polish changes were implemented and QA has passed on the polished version"
+goto = "confirm_look"
+
+[[states.entry.choices]]
+label = "unrelated"
+when = "Coming back after an unrelated revision; nothing visual changed"
+goto = "recheck"
+
+[[states.entry.choices]]
+label = "first_pass"
+when = "The first pass (observe, assess, propose)"
+goto = "observe"
+
+[states.observe]
+prompt = """Observe. Reuse `game-qa`'s Docker+Playwright setup (AGENTS.md 9). Screenshot every Scene and state at a desktop size and a phone-sized viewport (e.g. 390×844). For effects and transitions take a short burst (every 50-100 ms across the event) so motion can be judged. Clean up the container and dev server afterwards, as in `game-qa`."""
+goto = "assess"
+
+[states.assess]
+prompt = """Assess against the in-scope list in `SKILL.md` (feedback / effects, affordance, flow, readability per AGENTS.md 4.6, browser tab title and favicon). For each problem, note the Scene/state and the screenshot that shows it. Run `scripts/qa/look.mjs` for the whole-game picture."""
+goto = "propose"
+
+[states.propose]
+prompt = """Propose a numbered list of concrete changes, ordered by impact: clarity problems (player doesn't know what to do) first, missing feedback second, pure juice last. Each item: what changes, where (Scene/state), why (which observed problem), rough cost, and any risk (performance, input delay). \"Add more juice\" is not a proposal; \"score +N text rises 40 px and fades over 0.5 s at the catch point\" is. Name any rule change in the proposal itself, as \"仕様の ... を改訂\"."""
+goto = "agree"
+
+[states.agree]
+prompt = """Agree with the user: ask once which items to do (or \"全部\" / \"上から N 件\"). Show them the screenshots the proposal rests on (`SKILL.md` \"Showing screenshots to the user\")."""
+gate = true
+
+[[states.agree.choices]]
+label = "agreed"
+when = "The user chose at least one item"
+goto = "record_spec"
+
+[[states.agree.choices]]
+label = "nothing"
+when = "The user wants none of the items"
+goto = "review"
+
+[states.record_spec]
+prompt = """Record in the spec first (AGENTS.md 2.4): invoke `game-spec` as a revision. Agreed effects and UI go into 画面・Scene構成 (an 演出・UI subsection per Scene or one shared list), durations and sizes that matter to the player go into パラメータ表, and details that genuinely don't matter (exact easing, particle tint) go into 実装裁量. `game-spec` resets the downstream stages itself.
+The user's agreement already covers the content of these items, including any rule they were told about in the proposal: show the spec diff and the review result in one short block and go on. Ask again only if the spec review raised a question the proposal did not answer, or the spec change goes beyond what was proposed."""
+goto = "to_impl"
+
+[states.to_impl]
+prompt = """Implement via `game-impl`, passing on the implementation guardrails in `SKILL.md`. Then the normal chain runs again (test → check → codereview → qa) and comes back to `game-polish`, which then starts at the `after_changes` entry. Do not mark `polish` done now. Stop this flow."""
+end = true
+
+[states.confirm_look]
+prompt = """Show before/after screenshots of each change (`SKILL.md` \"Showing screenshots to the user\") and ask the user explicitly whether the look and flow are good."""
+gate = true
+
+[[states.confirm_look.choices]]
+label = "ok"
+when = "The user confirmed the look and flow"
+goto = "review"
+
+[[states.confirm_look.choices]]
+label = "more"
+when = "The user wants further changes to the look"
+goto = "propose"
+
+[states.recheck]
+prompt = """Nothing visual changed, so don't invent new polish work. Re-screenshot the affected Scenes, confirm the existing effects still look right, and ask the user to confirm before marking done."""
+gate = true
+
+[[states.recheck.choices]]
+label = "ok"
+when = "The user confirmed the existing look still works"
+goto = "review"
+
+[[states.recheck.choices]]
+label = "broken"
+when = "Something visual broke or the user wants changes"
+goto = "propose"
+
+[states.combined]
+prompt = """Presentation-only revision with QA just passed: don't run polish, balance and the PR confirmation as three separate stops. Ask **once**, with the QA screenshots:
+1. does the look work (polish),
+2. is the feel unchanged / still good (balance: say that no rule or gameplay number changed),
+3. may the PR be committed, pushed and opened (publish).
+If a manual check of this revision was already requested (e.g. a `share.sh` URL from `game-impl`), put the three questions in that same message, and treat the answer as covering only what was asked."""
+gate = true
+
+[[states.combined.choices]]
+label = "all_yes"
+when = "The user accepted all three"
+goto = "review_both"
+
+[[states.combined.choices]]
+label = "partial"
+when = "The answer covered only part of the three questions (e.g. the look only): ask the other ones before marking balance and publish done"
+goto = "combined"
+
+[[states.combined.choices]]
+label = "look_changes"
+when = "The user wants changes to the look"
+goto = "propose"
+
+[[states.combined.choices]]
+label = "tuning"
+when = "The user wants tuning"
+goto = "to_balance"
+
+[states.to_balance]
+prompt = "Hand over to `game-balance` (it will tune the numbers the user wants changed). Do not mark `polish` done. Stop this flow."
+end = true
+
+[states.review_both]
+prompt = """The explicit answers and the screenshots are the evidence for both stages. Run `game-review STAGE=polish PACKAGE=<game-dir>` and `game-review STAGE=balance PACKAGE=<game-dir>` (self-reviews against their checklists). Fix anything that fails."""
+
+[[states.review_both.choices]]
+label = "pass"
+when = "Neither self-review has a failing item"
+goto = "set_done_both"
+
+[[states.review_both.choices]]
+label = "fail"
+when = "A self-review found an item that fails"
+goto = "fix_review_both"
+
+[states.fix_review_both]
+prompt = "Fix what the self-reviews found, then run them again."
+goto = "review_both"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.set_done_both]
+prompt = """Run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done` and `task game:status:set PACKAGE=<game-dir> STAGE=balance VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`; `game-publish` runs without asking its confirmation again (the user agreed to the PR in this combined question)."""
+end = true
+
+[states.auto_check]
+prompt = """Autopilot: don't propose or ask. Check **the screenshots `game-qa` just took** of the affected Scenes against section 4.6 of AGENTS.md (QA of this revision shot them at the four sizes, so don't start the dev server and container again for the same pictures). Shoot only what is missing (a size or state QA did not cover) or what you changed here. Fix only what breaks the agreed extension (cut-off text, overlap, targets under 44 px) as part of that change. Extra polish is left to the playtest."""
+goto = "review"
+
+[states.review]
+prompt = "Run `game-review STAGE=polish PACKAGE=<game-dir>` (a self-review against its `STAGE=polish` checklist). Fix anything that fails."
+
+[[states.review.choices]]
+label = "pass"
+when = "The self-review has no failing item"
+goto = "set_done"
+
+[[states.review.choices]]
+label = "fail"
+when = "The self-review found an item that fails"
+goto = "fix_review"
+
+[states.fix_review]
+prompt = "Fix what the self-review found, then run it again."
+goto = "review"
+max_visits = 2
+on_exceed = "blocked"
+
+[states.set_done]
+prompt = """Confirm that the agreed changes are in the file that owns the element (`docs/spec.md` or its `docs/spec/<slug>.md`), implemented, and that QA has passed on the polished version, and that the user confirmed the look and flow (not needed in autopilot).
+Run `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done`. Then continue without asking: invoke `game-next` with `PACKAGE=<game-dir>` (it dispatches `game-balance`)."""
+end = true
+
+[states.blocked]
+prompt = "The self-review still fails after two fix rounds. Report which checklist items fail and ask the user how to proceed. Do not mark `polish` done."
+end = true

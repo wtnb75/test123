@@ -1,7 +1,10 @@
 ---
 name: game-polish
 description: Use after a game passes game-qa to improve how it looks and reads — hit/score/clear effects, input feedback, making it obvious what to touch and where to go next, readable HUD and screen flow — agreed with the user, recorded in docs/spec.md, and looped back through impl/test/check/codereview/qa.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-polish
 
@@ -10,6 +13,13 @@ that and still feel flat or confusing: nothing reacts when you tap, you
 can't tell what's clickable, the result screen doesn't say how to retry.
 This skill is for that layer — presentation and clarity — without touching
 the rules or the tuning.
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-polish/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -47,43 +57,7 @@ Out of scope — route elsewhere:
 - new mechanics or rule changes → `game-spec` as a feature revision;
 - bugs found along the way → `game-impl` (one change, one purpose).
 
-## Process
-
-`task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=in_progress`
-
-1. **Observe.** Reuse `game-qa`'s Docker+Playwright setup (AGENTS.md 9).
-   Screenshot every Scene and state, at a desktop size and a phone-sized
-   viewport (e.g. 390×844). For effects and transitions a single shot
-   isn't enough — take a short burst (e.g. every 50-100 ms across the
-   event) so motion can be judged. Clean up the container and dev server
-   afterwards, as in `game-qa`.
-2. **Assess** against the in-scope list above. For each problem, note the
-   Scene/state and the screenshot that shows it.
-3. **Propose** a numbered list of concrete changes, ordered by impact:
-   clarity problems (player doesn't know what to do) first, missing
-   feedback second, pure juice last. Each item: what changes, where
-   (Scene/state), why (which observed problem), rough cost, and any risk
-   (performance, input delay). "Add more juice" is not a proposal;
-   "score +N text rises 40 px and fades over 0.5 s at the catch point" is.
-4. **Agree with the user.** Taste is theirs — ask once which items to do
-   (or "全部" / "上から N 件"). Show them the screenshots the proposal rests
-   on (see "Showing screenshots to the user").
-5. **Record in the spec first** (AGENTS.md 2.4). Invoke `game-spec` as a
-   revision: agreed effects and UI go into 画面・Scene構成 (an 演出・UI
-   subsection per Scene or one shared list), durations and sizes that
-   matter to the player go into パラメータ表, and details that genuinely
-   don't matter (exact easing, particle tint) go into 実装裁量.
-   `game-spec` resets the downstream stages itself.
-   The user's agreement in step 4 already covers the content of these
-   items — including any rule they were told about in the proposal (name
-   such a rule change in the proposal itself, as "仕様の ... を改訂"). Show
-   the spec diff and the review result in one short block and go on; ask
-   again only if the spec review raised a question the proposal did not
-   answer, or the spec change goes beyond what was proposed.
-6. **Implement** via `game-impl`, then the normal chain runs again:
-   test → check → codereview → qa → back to this skill.
-
-### Implementation guardrails (pass these on to game-impl)
+## Implementation guardrails (pass these on to game-impl)
 
 - Effects never delay input: no animation on the input path that blocks
   the next action, unless the spec explicitly says input is ignored during
@@ -141,11 +115,6 @@ visual changed, don't invent new polish work: re-screenshot the affected
 Scenes, confirm the existing effects still look right, and ask the user to
 confirm before marking done.
 
-## When to stop looping
-
-Like `game-balance`, only the user decides it looks good enough. Show
-before/after screenshots of each change and ask explicitly.
-
 ## Showing screenshots to the user
 
 Screenshots written to your scratchpad are not visible to the user, who is
@@ -158,18 +127,13 @@ frame. Without that tool, say where the files are and describe what they
 show, and ask the user to open them or to play the dev-server URL
 (`scripts/qa/up.sh` prints one).
 
-## Review (before completion)
+## Added by the flow conversion
 
-Run `game-review STAGE=polish PACKAGE=<game-dir>` — a self-review against
-its `STAGE=polish` checklist — before marking this stage done.
-
-## Completion
-
-1. Agreed changes are in the file that owns the element (`docs/spec.md`
-   or its `docs/spec/<slug>.md`), implemented, and QA has passed on the
-   polished version.
-2. The user confirmed the look and flow.
-3. `task game:status:set PACKAGE=<game-dir> STAGE=polish VALUE=done`
-4. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-balance` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode").
+- The process (observe, assess, propose, agree, record in the spec,
+  hand-off to `game-impl`), the entries for re-visits, the review and
+  completion live in `flow.toml`. The sections above describe the
+  presentation-only, autopilot and unrelated-revision rules the entries
+  follow.
+- `fix_review` and `fix_review_both` have `max_visits = 2`; exceeding
+  either ends at `blocked`. The `combined` loop (an answer covering only
+  part of the three questions) has no limit: the user's answer ends it.
