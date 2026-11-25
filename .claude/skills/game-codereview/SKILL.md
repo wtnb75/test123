@@ -1,7 +1,10 @@
 ---
 name: game-codereview
 description: Use after a game passes game-check to run a /code-review-style review of its code, let the user decide which findings to accept, fix the accepted ones, and loop until a round produces nothing worth fixing.
+allowed-tools: Bash(deskil --version), Bash(deskil flow:*)
 ---
+
+Before anything else, run `deskil --version`. If the command is not found, tell the user to run `uv tool install git+https://github.com/wtnb75/deskil` and stop.
 
 # game-codereview
 
@@ -10,6 +13,13 @@ tests don't exercise: a listener never removed on shutdown, a timer that
 keeps firing after game over, an off-by-one at a boundary nobody tested.
 This skill looks for those, with the user deciding what actually gets
 fixed.
+
+Run this skill as a step-by-step flow:
+
+1. Run `deskil flow start .claude/skills/game-codereview/flow.toml`.
+2. Follow the instructions in the output. When the work is done, run the
+   `next` command shown at the end of the output.
+3. Repeat until the output ends with `Flow complete.`
 
 ## Inputs
 
@@ -51,13 +61,7 @@ Read it at the start and hand its lines to the reviewer; at completion
 append this run's rejected findings. Drop a line when the code it is about
 is gone, and keep the file short (merge near-duplicates).
 
-## The loop
-
-`task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=in_progress`
-
-Repeat rounds of review → triage → fix. **At most 3 rounds.**
-
-### Level by size
+## Level by size
 
 The review costs the same whether the change is 30 lines or 1000, unless
 the level is matched to it:
@@ -71,32 +75,7 @@ Later rounds are `medium` and look only at the previous round's fix diff,
 as below. Say which row was used in the report. When in doubt, the first
 row.
 
-### 1. Review
-
-Invoke the `code-review` skill (the same thing as `/code-review`), aimed at
-the scope above: the level from "Level by size" for round 1 (`high`, or
-`medium` for a size-S revision), `medium` for later rounds, which only
-look at the previous round's fix diff. Don't pass `--fix` or `--comment` —
-nothing gets changed or posted before the user has triaged — and say so in
-the arguments in words: "READ-ONLY: report findings, do NOT edit any
-file". Afterwards check `git status`: if files changed anyway, tell the
-user which findings were already applied (and let them keep or revert them)
-before showing the triage table.
-
-If `code-review` isn't available in this session, launch one fresh
-`general-purpose` agent (Agent tool) instead. Give it only: the game
-directory, the scope above, `<game-dir>/docs/spec.md` and every
-`docs/spec/*.md` it links to, AGENTS.md section 4, the lines of
-`docs/review-rejected.md`, and the "Look for" list below. Tell it to stay
-read-only and to return
-findings in this format, most severe first, or `no findings`:
-
-```
-- <file:line> [correctness|lifecycle|performance|spec|maintainability]
-  problem: <what's wrong>
-  scenario: <concrete input/state → wrong result>
-  suggestion: <fix>
-```
+## What to look for
 
 Look for (Phaser-game-specific, on top of general correctness):
 
@@ -131,80 +110,11 @@ Already rejected, do not raise again: <lines from docs/review-rejected.md>
 For round 2 and later, say it is a re-review of the previous round's fixes
 only (name the files and what each fix did), at level `medium`.
 
-### 2. Triage — the user decides
+## Added by the flow conversion
 
-Before showing anything, check each finding yourself. The reviewer can be
-wrong: read the code path, and where cheap, reproduce the problem with a
-failing test. Give each finding a recommendation: **accept** (real and
-worth fixing now), **reject** (wrong, or not worth it here — say why),
-**spec** (fixing it changes player-visible behavior the spec defines or
-leaves open), or **spec (clarify)** (the code is already right; only the
-spec's wording is missing or inaccurate about it).
-
-When a finding says a library already provides what the code hand-rolls
-(e.g. Phaser `camera.shake`, tweens), lean towards **accept**: keep only
-the decision logic ("when to shake") pure and tested, and let the library
-do the rest. That the hand-rolled version is easier to unit-test is not by
-itself a reason to reject.
-
-Then show the user one numbered table (番号 / 場所 / 指摘 / 推奨 / 理由) and
-ask **once** which ones to accept — "推奨どおり" is a valid answer. Don't
-ask per finding.
-
-The exception is a round from round 2 on in which, after your checks, every
-finding is **reject**: nothing would change, so don't ask. Show the table
-with the reasons, say the loop ends here and that the user can ask for any
-item to be reconsidered, and go on to completion. Round 1 is always asked.
-A round with even one accept, spec or spec (clarify) is asked as usual.
-
-**Autopilot** (`<game-dir>/.autopilot.md` exists — see `game-autopilot`
-"Autopilot rules"): don't ask in any round. Apply your recommendations —
-accept → fix, reject → drop. A **spec** finding is not applied (it goes
-beyond the agreement): list it for the PR body under 「未対応の指摘」. A
-**spec (clarify)** finding is applied as a wording-only spec change.
-
-### 3. Fix
-
-- **accept** → fix it. For a correctness bug, write a regression test that
-  fails before the fix and passes after. Keep each fix to that finding —
-  no drive-by refactoring (AGENTS.md 4.1).
-- **spec** → don't fix it in code. Hand the batch to `game-spec` as a
-  revision (it resets downstream stages, so `game-impl` onward runs again
-  and this stage comes back later). Findings that don't depend on the spec
-  change can still be fixed in this round first.
-- **spec (clarify)** → hand it to `game-spec` as a clarification-only
-  revision (see its "Clarification-only revisions"): it only resets the
-  stages after this one, so this loop carries on where it was.
-- **reject** → remember the reason; report it at completion and add it to
-  `docs/review-rejected.md`.
-
-After the last fix of the round, run the `game-check` gate (lint, test,
-test:coverage, build, all four, from the top). Don't start the next round
-with a failing gate.
-
-### When to stop
-
-- A round whose findings are all rejected (or `no findings`) ends the loop
-  (from round 2 on without asking, see "Triage").
-- After the last allowed round (3, or 2 for a size-S revision), list
-  anything still open for the user with your recommendation instead of
-  starting another.
-
-## Review (before completion)
-
-Run `game-review STAGE=codereview PACKAGE=<game-dir>` — a self-review
-against its `STAGE=codereview` checklist — before marking this stage done.
-
-## Completion
-
-1. The loop ended as above, and the four gate commands pass after the last
-   fix.
-2. Report in one short block: rounds run, fixes made (with their regression
-   tests), findings rejected and why, anything sent to `game-spec`.
-3. Append this run's rejected findings to `<game-dir>/docs/review-rejected.md`
-   (create it if missing; drop lines about code that is gone). It is part
-   of the change, like the accepted fixes.
-4. `task game:status:set PACKAGE=<game-dir> STAGE=codereview VALUE=done`
-5. Continue without asking: invoke `game-next` with `PACKAGE=<game-dir>`. It
-   dispatches `game-qa` and keeps going until a stage needs the user
-   (see `game-next` "Continuous mode").
+- Triage (with its approval gate), fixes, the gate run, the stop rules, the
+  self-review and completion live in `flow.toml`.
+- `fix_gate` has `max_visits = 3` and `fix_self` has `max_visits = 2`
+  (exceeding either ends at `blocked`). `review_next` has `max_visits = 2`
+  (rounds 2 and 3); exceeding it goes on to `open_items`. The size-S limit
+  of 2 rounds is decided at `continue_check`.
